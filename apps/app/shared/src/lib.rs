@@ -57,6 +57,8 @@ pub struct ImportedPalace {
 pub const CMD_SETTINGS: &str = "settings";
 pub const CMD_SETTINGS_SET: &str = "settings_set";
 pub const CMD_SETTINGS_OPTIMIZE: &str = "settings_optimize";
+/// The system's offset from UTC in minutes, sent by the UI at every start.
+pub const CMD_SET_UTC_OFFSET: &str = "set_utc_offset";
 
 /// Settings and learning statistics.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -77,6 +79,12 @@ pub struct SettingsView {
     /// Fitting (again) is worth it now.
     #[serde(default)]
     pub optimize_hint: bool,
+    /// Learning days begin at this full hour, local time.
+    #[serde(default)]
+    pub day_start_hour: u8,
+    /// „4:00 (UTC+2)“
+    #[serde(default)]
+    pub day_start: String,
 }
 
 /// After fitting personal FSRS weights in the app.
@@ -105,6 +113,8 @@ pub struct SettingsChange {
     pub new_per_day: Option<u32>,
     /// As typed: `0,9`, `0.85`, `90 %`.
     pub retention: Option<String>,
+    #[serde(default)]
+    pub day_start_hour: Option<u8>,
 }
 pub const CMD_JOURNEY_ACTION: &str = "journey_action";
 

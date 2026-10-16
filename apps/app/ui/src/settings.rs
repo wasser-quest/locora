@@ -47,6 +47,7 @@ fn Form(
     message: RwSignal<Option<Result<String, String>>>,
 ) -> impl IntoView {
     let new_per_day = RwSignal::new(view.new_per_day.to_string());
+    let day_start = RwSignal::new(view.day_start_hour.to_string());
     // Shown rounded (0,875 → „88 %“); sent only when it was edited, so a
     // save elsewhere never rounds the stored value.
     let shown_retention = view.retention.map(percent).unwrap_or_default();
@@ -80,7 +81,14 @@ fn Form(
             ))));
             return;
         };
+        let Ok(hour) = day_start.get_untracked().trim().parse::<u8>() else {
+            message.set(Some(Err(
+                "Lerntag beginnt: volle Stunde von 0 bis 23".into()
+            )));
+            return;
+        };
         let change = SettingsChange {
+            day_start_hour: Some(hour),
             new_per_day: Some(count),
             retention: Some(retention.get_untracked())
                 .filter(|text| has_review && *text != shown_retention),
@@ -112,6 +120,13 @@ fn Form(
             <label class="input">
                 <span>"Neue Loci pro Tag"</span>
                 <input type="text" inputmode="numeric" bind:value=new_per_day />
+            </label>
+            <label class="input">
+                <span>
+                    "Lerntag beginnt um (volle Stunde, 0–23)"
+                    <small>{format!(" – jetzt {}", view.day_start)}</small>
+                </span>
+                <input type="text" inputmode="numeric" bind:value=day_start />
             </label>
             {has_review
                 .then(|| {

@@ -268,6 +268,13 @@ async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
     settings::view(&mut b.profile).map_err(err)
 }
 
+/// The UI sends the system's UTC offset at every start (summer time included).
+#[tauri::command]
+async fn set_utc_offset(state: State<'_, Shared>, minutes: i32) -> Result<(), String> {
+    let b = lock(&state)?;
+    b.profile.set_utc_offset(minutes).map_err(err)
+}
+
 #[tauri::command]
 async fn settings_optimize(
     state: State<'_, Shared>,
@@ -473,6 +480,7 @@ pub fn run() {
             export_pick,
             settings_set,
             settings_optimize,
+            set_utc_offset,
             journey_start,
             journey_action,
             journey_reveal,

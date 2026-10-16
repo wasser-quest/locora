@@ -27,7 +27,10 @@ pub fn view(profile: &mut Profile) -> Result<SettingsView> {
         due: count(s.due),
     });
     let (usable, hint) = profile.optimize_hint()?;
+    let clock = profile.day_clock()?;
     Ok(SettingsView {
+        day_start_hour: clock.start_hour,
+        day_start: clock.describe(),
         usable_reviews: count(usable),
         needed_reviews: count(locora_runtime::settings::MIN_REVIEWS),
         optimize_hint: hint,
@@ -62,6 +65,9 @@ pub fn change(profile: &mut Profile, change: SettingsChange) -> Result<SettingsV
     {
         bail!("Höchstens {MAX_NEW_PER_DAY} neue Loci pro Tag");
     }
+    if change.day_start_hour.is_some_and(|h| h > 23) {
+        bail!("Der Tag beginnt zu einer vollen Stunde von 0 bis 23");
+    }
     if let Some(v) = retention {
         profile.configure(ConfigureRequest {
             desired_retention: Some(v),
@@ -70,6 +76,9 @@ pub fn change(profile: &mut Profile, change: SettingsChange) -> Result<SettingsV
     }
     if let Some(n) = change.new_per_day {
         profile.set_new_per_day(n as usize)?;
+    }
+    if let Some(h) = change.day_start_hour {
+        profile.set_day_start_hour(h)?;
     }
     view(profile)
 }
@@ -98,10 +107,15 @@ mod tests {
             SettingsChange {
                 new_per_day: Some(15),
                 retention: Some("85 %".into()),
+                day_start_hour: Some(6),
             },
         )
         .unwrap();
         assert_eq!(after.new_per_day, 15);
+        assert_eq!(
+            (after.day_start_hour, after.day_start.as_str()),
+            (6, "6:00 (UTC+0)")
+        );
         assert!((after.retention.unwrap() - 0.85).abs() < 1e-9);
         assert!(
             change(
@@ -118,7 +132,8 @@ mod tests {
                 &mut profile,
                 SettingsChange {
                     retention: Some("viel".into()),
-                    new_per_day: Some(3)
+                    new_per_day: Some(3),
+                    day_start_hour: None,
                 }
             )
             .is_err()
@@ -127,6 +142,7 @@ mod tests {
             let attempt = SettingsChange {
                 retention: Some(bad.into()),
                 new_per_day: Some(4),
+                day_start_hour: None,
             };
             assert!(change(&mut profile, attempt).is_err(), "{bad}");
         }

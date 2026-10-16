@@ -36,6 +36,12 @@ fn App() -> impl IntoView {
     let screen = RwSignal::new(Screen::Home);
     let editing = palette::Editing(RwSignal::new(false));
     provide_context(editing);
+    // Learning days follow local time: tell the backend the system's offset
+    // (JavaScript reports minutes *west* of UTC).
+    spawn_local(async {
+        let minutes = -(js_sys::Date::new_0().get_timezone_offset() as i32);
+        let _ = call::<()>(locora_app_api::CMD_SET_UTC_OFFSET, UtcOffset { minutes }).await;
+    });
     view! {
         <palette::Palette screen=screen editing=editing />
         <main>
@@ -376,6 +382,11 @@ fn guard_palette(blocked: RwSignal<bool>) {
         Effect::new(move |_| editing.set(blocked.get()));
         on_cleanup(move || editing.set(false));
     }
+}
+
+#[derive(Serialize)]
+struct UtcOffset {
+    minutes: i32,
 }
 
 #[derive(Serialize)]
