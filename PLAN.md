@@ -776,9 +776,13 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Ortsknöpfe mit Sekundenangabe und Routennummer; Klick pausiert, springt zum Zeitpunkt und
    wählt den Ort aus. Zeitwerte werden im gemeinsamen `LocusView` projiziert und getestet.
    **Erster Journey-Schnitt umgesetzt:** Video-Fragen erhalten die Locus-Zeit im gemeinsamen IPC-Vertrag;
-   das Video startet ohne Autoplay, springt nach dem Laden dorthin und bleibt zunächst pausiert.
-   Ungültige/außerhalb der Dauer liegende Zeiten und Ladefehler werden angezeigt; manuelles Replay bleibt möglich.
-   WebView-Smoke-Test, maßstäbliche Zeitleiste und automatisches Abspielen zwischen Loci bleiben offen.
+   das Video läuft stumm bis zum Locus und hält dort für die Frage an. Beim nächsten vorwärtsliegenden
+   Locus desselben Videos startet es am zuletzt erreichten Locus; bei Medienwechsel/Rückwärtsrichtung bei 0.
+   Während der Wiedergabe sind Antworten und Workbook-Aktionen gesperrt (auch per Tastatur).
+   Ungültige Zeiten/Ladefehler werden angezeigt und geben die Antwort frei. Bei verweigertem Autoplay
+   wird mit Hinweis direkt zum Locus gesprungen. Nach Bewertung werden manuelle Videokontrollen freigegeben.
+   WebView-Smoke-Test und maßstäbliche Zeitleiste bleiben offen. Die Zeitgrenze wird per 16-ms-Timer
+   und `timeupdate` geprüft; keine Garantie für framegenauen Halt bei gedrosselter WebView.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
 9. **Später:** Ton beim Aufdecken über Audio im `.sply`.

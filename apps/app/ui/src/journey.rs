@@ -55,8 +55,17 @@ impl Phase {
     }
 }
 
+#[derive(Clone, Copy)]
+struct VideoProgress(StoredValue<Option<(String, f64)>>);
+
+#[derive(Clone, Copy)]
+struct VideoReady(RwSignal<bool>);
+
 #[component]
 pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoView {
+    provide_context(VideoProgress(StoredValue::new(None)));
+    let video_ready = RwSignal::new(true);
+    provide_context(VideoReady(video_ready));
     let question = RwSignal::new(None::<Question>);
     let phase = RwSignal::new(Phase::Asking);
     let summary = RwSignal::new(None::<Summary>);
@@ -113,7 +122,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     });
 
     let reveal = move || {
-        if busy.get_untracked() || phase.get_untracked() != Phase::Asking {
+        if busy.get_untracked()
+            || !video_ready.get_untracked()
+            || phase.get_untracked() != Phase::Asking
+        {
             return;
         }
         busy.set(true);
@@ -126,7 +138,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         });
     };
     let reply = move |reply: Reply| {
-        if busy.get_untracked() {
+        if busy.get_untracked() || !video_ready.get_untracked() {
             return;
         }
         busy.set(true);
@@ -140,7 +152,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     };
     // A workbook action on the current question; „reveal“ actions show the answer.
     let act = move |key: String| {
-        if busy.get_untracked() {
+        if busy.get_untracked() || !video_ready.get_untracked() {
             return;
         }
         let revealed = matches!(phase.get_untracked(), Phase::Revealed(_));
@@ -280,6 +292,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                                 </div>
                             }
                         })}
+                    <Show when=move || !video_ready.get()>
+                        <p role="status">"Video läuft zum nächsten Locus …"</p>
+                    </Show>
+                    <fieldset disabled=move || !video_ready.get() style="border:0;padding:0;margin:0;min-width:0">
                     {(!q.actions.is_empty())
                         .then(|| {
                             let actions = q.actions.clone();
@@ -321,6 +337,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                             view! { <Judged feedback=*f question=q.clone() next=next busy=busy art=art /> }.into_any()
                         }
                     }}
+                    </fieldset>
                 </section>
             }
                 .into_any()
@@ -331,6 +348,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 /// The room with the asked place marked (state „fällig“).
 #[component]
 fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
+    expect_context::<VideoReady>().0.set(true);
     let zoom = question.zoom.clamp(1.0, 4.0);
     view! {
         <div class="stage">
@@ -338,7 +356,7 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
             <div class="stage-view" style:transform=zoom_view(question.x, question.y, zoom)>
                 {question.backdrop.clone().map(|m| {
                     if m.kind == locora_app_api::MediaKind::Video {
-                        view! { <VideoAtLocus media=m time=question.time /> }.into_any()
+                        view! { <VideoAtLocus media=m time=question.time phase=phase /> }.into_any()
                     } else {
                         view! { <Shown media=m class="backdrop" /> }.into_any()
                     }
@@ -361,33 +379,96 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
     }
 }
 
-/// A question starts paused at its saved video timestamp. No autoplay while
-/// answering; replay controls remain available to the learner.
+/// Play to the question's timestamp, then hold until the answer is graded.
 #[component]
-fn VideoAtLocus(media: locora_app_api::Media, time: Option<f64>) -> impl IntoView {
+fn VideoAtLocus(
+    media: locora_app_api::Media,
+    time: Option<f64>,
+    phase: RwSignal<Phase>,
+) -> impl IntoView {
     let player = NodeRef::<leptos::html::Video>::new();
     let error = RwSignal::new(false);
+    let fallback = RwSignal::new(false);
+    let ready = expect_context::<VideoReady>().0;
+    ready.set(false);
+    let progress = expect_context::<VideoProgress>().0;
+    let key = StoredValue::new(media.hash.clone());
+    let stop_at_locus = move || {
+        if let (Some(player), Some(target)) = (player.get_untracked(), time) {
+            if player.ready_state() >= 1
+                && target.is_finite()
+                && target >= 0.0
+                && !matches!(phase.get_untracked(), Phase::Judged(_))
+                && player.current_time() >= target
+            {
+                let _ = player.pause();
+                if player.current_time() != target {
+                    player.set_current_time(target);
+                }
+                progress.set_value(Some((key.get_value(), target)));
+                ready.set(true);
+            }
+        }
+    };
+    // timeupdate alone can lag by hundreds of milliseconds. Poll near frame
+    // cadence too; background WebViews may still throttle timers.
+    let timer = set_interval_with_handle(stop_at_locus, std::time::Duration::from_millis(16)).ok();
+    on_cleanup(move || {
+        if let Some(timer) = timer {
+            timer.clear();
+        }
+    });
     view! {
         <video node_ref=player class="backdrop" src=crate::tauri::url(&media)
-            controls=true muted=true preload="auto"
+            controls=move || matches!(phase.get(), Phase::Judged(_)) muted=true preload="auto"
             on:loadedmetadata=move |_| {
                 if let Some(player) = player.get_untracked() {
                     let duration = player.duration();
                     match time.filter(|t| t.is_finite() && *t >= 0.0
                         && (!duration.is_finite() || *t <= duration)) {
-                        Some(time) => {
-                            if player.pause().is_err() { error.set(true); return; }
-                            player.set_current_time(time);
+                        Some(target) => {
+                            let start = video_segment_start(progress.get_value().as_ref(), &key.get_value(), target);
+                            player.set_current_time(start);
+                            if start == target {
+                                let _ = player.pause();
+                                progress.set_value(Some((key.get_value(), target)));
+                                ready.set(true);
+                                return;
+                            }
+                            let playing = player.play();
+                            spawn_local(async move {
+                                let failed = match playing {
+                                    Ok(promise) => wasm_bindgen_futures::JsFuture::from(promise).await.is_err(),
+                                    Err(_) => true,
+                                };
+                                if failed && player.is_connected() && !ready.get_untracked() {
+                                    let _ = player.pause();
+                                    player.set_current_time(target);
+                                    progress.set_value(Some((key.get_value(), target)));
+                                    fallback.set(true);
+                                    ready.set(true);
+                                }
+                            });
                         }
-                        None => error.set(true),
+                        None => { error.set(true); ready.set(true); },
                     }
                 }
             }
-            on:error=move |_| error.set(true) />
+            on:timeupdate=move |_| stop_at_locus()
+            on:error=move |_| { error.set(true); ready.set(true); } />
         <Show when=move || error.get()>
             <p class="notes" role="alert">"Video oder gespeicherte Locus-Zeit konnte nicht geladen werden."</p>
         </Show>
+        <Show when=move || fallback.get()>
+            <p class="notes" role="status">"Automatische Wiedergabe nicht möglich; direkt zum Locus gesprungen."</p>
+        </Show>
     }
+}
+
+fn video_segment_start(previous: Option<&(String, f64)>, key: &str, target: f64) -> f64 {
+    previous
+        .filter(|(old_key, t)| old_key == key && t.is_finite() && *t >= 0.0 && *t <= target)
+        .map_or(0.0, |(_, t)| *t)
 }
 
 /// CSS transform that scales the room by `zoom` around its top-left corner and
@@ -593,6 +674,21 @@ fn Done(
 mod tests {
     use super::*;
     use locora_app_api::{Media, MediaKind};
+
+    #[test]
+    fn video_segments_continue_only_for_same_media_in_forward_order() {
+        assert_eq!(video_segment_start(None, "a", 5.0), 0.0);
+        assert_eq!(video_segment_start(Some(&("a".into(), 2.5)), "a", 5.0), 2.5);
+        assert_eq!(video_segment_start(Some(&("a".into(), 5.0)), "a", 5.0), 5.0);
+        assert_eq!(video_segment_start(Some(&("a".into(), 8.0)), "a", 5.0), 0.0);
+        assert_eq!(video_segment_start(Some(&("b".into(), 2.5)), "a", 5.0), 0.0);
+        for invalid in [f64::NAN, f64::INFINITY, -1.0] {
+            assert_eq!(
+                video_segment_start(Some(&("a".into(), invalid)), "a", 5.0),
+                0.0
+            );
+        }
+    }
 
     #[test]
     fn stage_answer_stays_hidden_until_revealed_and_resets_for_next_question() {
