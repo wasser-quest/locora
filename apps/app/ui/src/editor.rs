@@ -410,7 +410,9 @@ impl Editor {
             }
             match call::<EditorUpdated>(CMD_EDITOR_CHANGE, Args { change }).await {
                 Ok(result) => {
-                    let entries = this.history.with_untracked(|h| (h.undo.len(), h.redo.len()));
+                    let entries = this
+                        .history
+                        .with_untracked(|h| (h.undo.len(), h.redo.len()));
                     if let Some(redo) = replay {
                         this.history.update(|h| {
                             if let Some(receipt) = &result.receipt {
@@ -448,7 +450,10 @@ impl Editor {
                     // The toast undoes the newest entry, so any newer entry or
                     // replay retires it; no-op saves leave it in place.
                     let history_changed = replay.is_some()
-                        || this.history.with_untracked(|h| (h.undo.len(), h.redo.len())) != entries;
+                        || this
+                            .history
+                            .with_untracked(|h| (h.undo.len(), h.redo.len()))
+                            != entries;
                     match toast_text {
                         Some(text) => {
                             let token = js_sys::Date::now() as u64;
