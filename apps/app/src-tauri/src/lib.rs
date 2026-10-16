@@ -34,6 +34,15 @@ pub struct Backend {
 
 type Shared = Mutex<Backend>;
 
+/// The running journey; a finished one only takes actions on its last answer.
+fn running(journey: Option<&mut Journey>) -> Result<&mut Journey, String> {
+    match journey {
+        Some(j) if !j.done() => Ok(j),
+        Some(_) => Err("Die Journey ist beendet".into()),
+        None => Err("Keine Journey aktiv".into()),
+    }
+}
+
 fn err(e: anyhow::Error) -> String {
     format!("{e:#}")
 }
@@ -263,19 +272,24 @@ async fn journey_action(
     state: State<'_, Shared>,
     key: String,
     revealed: bool,
+    after: Option<bool>,
 ) -> Result<ActionDone, String> {
     let mut b = lock(&state)?;
     let b = &mut *b;
-    let journey = b.journey.as_mut().ok_or("Keine Journey aktiv")?;
-    journey
-        .action(&b.profile, &key, revealed, &b.default_marker)
-        .map_err(err)
+    if after.unwrap_or(false) {
+        let journey = b.journey.as_mut().ok_or("Keine Journey aktiv")?;
+        journey.action_after(&b.profile, &key, &b.default_marker)
+    } else {
+        running(b.journey.as_mut())?.action(&b.profile, &key, revealed, &b.default_marker)
+    }
+    .map_err(err)
 }
 
 #[tauri::command]
 async fn journey_reveal(state: State<'_, Shared>) -> Result<Revealed, String> {
-    let b = lock(&state)?;
-    let journey = b.journey.as_ref().ok_or("Keine Journey aktiv")?;
+    let mut b = lock(&state)?;
+    let b = &mut *b;
+    let journey = running(b.journey.as_mut())?;
     Ok(journey.reveal(&b.profile))
 }
 
@@ -283,13 +297,12 @@ async fn journey_reveal(state: State<'_, Shared>) -> Result<Revealed, String> {
 async fn journey_answer(state: State<'_, Shared>, reply: Reply) -> Result<Feedback, String> {
     let mut b = lock(&state)?;
     let b = &mut *b;
-    let journey = b.journey.as_mut().ok_or("Keine Journey aktiv")?;
+    let journey = running(b.journey.as_mut())?;
     let feedback = journey
         .answer(&mut b.profile, reply, &b.default_marker)
         .map_err(err)?;
-    if matches!(feedback.next, Step::Done(_)) {
-        b.journey = None;
-    }
+    // A finished journey stays for actions on its last answer; the next
+    // start replaces it (`finish` reports completed palaces only once).
     Ok(feedback)
 }
 

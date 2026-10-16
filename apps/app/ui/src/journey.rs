@@ -30,6 +30,8 @@ struct ReplyArgs {
 struct ActionArgs {
     key: String,
     revealed: bool,
+    /// On the question just answered (its feedback is showing).
+    after: bool,
 }
 
 /// Where the current question stands.
@@ -140,9 +142,24 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             return;
         }
         let revealed = matches!(phase.get_untracked(), Phase::Revealed(_));
+        let after = matches!(phase.get_untracked(), Phase::Judged(_));
         busy.set(true);
         spawn_local(async move {
-            match call::<ActionDone>(CMD_JOURNEY_ACTION, ActionArgs { key, revealed }).await {
+            let args = ActionArgs {
+                key,
+                revealed,
+                after,
+            };
+            match call::<ActionDone>(CMD_JOURNEY_ACTION, args).await {
+                // After grading only the shown answer changes; grades stay.
+                Ok(done) if after => {
+                    if let (Some(r), Phase::Judged(mut f)) = (done.revealed, phase.get_untracked())
+                    {
+                        f.revealed = r;
+                        phase.set(Phase::Judged(f));
+                    }
+                    busy.set(false);
+                }
                 Ok(done) => {
                     let kind = done.question.kind;
                     question.set(Some(done.question));
@@ -256,9 +273,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                         .then(|| {
                             let actions = q.actions.clone();
                             view! {
-                                <Show when=move || {
-                                    !matches!(phase.get(), Phase::Judged(_))
-                                }>
+                                <Show when=move || summary.get().is_none()>
                                     <div class="actions">
                                         {actions
                                             .iter()
