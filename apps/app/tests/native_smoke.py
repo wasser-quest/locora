@@ -256,6 +256,27 @@ class Scenario:
         self.record("place-name-enter-budget", mouse_clicks=1, enter_keys=1, ready_for_next=True)
         self.shot("dropped-palace-first-locus")
 
+        # Video locus budget: drop a video (= palace + video room + editor), then L.
+        video = self.artifacts / "Native E2E video.webm"
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=3",
+                        "-c:v", "libvpx", "-b:v", "200k", str(video)], check=True)
+        self.click("←")
+        self.until(lambda: self.find("Bild/Video wählen…", "button"))
+        self.drag_file(video.resolve(), frame)
+        self.until(lambda: bool(self.sql("SELECT r.id FROM rooms r JOIN palaces p ON p.id = r.palace_id WHERE p.name=? AND r.kind='video'", (video.stem,))))
+        stage = self.until(lambda: self.find("Videoraum", "section", True))
+        assert stage.grab_focus()
+        clicks = self.clicks
+        # Retried: L only acts once the video element has loaded metadata.
+        def placed():
+            self.x("key", "--clearmodifiers", "l")
+            return self.sql("SELECT l.time FROM loci l JOIN rooms r ON r.id = l.room_id JOIN palaces p ON p.id = r.palace_id WHERE p.name=?", (video.stem,))
+        times = self.until(lambda: (time.sleep(.5), placed())[1], timeout=20)
+        assert len(times) == 1 and times[0][0] is not None and times[0][0] >= 0, times
+        assert self.clicks == clicks
+        self.record("video-locus-key-l", clicks=0, keys=1, time=times[0][0])
+        self.shot("video-locus")
+
         # Persistence is checked from SQLite, not merely optimistic UI text.
         self.record("no-runtime-start-error", checked_views="welcome, tutorial room, first recall")
         assert not any("Animation konnte nicht" in n.get_name() for n in walk(self.app))
