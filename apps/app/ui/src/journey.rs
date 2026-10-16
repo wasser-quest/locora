@@ -554,7 +554,11 @@ fn Inputs(
                 .map(|(f, v)| InputValue {
                     palace_id: f.palace_id.clone(),
                     key: f.key.clone(),
-                    value: v.get_untracked(),
+                    value: if f.kind == "number" {
+                        decimal_point(&v.get_untracked())
+                    } else {
+                        v.get_untracked()
+                    },
                 })
                 .collect()
         }))
@@ -598,9 +602,10 @@ fn Inputs(
                             view! {
                                 <label class="input">
                                     <span>{label}</span>
+                                    // Text, not type=number: that would empty
+                                    // workbook-valid literals such as `+1`.
                                     <input
-                                        type=if number { "number" } else { "text" }
-                                        step=number.then_some("any")
+                                        type="text"
                                         inputmode=number.then_some("decimal")
                                         bind:value=value
                                     />
@@ -613,5 +618,29 @@ fn Inputs(
                 .collect_view()}
             <button class="primary" type="submit">"Los ▶"</button>
         </form>
+    }
+}
+
+/// German decimal comma → point (`1,5` → `1.5`), the form the workbook parses.
+/// Anything else is left alone for the backend to validate.
+fn decimal_point(text: &str) -> String {
+    let text = text.trim();
+    if text.matches(',').count() == 1 && !text.contains('.') {
+        text.replace(',', ".")
+    } else {
+        text.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod input_tests {
+    use super::decimal_point;
+
+    #[test]
+    fn decimal_comma_becomes_point() {
+        assert_eq!(decimal_point(" 1,5 "), "1.5");
+        assert_eq!(decimal_point("+1"), "+1");
+        assert_eq!(decimal_point("1.5"), "1.5");
+        assert_eq!(decimal_point("1,000.5"), "1,000.5");
     }
 }
