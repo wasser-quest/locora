@@ -2,7 +2,7 @@
 
 Alles, was noch gebaut oder entschieden werden muss. Wird bei jedem Schritt aktualisiert. Erledigtes wird hier gestrichen und in `PLAN.md` (Abschnitt 13) bzw. den Commits festgehalten. Reihenfolge innerhalb eines Abschnitts = Empfehlung.
 
-Stand: 16.10.2026
+Stand: 16.10.2026 (abends)
 
 ## Jetzt: Phase 2 – die App (Tauri 2 + Leptos)
 
@@ -16,8 +16,8 @@ Stand: 16.10.2026
 - [x] Plugin-Kacheln (`ui.tile`) auf dem Startbildschirm; letzte Kachel je Plugin bleibt im Profil gespeichert
 - [x] Befehlspalette (Strg/⌘+K): Paläste öffnen/üben, Weiter, Übersicht, Einstellungen; blockiert bei ungespeicherten Editor-Änderungen
 - [x] Kachel des Plugins `review`: Loci im Plan und Datum der nächsten Fälligkeit (veraltet nicht)
-- [ ] Kachel-Icons als `.sply`
-- [ ] Core-Ansicht: Palastliste mit ▶ auf der Karte, Raum mit Hintergrund und Locus-Markern, Bild am Ort
+- [x] Kachel-Icons als `.sply` (`assets/ui`)
+- [x] Core-Ansicht: Palastliste mit ▶ auf der Karte, Raum mit Hintergrund und Locus-Markern, Bild am Ort
 - [x] Journey in der App: Recall (Leertaste, 1–4), Quiz, Guess; gleiche Bewertung über das Core-Plugin
 - [x] Aufdecken zeigt das `.sply` (es gehört zur Antwort), vorher nur Hintergrund und Marker
 - [x] Workbook in der App: Eingaben vor der Journey abfragen, Aktionen als Knöpfe
@@ -34,9 +34,10 @@ Stand: 16.10.2026
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
 - [ ] Viele Marker: in einem SVG pro Raum zusammenfassen statt je ein Frame
-- [ ] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons für core/review/notify/tutorial/gamification, Raum-Arten, leere Zustände (Simo mit Laterne), Journey-Feedback, Splash
+- [x] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons, Journey-Feedback (richtig/nochmal/geschafft), Willkommen mit Simo – `assets/ui/src/ui.py`, Simo aus `assets/mascot/src/simo.py`
+- [ ] Weitere Grafiken: Raum-Arten (ohne Bild, Bild, Video), „nichts fällig“ (Simo mit Laterne), Splash/Ladezustand
 - [ ] Android- und iOS-Builds in CI; Klick-Budgets (PLAN 6.3) als E2E-Tests
-- [ ] Systemvoraussetzungen für Linux-Builds dokumentieren (webkit2gtk-4.1, gtk3, libsoup3 Entwicklerpakete)
+- [x] Systemvoraussetzungen für Linux-Builds dokumentiert (`apps/app/README.md`)
 
 ## Antworten und Abfragen (aus dem Abgleich mit mnemodim)
 
@@ -79,5 +80,5 @@ Stand: 16.10.2026
 
 ## Entscheidungen, die noch anstehen
 
-- [ ] Splinely-Release 0.5.2 lokal installieren (behebt den falschen `invisible`-Hinweis von `check`)
-- [ ] Repo-Sichtbarkeit: Die GitHub-API meldet das Repo als nicht gefunden (vermutlich privat) – CI-Status nur über die Weboberfläche oder mit Token sichtbar
+- [x] Splinely-Release 0.5.2 lokal installiert; alle Locora-Grafiken bestehen `check` ohne Hinweise
+- [x] Repo privat; PRs und CI-Status über `gh` mit Token. Actions-Kontingent: CI nur noch auf Linux, macOS/Windows per Hand (`workflow_dispatch`)

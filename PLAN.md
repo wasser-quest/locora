@@ -586,8 +586,8 @@ Stand: 16.10.2026. Dieser Abschnitt ist die Übergabe: was es gibt, wie man arbe
 - **Kommunikation auf Deutsch.** Code, Kommentare, Commit-Messages und README auf Englisch; `PLAN.md`, `assets/STIL.md`
   und alle Texte, die Nutzer sehen (CLI, App), auf Deutsch.
 - **Alles in Rust**, möglichst schnell. UI später mit Tauri 2 + Leptos.
-- **Alle Grafiken mit `splinely-cli` als `.sply`** (Installation unter `~/.local/opt/splinely-v0.5.1-x86_64-linux/bin`,
-  Version 0.5.2 ist als Release gebaut, aber noch nicht installiert). Für jede neue Idee mit Bildbedarf sofort eine `.sply`
+- **Alle Grafiken mit `splinely-cli` als `.sply`** (Installation unter `~/.local/opt/splinely-v0.5.2-x86_64-linux/bin`,
+  Version 0.5.2, installiert am 16.10.2026). Für jede neue Idee mit Bildbedarf sofort eine `.sply`
   unter `assets/` anlegen, bevorzugt per Bauskript unter `assets/**/src/`; die Splinely-Runtime soll sie später rendern.
   Funktioniert in Splinely etwas nicht: dem Nutzer sagen. Splinely-Quellcode liegt in `~/svg_editor`
   (Repo `wasser-quest/splinely`); Fixes dort nur auf Wunsch, Releases per Tag `vX.Y.Z` (Version in `Cargo.toml` mitziehen).
@@ -748,8 +748,9 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    `.locora` (Dateidialoge, mit Wiederholungsstand; Logik in `locora_runtime::transfer`, gemeinsam mit der CLI) ist
    umgesetzt. Plugin-Kacheln (`ui.tile`) erscheinen auf dem Startbildschirm; die letzte Kachel je Plugin speichert das Profil
    (`Profile::tiles`). Die Befehlspalette (Strg/⌘+K) findet Paläste und Befehle per Tastatur. Offen: `locora.toml` in der App.
-5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): Kachel-Icons, Raum-Arten, leere Zustände (Simo mit Laterne),
-   Journey-Feedback (richtig/nochmal/geschafft), Splash; bisher nur Text.
+5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): umgesetzt sind Kachel-Icons (core, review, notify, tutorial,
+   gamification, andere Plugins) und Journey-Feedback (richtig/nochmal/geschafft) aus `assets/ui/src/ui.py` sowie der
+   Willkommensbildschirm mit Simo (`assets/mascot/src/simo.py`). Offen: Raum-Arten (ohne Bild, Bild, Video), „nichts fällig“ (Simo mit Laterne), Splash.
 6. **Leistung:** Jeder Marker ist ein eigener Frame mit eigener Runtime – bei vielen Loci alle Marker eines Raums in
    einem gemeinsamen SVG zusammenfassen; Medien mit Range-Anfragen ausliefern (Video-Spulen).
 7. **Video-Räume** (Phase 3): am Locus anhalten, Zeitleiste.
