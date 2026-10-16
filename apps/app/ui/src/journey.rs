@@ -7,8 +7,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     ActionDone, AnswerKind, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS,
-    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, InputField, InputValue, JourneyStart,
-    Question, Reply, Revealed, Step, Summary,
+    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, CMD_UI_ASSETS, Feedback, InputField, InputValue,
+    JourneyStart, Question, Reply, Revealed, Step, Summary, UiAssets,
 };
 use serde::Serialize;
 
@@ -62,6 +62,13 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let summary = RwSignal::new(None::<Summary>);
     let error = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
+    // Feedback animations (assets/ui); the journey works without them.
+    let art = RwSignal::new(None::<UiAssets>);
+    spawn_local(async move {
+        if let Ok(a) = call::<UiAssets>(CMD_UI_ASSETS, NoArgs {}).await {
+            art.set(Some(a));
+        }
+    });
 
     // Workbook inputs are asked first; without any, the journey starts at once.
     let fields = RwSignal::new(None::<Vec<InputField>>);
@@ -255,7 +262,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         {move || error.get().map(|e| view! { <p class="notes">{e}</p> })}
         {move || {
             if let Some(s) = summary.get() {
-                return view! { <Done summary=s screen=screen /> }.into_any();
+                return view! { <Done summary=s screen=screen art=art /> }.into_any();
             }
             if let Some(list) = fields.get() {
                 return view! { <Inputs fields=list begin=begin /> }.into_any();
@@ -316,7 +323,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                                 .into_any()
                         }
                         Phase::Judged(f) => {
-                            view! { <Judged feedback=*f question=q.clone() next=next busy=busy /> }.into_any()
+                            view! { <Judged feedback=*f question=q.clone() next=next busy=busy art=art /> }.into_any()
                         }
                     }}
                 </section>
@@ -463,6 +470,7 @@ fn Judged(
     question: Question,
     next: impl Fn() + 'static,
     busy: RwSignal<bool>,
+    art: RwSignal<Option<UiAssets>>,
 ) -> impl IntoView {
     let r = feedback.revealed;
     let automatic = question.kind != AnswerKind::Recall;
@@ -474,10 +482,16 @@ fn Judged(
     view! {
         {automatic
             .then(|| {
-                if feedback.correct {
-                    view! { <div class="verdict ok">"Richtig"</div> }.into_any()
+                let correct = feedback.correct;
+                let picture = move || {
+                    art.get()
+                        .map(|a| if correct { a.right } else { a.again })
+                        .map(|m| view! { <div class="feedback-art"><Sply media=m /></div> })
+                };
+                if correct {
+                    view! { <div class="verdict ok">{picture}"Richtig"</div> }.into_any()
                 } else {
-                    view! { <div class="verdict again">"Nochmal"</div> }.into_any()
+                    view! { <div class="verdict again">{picture}"Nochmal"</div> }.into_any()
                 }
             })}
         <Answer solution=r.solution note=r.note picture=r.picture />
@@ -492,9 +506,19 @@ fn Judged(
 }
 
 #[component]
-fn Done(summary: Summary, screen: RwSignal<Screen>) -> impl IntoView {
+fn Done(
+    summary: Summary,
+    screen: RwSignal<Screen>,
+    art: RwSignal<Option<UiAssets>>,
+) -> impl IntoView {
+    let asked = summary.asked;
     view! {
         <section class="card panel">
+            {move || {
+                art.get()
+                    .filter(|_| asked > 0)
+                    .map(|a| view! { <div class="done-art"><Sply media=a.done /></div> })
+            }}
             {if summary.asked == 0 {
                 view! { <div class="prompt">"Nichts zu üben – alles erledigt."</div> }.into_any()
             } else {

@@ -62,6 +62,7 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
                 plugin,
                 title: tile.title,
                 text: tile.text,
+                icon: None,
             })
             .collect(),
         ..Home::default()

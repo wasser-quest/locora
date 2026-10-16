@@ -1,6 +1,7 @@
 //! Locora app backend: opens the same profile as the CLI, answers the UI's
 //! commands and serves media and `.sply` animations over `locora://`.
 
+mod assets;
 mod editor;
 mod journey;
 mod settings;
@@ -30,6 +31,8 @@ pub struct Backend {
     default_marker: String,
     /// Hash of Simo (welcome and empty states) in the store.
     simo: String,
+    /// The app's own graphics.
+    assets: assets::Assets,
     /// `.sply` hash → SVG, converted once per run.
     svg: HashMap<String, String>,
 }
@@ -60,6 +63,9 @@ async fn home(state: State<'_, Shared>) -> Result<Home, String> {
     let mut b = lock(&state)?;
     let b = &mut *b;
     let mut home = views::home(&mut b.profile).map_err(err)?;
+    for tile in &mut home.tiles {
+        tile.icon = Some(b.assets.tile_icon(&tile.plugin));
+    }
     if home.palaces.is_empty() {
         home.welcome = Some(locora_app_api::Media {
             hash: b.simo.clone(),
@@ -252,6 +258,11 @@ async fn journey_start(state: State<'_, Shared>, start: JourneyStart) -> Result<
 }
 
 #[tauri::command]
+async fn ui_assets(state: State<'_, Shared>) -> Result<locora_app_api::UiAssets, String> {
+    Ok(lock(&state)?.assets.ui())
+}
+
+#[tauri::command]
 async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
     let mut b = lock(&state)?;
     settings::view(&mut b.profile).map_err(err)
@@ -413,11 +424,13 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
         .store
         .put_media(locora_runtime::tutorial::SIMO, SPLINELY)?
         .hash;
+    let assets = assets::Assets::register(&profile.store)?;
     Ok(Backend {
         profile,
         journey: None,
         default_marker,
         simo,
+        assets,
         svg: HashMap::new(),
     })
 }
@@ -447,6 +460,7 @@ pub fn run() {
             tutorial,
             journey_inputs,
             settings,
+            ui_assets,
             import_pick,
             export_pick,
             settings_set,
