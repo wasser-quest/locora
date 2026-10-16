@@ -15,7 +15,7 @@
 | **Offline first** | Lokale SQLite-Datenbank ist die Wahrheit. Kein Account nötig. Die Cloud (später) synchronisiert nur. |
 | **Sehr schnell** | Start in < 300 ms, Journey-Schritte ohne Netz, Medien lokal und nach Inhalt adressiert. |
 | **Alles ist ein Plugin** | `core`, `tutorial` und `gamification` sind Plugins mit derselben API. Der Host selbst kann nichts außer Plugins laden. |
-| **Open Core** | Host, SDK, `core`, `tutorial` und CLI sind Open Source. `gamification` (Web-Service, z. B. 1 €/Monat) ist proprietär. |
+| **Open Core** | Die ganze App inkl. `gamification` ist Open Source (MIT) und kostenlos. Nur der Web-Service **Locora Cloud** (Ranglisten, Sync, gemeinsame Challenges) ist proprietär und kostet ein günstiges Abo. |
 | **Wenig Klicks** | Für jede häufige Aufgabe gibt es ein festes Klick-Budget (siehe Abschnitt 6). |
 | **CLI** | Paläste in Sekunden aus dem Terminal anlegen, auf derselben Datenbank wie die App. |
 | **Video-Paläste** | Ein Video läuft, hält bei einem Locus an und läuft erst weiter, wenn der Locus gelöst ist. |
@@ -55,25 +55,25 @@ locora/                          (öffentlich, MIT)
 │   ├── locora-sdk/              Plugin-API: Traits, Events, Services, UI-Beiträge, WIT-Definition
 │   ├── locora-host/             Plugin-Loader, Event-Bus, Service-Registry, Berechtigungen
 │   ├── locora-store/            SQLite (rusqlite), Migrationen, Operations-Log, Medien-Store
-│   ├── locora-format/           .locora v2 lesen/schreiben, Import von .mnemodim v1
+│   ├── locora-format/           .locora lesen/schreiben
 │   ├── locora-formula/          Port von shared/formulas.ts + workbookRuntime.ts
 │   └── locora-sync/             (später) Op-Log-Sync-Client
 ├── plugins/
 │   ├── core/                    Paläste, Stages, Loci, Video-Stages, Journeys, Workbook, Wiederholung
-│   └── tutorial/                Onboarding, interaktive Touren, Formel-Guide
+│   ├── tutorial/                Onboarding, interaktive Touren, Formel-Guide
+│   └── gamification/            XP, Herzen, Combos, Trophäen, Daily Challenges (lokal, kostenlos) + Cloud-Client
 ├── apps/
 │   ├── cli/                     `locora` Binary (clap)
 │   └── app/                     Tauri 2 (src-tauri/) + Leptos-UI (ui/)
-├── format/                      Spezifikation .locora v2 + Beispiel-Dateien + JSON-Schema
+├── format/                      Spezifikation .locora + Beispiel-Dateien + JSON-Schema
 └── docs/
 
-locora-gamification/             (privat, proprietär)
-├── plugin/                      Client-Plugin: XP, Herzen, Combos, Trophäen, Daily Challenges, Leaderboards
-└── server/                      axum + Postgres: Abo, Leaderboards, Sync der Statistiken
+locora-cloud/                    (privat, proprietär)
+└── server/                      axum + Postgres: Abo, Ranglisten, gemeinsame Challenges, Sync
 ```
 
-Offizielle Builds binden `locora-gamification` per Cargo-Feature ein (`--features official`).
-Der Open-Source-Build läuft komplett ohne das Plugin.
+Die App ist vollständig Open Source. Das `gamification`-Plugin enthält einen Client für Locora Cloud,
+der nur mit einem aktiven Abo Daten an den Server schickt. Ohne Abo läuft alles lokal.
 
 ---
 
@@ -127,14 +127,15 @@ einfach ohne Hook. Fehlt Tutorial, passiert gar nichts.
 | Host, SDK, Store, Format, Formula, CLI | MIT | frei |
 | Plugin `core` | MIT | frei, voller Funktionsumfang offline |
 | Plugin `tutorial` | MIT | frei |
-| Plugin `gamification` | proprietär | Web-Service im Abo (Leaderboards, Cloud-Challenges, Statistik-Sync) |
+| Plugin `gamification` | MIT | frei, XP/Trophäen/Challenges lokal |
+| **Locora Cloud** (Server) | proprietär | Abo: Ranglisten, Freunde, gemeinsame Challenges, Sync über Geräte |
 
-Das SDK steht bewusst unter einer permissiven Lizenz und nicht unter GPL. So dürfen proprietäre
-Plugins (deins und später die von Dritten) gegen das SDK linken. Für externe Beiträge in den
+Weil alles unter MIT steht, dürfen auch Drittanbieter eigene (auch kommerzielle) Plugins bauen.
+Der Wert des Abos liegt im Dienst (Server, Community, Ranglisten), nicht im Code. Für externe Beiträge in den
 offenen Repos sollte man ein DCO/CLA einführen, damit du die Lizenz später noch ändern kannst.
 
 **Freischaltung offline:** Der Server stellt ein Ed25519-signiertes Entitlement-Token aus
-(`plugin`, `plan`, `expires`). Die App prüft es lokal mit dem eingebauten Public Key und gewährt
+(`service`, `plan`, `expires`). Die App prüft es lokal mit dem eingebauten Public Key und gewährt
 14 Tage Kulanz ohne Netz. Es gibt kein „Phone home“ bei jedem Start.
 
 ### 4.4 Drittanbieter-Plugins (Phase 7)
@@ -164,10 +165,10 @@ offenen Repos sollte man ein DCO/CLA einführen, damit du die Lizenz später noc
 |---|---|
 | Paläste, Stages, Loci, Recall/Quiz/Guess | `core` |
 | Workbook, Formeln, Major-Tabellen, Actions, Collections | `core` (`locora-formula`) |
-| Import/Export `.mnemodim` | `locora-format` (v1 lesen, v2 schreiben) |
-| Timing-Punkte, Combos, Herzen, XP, Trophäen, Daily Challenges | `gamification` |
+| Import/Export `.mnemodim` | neues Format `.locora` (`locora-format`); `.mnemodim` wird nicht mehr unterstützt |
+| Timing-Punkte, Combos, Herzen, XP, Trophäen, Daily Challenges | `gamification` (kostenlos) |
 | Formel-Guide, Onboarding | `tutorial` |
-| Auth, Convex | entfällt lokal; Account nur für den Gamification-Service |
+| Auth, Convex | entfällt lokal; Account nur für Locora Cloud |
 | Friends, Competitive, AI-Chat (im Schema, nicht live) | später eigene Plugins |
 
 ---
@@ -279,7 +280,7 @@ locora add Planeten "Saturn" --memory "Ringe" --at 0.7,0.3
 locora ls                      # Paläste mit fälligen Loci
 locora practice Planeten       # Abfrage im Terminal (TUI, Text-Recall)
 locora export Planeten -o planeten.locora
-locora import alt.mnemodim     # Altbestand übernehmen
+locora import planeten.locora
 
 # Plugins
 locora plugin ls
@@ -291,11 +292,12 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 
 ---
 
-## 9. Dateiformat `.locora` (v2)
+## 9. Dateiformat `.locora` (Version 1)
 
-Der Container bleibt ZIP. Die Inhalte werden vereinfacht:
+`.mnemodim`-Dateien müssen nicht kompatibel bleiben. Das Format startet deshalb neu als `.locora` Version 1.
+Der Container ist ZIP. Gegenüber dem alten Format ändert sich:
 
-| v1 (`.mnemodim`) | v2 (`.locora`) | Warum |
+| alt (`.mnemodim`) | neu (`.locora`) | Warum |
 |---|---|---|
 | CSV mit JSON-Zellen | **JSON pro Palast** (`palaces/<id>.json`); CSV nur noch für Tabellen | einfacher zu erzeugen und zu validieren, keine doppelte Kodierung |
 | `assets/<id>` mit eigener ID | `media/<sha256>.<ext>` | dedupliziert, sync-freundlich, Integrität eingebaut |
@@ -311,14 +313,20 @@ Die Limits werden an Video angepasst (z. B. 2 GiB gesamt, ZIP64, Video-Einträge
 
 ## 10. Gamification und Bezahlung
 
-- **Lokal kostenlos?** Offene Frage (Abschnitt 12). Vorschlag: XP, Combos und Trophäen laufen auch ohne Abo **lokal**.
-  Das Abo zahlt man für den **Web-Service**: Leaderboards, gemeinsame Daily Challenges, Freunde, Statistik-Sync über Geräte.
-  So bleibt das Abo fair, und die Offline-Erfahrung ist vollständig.
+- **Gamification ist kostenlos:** XP, Combos, Herzen, Trophäen und Daily Challenges laufen vollständig lokal und offline, ohne Account.
+- **Locora Cloud kostet:** Ranglisten, Freunde, gemeinsame Challenges und Sync von Fortschritt und Palästen über Geräte.
+- **Preis – bewusst günstig, damit man es sich „einfach mal holt“:**
+
+  | Plan | Preis | Hinweis |
+  |---|---|---|
+  | **Jahresabo** (Hauptangebot) | **9,99 €/Jahr** (≈ 0,83 €/Monat) | eine Transaktion pro Jahr, Gebühren fallen kaum ins Gewicht |
+  | Monatsabo | 1,49 €/Monat | für Unentschlossene; jederzeit kündbar |
+  | Testphase | 14 Tage gratis | ohne Zahlungsdaten auf Desktop |
+
+  Ein reines 1-€-Monatsabo lohnt sich nicht: Feste Gebühren pro Zahlung (ca. 0,30–0,50 €) würden 30–50 % davon auffressen.
 - **App-Store-Regeln:** Auf iOS und Android müssen digitale Abos über In-App-Kauf laufen (Apple/Google nehmen 15 % im Small-Business-Programm).
   Auf Desktop und Web eignet sich ein Merchant of Record wie Paddle oder Lemon Squeezy (übernimmt EU-USt).
-- **Preis 1 €/Monat:** Feste Gebühren pro Transaktion (z. B. ca. 0,30–0,50 €) fressen bei 1 € 30–50 %.
-  Besser sind **9,99 €/Jahr** oder 1,99 €/Monat bzw. 14,99 €/Jahr.
-- **Server:** Rust (axum + Postgres) im privaten Repo. Er nutzt dieselben Crates (`locora-formula`, Journey-Replay) für fälschungssichere Ranglisten.
+- **Server:** Rust (axum + Postgres) im privaten Repo `locora-cloud`. Er nutzt dieselben Crates (`locora-formula`, Journey-Replay) für fälschungssichere Ranglisten.
 
 ---
 
@@ -327,11 +335,11 @@ Die Limits werden an Video angepasst (z. B. 2 GiB gesamt, ZIP64, Video-Einträge
 | Phase | Inhalt | Ergebnis |
 |---|---|---|
 | **0** | Repo, Cargo-Workspace, CI (Linux/macOS/Windows), Lizenzen, Entscheidungen aus Abschnitt 12 | leeres, baubares Gerüst |
-| **1** | `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format` (v2 + v1-Import), Plugin-Host + SDK, `core` ohne UI, **CLI** | Paläste per CLI anlegen, üben, importieren und exportieren |
+| **1** | `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format`, Plugin-Host + SDK, `core` ohne UI, **CLI** | Paläste per CLI anlegen, üben, importieren und exportieren |
 | **2** | Tauri-App: Startbildschirm, Befehlspalette, Core-Editor, Journey (Bild). **Android- und iOS-Builds ab Tag 1 in CI** | nutzbare App auf allen Plattformen |
 | **3** | Video-Stages: Editor + Journey + CLI | Video-Paläste |
 | **4** | Plugin `tutorial` (Touren über `ui.highlight`, Beispielpalast, Formel-Guide) | Onboarding |
-| **5** | Plugin `gamification` lokal + Server + Bezahlung + Entitlements | erstes Einkommen |
+| **5** | Plugin `gamification` (lokal, kostenlos), danach Locora Cloud: Server, Bezahlung, Entitlements | erstes Einkommen |
 | **6** | Sync (Op-Log ↔ Server) als optionaler Dienst | mehrere Geräte |
 | **7** | WASM-Plugins für Dritte | offenes Ökosystem |
 
@@ -347,8 +355,6 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 | Sprache | **Pures Rust**, auch die UI (Tauri 2 + Leptos) |
 | Lizenz der offenen Teile | **MIT** |
 | Repository | `wasser-quest/locora` |
-
-### Noch offen
-
-1. **Gamification ohne Abo:** Laufen XP und Trophäen lokal gratis, und kostet nur der Web-Service (Leaderboards, Sync, gemeinsame Challenges)?
-2. **Preis:** 1 €/Monat oder ein Jahresabo (wegen der Transaktionsgebühren)?
+| Gamification | **kostenlos**, nur Locora Cloud kostet |
+| Preis Locora Cloud | **9,99 €/Jahr** oder 1,49 €/Monat |
+| `.mnemodim` | **keine Kompatibilität** nötig, neues Format `.locora` |

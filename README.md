@@ -12,11 +12,11 @@
 - **Video palaces:** the video pauses at each locus and continues once you have recalled it.
 - **Fast CLI:** `locora new "Planets" --image flat.jpg -- Mercury Venus Earth`
 - **Minimal clicks:** one click to start a journey; drop an image or video to create a palace.
-- **Portable `.locora` files** with import of legacy `.mnemodim` packages.
+- **Portable `.locora` files** with embedded media.
 
 ## Open core
 
-The host, SDK, `core` and `tutorial` plugins and the CLI are MIT-licensed. The optional `gamification` web service (leaderboards, shared challenges, sync) is a paid, proprietary plugin.
+The whole app is MIT-licensed and free, including the `core`, `tutorial` and `gamification` plugins and the CLI. Gamification (XP, trophies, daily challenges) works fully offline. Only the optional **Locora Cloud** web service (leaderboards, friends, shared challenges, sync across devices) is a paid, proprietary service at an affordable price.
 
 ## License
 
