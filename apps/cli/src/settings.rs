@@ -19,8 +19,10 @@ pub enum SettingsCommand {
     /// Volle Stunde, zu der ein Lerntag beginnt, 0 bis 23 (Standard 4)
     DayStart { hour: u8 },
     /// Versatz der eigenen Uhrzeit zu UTC, z. B. +2 oder -5:30 (die App stellt ihn selbst ein)
-    #[command(allow_hyphen_values = true)]
-    UtcOffset { value: String },
+    UtcOffset {
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+    },
 }
 
 fn review_required(app: &App) -> Result<()> {
