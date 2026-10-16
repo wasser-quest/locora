@@ -1,6 +1,7 @@
 //! Scoped editor mutations. All domain validation remains in the store.
 use anyhow::{Context, Result, ensure};
 use locora_app_api::{EditorAction, EditorChange};
+use locora_formula::workbook::BindingField;
 use locora_store::{LocusPatch, NewLocus, PalaceTree, RoomKind, Store};
 
 /// Check exact ownership before mutating; IPC must not target another room.
@@ -141,13 +142,12 @@ pub fn apply_with_history(
         .context("Ort gehört nicht zu diesem Raum")?;
     let patch = match &change.action {
         EditorAction::Save { content, .. } => {
-            ensure!(
-                locus.bindings.is_empty(),
-                "Dieser Ort hat Workbook-Formeln; Inhalte bitte über die Quelldatei bearbeiten"
-            );
+            // Formula-bound fields stay owned by the workbook; every other
+            // field of a workbook locus is edited like any other.
+            let bound = |field| locus.bindings.iter().any(|b| b.field == field);
             LocusPatch {
-                place: Some(content.place.clone()),
-                item: Some(content.item.clone()),
+                place: (!bound(BindingField::Place)).then(|| content.place.clone()),
+                item: (!bound(BindingField::Item)).then(|| content.item.clone()),
                 note: Some(content.note.clone()),
                 image: Some(content.image.clone()),
                 image_size: Some(content.image_size),
@@ -156,11 +156,20 @@ pub fn apply_with_history(
                 ..Default::default()
             }
         }
-        EditorAction::Move { x, y, .. } => LocusPatch {
-            x: Some(*x),
-            y: Some(*y),
-            ..Default::default()
-        },
+        EditorAction::Move { x, y, .. } => {
+            ensure!(
+                !locus
+                    .bindings
+                    .iter()
+                    .any(|b| matches!(b.field, BindingField::X | BindingField::Y)),
+                "Die Position dieses Orts kommt aus einer Workbook-Formel"
+            );
+            LocusPatch {
+                x: Some(*x),
+                y: Some(*y),
+                ..Default::default()
+            }
+        }
         EditorAction::Resize { image_size, .. } => LocusPatch {
             image_size: Some(*image_size),
             ..Default::default()
@@ -193,15 +202,11 @@ pub fn picture_target(store: &Store, target: &locora_app_api::PictureTarget) -> 
         .iter()
         .find(|r| r.room.id == target.room_id)
         .context("Raum gehört nicht zu diesem Palast")?;
-    let locus = room
-        .loci
+    // Pictures are never formula-bound, so workbook loci accept them too.
+    room.loci
         .iter()
         .find(|l| l.id == target.locus_id)
         .context("Ort gehört nicht zu diesem Raum")?;
-    ensure!(
-        locus.bindings.is_empty(),
-        "Workbook-Ort: Bild bitte in der Quelldatei ändern"
-    );
     Ok(())
 }
 
@@ -885,5 +890,103 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn workbook_loci_edit_unbound_fields_and_keep_formulas() {
+        use locora_formula::workbook::Binding;
+        let store = Store::in_memory().unwrap();
+        let palace = store.create_palace("Workbook").unwrap();
+        let room = store
+            .add_room(&palace.id, "Raum", RoomKind::Blank, None)
+            .unwrap();
+        let change = |action| EditorChange {
+            palace_id: palace.id.clone(),
+            room_id: room.id.clone(),
+            action,
+        };
+        let id = apply(&store, &change(EditorAction::Create { x: 0.2, y: 0.8 }))
+            .unwrap()
+            .1
+            .unwrap();
+        store
+            .update_locus(
+                &id,
+                &LocusPatch {
+                    item: Some("roh".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let item = Binding {
+            field: BindingField::Item,
+            expression: "\"berechnet\"".into(),
+        };
+        store.set_binding(&id, &item).unwrap();
+        let content = LocusContent {
+            place: "Herd".into(),
+            item: "vom UI".into(),
+            note: "Merkhilfe".into(),
+            image: None,
+            image_size: 0.3,
+            zoom: 2.0,
+            answer: EditorAnswer::default(),
+        };
+        let (tree, _) = apply(
+            &store,
+            &change(EditorAction::Save {
+                id: id.clone(),
+                content,
+            }),
+        )
+        .unwrap();
+        for locus in [
+            &tree.rooms[0].loci[0],
+            &store.palace(&palace.id).unwrap().rooms[0].loci[0],
+        ] {
+            assert_eq!(locus.place, "Herd");
+            assert_eq!(locus.note, "Merkhilfe");
+            assert_eq!(locus.item, "roh", "bound item must not be overwritten");
+            assert_eq!(locus.bindings, vec![item.clone()]);
+        }
+        picture_target(
+            &store,
+            &locora_app_api::PictureTarget {
+                palace_id: palace.id.clone(),
+                room_id: room.id.clone(),
+                locus_id: id.clone(),
+            },
+        )
+        .unwrap();
+        apply(
+            &store,
+            &change(EditorAction::Move {
+                id: id.clone(),
+                x: 0.5,
+                y: 0.5,
+            }),
+        )
+        .unwrap();
+        store
+            .set_binding(
+                &id,
+                &Binding {
+                    field: BindingField::X,
+                    expression: "0.1".into(),
+                },
+            )
+            .unwrap();
+        assert!(
+            apply(
+                &store,
+                &change(EditorAction::Move {
+                    id: id.clone(),
+                    x: 0.9,
+                    y: 0.5
+                })
+            )
+            .is_err()
+        );
+        assert_eq!(store.palace(&palace.id).unwrap().rooms[0].loci[0].x, 0.5);
     }
 }

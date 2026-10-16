@@ -231,6 +231,10 @@ pub struct LocusView {
     /// Keep the raw reference even if media cannot currently be displayed.
     pub image: Option<String>,
     pub bound: bool,
+    /// Formula-bound fields (`place`, `item`, `x`, `y`, `visible`, `active`);
+    /// only these stay read-only in the editor.
+    #[serde(default)]
+    pub bound_fields: Vec<String>,
     /// Picture width as a fraction of the room width.
     pub image_size: f64,
     /// Zoom on the locus while asking, 1 (whole room) to 4.
@@ -250,6 +254,12 @@ pub struct LocusView {
     /// Belongs to the answer: shown only once the locus is revealed.
     pub picture: Option<Media>,
     pub note: String,
+}
+
+impl LocusView {
+    pub fn is_bound(&self, field: &str) -> bool {
+        self.bound_fields.iter().any(|f| f == field)
+    }
 }
 
 /// Full content replacement; geometry is deliberately patched separately.

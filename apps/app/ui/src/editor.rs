@@ -507,9 +507,8 @@ pub fn Rooms(
             r.loci
                 .iter()
                 .find(|l| {
-                    !l.bound
-                        && load_draft(&draft_key(&p.id, &r.id, &l.id))
-                            .is_some_and(|draft| draft != Draft::from_locus(l))
+                    load_draft(&draft_key(&p.id, &r.id, &l.id))
+                        .is_some_and(|draft| draft != Draft::from_locus(l))
                 })
                 .map(|l| (i, l.id.clone()))
         })
@@ -1025,6 +1024,7 @@ fn RoomStage(
                 let editor = pick_editor.clone();
                 let keyboard_editor = editor.clone();
                 let l = StoredValue::new(locus.clone());
+                let fixed = locus.is_bound("x") || locus.is_bound("y");
                 view! {
                     <div class="marker"
                         style:left=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).0 * 100.0)
@@ -1034,10 +1034,11 @@ fn RoomStage(
                             disabled=move || busy.get() || dirty.get()
                             on:pointerdown=move |ev: PointerEvent| {
                                 ev.stop_propagation();
-                                if editing.get() { begin.with_value(|begin| begin(ev, DragKind::Move(l.get_value()))); }
+                                // A formula-bound position cannot be dragged; clicking still selects.
+                                if editing.get() && !fixed { begin.with_value(|begin| begin(ev, DragKind::Move(l.get_value()))); }
                             }
                             on:keydown=move |ev: web_sys::KeyboardEvent| {
-                                if !editing.get() || busy.get_untracked() || dirty.get_untracked() { return; }
+                                if !editing.get() || fixed || busy.get_untracked() || dirty.get_untracked() { return; }
                                 let step = if ev.shift_key() { 0.1 } else { 0.01 };
                                 let delta = match ev.key().as_str() {
                                     "ArrowLeft" => (-step, 0.0), "ArrowRight" => (step, 0.0),
@@ -1109,6 +1110,26 @@ fn ContentForm(
         }
     });
     let finish_requested = RwSignal::new(false);
+    let place_bound = locus.is_bound("place");
+    let item_bound = locus.is_bound("item");
+    let bound_note = {
+        let fields: Vec<&str> = [
+            ("place", "Ort"),
+            ("item", "Inhalt"),
+            ("x", "x"),
+            ("y", "y"),
+            ("visible", "Sichtbar"),
+            ("active", "Aktiv"),
+        ]
+        .into_iter()
+        .filter(|(field, _)| locus.is_bound(field))
+        .map(|(_, label)| label)
+        .collect();
+        format!(
+            "Workbook-Ort: {} kommt aus Formeln und wird in der Quelldatei geändert; alles andere ist hier bearbeitbar.",
+            fields.join(", ")
+        )
+    };
     let item = RwSignal::new(locus.item.clone());
     let note = RwSignal::new(locus.note.clone());
     let image = RwSignal::new(locus.image.clone().unwrap_or_default());
@@ -1193,7 +1214,7 @@ fn ContentForm(
             accept: accept.get(),
             quiz: quiz.get(),
         };
-        if locus.bound || recovery.get().is_some() {
+        if recovery.get().is_some() {
             return;
         }
         if last_persisted.with_value(|old| old != &draft) {
@@ -1210,11 +1231,7 @@ fn ContentForm(
         // Serialize saves, but keep the draft editable during IPC. Once the
         // current write finishes this effect sends the newest draft, not an
         // older queued keystroke. A rejected revision is not retried forever.
-        if busy.get()
-            || dragging.get()
-            || locus.bound
-            || last_attempted.with_value(|old| old == &draft)
-        {
+        if busy.get() || dragging.get() || last_attempted.with_value(|old| old == &draft) {
             return;
         }
         last_attempted.set_value(draft.clone());
@@ -1261,8 +1278,7 @@ fn ContentForm(
     let picker = editor.clone();
     let pick_id = locus.id.clone();
     let import_picture = StoredValue::new(move |ticket: Option<String>| {
-        if busy.get_untracked() || dirty.get_untracked() || dragging.get_untracked() || locus.bound
-        {
+        if busy.get_untracked() || dirty.get_untracked() || dragging.get_untracked() {
             if ticket.is_some() {
                 picker.message.set("Datei nicht übernommen: erst Änderungen speichern/verwerfen und einen bearbeitbaren Ort auswählen.".into());
             }
@@ -1398,12 +1414,12 @@ fn ContentForm(
                 }>"Lokalen Entwurf verwerfen"</button>
             </Show>
             <Show when=move || !storage_error.get().is_empty()><p role="alert">{move || storage_error.get()}</p></Show>
-            <Show when=move || locus.bound><p class="notes">"Workbook-Ort: Inhalte bitte in der Quelldatei ändern. Verschieben und Bildgröße ziehen sind möglich."</p></Show>
-            <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get() || locus.bound
+            <Show when=move || locus.bound><p class="notes">{bound_note.clone()}</p></Show>
+            <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get()
                 on:input=move |_| confirm_delete.set(false)
                 on:change=move |_| confirm_delete.set(false)>
-                <label>"Ort"<input type="text" node_ref=name_field bind:value=place /></label>
-                <label>"Inhalt"<input type="text" bind:value=item /></label>
+                <label>"Ort"<input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
+                <label>"Inhalt"<input type="text" bind:value=item disabled=item_bound /></label>
                 <label>"Merkhilfe"<textarea bind:value=note /></label>
                 <div class="tabs">
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=pick>"Bild wählen…"</button>
@@ -1490,6 +1506,7 @@ mod tests {
             image_size: 0.25,
             zoom: 2.0,
             bound: false,
+            bound_fields: vec![],
             time: None,
             number: 1,
             x: 0.1,

@@ -123,6 +123,11 @@ pub fn palace_view(
                         answer: l.answer.clone(),
                         image: l.image.clone(),
                         bound: !l.bindings.is_empty(),
+                        bound_fields: l
+                            .bindings
+                            .iter()
+                            .map(|b| b.field.name().to_owned())
+                            .collect(),
                         id: l.id.clone(),
                         number,
                         time: l.time,
