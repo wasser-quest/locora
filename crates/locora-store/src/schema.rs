@@ -63,6 +63,8 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE loci ADD COLUMN answer TEXT NOT NULL DEFAULT '{\"type\":\"recall\",\"options\":[]}';",
     // 5: an optional picture per locus (image or Splinely animation)
     "ALTER TABLE loci ADD COLUMN image TEXT REFERENCES media(hash);",
+    // 6: an optional custom locus marker per palace (Splinely animation)
+    "ALTER TABLE palaces ADD COLUMN marker TEXT REFERENCES media(hash);",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {

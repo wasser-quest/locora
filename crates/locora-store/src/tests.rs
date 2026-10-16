@@ -454,3 +454,30 @@ fn loci_can_show_pictures_but_not_videos() {
     assert_eq!(cleared.image, None);
     assert!(is_picture(SPLINELY) && is_picture("image/webp") && !is_picture("video/mp4"));
 }
+
+#[test]
+fn palaces_can_have_a_custom_marker() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let marker = store
+        .put_media(b"\x89SPLY\r\n\x1a marker", SPLINELY)
+        .unwrap();
+    let png = store.put_media(b"\x89PNG", "image/png").unwrap();
+    let p = store.create_palace("Mit Marker").unwrap();
+    assert_eq!(p.marker, None);
+    store.set_marker(&p.id, Some(&marker.hash)).unwrap();
+    assert_eq!(
+        store.palace("Mit Marker").unwrap().palace.marker.as_deref(),
+        Some(marker.hash.as_str())
+    );
+    assert!(
+        store.set_marker(&p.id, Some(&png.hash)).is_err(),
+        "markers are .sply only"
+    );
+    assert!(store.set_marker("nope", None).is_err());
+    store.set_marker(&p.id, None).unwrap();
+    assert_eq!(
+        store.find_palace("Mit Marker").unwrap().unwrap().marker,
+        None
+    );
+}

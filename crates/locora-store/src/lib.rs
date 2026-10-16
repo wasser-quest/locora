@@ -42,6 +42,9 @@ pub struct Palace {
     /// Seconds since the Unix epoch.
     pub created_at: u64,
     pub updated_at: u64,
+    /// SHA-256 of a custom locus marker (`.sply`); `None` = the default marker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marker: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -330,6 +333,7 @@ impl Store {
             name: name.to_owned(),
             created_at: now,
             updated_at: now,
+            marker: None,
         };
         conn.execute(
             "INSERT INTO palaces(id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
@@ -354,9 +358,10 @@ impl Store {
                 name: r.get(1)?,
                 created_at: r.get(2)?,
                 updated_at: r.get(3)?,
+                marker: r.get(4)?,
             })
         };
-        let cols = "SELECT id, name, created_at, updated_at FROM palaces";
+        let cols = "SELECT id, name, created_at, updated_at, marker FROM palaces";
         if let Some(p) = conn
             .query_row(
                 &format!("{cols} WHERE id = ?1 OR name = ?1 COLLATE NOCASE"),
@@ -477,6 +482,41 @@ impl Store {
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Use a custom locus marker (a stored `.sply`) for a palace, or the default with `None`.
+    pub fn set_marker(&self, id: &str, marker: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        if let Some(hash) = marker {
+            let mime: Option<String> = conn
+                .query_row("SELECT mime FROM media WHERE hash = ?1", [hash], |r| {
+                    r.get(0)
+                })
+                .optional()?;
+            match mime.as_deref() {
+                None => return Err(StoreError::NotFound(format!("Medium {hash}"))),
+                Some(SPLINELY) => {}
+                Some(other) => {
+                    return Err(StoreError::Invalid(format!(
+                        "Ein Marker muss eine .sply-Animation sein, nicht {other}"
+                    )));
+                }
+            }
+        }
+        let changed = conn.execute(
+            "UPDATE palaces SET marker = ?1, updated_at = ?2 WHERE id = ?3",
+            params![marker, now_secs(), id],
+        )?;
+        if changed == 0 {
+            return Err(StoreError::NotFound(format!("Palast {id}")));
+        }
+        self.log(
+            &conn,
+            "palace",
+            id,
+            "update",
+            Some(serde_json::json!({ "marker": marker })),
+        )
     }
 
     pub fn rename_palace(&self, id: &str, name: &str) -> Result<()> {

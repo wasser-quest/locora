@@ -100,6 +100,16 @@ Leuchten nutzt immer denselben Aufbau: radialer Hof (`rgba(230,255,120,0.8)` →
 - Jede Szene bewegt sich leicht (Leuchten, Abfolge 1 → 2 → 3, Zeiger, Blinzeln), nie hektisch.
 - Beispiele: das Tutorial unter `assets/tutorial/` (Bauskript `assets/tutorial/src/tutorial.py`).
 
+## 8b. Locus-Marker
+
+- **Hintergründe enthalten keine Loci.** Die App setzt an jede Locus-Position einen **Marker** (eigene `.sply`),
+  das Bild am Ort ist Inhalt und liegt nicht im Hintergrund.
+- Standard-Marker: `assets/marker/locus.sply` (Bauskript `assets/marker/src/marker.py`). Pro Palast kann ein eigener
+  Marker gesetzt werden (`locora marker PALAST datei.sply`, `marker = "…"` in `locora.toml`).
+- **Vertrag für eigene Marker:** Leinwand 96 × 96, der Ort ist die Mitte (48, 48); Zustandsmaschine `status` mit den
+  Zuständen `neu` (Start), `faellig` und `gewusst`, umgeschaltet durch die gleichnamigen Ereignisse; Klicks verarbeitet
+  die App. Farben von Formen mit Verlauf lassen sich nicht animieren – für Zustände eine zweite Form ein-/ausblenden.
+
 ## 9. Bewegung
 
 | Bewegung | Werte |

@@ -13,9 +13,20 @@ Stand: 16.10.2026
 - [ ] Journey in der App: Recall (Leertaste, 1–4), Quiz, Guess, Aktionen; gleiche Bewertung über das Core-Plugin
 - [ ] Editor: Bild/Video ins Fenster ziehen = neuer Palast, Klick = Locus, eingefügte Liste = Loci als Route
 - [ ] Tutorial in der App: `locora tutorial`-Palast mit abgespielten Animationen; Erststart-Hinweis
-- [ ] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons für core/review/notify/tutorial/gamification, Raum-Arten, Locus-Marker (neu/fällig/gewusst), leere Zustände (Simo mit Laterne), Journey-Feedback, Splash
+- [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
+- [ ] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
+- [ ] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons für core/review/notify/tutorial/gamification, Raum-Arten, leere Zustände (Simo mit Laterne), Journey-Feedback, Splash
 - [ ] Android- und iOS-Builds in CI; Klick-Budgets (PLAN 6.3) als E2E-Tests
 - [ ] Systemvoraussetzungen für Linux-Builds dokumentieren (webkit2gtk-4.1, gtk3, libsoup3 Entwicklerpakete)
+
+## Antworten und Abfragen (aus dem Abgleich mit mnemodim)
+
+- [ ] Quiz mischen (stabil pro Durchlauf) und Ablenker zufällig aus einem größeren Pool ziehen
+- [ ] Guess: weitere gültige Antworten (`accept`) und tolerantere Prüfung (Groß-/Kleinschreibung, Satzzeichen, Leerzeichen)
+- [ ] Merkhilfe `note` pro Locus (das lebhafte Bild in Worten), beim Aufdecken gezeigt
+- [ ] Abfragerichtungen: rückwärts (Inhalt → Ort) und gemischte Reihenfolge mit Ortsnummer („Was liegt an Ort 7?“)
+- [ ] Ton pro Locus (in mnemodim `soundPath`), z. B. über Audio in Splinely
+- [ ] Zoom/Schwenk pro Locus in der App (mnemodim `zoom/panX/panY`)
 
 ## Phase 1 – Reste
 

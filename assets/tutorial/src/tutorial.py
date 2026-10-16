@@ -122,13 +122,11 @@ def halle():
     s.glow("door_glow", 256, 200, 110, 0.35)
     floor = s.add("path", "floor", d="M0 0 L512 0 L512 74 L0 74 Z", ty=310, fill=INDIGO_SH)
     s.crescent(floor, 0, 8, INDIGO_DEEP)
-    dots = []
-    for i, (x, y) in enumerate([(150, 345), (256, 330), (362, 345)]):
-        s.glow(f"route_glow{i}", x, y, 22)
-        s.light(f"route{i}", x, y, 8)
-        dots.append([f"route_glow{i}", f"route{i}"])
-    s.sequence("route", dots)
-    s.finish("Eingangshalle: ein Torbogen, davor drei leuchtende Orte einer Route.")
+    # A soft carpet runner; the loci themselves are placed by the app (marker .sply).
+    runner = s.add("path", "runner", d="M-60 0 L60 0 L90 74 L-90 74 Z", tx=256, ty=310, fill="#A8384F")
+    s.crescent(runner, -8, 0, "#8A2E42")
+    s.pulse("door", ["door_glow"], low=0.6, period=3.2)
+    s.finish("Eingangshalle: ein hoher Torbogen mit warmem Licht, davor ein Läufer.")
 
 
 def bibliothek():
@@ -161,13 +159,12 @@ def garten():
     hill = s.add("path", "hill", d="M0 80 C 120 10 300 0 512 60 L512 160 L0 160 Z", ty=224, fill=GREEN)
     s.crescent(hill, -10, -12, GREEN_SH)
     s.crescent(hill, 8, 10, GREEN_HI)
-    flies = []
-    for i, (x, y) in enumerate([(90, 210), (200, 160), (330, 190), (450, 230)]):
-        s.glow(f"fly_glow{i}", x, y, 18)
-        s.light(f"fly{i}", x, y, 4)
-        flies.append([f"fly_glow{i}", f"fly{i}"])
-    s.sequence("flies", flies, step=0.6, hold=2.8, cycle=3.4)
-    s.finish("Garten am Abend: ein Hügel unter dem Mond, Glühwürmchen leuchten nacheinander auf.")
+    # Stars only twinkle; the loci are placed by the app (marker .sply).
+    stars = []
+    for i, (x, y, r) in enumerate([(70, 60, 5), (160, 40, 4), (250, 80, 5), (330, 30, 4), (480, 140, 4)]):
+        stars.append(s.add("star", f"star{i}", x=x, y=y, radius=r, tips=4, inner=0.4, fill=CREAM, pivot="center"))
+    s.pulse("stars", stars, low=0.35, period=2.8)
+    s.finish("Garten am Abend: ein Hügel unter Mond und funkelnden Sternen.")
 
 
 # ---------------------------------------------------------------- locus pictures (384 x 384)

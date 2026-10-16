@@ -138,6 +138,16 @@ enum Command {
     },
     /// Lernstatistik: Antworten, Trefferquote, Serie
     Stats,
+    /// Marker der Orte eines Palasts zeigen oder ändern (eigene .sply-Animation)
+    Marker {
+        palace: String,
+        /// Eigene Marker-Animation (.sply mit Zuständen neu/faellig/gewusst)
+        #[arg(conflicts_with = "reset")]
+        file: Option<PathBuf>,
+        /// Zurück zum Standard-Marker
+        #[arg(long)]
+        reset: bool,
+    },
     /// Tutorial-Palast „Locora lernen“ anlegen (Locora mit der Loci-Methode lernen)
     Tutorial {
         /// Vorhandenes Tutorial neu anlegen (sein Wiederholungsplan geht verloren)
@@ -366,6 +376,11 @@ fn main() -> Result<()> {
             settings::optimize_command(&mut app::App::open(data)?, dry_run, reset)
         }
         Command::Stats => settings::stats(&mut app::App::open(data)?),
+        Command::Marker {
+            palace,
+            file,
+            reset,
+        } => palace::marker(&mut app::App::open(data)?, &palace, file.as_deref(), reset),
         Command::Tutorial { reset } => tutorial::run(&mut app::App::open(data)?, reset),
         Command::Due => palace::due(&mut app::App::open(data)?),
         Command::Export {

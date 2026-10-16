@@ -56,6 +56,9 @@ fn invalid(message: impl Into<String>) -> SourceError {
 #[serde(deny_unknown_fields)]
 pub struct Source {
     pub name: String,
+    /// Custom locus marker (`.sply`), relative to the source file; default marker if missing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marker: Option<String>,
     #[serde(default, rename = "room", skip_serializing_if = "Vec::is_empty")]
     pub rooms: Vec<RoomSource>,
     #[serde(default, rename = "table", skip_serializing_if = "Vec::is_empty")]
@@ -385,6 +388,8 @@ impl TableSource {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Plan {
     pub name: String,
+    /// Custom locus marker file.
+    pub marker: Option<MediaFile>,
     pub rooms: Vec<PlannedRoom>,
     pub tables: Vec<Row>,
 }
@@ -577,8 +582,22 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
         }
         tables.push(row);
     }
+    let marker = match &source.marker {
+        None => None,
+        Some(file) => {
+            let path = base.join(file);
+            if media_type(&path).map(|(_, t)| t) != Some(locora_store::SPLINELY) {
+                return Err(invalid(format!(
+                    "`marker`: {file} muss eine .sply-Datei sein"
+                )));
+            }
+            check_file(&path, locora_store::SPLINELY, "`marker`")?;
+            Some((path, locora_store::SPLINELY))
+        }
+    };
     Ok(Plan {
         name: name.into(),
+        marker,
         rooms,
         tables,
     })
@@ -597,6 +616,12 @@ pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
     }
     let palace = store.create_palace(&plan.name)?;
     let result = (|| -> Result<()> {
+        if let Some((path, media_type)) = &plan.marker {
+            let bytes =
+                fs::read(path).map_err(|e| SourceError::File(path.display().to_string(), e))?;
+            let hash = store.put_media(&bytes, media_type)?.hash;
+            store.set_marker(&palace.id, Some(&hash))?;
+        }
         for row in &plan.tables {
             store.set_row(Some(&palace.id), row)?;
         }
@@ -671,6 +696,7 @@ fn clock(seconds: f64) -> TimeSource {
 pub fn to_source(tree: &PalaceTree, media_names: &HashMap<String, String>) -> Source {
     Source {
         name: tree.palace.name.clone(),
+        marker: tree.palace.marker.as_ref().map(|h| media_names[h].clone()),
         rooms: tree
             .rooms
             .iter()
@@ -721,7 +747,8 @@ pub fn dump(store: &Store, query: &str, dir: &Path) -> Result<PathBuf> {
         .chain(
             tree.route()
                 .filter_map(|l| l.image.as_ref().map(|h| (h, l.place.as_str()))),
-        );
+        )
+        .chain(tree.palace.marker.as_ref().map(|h| (h, "marker")));
     for (hash, label) in files {
         if names.contains_key(hash) {
             continue;

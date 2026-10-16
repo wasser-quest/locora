@@ -308,3 +308,23 @@ image = "simo.sply"
     );
     assert!(err.contains("kann kein Video sein"), "{err}");
 }
+
+#[test]
+fn custom_marker_in_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    fs::write(d.join("stern.sply"), b"\x89SPLY\r\n\x1a star").unwrap();
+    fs::write(d.join("stern.png"), b"\x89PNG").unwrap();
+    let text = "name = \"P\"\nmarker = \"stern.sply\"\n[[room]]\nname = \"a\"\nitems = [\"x\"]\n";
+    let store = Store::open(&d.join("profil")).unwrap();
+    let tree = build(&store, &plan_of(text, d).unwrap()).unwrap();
+    assert!(tree.palace.marker.is_some());
+    let file = dump(&store, "P", &d.join("out")).unwrap();
+    assert!(
+        fs::read_to_string(file)
+            .unwrap()
+            .contains("marker = \"marker.sply\"")
+    );
+    let err = err_of(&text.replace("stern.sply", "stern.png"), d);
+    assert!(err.contains("muss eine .sply-Datei sein"), "{err}");
+}

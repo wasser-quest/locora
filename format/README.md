@@ -75,6 +75,7 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 }
 ```
 
+- `marker` (palace, format 2): SHA-256 of a custom locus marker (`.sply`) the app shows at every locus; without it the app uses its default marker. Room backdrops never contain the loci themselves.
 - `backdrop`: SHA-256 of a media entry. Its media type decides the room: `video/*` video room, any picture (`image/*`, `.sply`) image room; no backdrop = plain room.
 - `x`, `y`: position in the room from 0 to 1 (left/top = 0).
 - `time`: seconds into the video; required in video rooms and not allowed elsewhere.

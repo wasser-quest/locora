@@ -65,6 +65,7 @@ cells = [{ column = "name", type = "text", value = "Ada" }, { column = "age", ty
 | Where | Field | Meaning |
 | --- | --- | --- |
 | top | `name` | palace name (must be free unless `--replace`) |
+| | `marker` | custom locus marker (`.sply`, see `assets/STIL.md` 8b); default marker if missing |
 | `[[room]]` | `name` | room name |
 | | `image` / `video` | backdrop file (png, jpg, webp, gif, avif, sply / mp4, webm, mov), at most one |
 | | `items` | short form: list of items; or use `[[room.locus]]`, not both |

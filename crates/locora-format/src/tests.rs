@@ -593,3 +593,37 @@ fn splinely_animations_as_backdrops_and_locus_pictures() {
     }));
     assert!(err.contains("Bild") && err.contains("fehlt"), "{err}");
 }
+
+#[test]
+fn custom_markers_travel_and_must_be_splinely() {
+    let a = tempfile::tempdir().unwrap();
+    let store = Store::open(a.path()).unwrap();
+    let marker = store
+        .put_media(b"\x89SPLY\r\n\x1a marker", locora_store::SPLINELY)
+        .unwrap();
+    let p = store.create_palace("Markiert").unwrap();
+    store
+        .add_room(&p.id, "Raum", RoomKind::Blank, None)
+        .unwrap();
+    store.set_marker(&p.id, Some(&marker.hash)).unwrap();
+    let bytes = exported(&store, &["Markiert"]);
+    let package = Package::open(Cursor::new(bytes.clone())).unwrap();
+    assert_eq!(package.manifest.version, 2);
+    let b = tempfile::tempdir().unwrap();
+    let target = Store::open(b.path()).unwrap();
+    package.import(&target).unwrap();
+    assert_eq!(
+        target.palace("Markiert").unwrap().palace.marker.as_deref(),
+        Some(marker.hash.as_str())
+    );
+
+    let err = open_err(rewrite(&bytes, |mut e| {
+        edit_json(&mut e, "manifest.json", |m| {
+            m["media"][0]["mediaType"] = "image/png".into()
+        });
+        e.into_iter()
+            .map(|(n, d)| (n.replace(".sply", ".png"), d))
+            .collect()
+    }));
+    assert!(err.contains("muss eine .sply-Animation sein"), "{err}");
+}

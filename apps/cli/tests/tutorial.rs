@@ -126,3 +126,27 @@ fn pictures_on_loci_from_the_command_line() {
         );
     }
 }
+
+#[test]
+fn palaces_can_use_a_custom_marker() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    std::fs::write(d.join("stern.sply"), b"\x89SPLY\r\n\x1a star").unwrap();
+    std::fs::write(d.join("stern.png"), b"\x89PNG").unwrap();
+    ok(d, &["new", "P", "--", "a"], "");
+    assert!(ok(d, &["marker", "P"], "").contains("Standard-Marker"));
+    ok(
+        d,
+        &["marker", "P", d.join("stern.sply").to_str().unwrap()],
+        "",
+    );
+    assert!(ok(d, &["marker", "P"], "").contains("eigenen Marker"));
+    let out = run(
+        d,
+        &["marker", "P", d.join("stern.png").to_str().unwrap()],
+        "",
+    );
+    assert!(!out.status.success());
+    ok(d, &["marker", "P", "--reset"], "");
+    assert!(ok(d, &["marker", "P"], "").contains("Standard-Marker"));
+}

@@ -497,6 +497,31 @@ pub fn due(app: &mut App) -> Result<()> {
     Ok(())
 }
 
+/// `locora marker PALACE [FILE | --reset]`: show or change a palace's locus marker.
+pub fn marker(app: &mut App, query: &str, file: Option<&Path>, reset: bool) -> Result<()> {
+    let tree = app.store.palace(query)?;
+    let name = &tree.palace.name;
+    match (file, reset) {
+        (Some(path), _) => {
+            if locora_source::media_type(path).map(|(_, t)| t) != Some(locora_store::SPLINELY) {
+                bail!("{}: Ein Marker muss eine .sply-Datei sein", path.display());
+            }
+            let hash = store_picture(app, path)?;
+            app.store.set_marker(&tree.palace.id, Some(&hash))?;
+            println!("✓ „{name}“ zeigt seine Orte jetzt mit {}", path.display());
+        }
+        (None, true) => {
+            app.store.set_marker(&tree.palace.id, None)?;
+            println!("✓ „{name}“ nutzt wieder den Standard-Marker");
+        }
+        (None, false) => match &tree.palace.marker {
+            Some(hash) => println!("„{name}“ hat einen eigenen Marker ({}…)", &hash[..12]),
+            None => println!("„{name}“ nutzt den Standard-Marker"),
+        },
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

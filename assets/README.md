@@ -8,6 +8,7 @@ All graphics are made with [Splinely](https://splinely.com) via `splinely-cli` a
 | `mascot/gluehwuermchen.sply` | Simo's firefly on its own, in the same lineless style as next to Simo: hovers, flaps, glows, blinks, follows the pointer with its eyes and hops on click, while a route of three numbered loci lights up 1 → 2 → 3. Built by `mascot/src/gluehwuermchen.py`. |
 | `tutorial/*.sply` | Graphics of the tutorial palace „Locora lernen“: three room backdrops (Eingangshalle, Bibliothek, Garten; 512 × 384) and seven locus pictures (Teppich, Laterne, Regal, Leseplatz, Uhr, Brunnen, Baum; 384 × 384), all animated. Built by `tutorial/src/tutorial.py`. |
 | `tutorial/locora-lernen.locora.toml` | The tutorial palace itself; every place shows a `.sply` (Simo and the firefly come from `mascot/`). Built into the CLI: `locora tutorial`. |
+| `marker/locus.sply` | Default locus marker: a glowing point with the states `neu`, `faellig`, `gewusst` (state machine `status`). The app places it at every locus; backdrops never contain loci. Built by `marker/src/marker.py`. |
 | `brand/icon.sply` | App icon: a palace arch with a route of glowing loci and the firefly's light. |
 
 Style guide: [`STIL.md`](STIL.md) (German).

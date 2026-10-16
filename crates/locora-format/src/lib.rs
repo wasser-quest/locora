@@ -126,6 +126,9 @@ pub struct PluginEntry {
 pub struct PalaceDoc {
     pub id: String,
     pub name: String,
+    /// SHA-256 of a custom locus marker (`.sply`; format 2). None = default marker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marker: Option<String>,
     pub rooms: Vec<RoomDoc>,
     /// Workbook tables of this palace (shared tables are in `tables.json`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -231,6 +234,7 @@ impl From<&PalaceTree> for PalaceDoc {
         Self {
             id: tree.palace.id.clone(),
             name: tree.palace.name.clone(),
+            marker: tree.palace.marker.clone(),
             rooms: tree
                 .rooms
                 .iter()
@@ -394,7 +398,10 @@ pub fn export_with<W: Write + Seek>(
         if docs.iter().any(|d| d.id == tree.palace.id) {
             continue;
         }
-        let pictures = tree.route().filter_map(|l| l.image.as_ref());
+        let pictures = tree
+            .route()
+            .filter_map(|l| l.image.as_ref())
+            .chain(tree.palace.marker.as_ref());
         for hash in tree
             .rooms
             .iter()
@@ -426,6 +433,7 @@ pub fn export_with<W: Write + Seek>(
             .flat_map(|p| &p.rooms)
             .flat_map(|r| &r.loci)
             .all(|l| l.answer.is_recall() && l.image.is_none())
+            && docs.iter().all(|d| d.marker.is_none())
         {
             1
         } else {
@@ -671,6 +679,21 @@ impl<R: Read + Seek> Package<R> {
                 )));
             }
             check_text("Palastname", &doc.name)?;
+            if let Some(hash) = &doc.marker {
+                if manifest.version == 1 {
+                    return Err(invalid("Eigene Marker benötigen Format 2"));
+                }
+                match media.get(hash) {
+                    Some(&t) if t == locora_store::SPLINELY => {}
+                    Some(t) => {
+                        return Err(invalid(format!(
+                            "„{}“: der Marker muss eine .sply-Animation sein, nicht {t}",
+                            doc.name
+                        )));
+                    }
+                    None => return Err(invalid(format!("„{}“: Marker {hash} fehlt", doc.name))),
+                }
+            }
             if doc.name.trim().is_empty() {
                 return Err(invalid("ein Palast hat keinen Namen"));
             }
@@ -856,6 +879,9 @@ impl<R: Read + Seek> Package<R> {
         for doc in &self.palaces {
             let name = free_name(store, &doc.name)?;
             let palace = store.create_palace(&name)?;
+            if let Some(marker) = &doc.marker {
+                store.set_marker(&palace.id, Some(marker))?;
+            }
             for row in &clashing {
                 if !doc
                     .tables
