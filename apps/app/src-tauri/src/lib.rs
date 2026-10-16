@@ -3,6 +3,7 @@
 
 mod editor;
 mod journey;
+mod settings;
 mod sply;
 mod views;
 
@@ -12,7 +13,7 @@ use std::sync::Mutex;
 
 use locora_app_api::{
     ActionDone, Feedback, Home, InputField, JourneyStart, PalaceView, Question, Reply, Revealed,
-    Step, Summary,
+    SettingsChange, SettingsView, Step, Summary,
 };
 use locora_runtime::Profile;
 use locora_store::SPLINELY;
@@ -166,6 +167,21 @@ async fn journey_start(state: State<'_, Shared>, start: JourneyStart) -> Result<
             Ok(Step::Question(question))
         }
     }
+}
+
+#[tauri::command]
+async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
+    let mut b = lock(&state)?;
+    settings::view(&mut b.profile).map_err(err)
+}
+
+#[tauri::command]
+async fn settings_set(
+    state: State<'_, Shared>,
+    change: SettingsChange,
+) -> Result<SettingsView, String> {
+    let mut b = lock(&state)?;
+    settings::change(&mut b.profile, change).map_err(err)
 }
 
 /// Workbook inputs to ask before `journey_start`.
@@ -339,6 +355,8 @@ pub fn run() {
             home_pick_media,
             tutorial,
             journey_inputs,
+            settings,
+            settings_set,
             journey_start,
             journey_action,
             journey_reveal,

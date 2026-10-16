@@ -24,6 +24,41 @@ pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
 pub const CMD_JOURNEY_INPUTS: &str = "journey_inputs";
+pub const CMD_SETTINGS: &str = "settings";
+pub const CMD_SETTINGS_SET: &str = "settings_set";
+
+/// Settings and learning statistics.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SettingsView {
+    pub new_per_day: u32,
+    pub max_new_per_day: u32,
+    /// Target retention 0.7–0.99; `None` without the review plugin.
+    pub retention: Option<f64>,
+    /// Personal FSRS weights (from `locora optimize`) are in use.
+    pub personal_weights: bool,
+    pub stats: Option<StatsView>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct StatsView {
+    pub answers: u32,
+    pub answered_today: u32,
+    pub new_today: u32,
+    /// Answers of the last 30 days, and how many were not „Nochmal“.
+    pub recent: u32,
+    pub recent_known: u32,
+    pub streak: u32,
+    pub scheduled: u32,
+    pub due: u32,
+}
+
+/// Change settings; `None` keeps a value.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SettingsChange {
+    pub new_per_day: Option<u32>,
+    /// As typed: `0,9`, `0.85`, `90 %`.
+    pub retention: Option<String>,
+}
 pub const CMD_JOURNEY_ACTION: &str = "journey_action";
 
 /// Custom URI scheme for media: `<scheme>://localhost/<kind>/<sha256>`

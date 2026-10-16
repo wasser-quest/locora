@@ -743,8 +743,9 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Standardwert, gesetzt vor der Planung, damit `active`-Formeln sie sehen); Aktionen (`Actions`) erscheinen als Knöpfe
    unter der Frage, `reveal`-Aktionen decken auf (Guess/Quiz zählen dann als aufgegeben). Formelfehler erscheinen als
    Text im Feld. Eingabefelder passen zum Typ (Zahlenfeld, Ja/Nein-Kästchen). Noch offen: Aktionen nach dem Bewerten.
-4. **Startbildschirm vollständig:** Plugin-Kacheln (`ui.tile`), Befehlspalette (Strg/⌘+K), Einstellungen (neue Loci
-   pro Tag, Behaltensrate), Statistik, Import/Export (`.locora`, `locora.toml`).
+4. **Startbildschirm vollständig:** Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik sind umgesetzt
+   (⚙, gleiche Berechnung wie `locora settings`/`stats` über `locora_runtime::settings`). Offen: Plugin-Kacheln
+   (`ui.tile`), Befehlspalette (Strg/⌘+K), Import/Export (`.locora`, `locora.toml`).
 5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): Kachel-Icons, Raum-Arten, leere Zustände (Simo mit Laterne),
    Journey-Feedback (richtig/nochmal/geschafft), Splash; bisher nur Text.
 6. **Leistung:** Jeder Marker ist ein eigener Frame mit eigener Runtime – bei vielen Loci alle Marker eines Raums in
