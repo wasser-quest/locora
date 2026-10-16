@@ -202,6 +202,7 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
                                 </div>
                             </div>
                         </section>
+                        <Tiles tiles=home.tiles.clone() />
                         {home
                             .notes
                             .into_iter()
@@ -257,25 +258,7 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
                                 </section>
                             }
                         })}
-                    {(!home.tiles.is_empty())
-                        .then(|| {
-                            view! {
-                                <section class="tiles" aria-label="Plugins">
-                                    {home
-                                        .tiles
-                                        .iter()
-                                        .map(|t| {
-                                            view! {
-                                                <article class="card tile" title=t.plugin.clone()>
-                                                    <span class="meta">{t.title.clone()}</span>
-                                                    <span class="count">{t.text.clone()}</span>
-                                                </article>
-                                            }
-                                        })
-                                        .collect_view()}
-                                </section>
-                            }
-                        })}
+                    <Tiles tiles=home.tiles.clone() />
                     {if home.palaces.is_empty() {
                         view! {
                             <p class="empty">
@@ -306,6 +289,28 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
             }
         }}
     }
+}
+
+/// Plugin tiles (`ui.tile`), on the welcome screen as well as the overview.
+#[component]
+fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
+    (!tiles.is_empty()).then(|| {
+        view! {
+            <section class="tiles" aria-label="Plugins">
+                {tiles
+                    .into_iter()
+                    .map(|t| {
+                        view! {
+                            <article class="card tile" title=t.plugin>
+                                <span class="meta">{t.title}</span>
+                                <span class="count">{t.text}</span>
+                            </article>
+                        }
+                    })
+                    .collect_view()}
+            </section>
+        }
+    })
 }
 
 #[component]
