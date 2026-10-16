@@ -93,6 +93,7 @@ fn App() -> impl IntoView {
                 Screen::Home => view! {
                     <HomeView screen=screen offset_revision=offset_revision/>
                 }.into_any(),
+
                 Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
                 Screen::Palace(id) => view! { <PalaceScreen id=id screen=screen/> }.into_any(),
                 Screen::Journey(start) => {
