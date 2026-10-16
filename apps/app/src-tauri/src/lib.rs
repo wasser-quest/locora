@@ -577,9 +577,11 @@ pub fn run() {
             app.manage::<Shared>(Mutex::new(backend));
             Ok(())
         })
-        .on_webview_event(|webview, event| {
-            if let tauri::WebviewEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
-                let state = webview.app_handle().state::<DropInbox>();
+        // A window's own content webview reports drops as a window event
+        // (`WebviewEvent::DragDrop` is only for additional child webviews).
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                let state = window.app_handle().state::<DropInbox>();
                 let result = state
                     .lock()
                     .map_err(|_| "Interner Fehler: Zustand blockiert")
@@ -589,9 +591,11 @@ pub fn run() {
                     Ok(ticket) => serde_json::json!({"ticket": ticket}),
                     Err(error) => serde_json::json!({"error": error}),
                 };
-                let _ = webview.eval(format!(
-                    "window.dispatchEvent(new CustomEvent('locora-file-drop', {{detail:{detail}}}))"
-                ));
+                if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+                    let _ = webview.eval(format!(
+                        "window.dispatchEvent(new CustomEvent('locora-file-drop', {{detail:{detail}}}))"
+                    ));
+                }
             }
         })
         .register_uri_scheme_protocol(locora_app_api::SCHEME, |ctx, request| {
