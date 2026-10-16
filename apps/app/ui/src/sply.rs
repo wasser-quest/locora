@@ -50,6 +50,8 @@ pub fn Sply(
             sandbox="allow-scripts"
             src=url(&media)
             title="Animation"
+            // A focused frame would swallow every key (Ctrl/⌘+K, Space, 1–4).
+            tabindex="-1"
             on:load=move |_| push()
         ></iframe>
     }
