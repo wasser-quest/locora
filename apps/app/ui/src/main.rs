@@ -310,6 +310,8 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     let palace = load(call::<PalaceView>(CMD_PALACE, IdArgs { id: id.clone() }));
     let blocked = RwSignal::new(false);
     let saved = RwSignal::new(Ok::<String, String>(String::new()));
+    // The dialog closes before the file is written: no second export meanwhile.
+    let exporting = RwSignal::new(false);
     let reverse = RwSignal::new(false);
     let numbers = RwSignal::new(false);
     let shuffle = RwSignal::new(false);
@@ -334,11 +336,15 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
             </h1>
             <button disabled=move || blocked.get() on:click=move |_| start(true)>"Fällige"</button>
             <button
-                disabled=move || blocked.get()
+                disabled=move || blocked.get() || exporting.get()
                 title="Als .locora-Datei speichern (mit Wiederholungsstand)"
                 on:click=move |_| {
+                    if exporting.get_untracked() {
+                        return;
+                    }
                     let id = id.get_value();
                     saved.set(Ok(String::new()));
+                    exporting.set(true);
                     spawn_local(async move {
                         match call::<Option<String>>(locora_app_api::CMD_EXPORT_PICK, IdArgs { id })
                             .await
@@ -347,6 +353,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
                             Err(text) => saved.set(Err(text)),
                             Ok(None) => {}
                         }
+                        exporting.set(false);
                     });
                 }
             >

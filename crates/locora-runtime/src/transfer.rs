@@ -94,6 +94,17 @@ pub fn file_name(name: &str) -> String {
     )
 }
 
+/// `<dir>/.<name>.<pid>-<nanos>.tmp` next to `output`.
+fn temporary_sibling(output: &Path) -> std::path::PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let name = output
+        .file_name()
+        .map_or_else(|| "export".into(), |n| n.to_string_lossy().into_owned());
+    output.with_file_name(format!(".{name}.{}-{nanos}.tmp", std::process::id()))
+}
+
 /// Open a `.locora` file and check everything before anything is imported,
 /// so a broken file changes nothing.
 pub fn open(path: &Path, with_progress: bool) -> Result<Opened> {
@@ -170,15 +181,20 @@ impl Profile {
     }
 
     /// Import an opened file: always new copies, then the review schedule.
+    /// Once the palaces are stored, later problems (plugin events, schedule)
+    /// become notes: failing then would invite a retry that copies again.
     pub fn import(&mut self, opened: Opened) -> Result<ImportDone> {
         self.check_required_plugins(&opened.package)?;
         let imported = opened.package.import(&self.store)?;
         let mut notes = Vec::new();
         for p in &imported {
-            notes.extend(self.publish(&PalaceCreated {
+            match self.publish(&PalaceCreated {
                 palace_id: p.id.clone(),
                 name: p.name.clone(),
-            })?);
+            }) {
+                Ok(more) => notes.extend(more),
+                Err(e) => notes.push(format!("„{}“: Plugins nicht benachrichtigt: {e:#}", p.name)),
+            }
         }
         let mut restored = None;
         if let Some(progress) = opened.progress.filter(|_| self.review_transferable()) {
@@ -196,10 +212,16 @@ impl Profile {
                     .filter_map(|c| Some((ids.get(c.locus.as_str())?.to_string(), c.state())))
                     .collect();
                 if !cards.is_empty() {
-                    count += self.host.call::<Restore>(&RestoreRequest {
+                    match self.host.call::<Restore>(&RestoreRequest {
                         palace_id: p.id.clone(),
                         cards,
-                    })?;
+                    }) {
+                        Ok(n) => count += n,
+                        Err(e) => notes.push(format!(
+                            "„{}“: Wiederholungsstand nicht übernommen: {e:#}",
+                            p.name
+                        )),
+                    }
                 }
             }
             restored = Some(count);
@@ -285,9 +307,15 @@ impl Profile {
         let cards = progress.as_ref().map_or(0, |f| {
             serde_json::from_slice::<Progress>(&f.bytes).map_or(0, |p| p.cards.len())
         });
-        let tmp = output.with_extension("locora.tmp");
+        // A temporary file of our own next to the target: two exports (CLI and
+        // app) to the same name never truncate each other's work.
+        let tmp = temporary_sibling(output);
         let result = (|| {
-            let file = File::create(&tmp).with_context(|| format!("{} anlegen", tmp.display()))?;
+            let file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&tmp)
+                .with_context(|| format!("{} anlegen", tmp.display()))?;
             let summary =
                 locora_format::export_with(&self.store, queries, progress.as_slice(), file)?;
             std::fs::rename(&tmp, output)?;
@@ -305,6 +333,22 @@ impl Profile {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn temporary_files_are_unique_siblings() {
+        let target = std::path::Path::new("/tmp/x/Planeten.locora");
+        let a = super::temporary_sibling(target);
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let b = super::temporary_sibling(target);
+        assert_ne!(a, b);
+        assert_eq!(a.parent(), target.parent());
+        assert!(
+            a.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with(".Planeten.locora.")
+        );
+    }
+
     #[test]
     fn file_names_are_safe() {
         assert_eq!(super::file_name("Planeten"), "Planeten.locora");
