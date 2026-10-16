@@ -2,7 +2,27 @@
 
 **Offline-first memory palaces, written in pure Rust.** Build palaces from images or videos, place loci in a few clicks, and practice recall on desktop, Android, iOS and the command line.
 
-> **Status:** planning. See [`PLAN.md`](PLAN.md) for the architecture and roadmap (German).
+> **Status:** early development. The runtime plugin host works; the app itself is not built yet. See [`PLAN.md`](PLAN.md) for the architecture and roadmap (German).
+
+## Try the plugin system
+
+```bash
+cargo build --release
+./target/release/locora plugin new "Mein Plugin" --template kachel
+cd mein-plugin
+../target/release/locora plugin dev --demo   # builds to WebAssembly, loads it, hot-reloads on every save
+```
+
+## Repository layout
+
+```text
+crates/locora-api          shared event types (host ⇄ plugins)
+crates/locora-sdk          write plugins in plain Rust (#[locora_plugin])
+crates/locora-sdk-macros   the #[locora_plugin] attribute
+crates/locora-host         loads plugins at runtime (wasmtime), sandbox, events, hot reload
+apps/cli                   the `locora` command
+plugins/                   plugins compiled to wasm32-wasip2 (example: lernzeit)
+```
 
 ## Highlights
 

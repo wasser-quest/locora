@@ -47,6 +47,11 @@ mitbringen, und das ist ein Projekt für sich.
 
 ---
 
+**Grafiken: Splinely.** Alle Grafiken (Maskottchen, Icons, Illustrationen, Animationen) werden mit `splinely-cli`
+als `.sply`-Dateien erstellt und in der App über die Splinely-Runtime abgespielt. Sie liegen unter `assets/`.
+
+---
+
 ## 3. Repository-Struktur
 
 ```text
@@ -228,7 +233,8 @@ Für alle anderen Plugins gilt auf **Android und iOS** (auf Desktop in Kurzform,
 - Ein Plugin, das abstürzt oder zu lange rechnet, wird automatisch deaktiviert.
 - **Risiko App Store:** Die Warnung schützt den Nutzer, aber nicht vor einer Ablehnung durch Apple oder Google
   (Apple 2.5.2 und Google Play „Device and Network Abuse“). Vor dem ersten Store-Release prüfen.
-  Notfalls lässt sich das Installieren fremder Plugins in der Store-Version per Build-Flag abschalten, während es in Sideload-/F-Droid-Builds bleibt.
+  **Ausweichlösung (abgestimmt):** Falls das Laden fremder Plugins auf Android oder iOS technisch oder wegen der Store-Regeln schwierig wird,
+  schalten wir es dort einfach ab (Build-Flag). Die mitgelieferten offiziellen Plugins laufen weiter.
 
 ### 4.4.1 Eigene Plugins bauen: so einfach wie möglich
 
@@ -557,6 +563,7 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 | `.mnemodim` | **keine Kompatibilität** nötig, neues Format `.locora` |
 | Spaced Repetition | eigenes Plugin `review` (FSRS), kostenlos und MIT |
 | Benachrichtigungen | eigenes Plugin `notify`, kostenlos und MIT |
+| Grafiken | **Splinely** (`.sply` + Runtime) |
 | Plugin-Technik | **zur Laufzeit geladene Rust → WASM-Komponenten** (wasmtime), Hot-Reload ohne Neustart |
 | Fremde Plugins | erlaubt auf allen Plattformen; Android/iOS mit Warnung „gefährlich, auf eigene Verantwortung“, Desktop mit kurzer Warnung |
 | Eigene Plugins | Nutzer können selbst Plugins bauen: Vorlagen, `locora plugin dev`, Hot-Reload, Test-Harness |

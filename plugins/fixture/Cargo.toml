@@ -1,0 +1,13 @@
+[package]
+name = "fixture"
+description = "Test plugin for locora-host: misbehaves on request"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+locora-sdk = { path = "../../crates/locora-sdk" }

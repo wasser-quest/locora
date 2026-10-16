@@ -1,0 +1,30 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/cli"]
+exclude = ["plugins"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/wasser-quest/locora"
+rust-version = "1.90"
+
+[workspace.dependencies]
+locora-api = { path = "crates/locora-api" }
+locora-host = { path = "crates/locora-host" }
+anyhow = "1"
+clap = { version = "4.6", features = ["derive"] }
+notify = "8"
+postcard = { version = "1.1", default-features = false, features = ["alloc"] }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+sha2 = "0.10"
+thiserror = "2"
+wasmtime = { version = "49", default-features = false, features = ["anyhow", "component-model", "cranelift", "runtime", "std", "parallel-compilation"] }
+wasmtime-wasi = "49"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = true

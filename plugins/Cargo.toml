@@ -1,0 +1,11 @@
+# Plugins are compiled to WebAssembly components (wasm32-wasip2) and loaded
+# by the host at runtime, so they live in their own workspace.
+[workspace]
+resolver = "3"
+members = ["lernzeit", "fixture"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true

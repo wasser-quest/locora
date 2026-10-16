@@ -1,0 +1,12 @@
+[package]
+name = "locora-api"
+description = "Shared event and data types for Locora hosts and plugins"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+postcard.workspace = true
+serde.workspace = true

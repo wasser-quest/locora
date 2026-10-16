@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      # rust-toolchain.toml installs stable with rustfmt, clippy and wasm32-wasip2.
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            plugins
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy (plugins)
+        working-directory: plugins
+        run: cargo clippy -- -D warnings
+      - name: Test
+        run: cargo test
+      - name: Plugin round trip
+        shell: bash
+        run: |
+          cargo run -q -p locora -- plugin run plugins/target/wasm32-wasip2/release/lernzeit.wasm | tee out.txt
+          grep -q "Kachel „Lernzeit“: 1 min" out.txt

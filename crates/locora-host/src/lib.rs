@@ -1,0 +1,489 @@
+//! Locora plugin host.
+//!
+//! Plugins are WebAssembly components built from Rust with `locora-sdk`. The
+//! host loads them at runtime, gives each one an isolated sandbox with only the
+//! permissions it declared, and routes events between them. Plugins can be
+//! replaced while the app runs ([`PluginHost::load`] on an already loaded id
+//! hot-reloads it); their storage survives the reload.
+
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context as _, Result, bail};
+use sha2::{Digest, Sha256};
+use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
+use wasmtime::{Config, Engine, Store};
+use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
+
+mod bindings {
+    wasmtime::component::bindgen!({
+        path: "../locora-sdk/wit",
+        world: "plugin",
+    });
+}
+
+pub use bindings::locora::plugin::types::Level;
+use bindings::locora::plugin::{host, types};
+
+/// Fuel granted to each call into a plugin. A plugin that runs out (e.g. an
+/// endless loop) is stopped and disabled instead of freezing the app.
+const FUEL_PER_CALL: u64 = 2_000_000_000;
+/// Events a single publish may cascade into before the host stops delivering.
+const MAX_EVENTS_PER_DISPATCH: usize = 10_000;
+
+/// Metadata a plugin declares about itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Manifest {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub api: String,
+    pub permissions: Vec<String>,
+}
+
+impl From<types::Manifest> for Manifest {
+    fn from(m: types::Manifest) -> Self {
+        Self {
+            id: m.id,
+            name: m.name,
+            version: m.version,
+            api: m.api,
+            permissions: m.permissions,
+        }
+    }
+}
+
+/// Something the host observed that the UI or CLI may want to show.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HostEvent {
+    Log {
+        plugin: String,
+        level: Level,
+        message: String,
+    },
+    Loaded(Manifest),
+    Reloaded(Manifest),
+    Unloaded(String),
+    /// A plugin trapped, panicked or returned an error and was disabled.
+    Disabled {
+        plugin: String,
+        reason: String,
+    },
+    /// A plugin returned an error from an event handler but stays active.
+    HandlerError {
+        plugin: String,
+        topic: String,
+        message: String,
+    },
+    /// A plugin published an event (also delivered to subscribers).
+    Published {
+        plugin: String,
+        topic: String,
+        payload: Vec<u8>,
+    },
+}
+
+/// Per-plugin sandbox state.
+struct PluginState {
+    id: String,
+    permissions: Vec<String>,
+    kv: BTreeMap<String, Vec<u8>>,
+    subscriptions: Vec<String>,
+    outbox: Vec<(String, Vec<u8>)>,
+    logs: Vec<(Level, String)>,
+    wasi: WasiCtx,
+    table: ResourceTable,
+}
+
+impl PluginState {
+    fn new(kv: BTreeMap<String, Vec<u8>>) -> Self {
+        Self {
+            id: String::new(),
+            permissions: Vec::new(),
+            kv,
+            subscriptions: Vec::new(),
+            outbox: Vec::new(),
+            logs: Vec::new(),
+            // No files, network, env or clock access beyond the defaults.
+            wasi: WasiCtx::builder().build(),
+            table: ResourceTable::new(),
+        }
+    }
+
+    fn require(&self, permission: &str) -> Result<(), String> {
+        if self.permissions.iter().any(|p| p == permission) {
+            Ok(())
+        } else {
+            Err(format!(
+                "Plugin `{}` braucht die Berechtigung `{permission}`; füge sie in `#[locora_plugin(permissions = [...])]` hinzu",
+                self.id
+            ))
+        }
+    }
+}
+
+impl WasiView for PluginState {
+    fn ctx(&mut self) -> WasiCtxView<'_> {
+        WasiCtxView {
+            ctx: &mut self.wasi,
+            table: &mut self.table,
+        }
+    }
+}
+
+impl types::Host for PluginState {}
+
+impl host::Host for PluginState {
+    fn log(&mut self, level: Level, message: String) {
+        self.logs.push((level, message));
+    }
+
+    fn subscribe(&mut self, topic: String) {
+        if !self.subscriptions.contains(&topic) {
+            self.subscriptions.push(topic);
+        }
+    }
+
+    fn publish(&mut self, topic: String, payload: Vec<u8>) {
+        self.outbox.push((topic, payload));
+    }
+
+    fn kv_get(&mut self, key: String) -> Result<Option<Vec<u8>>, String> {
+        self.require(locora_api::permission::STORAGE)?;
+        Ok(self.kv.get(&key).cloned())
+    }
+
+    fn kv_set(&mut self, key: String, value: Vec<u8>) -> Result<(), String> {
+        self.require(locora_api::permission::STORAGE)?;
+        self.kv.insert(key, value);
+        Ok(())
+    }
+}
+
+struct LoadedPlugin {
+    manifest: Manifest,
+    source: Option<PathBuf>,
+    store: Store<PluginState>,
+    instance: bindings::Plugin,
+}
+
+/// Loads plugins and routes events between them.
+pub struct PluginHost {
+    engine: Engine,
+    linker: Linker<PluginState>,
+    cache_dir: Option<PathBuf>,
+    plugins: BTreeMap<String, LoadedPlugin>,
+    /// Storage of plugins that were unloaded or disabled, kept for a reload.
+    parked_kv: HashMap<String, BTreeMap<String, Vec<u8>>>,
+    events: Vec<HostEvent>,
+}
+
+impl PluginHost {
+    /// Create a host. `cache_dir` stores compiled plugins so later starts skip compilation.
+    pub fn new(cache_dir: Option<PathBuf>) -> Result<Self> {
+        let mut config = Config::new();
+        config.wasm_component_model(true);
+        config.consume_fuel(true);
+        let engine = Engine::new(&config)?;
+
+        let mut linker = Linker::new(&engine);
+        wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+        bindings::Plugin::add_to_linker::<_, HasSelf<_>>(&mut linker, |state| state)?;
+
+        Ok(Self {
+            engine,
+            linker,
+            cache_dir,
+            plugins: BTreeMap::new(),
+            parked_kv: HashMap::new(),
+            events: Vec::new(),
+        })
+    }
+
+    /// Load a plugin from a `.wasm` component file. Loading an id that is
+    /// already active hot-reloads it and keeps its storage.
+    pub fn load_file(&mut self, path: &Path) -> Result<Manifest> {
+        let bytes = fs::read(path).with_context(|| format!("cannot read {}", path.display()))?;
+        let manifest = self.load_bytes(&bytes)?;
+        if let Some(plugin) = self.plugins.get_mut(&manifest.id) {
+            plugin.source = Some(path.to_owned());
+        }
+        Ok(manifest)
+    }
+
+    /// Load a plugin from component bytes. See [`PluginHost::load_file`].
+    pub fn load_bytes(&mut self, bytes: &[u8]) -> Result<Manifest> {
+        let component = self.compile(bytes)?;
+
+        // Peek at the manifest in a throwaway instance to learn the id.
+        let manifest = {
+            let mut store = self.new_store(BTreeMap::new());
+            let instance = bindings::Plugin::instantiate(&mut store, &component, &self.linker)?;
+            Manifest::from(instance.call_manifest(&mut store)?)
+        };
+        if manifest.id.is_empty() {
+            bail!("plugin has an empty id");
+        }
+        if !api_compatible(&manifest.api) {
+            bail!(
+                "Plugin `{}` wurde für API {} gebaut, diese App spricht API {}",
+                manifest.id,
+                manifest.api,
+                locora_api::API_VERSION
+            );
+        }
+
+        let reloading = self.plugins.contains_key(&manifest.id);
+        let kv = match self.plugins.remove(&manifest.id) {
+            Some(old) => self.shutdown(old),
+            None => self.parked_kv.remove(&manifest.id).unwrap_or_default(),
+        };
+
+        let mut store = self.new_store(kv);
+        store.data_mut().id = manifest.id.clone();
+        store.data_mut().permissions = manifest.permissions.clone();
+        let instance = bindings::Plugin::instantiate(&mut store, &component, &self.linker)?;
+        let mut plugin = LoadedPlugin {
+            manifest: manifest.clone(),
+            source: None,
+            store,
+            instance,
+        };
+
+        plugin.store.set_fuel(FUEL_PER_CALL)?;
+        let activated = plugin.instance.call_activate(&mut plugin.store);
+        let mut outbox = self.collect(&mut plugin);
+        match activated {
+            Ok(Ok(())) => {}
+            Ok(Err(message)) => {
+                self.parked_kv.insert(
+                    manifest.id.clone(),
+                    std::mem::take(&mut plugin.store.data_mut().kv),
+                );
+                bail!("Plugin `{}` konnte nicht starten: {message}", manifest.id);
+            }
+            Err(trap) => {
+                self.parked_kv.insert(
+                    manifest.id.clone(),
+                    std::mem::take(&mut plugin.store.data_mut().kv),
+                );
+                bail!(
+                    "Plugin `{}` ist beim Start abgestürzt: {trap:#}",
+                    manifest.id
+                );
+            }
+        }
+
+        self.plugins.insert(manifest.id.clone(), plugin);
+        self.events.push(if reloading {
+            HostEvent::Reloaded(manifest.clone())
+        } else {
+            HostEvent::Loaded(manifest.clone())
+        });
+        self.deliver(&mut outbox);
+        Ok(manifest)
+    }
+
+    /// Unload a plugin. Its storage is kept in case it is loaded again.
+    pub fn unload(&mut self, id: &str) -> bool {
+        let Some(plugin) = self.plugins.remove(id) else {
+            return false;
+        };
+        let kv = self.shutdown(plugin);
+        self.parked_kv.insert(id.to_owned(), kv);
+        self.events.push(HostEvent::Unloaded(id.to_owned()));
+        true
+    }
+
+    /// Publish an event from the host (or a native component) to all plugins.
+    pub fn publish<E: locora_api::Event>(&mut self, event: &E) -> Result<()> {
+        self.publish_raw(E::TOPIC, locora_api::encode(event)?);
+        Ok(())
+    }
+
+    /// Publish an already encoded event.
+    pub fn publish_raw(&mut self, topic: &str, payload: Vec<u8>) {
+        let mut queue = VecDeque::from([(String::from("host"), topic.to_owned(), payload)]);
+        self.dispatch(&mut queue);
+    }
+
+    /// Manifests of all active plugins, ordered by id.
+    pub fn plugins(&self) -> impl Iterator<Item = &Manifest> {
+        self.plugins.values().map(|p| &p.manifest)
+    }
+
+    /// File a plugin was loaded from, if any.
+    pub fn source(&self, id: &str) -> Option<&Path> {
+        self.plugins.get(id)?.source.as_deref()
+    }
+
+    /// Take everything that happened since the last call.
+    pub fn drain_events(&mut self) -> Vec<HostEvent> {
+        std::mem::take(&mut self.events)
+    }
+
+    fn new_store(&self, kv: BTreeMap<String, Vec<u8>>) -> Store<PluginState> {
+        let mut store = Store::new(&self.engine, PluginState::new(kv));
+        // Instantiation runs the component's start code, which also costs fuel.
+        store
+            .set_fuel(FUEL_PER_CALL)
+            .expect("fuel is enabled in the engine config");
+        store
+    }
+
+    /// Compile a component, using the on-disk cache when possible.
+    fn compile(&self, bytes: &[u8]) -> Result<Component> {
+        let Some(dir) = &self.cache_dir else {
+            return Ok(Component::new(&self.engine, bytes)?);
+        };
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        // Compiled code is only valid for this exact engine build and config.
+        let mut compat = std::hash::DefaultHasher::new();
+        std::hash::Hash::hash(&self.engine.precompile_compatibility_hash(), &mut compat);
+        hasher.update(std::hash::Hasher::finish(&compat).to_le_bytes());
+        let key: String = hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let path = dir.join(format!("{key}.cwasm"));
+        if path.exists() {
+            // SAFETY: the file was written by `Component::serialize` of this
+            // engine configuration (the key includes the compatibility hash)
+            // into the host's private cache directory.
+            if let Ok(component) = unsafe { Component::deserialize_file(&self.engine, &path) } {
+                return Ok(component);
+            }
+        }
+        let component = Component::new(&self.engine, bytes)?;
+        if fs::create_dir_all(dir).is_ok() {
+            let tmp = path.with_extension("tmp");
+            if fs::write(&tmp, component.serialize()?).is_ok() {
+                let _ = fs::rename(&tmp, &path);
+            }
+        }
+        Ok(component)
+    }
+
+    /// Deactivate a plugin and return its storage.
+    fn shutdown(&mut self, mut plugin: LoadedPlugin) -> BTreeMap<String, Vec<u8>> {
+        let _ = plugin.store.set_fuel(FUEL_PER_CALL);
+        let _ = plugin.instance.call_deactivate(&mut plugin.store);
+        let _ = self.collect(&mut plugin);
+        std::mem::take(&mut plugin.store.data_mut().kv)
+    }
+
+    /// Move logs into host events and return the plugin's published events.
+    fn collect(&mut self, plugin: &mut LoadedPlugin) -> VecDeque<(String, String, Vec<u8>)> {
+        let state = plugin.store.data_mut();
+        for (level, message) in state.logs.drain(..) {
+            self.events.push(HostEvent::Log {
+                plugin: state.id.clone(),
+                level,
+                message,
+            });
+        }
+        state
+            .outbox
+            .drain(..)
+            .map(|(topic, payload)| (state.id.clone(), topic, payload))
+            .collect()
+    }
+
+    fn deliver(&mut self, queue: &mut VecDeque<(String, String, Vec<u8>)>) {
+        self.dispatch(queue);
+    }
+
+    /// Deliver queued events breadth-first. Events published while handling
+    /// an event are appended to the queue, so plugins never re-enter each other.
+    fn dispatch(&mut self, queue: &mut VecDeque<(String, String, Vec<u8>)>) {
+        let mut delivered = 0;
+        while let Some((sender, topic, payload)) = queue.pop_front() {
+            delivered += 1;
+            if delivered > MAX_EVENTS_PER_DISPATCH {
+                self.events.push(HostEvent::Log {
+                    plugin: "host".into(),
+                    level: Level::Error,
+                    message: format!(
+                        "Event-Kaskade nach {MAX_EVENTS_PER_DISPATCH} Events abgebrochen"
+                    ),
+                });
+                return;
+            }
+            if sender != "host" {
+                self.events.push(HostEvent::Published {
+                    plugin: sender.clone(),
+                    topic: topic.clone(),
+                    payload: payload.clone(),
+                });
+            }
+            let receivers: Vec<String> = self
+                .plugins
+                .iter()
+                .filter(|(id, p)| **id != sender && p.store.data().subscriptions.contains(&topic))
+                .map(|(id, _)| id.clone())
+                .collect();
+            for id in receivers {
+                let Some(mut plugin) = self.plugins.remove(&id) else {
+                    continue;
+                };
+                let _ = plugin.store.set_fuel(FUEL_PER_CALL);
+                let result = plugin
+                    .instance
+                    .call_on_event(&mut plugin.store, &topic, &payload);
+                queue.extend(self.collect(&mut plugin));
+                match result {
+                    Ok(Ok(())) => {
+                        self.plugins.insert(id, plugin);
+                    }
+                    Ok(Err(message)) => {
+                        self.events.push(HostEvent::HandlerError {
+                            plugin: id.clone(),
+                            topic: topic.clone(),
+                            message,
+                        });
+                        self.plugins.insert(id, plugin);
+                    }
+                    Err(trap) => {
+                        // A trapped instance is unusable; disable it but keep its data.
+                        self.parked_kv
+                            .insert(id.clone(), std::mem::take(&mut plugin.store.data_mut().kv));
+                        self.events.push(HostEvent::Disabled {
+                            plugin: id,
+                            reason: format!("{trap:#}"),
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Plugins built against API `major.minor` run on any host with the same
+/// major version (or the same `0.minor` before 1.0).
+fn api_compatible(plugin_api: &str) -> bool {
+    let key = |v: &str| {
+        let mut parts = v.split('.');
+        let major = parts.next().unwrap_or_default().to_owned();
+        if major == "0" {
+            format!("0.{}", parts.next().unwrap_or_default())
+        } else {
+            major
+        }
+    };
+    key(plugin_api) == key(locora_api::API_VERSION)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_versions() {
+        assert!(api_compatible("0.1"));
+        assert!(!api_compatible("0.2"));
+        assert!(!api_compatible("1.0"));
+    }
+}

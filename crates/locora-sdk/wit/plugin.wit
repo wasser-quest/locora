@@ -1,0 +1,44 @@
+package locora:plugin@0.1.0;
+
+/// Shared types between the Locora host and plugins.
+interface types {
+    record manifest {
+        /// Unique plugin id, e.g. `review`.
+        id: string,
+        /// Human-readable name.
+        name: string,
+        /// Plugin version (semver).
+        version: string,
+        /// Plugin API version the plugin was built against.
+        api: string,
+        /// Requested permissions, e.g. `storage`, `palaces:read`.
+        permissions: list<string>,
+    }
+
+    enum level { trace, debug, info, warn, error }
+}
+
+/// Functions the host offers to every plugin.
+interface host {
+    use types.{level};
+
+    /// Write a log line attributed to the calling plugin.
+    log: func(level: level, message: string);
+    /// Receive events published on `topic` via `on-event`.
+    subscribe: func(topic: string);
+    /// Publish an event. Delivered after the current call returns.
+    publish: func(topic: string, payload: list<u8>);
+    /// Plugin-private key-value storage. Requires the `storage` permission.
+    kv-get: func(key: string) -> result<option<list<u8>>, string>;
+    kv-set: func(key: string, value: list<u8>) -> result<_, string>;
+}
+
+world plugin {
+    use types.{manifest};
+    import host;
+
+    export manifest: func() -> manifest;
+    export activate: func() -> result<_, string>;
+    export deactivate: func();
+    export on-event: func(topic: string, payload: list<u8>) -> result<_, string>;
+}
