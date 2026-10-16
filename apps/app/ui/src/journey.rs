@@ -522,6 +522,45 @@ fn Ask(
         }
         AnswerKind::Quiz => {
             let picked = RwSignal::new(Vec::<u32>::new());
+            let toggle = move |i: u32| {
+                picked.update(|p| {
+                    if let Some(at) = p.iter().position(|x| *x == i) {
+                        p.remove(at);
+                    } else {
+                        p.push(i);
+                    }
+                })
+            };
+            // PLAN 6.3: keys 1–9 toggle options, Enter checks. Only mounted while asking.
+            let count = question.options.len().min(9) as u32;
+            let keys = window_event_listener(leptos::ev::keydown, move |e| {
+                if busy.get_untracked() || e.alt_key() || e.ctrl_key() || e.meta_key() || e.repeat()
+                {
+                    return;
+                }
+                // A focused button already handles Enter itself (no double submit).
+                let control = e
+                    .target()
+                    .and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(t).ok())
+                    .is_some_and(|el| {
+                        matches!(el.tag_name().as_str(), "BUTTON" | "TEXTAREA")
+                            || el.get_attribute("type").as_deref() == Some("text")
+                    });
+                match e.key().as_str() {
+                    "Enter" if !control && !picked.get_untracked().is_empty() => {
+                        e.prevent_default();
+                        reply(Reply::Quiz(picked.get_untracked()));
+                    }
+                    key => {
+                        if let Some(n) = key.parse::<u32>().ok().filter(|n| (1..=count).contains(n))
+                        {
+                            e.prevent_default();
+                            toggle(n - 1);
+                        }
+                    }
+                }
+            });
+            on_cleanup(move || keys.remove());
             view! {
                 <div class="options">
                     {question
@@ -535,24 +574,16 @@ fn Ask(
                                     <input
                                         type="checkbox"
                                         prop:checked=move || picked.get().contains(&i)
-                                        on:change=move |_| {
-                                            picked
-                                                .update(|p| {
-                                                    if let Some(at) = p.iter().position(|x| *x == i) {
-                                                        p.remove(at);
-                                                    } else {
-                                                        p.push(i);
-                                                    }
-                                                })
-                                        }
+                                        on:change=move |_| toggle(i)
                                     />
+                                    {(i < 9).then(|| view! { <kbd>{i + 1}</kbd> })}
                                     {text.clone()}
                                 </label>
                             }
                         })
                         .collect_view()}
                 </div>
-                <div class="progress">"Alle richtigen wählen."</div>
+                <div class="progress">"Alle richtigen wählen (Tasten 1–9, Enter prüft)."</div>
                 <button
                     class="primary"
                     disabled=move || busy.get() || picked.get().is_empty()
@@ -562,7 +593,7 @@ fn Ask(
                 </button>
                 <button on:click=move |_| reply(Reply::Forfeit)>"Aufdecken"</button>
             }
-                .into_any()
+            .into_any()
         }
     }
 }
