@@ -1,0 +1,16 @@
+[package]
+name = "locora-runtime"
+description = "Shared run time of the Locora CLI and app: profile, built-in plugins, answering loci"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+dirs = "6"
+locora-api.workspace = true
+locora-host.workspace = true
+locora-store = { path = "../locora-store" }
+serde_json = "1"

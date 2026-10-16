@@ -1042,6 +1042,7 @@ dependencies = [
  "locora-formula",
  "locora-fsrs",
  "locora-host",
+ "locora-runtime",
  "locora-source",
  "locora-store",
  "notify",
@@ -1102,6 +1103,18 @@ dependencies = [
  "tempfile",
  "wasmtime",
  "wasmtime-wasi",
+]
+
+[[package]]
+name = "locora-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dirs",
+ "locora-api",
+ "locora-host",
+ "locora-store",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
-//! Compiles the official plugins to WebAssembly and embeds them in the CLI,
-//! so `locora` works out of the box. If the `wasm32-wasip2` target is missing
-//! the CLI still builds, just without the built-in plugins (with a warning).
+//! Compiles the official plugins to WebAssembly and embeds them in
+//! locora-runtime, so the CLI and the app work out of the box. If the `wasm32-wasip2` target is missing
+//! it still builds, just without the built-in plugins (with a warning).
 //! Set `LOCORA_SKIP_PLUGINS=1` to skip this step.
 
 use std::path::PathBuf;
@@ -64,7 +64,7 @@ fn main() {
                 }
             }
             _ => println!(
-                "cargo:warning=Offizielle Plugins konnten nicht gebaut werden (fehlt `rustup target add wasm32-wasip2`?). Die CLI läuft ohne sie."
+                "cargo:warning=Offizielle Plugins konnten nicht gebaut werden (fehlt `rustup target add wasm32-wasip2`?). Locora läuft ohne sie."
             ),
         }
     }

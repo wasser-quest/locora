@@ -408,12 +408,7 @@ fn installed_files(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-pub(crate) fn read_regular(file: &Path) -> Result<Vec<u8>> {
-    if !fs::symlink_metadata(file)?.file_type().is_file() {
-        bail!("Keine reguläre Plugin-Datei: {}", file.display());
-    }
-    Ok(fs::read(file)?)
-}
+use locora_runtime::read_regular;
 
 fn inspect_file(host: &PluginHost, file: &Path) -> Result<Manifest> {
     host.inspect_bytes(&read_regular(file)?)

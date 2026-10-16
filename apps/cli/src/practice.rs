@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use locora_api::Service;
-use locora_api::core::{Grade, JourneyCompleted, JourneyScore, LocusAnswered, Score};
-use locora_api::journey::{AnswerKind, Evaluate, EvaluateRequest, Scored, Submission};
+use locora_api::core::{Grade, JourneyCompleted};
+use locora_api::journey::{AnswerKind, Evaluate, Submission};
 use locora_formula::workbook::{ActionOutcome, BindingField, LocusInput, Run};
 use locora_store::{Locus, PalaceTree};
 
@@ -382,38 +382,16 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                 } else {
                     String::new()
                 };
-                let evaluation = app.host.call_plugin::<Evaluate>(
-                    "core",
-                    &EvaluateRequest {
-                        answer: locus.answer.clone(),
-                        expected,
-                        submission,
-                        elapsed_ms,
-                    },
-                )?;
-                app.report();
-                let score = app.host.filter::<JourneyScore>(Score {
-                    palace_id: tree.palace.id.clone(),
-                    locus_id: locus.id.clone(),
-                    points: evaluation.points,
-                })?;
-                app.report();
-                points = points.saturating_add(score.points);
-                results.push((tree.palace.id.clone(), evaluation.correct));
-                app.publish(&LocusAnswered {
-                    palace_id: tree.palace.id.clone(),
-                    locus_id: locus.id.clone(),
-                    correct: evaluation.correct,
-                    grade: evaluation.grade,
+                let evaluation = app.answer(locora_runtime::AnswerRequest {
+                    palace_id: &tree.palace.id,
+                    locus_id: &locus.id,
+                    answer: &locus.answer,
+                    expected: &expected,
+                    submission,
                     elapsed_ms,
-                    answered_at: now(),
                 })?;
-                // Preserve trusted route identity even if a points filter changes ids.
-                app.publish(&Scored {
-                    palace_id: tree.palace.id.clone(),
-                    locus_id: locus.id.clone(),
-                    points: score.points,
-                })?;
+                points = points.saturating_add(evaluation.points);
+                results.push((tree.palace.id.clone(), evaluation.correct));
                 if locus.answer.kind != AnswerKind::Recall {
                     println!(
                         "        {} → {}",
@@ -477,10 +455,7 @@ mod tests {
     use super::*;
     #[test]
     fn missing_core_is_reported_before_any_input() {
-        let mut app = App {
-            store: std::sync::Arc::new(locora_store::Store::in_memory().unwrap()),
-            host: locora_host::PluginHost::new(None).unwrap(),
-        };
+        let mut app = App::for_tests();
         let error = run(
             &mut app,
             None,

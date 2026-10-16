@@ -1,0 +1,233 @@
+//! What the Locora CLI and app share: opening a profile (store, plugin host,
+//! built-in and approved installed plugins) and answering a locus (Core
+//! evaluation, score hook, events for review and other plugins).
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{env, fs};
+
+use anyhow::{Context, Result, bail};
+use locora_api::core::{Grade, JourneyScore, LocusAnswered, Score};
+use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
+use locora_host::{HostEvent, KvStore, Level, Manifest, PluginHost};
+use locora_store::Store;
+
+pub mod embedded {
+    //! Official plugins compiled into this crate by `build.rs`.
+    include!(concat!(env!("OUT_DIR"), "/embedded_plugins.rs"));
+}
+
+/// Plugin storage backed by the local database.
+struct StoreKv(Arc<Store>);
+
+impl KvStore for StoreKv {
+    fn get(&self, plugin: &str, key: &str) -> Result<Option<Vec<u8>>, String> {
+        self.0.kv_get(plugin, key).map_err(|e| e.to_string())
+    }
+
+    fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String> {
+        self.0.kv_set(plugin, key, value).map_err(|e| e.to_string())
+    }
+}
+
+/// Profile directory: explicit, `$LOCORA_DATA` or the platform data dir.
+pub fn data_dir(explicit: Option<&Path>) -> Result<PathBuf> {
+    if let Some(dir) = explicit {
+        return Ok(dir.to_owned());
+    }
+    if let Some(dir) = env::var_os("LOCORA_DATA") {
+        return Ok(PathBuf::from(dir));
+    }
+    Ok(dirs::data_dir()
+        .context("Kein Datenordner gefunden; gib einen mit --data an")?
+        .join("locora"))
+}
+
+/// Installed components must live in a real directory beneath the chosen profile.
+/// The profile itself may be a user-selected symlink; its plugin directory may not.
+pub fn plugin_dir(data: &Path) -> Result<PathBuf> {
+    let dir = data.join("plugins");
+    match fs::symlink_metadata(&dir) {
+        Ok(metadata) if !metadata.file_type().is_dir() => {
+            bail!(
+                "Plugin-Ordner {} muss ein Verzeichnis ohne symbolischen Link sein",
+                dir.display()
+            );
+        }
+        Ok(_) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err).context("Plugin-Ordner prüfen"),
+    }
+    Ok(dir)
+}
+
+/// Read a file that must be a regular file (no symlink, FIFO or directory).
+pub fn read_regular(file: &Path) -> Result<Vec<u8>> {
+    if !fs::symlink_metadata(file)?.file_type().is_file() {
+        bail!("Keine reguläre Plugin-Datei: {}", file.display());
+    }
+    Ok(fs::read(file)?)
+}
+
+/// Current time in seconds; `LOCORA_NOW` overrides it (tests, demos).
+pub fn now() -> u64 {
+    env::var("LOCORA_NOW")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs())
+        })
+}
+
+/// An open profile: local store plus plugin host.
+pub struct Profile {
+    pub store: Arc<Store>,
+    pub host: PluginHost,
+    /// Problems noticed while opening (plugins that did not load).
+    pub notes: Vec<String>,
+}
+
+impl Profile {
+    /// Open the profile in `data` (see [`data_dir`]) with all built-in plugins
+    /// and every installed plugin that has a matching approval.
+    pub fn open(data: Option<&Path>) -> Result<Self> {
+        let data_dir = data_dir(data)?;
+        let installed = plugin_dir(&data_dir)?;
+        let store = Arc::new(
+            Store::open(&data_dir)
+                .with_context(|| format!("Datenbank in {} öffnen", data_dir.display()))?,
+        );
+        let cache = dirs::cache_dir().map(|d| d.join("locora").join("plugins"));
+        let mut host =
+            PluginHost::with_palaces(cache, Arc::new(StoreKv(store.clone())), store.clone())?;
+        let mut notes = Vec::new();
+        for (name, bytes) in embedded::EMBEDDED {
+            if let Err(err) = host.load_bytes(bytes) {
+                notes.push(format!(
+                    "Eingebautes Plugin `{name}` konnte nicht laden: {err:#}"
+                ));
+            }
+        }
+        if let Ok(entries) = fs::read_dir(&installed) {
+            let mut files: Vec<PathBuf> = entries
+                .filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| p.extension().is_some_and(|x| x == "wasm"))
+                .collect();
+            files.sort();
+            for file in files {
+                let load = (|| -> Result<Manifest> {
+                    let approval = read_regular(&file.with_extension("wasm.json")).context(
+                        "Keine Installationszustimmung; bitte `locora plugin install` verwenden",
+                    )?;
+                    let approved = serde_json::from_slice(&approval)?;
+                    host.load_approved_file(&file, &approved)
+                })();
+                if let Err(err) = load {
+                    notes.push(format!(
+                        "Plugin {} konnte nicht laden: {err:#}",
+                        file.display()
+                    ));
+                }
+            }
+        }
+        let mut profile = Self { store, host, notes };
+        let reported = profile.report();
+        profile.notes.extend(reported);
+        Ok(profile)
+    }
+
+    /// Publish an event; returns plugin problems it caused.
+    pub fn publish<E: locora_api::Event>(&mut self, event: &E) -> Result<Vec<String>> {
+        self.host.publish(event)?;
+        Ok(self.report())
+    }
+
+    /// Plugin warnings and errors since the last call; normal chatter is dropped.
+    pub fn report(&mut self) -> Vec<String> {
+        self.host
+            .drain_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                HostEvent::Log {
+                    plugin,
+                    level: Level::Warn | Level::Error,
+                    message,
+                } => Some(format!("[{plugin}] {message}")),
+                HostEvent::HandlerError {
+                    plugin,
+                    topic,
+                    message,
+                } => Some(format!("[{plugin}] Fehler bei {topic}: {message}")),
+                HostEvent::Disabled { plugin, reason } => {
+                    Some(format!("Plugin `{plugin}` wurde deaktiviert: {reason}"))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Grade one answer: Core evaluates it, plugins may adjust the points
+    /// (`core.journey.score`), and review and others hear about it.
+    /// `expected` is the resolved item (needed for typed answers).
+    pub fn answer(&mut self, request: AnswerRequest<'_>) -> Result<Answered> {
+        let evaluation = self.host.call_plugin::<Evaluate>(
+            "core",
+            &EvaluateRequest {
+                answer: request.answer.clone(),
+                expected: request.expected.to_owned(),
+                submission: request.submission,
+                elapsed_ms: request.elapsed_ms,
+            },
+        )?;
+        let mut notes = self.report();
+        let score = self.host.filter::<JourneyScore>(Score {
+            palace_id: request.palace_id.to_owned(),
+            locus_id: request.locus_id.to_owned(),
+            points: evaluation.points,
+        })?;
+        notes.extend(self.report());
+        notes.extend(self.publish(&LocusAnswered {
+            palace_id: request.palace_id.to_owned(),
+            locus_id: request.locus_id.to_owned(),
+            correct: evaluation.correct,
+            grade: evaluation.grade,
+            elapsed_ms: request.elapsed_ms,
+            answered_at: now(),
+        })?);
+        // Trusted route identity, even if a points filter changed ids.
+        notes.extend(self.publish(&Scored {
+            palace_id: request.palace_id.to_owned(),
+            locus_id: request.locus_id.to_owned(),
+            points: score.points,
+        })?);
+        Ok(Answered {
+            correct: evaluation.correct,
+            grade: evaluation.grade,
+            points: score.points,
+            notes,
+        })
+    }
+}
+
+/// One answer to grade (see [`Profile::answer`]).
+pub struct AnswerRequest<'a> {
+    pub palace_id: &'a str,
+    pub locus_id: &'a str,
+    pub answer: &'a locora_api::journey::Answer,
+    pub expected: &'a str,
+    pub submission: Submission,
+    pub elapsed_ms: u64,
+}
+
+/// The result of [`Profile::answer`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct Answered {
+    pub correct: bool,
+    pub grade: Grade,
+    pub points: u64,
+    /// Plugin problems that came up.
+    pub notes: Vec<String>,
+}
