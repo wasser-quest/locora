@@ -5,7 +5,7 @@ All graphics are made with [Splinely](https://splinely.com) via `splinely-cli` a
 | File | What |
 |---|---|
 | `mascot/simo.sply` | **Simo**, the Locora mascot, named after Simonides of Ceos, who is credited with inventing the method of loci. Full body, no outlines, cel-shaded: light brown skin, a compact afro with a clean hairline, a lantern full of firefly light and three loci on his jacket that light up 1 → 2 → 3. He breathes, blinks and follows the pointer with his eyes; the lantern sways like a pendulum; clicking his face sends the firefly on a loop. Built by `mascot/src/simo.py`. |
-| `mascot/gluehwuermchen.sply` | Simo's firefly on its own: lights up a numbered route of loci; hovers, flaps, glows, blinks and hops on click. |
+| `mascot/gluehwuermchen.sply` | Simo's firefly on its own, in the same lineless style as next to Simo: hovers, flaps, glows, blinks, follows the pointer with its eyes and hops on click, while a route of three numbered loci lights up 1 → 2 → 3. Built by `mascot/src/gluehwuermchen.py`. |
 | `brand/icon.sply` | App icon: a palace arch with a route of glowing loci and the firefly's light. |
 
 Style guide: [`STIL.md`](STIL.md) (German).
@@ -14,5 +14,6 @@ Style guide: [`STIL.md`](STIL.md) (German).
 SPLINELY_CLI=splinely-cli python3 mascot/src/simo.py mascot/simo.sply   # rebuild Simo from source
 splinely-cli export mascot/simo.sply --output mascot/simo.svg   # interactive SVG
 splinely-cli render mascot/simo.sply --output mascot/simo.gif --duration 3.6   # animated preview
+SPLINELY_CLI=splinely-cli python3 mascot/src/gluehwuermchen.py mascot/gluehwuermchen.sply   # rebuild the firefly
 splinely-cli render brand/icon.sply --time 0 --output brand/icon.png
 ```

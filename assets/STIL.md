@@ -91,7 +91,7 @@ Leuchten nutzt immer denselben Aufbau: radialer Hof (`rgba(230,255,120,0.8)` →
 
 - **Laterne:** Glaskörper mit Leuchtverlauf, Kappe und Boden in Indigo; das Licht pulsiert.
 - **Loci-Anstecker:** drei Punkte, die in der Animation **nacheinander** (1 → 2 → 3) aufleuchten – die Loci-Methode in einem Bild.
-- **Glühwürmchen:** Begleiter mit indigo Kopf, großen weißen Augen, transparenten Flügeln und leuchtendem Hinterleib.
+- **Glühwürmchen:** Begleiter mit indigo Kopf, großen weißen Augen, transparenten, unterschiedlich getönten Flügeln (links heller) und leuchtendem Hinterleib; ohne Fühler, Mund oder Wangen. Allein dargestellt ist es dieselbe Form, nur größer.
 
 ## 9. Bewegung
 
@@ -110,7 +110,7 @@ Bewegungen sind **klein und ruhig**; nichts blinkt hektisch.
 
 ## 10. Arbeitsweise mit Splinely
 
-- Figuren werden **per Skript** gebaut: `assets/mascot/src/simo.py` ruft `splinely-cli` auf, erzeugt Formen, Schatten (`crescent`, `cast`), Rig und Animationen.
+- Figuren werden **per Skript** gebaut: `assets/mascot/src/simo.py` (und `gluehwuermchen.py` für das Glühwürmchen allein) ruft `splinely-cli` auf, erzeugt Formen, Schatten (`crescent`, `cast`), Rig und Animationen.
 - Nach jeder Änderung: `splinely-cli check`, dann `splinely-cli render … --width 1024` und das Bild ansehen; Gesicht vergrößert, geschlossene Augen und Bewegungen zusätzlich prüfen.
 - Exporte (`.svg`, `.gif`, `.png`) werden immer aus der `.sply`-Quelle erzeugt, nie von Hand bearbeitet.
 
