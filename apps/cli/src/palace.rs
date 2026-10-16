@@ -164,6 +164,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
                 answer: Default::default(),
                 image: None,
                 image_size: locora_store::default_image_size(),
+                zoom: locora_store::default_zoom(),
                 note: String::new(),
             },
         )?;
@@ -199,6 +200,7 @@ pub struct AddArgs {
     pub time: Option<String>,
     pub image: Option<PathBuf>,
     pub image_size: Option<f64>,
+    pub zoom: Option<f64>,
     pub note: Option<String>,
 }
 
@@ -209,6 +211,16 @@ pub fn parse_image_size(text: &str) -> std::result::Result<f64, String> {
         .map_err(|_| "Die Bildgröße muss eine Zahl sein".to_owned())?;
     locora_store::check_image_size(size).map_err(|e| e.to_string())?;
     Ok(size)
+}
+
+/// Parse and validate a zoom before opening the profile.
+pub fn parse_zoom(text: &str) -> std::result::Result<f64, String> {
+    let zoom = text
+        .replace(',', ".")
+        .parse::<f64>()
+        .map_err(|_| "Der Zoom muss eine Zahl sein".to_owned())?;
+    locora_store::check_zoom(zoom).map_err(|e| e.to_string())?;
+    Ok(zoom)
 }
 
 /// Store a picture file (image or `.sply` animation) for a locus.
@@ -265,6 +277,7 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
             image_size: args
                 .image_size
                 .unwrap_or_else(locora_store::default_image_size),
+            zoom: args.zoom.unwrap_or_else(locora_store::default_zoom),
         },
     )?;
     println!(

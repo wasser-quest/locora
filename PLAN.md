@@ -750,7 +750,8 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    (`Profile::tiles`). Die Befehlspalette (Strg/⌘+K) findet Paläste und Befehle per Tastatur. Offen: `locora.toml` in der App.
 5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): umgesetzt sind Kachel-Icons (core, review, notify, tutorial,
    gamification, andere Plugins) und Journey-Feedback (richtig/nochmal/geschafft) aus `assets/ui/src/ui.py` sowie der
-   Willkommensbildschirm mit Simo (`assets/mascot/src/simo.py`). Offen: Raum-Arten (ohne Bild, Bild, Video), „nichts fällig“ (Simo mit Laterne), Splash.
+   Willkommensbildschirm mit Simo (`assets/mascot/src/simo.py`). Ebenfalls umgesetzt: Raum-Arten (Tabs), „nichts fällig“
+   (Simo), Ladezustand (Logo).
 6. **Leistung:** Jeder Marker ist ein eigener Frame mit eigener Runtime – bei vielen Loci alle Marker eines Raums in
    einem gemeinsamen SVG zusammenfassen; Medien mit Range-Anfragen ausliefern (Video-Spulen).
 7. **Video-Räume** (Phase 3): am Locus anhalten, Zeitleiste.

@@ -34,6 +34,7 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                     answer: Default::default(),
                     image: None,
                     image_size: locora_store::default_image_size(),
+                    zoom: locora_store::default_zoom(),
                     note: String::new(),
                 },
             )?;
@@ -70,6 +71,7 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                         answer: Default::default(),
                         image: None,
                         image_size: locora_store::default_image_size(),
+                        zoom: locora_store::default_zoom(),
                         note: String::new(),
                     }
                 })
@@ -101,6 +103,7 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                 note: Some(content.note.clone()),
                 image: Some(content.image.clone()),
                 image_size: Some(content.image_size),
+                zoom: Some(content.zoom),
                 answer: Some(content.answer.clone()),
                 ..Default::default()
             }
@@ -497,6 +500,7 @@ mod tests {
             note: "Heiß".into(),
             image: Some(image.clone()),
             image_size: 0.4,
+            zoom: 2.5,
             answer: EditorAnswer {
                 kind: EditorAnswerKind::Guess,
                 accept: vec!["Mercury".into()],
@@ -534,6 +538,7 @@ mod tests {
             ("Herd", "Merkur", "Heiß")
         );
         assert_eq!((locus.x, locus.y, locus.image_size), (1.0, 0.0, 0.7));
+        assert_eq!(locus.zoom, 2.5);
         assert_eq!(locus.image.as_deref(), Some(image.as_str()));
         assert_eq!(locus.answer, content.answer);
 
@@ -542,6 +547,8 @@ mod tests {
         let video = store.put_media(b"video", "video/mp4").unwrap().hash;
         let mut bad_content = content.clone();
         bad_content.image = Some(video);
+        let mut bad_zoom = content.clone();
+        bad_zoom.zoom = 5.0;
         let mut bad_quiz = content.clone();
         bad_quiz.answer = EditorAnswer {
             kind: EditorAnswerKind::Quiz,
@@ -582,6 +589,10 @@ mod tests {
             EditorAction::Save {
                 id: id.clone(),
                 content: bad_quiz,
+            },
+            EditorAction::Save {
+                id: id.clone(),
+                content: bad_zoom,
             },
             EditorAction::Save {
                 id: id.clone(),

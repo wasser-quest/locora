@@ -222,6 +222,7 @@ impl Journey {
             marker: marker(&profile.store, tree, default_marker),
             x: locus.x,
             y: locus.y,
+            zoom: locus.zoom,
             prompt,
             kind,
             options: if kind == AnswerKind::Quiz {
@@ -498,6 +499,7 @@ mod tests {
                     image: Some(image.hash.clone()),
                     note: String::new(),
                     image_size: 0.4,
+                    zoom: locora_store::default_zoom(),
                 },
             )
             .unwrap();
@@ -554,6 +556,7 @@ mod tests {
                     image: None,
                     note: String::new(),
                     image_size: 0.25,
+                    zoom: locora_store::default_zoom(),
                 },
             )
             .unwrap();
@@ -646,6 +649,7 @@ mod tests {
                         image: None,
                         note: String::new(),
                         image_size: 0.25,
+                        zoom: locora_store::default_zoom(),
                     },
                 )
                 .unwrap();

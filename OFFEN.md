@@ -35,7 +35,7 @@ Stand: 16.10.2026 (abends)
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
 - [ ] Viele Marker: in einem SVG pro Raum zusammenfassen statt je ein Frame
 - [x] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons, Journey-Feedback (richtig/nochmal/geschafft), Willkommen mit Simo – `assets/ui/src/ui.py`, Simo aus `assets/mascot/src/simo.py`
-- [ ] Weitere Grafiken: Raum-Arten (ohne Bild, Bild, Video), „nichts fällig“ (Simo mit Laterne), Splash/Ladezustand
+- [x] Weitere Grafiken: Raum-Arten in den Tabs, „nichts fällig“ mit Simo, Ladezustand mit dem Locora-Logo
 - [ ] Android- und iOS-Builds in CI; Klick-Budgets (PLAN 6.3) als E2E-Tests
 - [x] Systemvoraussetzungen für Linux-Builds dokumentiert (`apps/app/README.md`)
 
@@ -47,11 +47,11 @@ Stand: 16.10.2026 (abends)
 - [x] Abfragerichtungen: `--reverse`, `--numbers`, `--shuffle`
 - [x] Dieselben Übungsarten und die Merkhilfe in der App (Schalter in der Palastansicht)
 - [ ] Später: Ton beim Aufdecken (in mnemodim `soundPath`), über Audio in Splinely (`audioAssets`/`playAudio` im `.sply`)
-- [ ] Zoom/Schwenk pro Locus in der App (mnemodim `zoom/panX/panY`)
+- [x] Zoom pro Locus (1 bis 4): beim Abfragen zoomt die Bühne auf den Ort, der Ausschnitt bleibt im Bild (Schwenk ergibt sich aus der Position); Store, `.locora` (Format 3), `locora.toml`, CLI `--zoom`, Palast-Dienst, Editor
 
 ## Phase 1 – Reste
 
-- [ ] Bilder an Orten im Palast-Dienst `core.palaces@1` (bisher nur Store, Format, `locora.toml`, CLI)
+- [x] Bilder an Orten im Palast-Dienst `core.palaces@1` (`image`, `image_size`; Plugin-API 0.6)
 - [ ] Sammlungen: mehrere Paläste mit gemeinsamer Navigation und `navigate`-Aktion (erst wenn gebraucht)
 - [x] FSRS-Optimierung in der App (Einstellungen) mit Hinweis beim ersten Mal ab 100 und dann je 1 000 neuen Wiederholungen; Tipp auch in `locora stats`
 - [x] Lerntage in lokaler Zeit: Tagesbeginn einstellbar (Standard 4:00), UTC-Versatz setzt die App bei jedem Start (CLI: `settings day-start`, `settings utc-offset`)

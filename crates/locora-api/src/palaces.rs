@@ -118,6 +118,25 @@ pub struct Locus {
     /// Memory aid shown after the answer.
     #[serde(default)]
     pub note: String,
+    /// SHA-256 of the picture at the locus (image or `.sply`); part of the answer.
+    #[serde(default)]
+    pub image: Option<String>,
+    /// Picture width as a fraction of the room width (0.05–1).
+    #[serde(default = "default_image_size")]
+    pub image_size: f64,
+    /// Zoom on the locus while asking, 1 (whole room) to 4.
+    #[serde(default = "default_zoom")]
+    pub zoom: f64,
+}
+
+/// Zoom when none is given: the whole room.
+pub fn default_zoom() -> f64 {
+    1.0
+}
+
+/// Picture width when none is given: a quarter of the room.
+pub fn default_image_size() -> f64 {
+    0.25
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -131,6 +150,13 @@ pub struct NewLocus {
     pub answer: crate::journey::Answer,
     #[serde(default)]
     pub note: String,
+    /// SHA-256 of stored media (image or `.sply`, see `AddRoom` for media).
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default = "default_image_size")]
+    pub image_size: f64,
+    #[serde(default = "default_zoom")]
+    pub zoom: f64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -144,4 +170,11 @@ pub struct LocusPatch {
     pub answer: Option<crate::journey::Answer>,
     #[serde(default)]
     pub note: Option<String>,
+    /// None keeps the picture, Some(None) removes it.
+    #[serde(default)]
+    pub image: Option<Option<String>>,
+    #[serde(default)]
+    pub image_size: Option<f64>,
+    #[serde(default)]
+    pub zoom: Option<f64>,
 }

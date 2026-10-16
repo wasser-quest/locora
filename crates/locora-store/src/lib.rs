@@ -40,6 +40,22 @@ pub const fn default_image_size() -> f64 {
     0.25
 }
 
+/// Default zoom on a locus while asking: the whole room.
+pub const fn default_zoom() -> f64 {
+    1.0
+}
+
+/// Zoom is finite and from 1 (whole room) to 4.
+pub fn check_zoom(zoom: f64) -> Result<()> {
+    if (1.0..=4.0).contains(&zoom) {
+        Ok(())
+    } else {
+        Err(StoreError::Invalid(
+            "Der Zoom muss zwischen 1 (ganzer Raum) und 4 liegen".into(),
+        ))
+    }
+}
+
 /// Picture widths must be finite and between 5% and 100% of the room width.
 pub fn check_image_size(size: f64) -> Result<()> {
     if (0.05..=1.0).contains(&size) {
@@ -109,6 +125,9 @@ pub struct Locus {
     /// Picture width as a fraction of the room width.
     #[serde(default = "default_image_size")]
     pub image_size: f64,
+    /// Zoom on the locus while asking, 1 (whole room) to 4.
+    #[serde(default = "default_zoom")]
+    pub zoom: f64,
     pub id: String,
     pub room_id: String,
     pub position: u32,
@@ -170,6 +189,8 @@ pub struct NewLocus {
     /// Picture width as a fraction of the room width.
     #[serde(default = "default_image_size")]
     pub image_size: f64,
+    #[serde(default = "default_zoom")]
+    pub zoom: f64,
     pub place: String,
     pub item: String,
     pub x: f64,
@@ -187,6 +208,8 @@ pub struct NewLocus {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LocusPatch {
     pub image_size: Option<f64>,
+    #[serde(default)]
+    pub zoom: Option<f64>,
     pub place: Option<String>,
     pub item: Option<String>,
     pub x: Option<f64>,
@@ -552,7 +575,7 @@ impl Store {
             });
         }
         let mut loci_stmt = conn.prepare(
-            "SELECT id, room_id, position, place, item, x, y, time, answer, image, note, image_size FROM loci WHERE room_id = ?1 ORDER BY position",
+            "SELECT id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom FROM loci WHERE room_id = ?1 ORDER BY position",
         )?;
         let mut tree = Vec::new();
         for room in rooms {
@@ -571,6 +594,7 @@ impl Store {
                         image: r.get(9)?,
                         note: r.get(10)?,
                         image_size: r.get(11)?,
+                        zoom: r.get(12)?,
                         bindings: Vec::new(),
                     })
                 })?
@@ -762,6 +786,7 @@ impl Store {
 
     fn insert_locus(&self, conn: &Connection, room_id: &str, locus: NewLocus) -> Result<Locus> {
         check_image_size(locus.image_size)?;
+        check_zoom(locus.zoom)?;
         check_position(locus.x, locus.y)?;
         locus
             .answer
@@ -795,12 +820,13 @@ impl Store {
             answer: locus.answer,
             image: locus.image,
             image_size: locus.image_size,
+            zoom: locus.zoom,
             note: locus.note.trim().to_owned(),
             bindings: Vec::new(),
         };
         conn.execute(
-            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note, image_size) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size],
+            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, locus.zoom],
         )?;
         self.touch(conn, &palace_id)?;
         self.log(
@@ -817,7 +843,7 @@ impl Store {
         let conn = self.conn();
         let (palace_id, mut locus) = conn
             .query_row(
-                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image, l.note, l.image_size
+                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image, l.note, l.image_size, l.zoom
                  FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
                 [id],
                 |r| {
@@ -836,6 +862,7 @@ impl Store {
                             image: r.get(10)?,
                             note: r.get(11)?,
                             image_size: r.get(12)?,
+                            zoom: r.get(13)?,
                             bindings: Vec::new(),
                         },
                     ))
@@ -848,6 +875,10 @@ impl Store {
         }
         if let Some(item) = &patch.item {
             locus.item = item.trim().to_owned();
+        }
+        if let Some(zoom) = patch.zoom {
+            check_zoom(zoom)?;
+            locus.zoom = zoom;
         }
         if let Some(size) = patch.image_size {
             check_image_size(size)?;
@@ -875,8 +906,8 @@ impl Store {
         }
         check_position(locus.x, locus.y)?;
         conn.execute(
-            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7, note = ?8, image_size = ?9 WHERE id = ?10",
-            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, id],
+            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7, note = ?8, image_size = ?9, zoom = ?10 WHERE id = ?11",
+            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, locus.zoom, id],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(

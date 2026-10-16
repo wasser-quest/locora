@@ -7,8 +7,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     ActionDone, AnswerKind, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS,
-    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, CMD_UI_ASSETS, Feedback, InputField, InputValue,
-    JourneyStart, Question, Reply, Revealed, Step, Summary, UiAssets,
+    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, InputField, InputValue, JourneyStart,
+    Question, Reply, Revealed, Step, Summary, UiAssets,
 };
 use serde::Serialize;
 
@@ -63,12 +63,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let error = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
     // Feedback animations (assets/ui); the journey works without them.
-    let art = RwSignal::new(None::<UiAssets>);
-    spawn_local(async move {
-        if let Ok(a) = call::<UiAssets>(CMD_UI_ASSETS, NoArgs {}).await {
-            art.set(Some(a));
-        }
-    });
+    let art = crate::art();
 
     // Workbook inputs are asked first; without any, the journey starts at once.
     let fields = RwSignal::new(None::<Vec<InputField>>);
@@ -268,7 +263,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 return view! { <Inputs fields=list begin=begin /> }.into_any();
             }
             let Some(q) = question.get() else {
-                return view! { <p class="loading">"Lädt …"</p> }.into_any();
+                return view! { <crate::Loading /> }.into_any();
             };
             view! {
                 <Stage question=q.clone() phase=phase />
@@ -336,23 +331,36 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 /// The room with the asked place marked (state „fällig“).
 #[component]
 fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
+    let zoom = question.zoom.clamp(1.0, 4.0);
     view! {
         <div class="stage">
-            {question.backdrop.clone().map(|m| view! { <Shown media=m class="backdrop" /> })}
-            {move || {
-                phase.get().stage_answer().cloned().and_then(|r| r.picture.map(|m| view! {
-                    <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
-                }))
-            }}
-            <div
-                class="marker"
-                style:left=format!("{}%", question.x * 100.0)
-                style:top=format!("{}%", question.y * 100.0)
-            >
-                <Sply media=question.marker.clone() state=Signal::stored("faellig") />
+            // The whole room zooms in on the locus; the marker keeps its size.
+            <div class="stage-view" style:transform=zoom_view(question.x, question.y, zoom)>
+                {question.backdrop.clone().map(|m| view! { <Shown media=m class="backdrop" /> })}
+                {move || {
+                    phase.get().stage_answer().cloned().and_then(|r| r.picture.map(|m| view! {
+                        <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
+                    }))
+                }}
+                <div
+                    class="marker"
+                    style:left=format!("{}%", question.x * 100.0)
+                    style:top=format!("{}%", question.y * 100.0)
+                    style:transform=format!("translate(-50%, -50%) scale({})", 1.0 / zoom)
+                >
+                    <Sply media=question.marker.clone() state=Signal::stored("faellig") />
+                </div>
             </div>
         </div>
     }
+}
+
+/// CSS transform that scales the room by `zoom` around its top-left corner and
+/// moves the locus (x, y in 0..1) to the centre – as far as the room allows,
+/// so the view never leaves the backdrop.
+fn zoom_view(x: f64, y: f64, zoom: f64) -> String {
+    let shift = |p: f64| (0.5 - p * zoom).clamp(1.0 - zoom, 0.0) * 100.0;
+    format!("translate({}%, {}%) scale({zoom})", shift(x), shift(y))
 }
 
 #[component]
@@ -695,5 +703,19 @@ mod input_tests {
         assert_eq!(decimal_point("+1"), "+1");
         assert_eq!(decimal_point("1.5"), "1.5");
         assert_eq!(decimal_point("1,000.5"), "1,000.5");
+    }
+}
+
+#[cfg(test)]
+mod zoom_tests {
+    use super::zoom_view;
+
+    #[test]
+    fn zoom_centres_the_locus_inside_the_room() {
+        assert_eq!(zoom_view(0.3, 0.7, 1.0), "translate(0%, 0%) scale(1)");
+        // Centre stays centre.
+        assert_eq!(zoom_view(0.5, 0.5, 2.0), "translate(-50%, -50%) scale(2)");
+        // Near the edge the view stops at the backdrop's border.
+        assert_eq!(zoom_view(0.0, 1.0, 2.0), "translate(0%, -100%) scale(2)");
     }
 }

@@ -804,20 +804,21 @@ mod tests {
 
     #[test]
     fn api_versions() {
-        assert!(api_compatible("0.5"));
-        assert!(api_compatible("0.5.123"));
+        assert!(api_compatible("0.6"));
+        assert!(api_compatible("0.6.123"));
         for malformed in [
             "",
             "0",
-            "0.5.",
-            "0.5.bad",
-            "0.5.1.extra",
-            "0.05",
-            "0.5.01",
-            "0.5.-1",
+            "0.6.",
+            "0.6.bad",
+            "0.6.1.extra",
+            "0.06",
+            "0.6.01",
+            "0.6.-1",
         ] {
             assert!(!api_compatible(malformed), "{malformed}");
         }
+        assert!(!api_compatible("0.5"));
         assert!(!api_compatible("0.4"));
         assert!(!api_compatible("0.3"));
         assert!(!api_compatible("0.2"));

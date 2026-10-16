@@ -53,10 +53,11 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .notes { color: var(--again); font-size: .9rem; }
 .empty { text-align: center; color: var(--muted); padding: 2rem 1rem; }
 .tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.room-tab { display: inline-flex; align-items: center; }
 .tabs button.on { background: var(--indigo); color: #fff; }
 .stage { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
   background: linear-gradient(160deg, var(--indigo-deep), var(--indigo)); }
-.stage > .backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; }
+.stage .backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; }
 .locus-picture { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .locus-picture > img { display: block; width: 100%; height: auto; }
 .locus-picture > iframe.sply { display: block; width: 100%; aspect-ratio: 1; height: auto; }
@@ -88,7 +89,7 @@ iframe.sply { border: 0; width: 100%; height: 100%; background: transparent; poi
 .loading { color: var(--muted); padding: 2rem; text-align: center; }
 /* Capture gestures on the stage; media frames must not intercept pointer input. */
 .stage.editing { touch-action: none; }
-.stage.editing > .backdrop { pointer-events: none; }
+.stage.editing .backdrop { pointer-events: none; }
 .stage.editing .marker button { touch-action: none; cursor: grab; }
 .stage.editing .marker button:active { cursor: grabbing; }
 .resize-handle { position: absolute; right: 0; bottom: 0; pointer-events: auto;
@@ -134,3 +135,10 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .done-art { width: 160px; height: 160px; margin: 0 auto; }
 .optimize { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
 .optimize .progress { flex: 1 1 220px; }
+.loading { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+.loading .logo { width: 72px; height: 72px; }
+.loading p { margin: 0; }
+.room-icon { display: inline-block; width: 22px; height: 22px; vertical-align: middle; margin-right: .35rem; }
+.resting { width: 48px; height: 72px; flex: none; }
+.stage-view { position: absolute; inset: 0; transform-origin: 0 0; transition: transform .45s ease; }
+@media (prefers-reduced-motion: reduce) { .stage-view { transition: none; } }

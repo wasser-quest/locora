@@ -70,6 +70,8 @@ enum Command {
         /// Picture width as a fraction of the room width.
         #[arg(long, value_parser = palace::parse_image_size, help = "Bildbreite als Anteil der Raumbreite (0.05 bis 1, Standard: 0.25)")]
         image_size: Option<f64>,
+        #[arg(long, value_parser = palace::parse_zoom, help = "Zoom auf den Ort beim Abfragen (1 = ganzer Raum bis 4)")]
+        zoom: Option<f64>,
         /// Merkhilfe: das lebhafte Bild in Worten, gezeigt nach dem Aufdecken
         #[arg(long)]
         note: Option<String>,
@@ -104,6 +106,8 @@ enum Command {
         /// Picture width as a fraction of the room width.
         #[arg(long, value_parser = palace::parse_image_size, help = "Bildbreite als Anteil der Raumbreite (0.05 bis 1)")]
         image_size: Option<f64>,
+        #[arg(long, value_parser = palace::parse_zoom, help = "Zoom auf den Ort beim Abfragen (1 = ganzer Raum bis 4)")]
+        zoom: Option<f64>,
     },
     /// Alle Paläste mit fälligen und neuen Loci
     #[command(alias = "list")]
@@ -296,6 +300,7 @@ fn main() -> Result<()> {
             time,
             image,
             image_size,
+            zoom,
             note,
         } => palace::add(
             &mut app::App::open(data)?,
@@ -307,6 +312,7 @@ fn main() -> Result<()> {
                 time,
                 image,
                 image_size,
+                zoom,
                 note,
             },
         ),
@@ -322,6 +328,7 @@ fn main() -> Result<()> {
             image,
             no_image,
             image_size,
+            zoom,
         } => {
             let mut app = app::App::open(data)?;
             let image = match (image, no_image) {
@@ -363,6 +370,7 @@ fn main() -> Result<()> {
                     },
                     image,
                     image_size,
+                    zoom,
                     note,
                 },
             )
