@@ -315,6 +315,8 @@ struct Editor {
     paste_text: RwSignal<String>,
     history: RwSignal<History>,
     history_epoch: RwSignal<u64>,
+    /// Touch-friendly undo after destructive or bulk changes (PLAN 6.3).
+    toast: RwSignal<Option<(String, u64)>>,
 }
 
 #[derive(Clone)]
@@ -385,6 +387,14 @@ impl Editor {
         };
         let submitted_draft = draft_storage_key.as_deref().and_then(load_draft);
         let pasted = matches!(&action, EditorAction::Paste { .. });
+        let toast_text = match (&action, replay) {
+            (EditorAction::Delete { .. }, None) => Some("Ort gelöscht".to_owned()),
+            (EditorAction::Paste { items }, None) => Some(match items.len() {
+                1 => "1 Ort eingefügt".to_owned(),
+                n => format!("{n} Orte eingefügt"),
+            }),
+            _ => None,
+        };
         let change = EditorChange {
             palace_id: data.id,
             room_id: room.id.clone(),
@@ -400,6 +410,7 @@ impl Editor {
             }
             match call::<EditorUpdated>(CMD_EDITOR_CHANGE, Args { change }).await {
                 Ok(result) => {
+                    let entries = this.history.with_untracked(|h| (h.undo.len(), h.redo.len()));
                     if let Some(redo) = replay {
                         this.history.update(|h| {
                             if let Some(receipt) = &result.receipt {
@@ -434,6 +445,29 @@ impl Editor {
                     this.dirty.set(false);
                     this.data.set(result.palace);
                     this.message.set("Gespeichert".into());
+                    // The toast undoes the newest entry, so any newer entry or
+                    // replay retires it; no-op saves leave it in place.
+                    let history_changed = replay.is_some()
+                        || this.history.with_untracked(|h| (h.undo.len(), h.redo.len())) != entries;
+                    match toast_text {
+                        Some(text) => {
+                            let token = js_sys::Date::now() as u64;
+                            this.toast.set(Some((text, token)));
+                            let toast = this.toast;
+                            set_timeout(
+                                move || {
+                                    if toast.try_with_untracked(|t| t.as_ref().map(|t| t.1))
+                                        == Some(Some(token))
+                                    {
+                                        toast.try_set(None);
+                                    }
+                                },
+                                std::time::Duration::from_secs(8),
+                            );
+                        }
+                        None if history_changed => this.toast.set(None),
+                        None => {}
+                    }
                 }
                 Err(error) => this.message.set(error),
             }
@@ -460,6 +494,7 @@ pub fn Rooms(
         paste_text: RwSignal::new(String::new()),
         history: RwSignal::new(History::default()),
         history_epoch: RwSignal::new(0),
+        toast: RwSignal::new(None),
     };
     // Reopen the first orphaned draft, but require an explicit restore/discard.
     let recovered = editor.data.with_untracked(|p| {
@@ -510,6 +545,7 @@ pub fn Rooms(
     let create_video = StoredValue::new(editor.clone());
     let shortcuts = editor.clone();
     let layer = editor.clone();
+    let toast_editor = editor.clone();
     let marker_data = editor.data;
     let tab_rooms = Memo::new(move |_| {
         marker_data.with(|p| {
@@ -644,6 +680,18 @@ pub fn Rooms(
         }}
         </div>
         <p role="status" class="notes">{move || message.get()}</p>
+        {
+            let undo = toast_editor.clone();
+            move || undo.toast.get().map(|(text, _)| {
+                let undo = undo.clone();
+                view! {
+                    <div class="toast" role="status">
+                        <span>{text}</span>
+                        <button disabled=move || busy.get() || dirty.get() on:click=move |_| undo.replay(false)>"Rückgängig"</button>
+                    </div>
+                }
+            })
+        }
         {move || {
             let panel = panel.clone();
             if editing.get() {

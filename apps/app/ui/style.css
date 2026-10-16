@@ -150,3 +150,7 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .list-paste summary { cursor: pointer; font-weight: 600; }
 .list-paste[open] summary { margin-bottom: .6rem; }
 .stage-wrap { position: relative; }
+.toast { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 10; display: flex; align-items: center; gap: .8rem; padding: .6rem .8rem .6rem 1rem;
+  border-radius: 12px; background: var(--indigo-deep); color: #fff; box-shadow: 0 6px 24px rgb(0 0 0 / .25); }
+.toast button { background: transparent; color: inherit; border: 1px solid currentColor; }
