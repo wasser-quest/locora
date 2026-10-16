@@ -279,6 +279,7 @@ pub struct EditorChange {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum EditorAction {
     Create { x: f64, y: f64 },
+    CreateVideo { time: f64 },
     Paste { items: Vec<String> },
     Save { id: String, content: LocusContent },
     Move { id: String, x: f64, y: f64 },

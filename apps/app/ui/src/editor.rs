@@ -286,18 +286,43 @@ pub fn Rooms(
     let panel = editor.clone();
     let message = editor.message;
     let paste = editor.clone();
+    let video_editor = editor.clone();
+    let video_room = Memo::new(move |_| {
+        video_editor.data.with(|p| {
+            p.rooms
+                .get(video_editor.room.get())
+                .is_some_and(|r| r.video)
+        })
+    });
+    let video_time = RwSignal::new(String::from("0"));
+    let create_video = StoredValue::new(editor.clone());
     view! {
         <div class="modes">
             <label><input type="checkbox" prop:checked=move || editing.get()
                 disabled=move || busy.get() || dirty.get() || dragging.get()
                 on:change=move |ev| { editing.set(event_target_checked(&ev)); adding.set(false); } />"Bearbeiten"</label>
             <Show when=move || editing.get()>
-                <label><input type="checkbox" bind:checked=adding disabled=move || busy.get() || dirty.get() || dragging.get() />"Ort setzen (Bühne anklicken)"</label>
-                <button disabled=move || busy.get() || dirty.get() || dragging.get()
+                <label><input type="checkbox" bind:checked=adding disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get() />"Ort setzen (Bühne anklicken)"</label>
+                <button disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get()
                     on:click={let editor = editor.clone(); move |_| {
                         revealed.set(false);
                         editor.change(EditorAction::Create { x: 0.5, y: 0.5 });
                     }}>"Ort in der Mitte hinzufügen"</button>
+                <Show when=move || video_room.get()>
+                    <label>"Zeit in Sekunden "<input type="number" min="0" step="any"
+                        bind:value=video_time disabled=move || busy.get() || dirty.get() || dragging.get() /></label>
+                    <button disabled=move || busy.get() || dirty.get() || dragging.get()
+                        on:click=move |_| {
+                            let editor = create_video.get_value();
+                            match video_time.get_untracked().parse::<f64>() {
+                                Ok(time) if time.is_finite() && time >= 0.0 => {
+                                    revealed.set(false);
+                                    editor.change(EditorAction::CreateVideo { time });
+                                }
+                                _ => editor.message.set("Bitte eine nichtnegative Sekundenzahl eingeben".into()),
+                            }
+                        }>"Video-Ort hinzufügen"</button>
+                </Show>
                 <span>"Marker ziehen (Tastatur: Pfeiltasten) · Änderungen speichern automatisch"</span>
             </Show>
         </div>
@@ -478,7 +503,7 @@ fn RoomStage(
     let paste_editor = editor.clone();
     let video = room.video;
     view! {
-        <Show when=move || editing.get() && video><p class="notes">"Video: Inhalte und Positionen bearbeitbar; neue Orte mit Zeit vorerst über die CLI."</p></Show>
+        <Show when=move || editing.get() && video><p class="notes">"Video: Neue Orte über die Zeitangabe oben hinzufügen; Inhalte und Positionen sind bearbeitbar."</p></Show>
         <div class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
             aria-label="Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen"
             on:paste=move |ev: web_sys::ClipboardEvent| {

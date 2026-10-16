@@ -736,7 +736,7 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Erfolg öffnet direkt den Editor; Zurück lädt die Startseite neu. Tests für Signaturen, Grenzen,
    Abbruch, Persistenz, Namen und DB-Rollback; nativer WebView-Smoke-Test noch offen.
    **Noch offen:** Bild/Video-Datei hineinziehen,
-   Video-Loci mit Zeit, einzelne ungebundene Felder an Workbook-Orten bearbeiten,
+   einzelne ungebundene Felder an Workbook-Orten bearbeiten,
    Undo/Redo und dauerhaft wiederherstellbare ungültige Entwürfe. Browser-/WebView-Gesten, Fokus bei
    Autosave und Klick-Budgets manuell/E2E prüfen (`docs/app-editor-testplan.md`).
 3. **Workbook in der App — umgesetzt:** Eingaben (`Inputs`) werden vor der Journey abgefragt (vorbelegt mit dem
@@ -767,6 +767,9 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Multipart/fehlerhafte Bereiche fallen auf die vollständige Antwort zurück. Backend-getestet;
    Video-Spulen in der nativen WebView noch manuell prüfen.
 7. **Video-Räume** (Phase 3): am Locus anhalten, Zeitleiste.
+   **Erster Editor-Schnitt umgesetzt:** Video-Orte über eine nichtnegative Sekundenangabe anlegen,
+   inkl. Backend-Validierung (endlich, Video-Raum) und Persistenztest. Normales Ortsetzen bleibt
+   in Video-Räumen deaktiviert. Zeit von der Wiedergabe übernehmen, Taste L und Zeitleiste folgen.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
 9. **Später:** Ton beim Aufdecken über Audio im `.sply`.

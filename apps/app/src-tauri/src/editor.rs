@@ -42,6 +42,34 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
             room.loci.push(locus);
             return Ok((tree, Some(id)));
         }
+        EditorAction::CreateVideo { time } => {
+            ensure!(
+                room.room.kind == RoomKind::Video,
+                "Zeitangaben sind nur für Video-Räume"
+            );
+            ensure!(
+                time.is_finite() && *time >= 0.0,
+                "Zeit muss eine nichtnegative, endliche Sekundenzahl sein"
+            );
+            let locus = store.add_locus(
+                &room.room.id,
+                NewLocus {
+                    place: "Neuer Ort".into(),
+                    item: String::new(),
+                    x: 0.5,
+                    y: 0.5,
+                    time: Some(*time),
+                    answer: Default::default(),
+                    image: None,
+                    image_size: locora_store::default_image_size(),
+                    zoom: locora_store::default_zoom(),
+                    note: String::new(),
+                },
+            )?;
+            let id = locus.id.clone();
+            room.loci.push(locus);
+            return Ok((tree, Some(id)));
+        }
         EditorAction::Paste { items } => {
             ensure!(
                 room.room.kind != RoomKind::Video,
@@ -122,7 +150,9 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
             room.loci.retain(|l| &l.id != id);
             return Ok((tree, None));
         }
-        EditorAction::Create { .. } | EditorAction::Paste { .. } => unreachable!(),
+        EditorAction::Create { .. }
+        | EditorAction::CreateVideo { .. }
+        | EditorAction::Paste { .. } => unreachable!(),
     };
     let mut updated = store.update_locus(id, &patch)?;
     updated.bindings = locus.bindings.clone();
@@ -471,6 +501,62 @@ mod tests {
         .unwrap_err();
         assert!(error.to_string().contains("Medientyp"));
         assert_eq!(store.palace(&palace.id).unwrap(), before);
+    }
+
+    #[test]
+    fn video_loci_require_valid_time_and_video_room() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let palace = store.create_palace("Video").unwrap();
+        let media = store.put_media(b"video", "video/mp4").unwrap();
+        let room = store
+            .add_room(&palace.id, "Film", RoomKind::Video, Some(&media.hash))
+            .unwrap();
+        let blank = store
+            .add_room(&palace.id, "Leer", RoomKind::Blank, None)
+            .unwrap();
+        for time in [0.0, 12.5] {
+            let (_, id) = apply(
+                &store,
+                &EditorChange {
+                    palace_id: palace.id.clone(),
+                    room_id: room.id.clone(),
+                    action: EditorAction::CreateVideo { time },
+                },
+            )
+            .unwrap();
+            let tree = store.palace(&palace.id).unwrap();
+            assert_eq!(
+                tree.route()
+                    .find(|l| Some(&l.id) == id.as_ref())
+                    .unwrap()
+                    .time,
+                Some(time)
+            );
+        }
+        let before = store.palace(&palace.id).unwrap();
+        for (room_id, time) in [
+            (&room.id, -1.0),
+            (&room.id, f64::NAN),
+            (&room.id, f64::INFINITY),
+            (&blank.id, 1.0),
+        ] {
+            assert!(
+                apply(
+                    &store,
+                    &EditorChange {
+                        palace_id: palace.id.clone(),
+                        room_id: room_id.clone(),
+                        action: EditorAction::CreateVideo { time },
+                    }
+                )
+                .is_err()
+            );
+            assert_eq!(store.palace(&palace.id).unwrap(), before);
+        }
+        drop(store);
+        let store = Store::open(dir.path()).unwrap();
+        assert_eq!(store.palace(&palace.id).unwrap().route().count(), 2);
     }
 
     #[test]
