@@ -51,6 +51,25 @@ fn daily_new_limit_settings_and_stats() {
             && shown.contains("Standard"),
         "{shown}"
     );
+    assert!(
+        shown.contains("Lerntag beginnt:       4:00 (UTC+0)"),
+        "{shown}"
+    );
+    let out = ok(d, T0, &["settings", "utc-offset", "-5:30"], "");
+    assert!(out.contains("4:00 (UTC-5:30)"), "{out}");
+    assert!(ok(d, T0, &["settings", "day-start", "0"], "").contains("0:00 (UTC-5:30)"));
+    assert!(
+        !run(d, T0, &["settings", "day-start", "24"], "")
+            .status
+            .success()
+    );
+    assert!(
+        !run(d, T0, &["settings", "utc-offset", "+15"], "")
+            .status
+            .success()
+    );
+    ok(d, T0, &["settings", "utc-offset", "0"], "");
+    ok(d, T0, &["settings", "day-start", "4"], "");
 
     ok(d, T0, &["new", "Liste", "--", "a", "b", "c", "d", "e"], "");
     ok(d, T0, &["settings", "new-per-day", "2"], "");

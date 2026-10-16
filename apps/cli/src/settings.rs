@@ -6,7 +6,7 @@ use anyhow::{Result, bail};
 use clap::Subcommand;
 use locora_api::Service;
 use locora_api::review::{Configure, ConfigureRequest, Log, LogEntry, Settings};
-use locora_runtime::settings::{Optimized, introduced_today, parse_retention};
+use locora_runtime::settings::{Optimized, introduced_today, parse_retention, parse_utc_offset};
 
 use crate::app::{App, now};
 
@@ -16,6 +16,13 @@ pub enum SettingsCommand {
     NewPerDay { count: usize },
     /// Ziel-Behaltensrate der Wiederholung, 0,70 bis 0,99 (Standard 0,90)
     Retention { value: String },
+    /// Volle Stunde, zu der ein Lerntag beginnt, 0 bis 23 (Standard 4)
+    DayStart { hour: u8 },
+    /// Versatz der eigenen Uhrzeit zu UTC, z. B. +2 oder -5:30 (die App stellt ihn selbst ein)
+    UtcOffset {
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+    },
 }
 
 fn review_required(app: &App) -> Result<()> {
@@ -39,7 +46,8 @@ fn log(app: &mut App) -> Result<Vec<LogEntry>> {
 /// How many new loci may still start today.
 pub fn new_budget(app: &mut App) -> Result<usize> {
     let limit = new_per_day(app)?;
-    Ok(limit.saturating_sub(introduced_today(&log(app)?, now())))
+    let clock = app.day_clock()?;
+    Ok(limit.saturating_sub(introduced_today(&log(app)?, now(), &clock)))
 }
 
 fn configure(app: &mut App, request: ConfigureRequest) -> Result<Settings> {
@@ -71,8 +79,17 @@ pub fn settings(app: &mut App, command: Option<SettingsCommand>) -> Result<()> {
             println!("✓ Ziel-Behaltensrate {}", percent(s.desired_retention));
             println!("  Gilt ab der nächsten Antwort für jeden Locus.");
         }
+        Some(SettingsCommand::DayStart { hour }) => {
+            app.set_day_start_hour(hour)?;
+            println!("✓ Ein Lerntag beginnt um {}", app.day_clock()?.describe());
+        }
+        Some(SettingsCommand::UtcOffset { value }) => {
+            app.set_utc_offset(parse_utc_offset(&value)?)?;
+            println!("✓ Ein Lerntag beginnt um {}", app.day_clock()?.describe());
+        }
         None => {
             println!("Neue Loci pro Tag:     {}", new_per_day(app)?);
+            println!("Lerntag beginnt:       {}", app.day_clock()?.describe());
             if app.host.provides(Configure::NAME) {
                 let s = configure(app, ConfigureRequest::default())?;
                 println!("Ziel-Behaltensrate:    {}", percent(s.desired_retention));
@@ -85,7 +102,9 @@ pub fn settings(app: &mut App, command: Option<SettingsCommand>) -> Result<()> {
                     }
                 );
             }
-            println!("\nÄndern: locora settings new-per-day 15 · locora settings retention 0,85");
+            println!(
+                "\nÄndern: locora settings new-per-day 15 · locora settings retention 0,85 · locora settings day-start 4"
+            );
         }
     }
     Ok(())
@@ -147,7 +166,7 @@ pub fn stats(app: &mut App) -> Result<()> {
 mod tests {
     use super::*;
     use locora_api::core::Grade;
-    use locora_runtime::settings::{day_start, histories};
+    use locora_runtime::settings::{DayClock, histories};
 
     fn entry(locus: &str, at: u64) -> LogEntry {
         LogEntry {
@@ -162,14 +181,15 @@ mod tests {
     #[test]
     fn only_first_answers_today_count_as_new() {
         let now = 1_800_000_000;
-        let today = day_start(now);
+        let clock = DayClock::default();
+        let today = clock.day_start(now);
         let entries = vec![
             entry("old", today - 10),
             entry("old", today + 5),
             entry("a", today + 1),
             entry("b", today + 2),
         ];
-        assert_eq!(introduced_today(&entries, now), 2);
+        assert_eq!(introduced_today(&entries, now, &clock), 2);
         let h = histories(&entries);
         assert_eq!(h.len(), 3);
         assert!(h.iter().all(|h| h.windows(2).all(|w| w[0].0 <= w[1].0)));

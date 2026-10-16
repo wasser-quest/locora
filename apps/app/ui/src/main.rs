@@ -36,11 +36,60 @@ fn App() -> impl IntoView {
     let screen = RwSignal::new(Screen::Home);
     let editing = palette::Editing(RwSignal::new(false));
     provide_context(editing);
+    // Learning days follow local time: tell the backend the system's offset
+    // (JavaScript reports minutes *west* of UTC).
+    // Sent at start, when the window comes back and every 15 minutes, but
+    // only when it changed (summer time can switch while the app is open).
+    // One request at a time; when it returns, the latest sample wins, so an
+    // older answer can never overwrite a newer offset.
+    let offset_revision = RwSignal::new(0_u64);
+    let sent = StoredValue::new(None::<i32>);
+    let wanted = StoredValue::new(None::<i32>);
+    let sending = StoredValue::new(false);
+    let sync_offset = move || {
+        let minutes = -(js_sys::Date::new_0().get_timezone_offset() as i32);
+        wanted.set_value(Some(minutes));
+        if sending.get_value() || sent.get_value() == Some(minutes) {
+            return;
+        }
+        sending.set_value(true);
+        spawn_local(async move {
+            while let Some(minutes) = wanted.get_value().filter(|m| sent.get_value() != Some(*m)) {
+                let offset = locora_app_api::UtcOffset { minutes };
+                if call::<()>(locora_app_api::CMD_SET_UTC_OFFSET, OffsetArgs { offset })
+                    .await
+                    .is_err()
+                {
+                    break; // tried again at the next focus or interval
+                }
+                sent.set_value(Some(minutes));
+                offset_revision.update(|revision| *revision += 1);
+            }
+            sending.set_value(false);
+        });
+    };
+    sync_offset();
+    let focus = window_event_listener(leptos::ev::focus, move |_| sync_offset());
+    let every = set_interval_with_handle(sync_offset, std::time::Duration::from_secs(15 * 60)).ok();
+    on_cleanup(move || {
+        focus.remove();
+        if let Some(handle) = every {
+            handle.clear();
+        }
+    });
     view! {
         <palette::Palette screen=screen editing=editing />
         <main>
             {move || match screen.get() {
-                Screen::Home => view! { <HomeView screen=screen/> }.into_any(),
+                Screen::Home => {
+                    // Recreate the home load after synchronization, including
+                    // when its first request raced the startup offset update.
+                    let revision = offset_revision.get();
+                    view! {
+                        <For each=move || [revision] key=|revision| *revision
+                            children=move |_| view! { <HomeView screen=screen/> }/>
+                    }.into_any()
+                },
                 Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
                 Screen::Palace(id) => view! { <PalaceScreen id=id screen=screen/> }.into_any(),
                 Screen::Journey(start) => {
@@ -376,6 +425,11 @@ fn guard_palette(blocked: RwSignal<bool>) {
         Effect::new(move |_| editing.set(blocked.get()));
         on_cleanup(move || editing.set(false));
     }
+}
+
+#[derive(Serialize)]
+struct OffsetArgs {
+    offset: locora_app_api::UtcOffset,
 }
 
 #[derive(Serialize)]
