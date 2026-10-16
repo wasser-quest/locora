@@ -97,6 +97,8 @@ Leuchten nutzt immer denselben Aufbau: radialer Hof (`rgba(230,255,120,0.8)` →
 
 - **Raum-Hintergründe** 512 × 384 (Querformat), **Bilder an Orten** 384 × 384 mit transparentem Rand.
 - Ein Bild zeigt **einen** Gedanken, groß und mittig; leuchtende Loci zeigen, worauf es ankommt.
+- **Das Bild am Ort ist Teil der Antwort:** Vor dem Aufdecken sieht man nur Hintergrund und Marker, das Bild erscheint
+  erst beim Aufdecken (bei der Rückwärts-Abfrage ist es Teil der Frage). Es darf die Antwort also zeigen.
 - Jede Szene bewegt sich leicht (Leuchten, Abfolge 1 → 2 → 3, Zeiger, Blinzeln), nie hektisch.
 - Beispiele: das Tutorial unter `assets/tutorial/` (Bauskript `assets/tutorial/src/tutorial.py`).
 

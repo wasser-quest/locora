@@ -76,7 +76,7 @@ cells = [{ column = "name", type = "text", value = "Ada" }, { column = "age", ty
 | | `time` | video rooms only, required there: `"m:ss"`, `"h:mm:ss"` or seconds |
 | | `answer` | `"recall"` (default), `"guess"` or `{ type = "guess", accept = […] }` (further right answers), or a quiz: `{ type = "quiz", correct = […], wrong = […] }` or `{ type = "quiz", options = [{ text, correct }] }`; up to 30 options – each question shows all right ones plus three random wrong ones, shuffled |
 | | `note` | memory aid (the vivid image in words), shown after the answer |
-| | `image` | picture shown at the locus: png, jpg, webp, gif, avif or a `.sply` animation (no video) |
+| | `image` | picture that belongs to the answer, shown when the locus is revealed: png, jpg, webp, gif, avif or a `.sply` animation (no video) |
 | | `bindings` | formulas for `place`, `item`, `x`, `y`, `visible`, `active` |
 | `[[table]]` | `table`, `key` | the row address `Table.key` |
 | | `value` (+ `type`) | short form for a single `value` cell, type default `text` |

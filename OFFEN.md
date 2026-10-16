@@ -11,6 +11,7 @@ Stand: 16.10.2026
 - [ ] Startbildschirm: Plugin-Kacheln (`ui.tile`), „Weiter“-Zeile mit fälligen Loci, Befehlspalette (Strg/⌘+K)
 - [ ] Core-Ansicht: Palastliste mit ▶ auf der Karte, Raum mit Hintergrund und Locus-Markern, Bild am Ort
 - [ ] Journey in der App: Recall (Leertaste, 1–4), Quiz, Guess, Aktionen; gleiche Bewertung über das Core-Plugin
+- [ ] Aufdecken zeigt das `.sply` am Ort (es gehört zur Antwort), vorher nur Hintergrund und Marker
 - [ ] Editor: Bild/Video ins Fenster ziehen = neuer Palast, Klick = Locus, eingefügte Liste = Loci als Route
 - [ ] Tutorial in der App: `locora tutorial`-Palast mit abgespielten Animationen; Erststart-Hinweis
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
@@ -26,7 +27,7 @@ Stand: 16.10.2026
 - [x] Merkhilfe `note` pro Locus, beim Aufdecken gezeigt
 - [x] Abfragerichtungen: `--reverse`, `--numbers`, `--shuffle`
 - [ ] Dieselben Übungsarten und die Merkhilfe in der App (Schalter am Journey-Start)
-- [ ] Ton pro Locus (in mnemodim `soundPath`), z. B. über Audio in Splinely
+- [ ] Später: Ton beim Aufdecken (in mnemodim `soundPath`), über Audio in Splinely (`audioAssets`/`playAudio` im `.sply`)
 - [ ] Zoom/Schwenk pro Locus in der App (mnemodim `zoom/panX/panY`)
 
 ## Phase 1 – Reste

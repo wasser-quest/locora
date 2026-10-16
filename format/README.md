@@ -79,7 +79,7 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 - `backdrop`: SHA-256 of a media entry. Its media type decides the room: `video/*` video room, any picture (`image/*`, `.sply`) image room; no backdrop = plain room.
 - `x`, `y`: position in the room from 0 to 1 (left/top = 0).
 - `time`: seconds into the video; required in video rooms and not allowed elsewhere.
-- `image` (format 2): SHA-256 of a picture shown at the locus — an image or a `.sply` animation, never a video. Files with locus pictures are written as version 2; version 1 readers reject them instead of dropping the pictures.
+- `image` (format 2): SHA-256 of a picture that belongs to the answer — an image or a `.sply` animation, never a video. Clients show it only when the locus is revealed (in reverse practice it is part of the question). Files with locus pictures are written as version 2; version 1 readers reject them instead of dropping the pictures.
 - `note` (format 2): memory aid, the vivid image in words; shown after the answer. Omitted when empty.
 - `bindings`: formulas for `place`, `item`, `x`, `y`, `visible`, `active` (each at most once).
 - `tables`: rows `{ table, key, cells: [{ column, type, value }] }`; `type` is `text`, `number`, `boolean`, `json`, `formula`, `asset`, `palace` or `room`.
