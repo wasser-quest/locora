@@ -746,7 +746,8 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
 4. **Startbildschirm vollständig:** Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik sind umgesetzt
    (⚙, gleiche Berechnung wie `locora settings`/`stats` über `locora_runtime::settings`). Import/Export von
    `.locora` (Dateidialoge, mit Wiederholungsstand; Logik in `locora_runtime::transfer`, gemeinsam mit der CLI) ist
-   umgesetzt. Offen: Plugin-Kacheln (`ui.tile`), Befehlspalette (Strg/⌘+K), `locora.toml` in der App.
+   umgesetzt. Plugin-Kacheln (`ui.tile`) erscheinen auf dem Startbildschirm; die letzte Kachel je Plugin speichert das Profil
+   (`Profile::tiles`). Offen: Befehlspalette (Strg/⌘+K), `locora.toml` in der App.
 5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): Kachel-Icons, Raum-Arten, leere Zustände (Simo mit Laterne),
    Journey-Feedback (richtig/nochmal/geschafft), Splash; bisher nur Text.
 6. **Leistung:** Jeder Marker ist ein eigener Frame mit eigener Runtime – bei vielen Loci alle Marker eines Raums in

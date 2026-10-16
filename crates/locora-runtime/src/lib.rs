@@ -2,7 +2,7 @@
 //! built-in and approved installed plugins) and answering a locus (Core
 //! evaluation, score hook, events for review and other plugins).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -11,6 +11,10 @@ use std::{env, fs};
 use anyhow::{Context, Result, bail};
 use locora_api::core::{Grade, JourneyScore, LocusAnswered, Score};
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
+use locora_api::ui::Tile;
+
+/// Latest `ui.tile` per plugin, kept in the profile (reserved id `host`).
+const TILES: &str = "tiles";
 use locora_api::review::{CardState, Schedule, ScheduleRequest};
 use locora_host::{HostEvent, KvStore, Level, Manifest, PluginHost};
 use locora_store::{PalaceTree, Store};
@@ -154,26 +158,73 @@ impl Profile {
 
     /// Plugin warnings and errors since the last call; normal chatter is dropped.
     pub fn report(&mut self) -> Vec<String> {
-        self.host
-            .drain_events()
-            .into_iter()
-            .filter_map(|event| match event {
-                HostEvent::Log {
-                    plugin,
-                    level: Level::Warn | Level::Error,
-                    message,
-                } => Some(format!("[{plugin}] {message}")),
-                HostEvent::HandlerError {
-                    plugin,
-                    topic,
-                    message,
-                } => Some(format!("[{plugin}] Fehler bei {topic}: {message}")),
-                HostEvent::Disabled { plugin, reason } => {
-                    Some(format!("Plugin `{plugin}` wurde deaktiviert: {reason}"))
+        let events = self.host.drain_events();
+        let mut notes = Vec::new();
+        for event in &events {
+            if let HostEvent::Published {
+                plugin,
+                topic,
+                payload,
+            } = event
+                && topic == <Tile as locora_api::Event>::TOPIC
+            {
+                match locora_api::decode::<Tile>(payload) {
+                    Ok(tile) => {
+                        if let Err(e) = self.keep_tile(plugin, tile) {
+                            notes.push(format!("[{plugin}] Kachel nicht gespeichert: {e:#}"));
+                        }
+                    }
+                    Err(e) => notes.push(format!("[{plugin}] ungültige Kachel: {e}")),
                 }
-                _ => None,
-            })
-            .collect()
+            }
+        }
+        notes.extend(events.into_iter().filter_map(|event| match event {
+            HostEvent::Log {
+                plugin,
+                level: Level::Warn | Level::Error,
+                message,
+            } => Some(format!("[{plugin}] {message}")),
+            HostEvent::HandlerError {
+                plugin,
+                topic,
+                message,
+            } => Some(format!("[{plugin}] Fehler bei {topic}: {message}")),
+            HostEvent::Disabled { plugin, reason } => {
+                Some(format!("Plugin `{plugin}` wurde deaktiviert: {reason}"))
+            }
+            _ => None,
+        }));
+        notes
+    }
+
+    /// The latest tile of every loaded plugin, in plugin order (`ui.tile`).
+    /// Call [`Profile::report`] first so tiles published by earlier calls are
+    /// stored. Unreadable saved tiles show as none (and are kept, see `keep_tile`).
+    pub fn tiles(&self) -> Result<Vec<(String, Tile)>> {
+        let mut saved = self.saved_tiles().unwrap_or_default();
+        Ok(self
+            .host
+            .plugins()
+            .filter_map(|m| saved.remove(&m.id).map(|tile| (m.id.clone(), tile)))
+            .collect())
+    }
+
+    fn saved_tiles(&self) -> Result<BTreeMap<String, Tile>> {
+        Ok(match self.store.kv_get("host", TILES)? {
+            // An error, not an empty map: the next write would drop every tile.
+            Some(bytes) => {
+                serde_json::from_slice(&bytes).context("Gespeicherte Kacheln sind unlesbar")?
+            }
+            None => BTreeMap::new(),
+        })
+    }
+
+    fn keep_tile(&self, plugin: &str, tile: Tile) -> Result<()> {
+        let mut saved = self.saved_tiles()?;
+        saved.insert(plugin.to_owned(), tile);
+        self.store
+            .kv_set("host", TILES, &serde_json::to_vec(&saved)?)?;
+        Ok(())
     }
 
     /// Grade one answer: Core evaluates it, plugins may adjust the points
@@ -269,4 +320,37 @@ pub fn count_due(
             Some(_) => (due, fresh),
             None => (due, fresh + 1),
         })
+}
+
+#[cfg(test)]
+mod tile_tests {
+    use super::*;
+
+    #[test]
+    fn tiles_are_kept_per_loaded_plugin() {
+        let dir = tempfile::tempdir().unwrap();
+        let profile = Profile::open(Some(dir.path())).unwrap();
+        assert!(profile.tiles().unwrap().is_empty());
+        let tile = |text: &str| Tile {
+            title: "Wiederholung".into(),
+            text: text.into(),
+        };
+        profile.keep_tile("review", tile("3 fällig")).unwrap();
+        profile.keep_tile("review", tile("2 fällig")).unwrap();
+        profile.keep_tile("entfernt", tile("alt")).unwrap();
+        let tiles = profile.tiles().unwrap();
+        assert_eq!(tiles, [("review".to_owned(), tile("2 fällig"))]);
+        drop(profile);
+        let again = Profile::open(Some(dir.path())).unwrap();
+        assert_eq!(again.tiles().unwrap().len(), 1, "kept across restarts");
+
+        again.store.kv_set("host", TILES, b"kaputt").unwrap();
+        assert!(again.tiles().unwrap().is_empty());
+        assert!(again.keep_tile("review", tile("neu")).is_err());
+        assert_eq!(
+            again.store.kv_get("host", TILES).unwrap().unwrap(),
+            b"kaputt",
+            "not overwritten"
+        );
+    }
 }

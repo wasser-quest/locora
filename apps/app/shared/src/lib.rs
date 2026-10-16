@@ -99,6 +99,16 @@ pub struct Home {
     pub tutorial: bool,
     /// Problems while opening the profile (plugins that did not load).
     pub notes: Vec<String>,
+    /// The latest tile of every loaded plugin (`ui.tile`).
+    #[serde(default)]
+    pub tiles: Vec<TileView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TileView {
+    pub plugin: String,
+    pub title: String,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
