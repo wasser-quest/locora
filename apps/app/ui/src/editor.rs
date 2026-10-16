@@ -502,10 +502,58 @@ fn RoomStage(
     let pick_editor = editor.clone();
     let paste_editor = editor.clone();
     let video = room.video;
+    let player = NodeRef::<html::Video>::new();
+    let timed_editor = editor.clone();
+    let create_at_playhead = StoredValue::new_local(move || {
+        if !editing.get_untracked()
+            || busy.get_untracked()
+            || dirty.get_untracked()
+            || gesture.with_untracked(|g| g.is_some())
+        {
+            return;
+        }
+        let Some(player) = player.get() else {
+            return;
+        };
+        if player.ready_state() == 0 {
+            timed_editor
+                .message
+                .set("Das Video ist noch nicht geladen".into());
+            return;
+        }
+        let time = player.current_time();
+        if !time.is_finite() || time < 0.0 {
+            return;
+        }
+        if player.pause().is_err() {
+            timed_editor
+                .message
+                .set("Video konnte nicht angehalten werden".into());
+            return;
+        }
+        revealed.set(false);
+        timed_editor.change(EditorAction::CreateVideo { time });
+    });
     view! {
-        <Show when=move || editing.get() && video><p class="notes">"Video: Neue Orte über die Zeitangabe oben hinzufügen; Inhalte und Positionen sind bearbeitbar."</p></Show>
+        <Show when=move || editing.get() && video>
+            <p class="notes">"Video: An die gewünschte Stelle spulen und einen Ort hinzufügen. Taste L funktioniert, wenn die Bühne selbst fokussiert ist."</p>
+            <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
+                on:click=move |_| create_at_playhead.with_value(|create| create())>
+                "Ort an aktueller Videozeit"
+            </button>
+        </Show>
         <div class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
-            aria-label="Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen"
+            aria-label=if video { "Videoraum – Bühne fokussieren und L für einen Ort an der aktuellen Zeit drücken" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
+            on:keydown=move |ev: web_sys::KeyboardEvent| {
+                // Only the stage itself, never native video controls or markers.
+                let stage_focused = ev.target().is_some() && ev.target() == ev.current_target();
+                if video && stage_focused && editing.get_untracked() && !ev.repeat()
+                    && !ev.is_composing() && !ev.ctrl_key() && !ev.meta_key()
+                    && !ev.alt_key() && ev.key().eq_ignore_ascii_case("l") {
+                    ev.prevent_default();
+                    create_at_playhead.with_value(|create| create());
+                }
+            }
             on:paste=move |ev: web_sys::ClipboardEvent| {
                 // Text fields are outside the stage, so ordinary text paste
                 // never reaches this handler. Do not request clipboard access.
@@ -550,7 +598,13 @@ fn RoomStage(
                 if !busy.get_untracked() && gesture.with_untracked(|g| g.as_ref().is_some_and(|g| g.pointer == ev.pointer_id())) { gesture.set(None); }
             }
         >
-            {room.backdrop.map(|media| view! { <Shown media=media class="backdrop" /> })}
+            {room.backdrop.map(|media| {
+                if video {
+                    view! { <video node_ref=player class="backdrop" src=crate::tauri::url(&media) controls=true muted=true></video> }.into_any()
+                } else {
+                    view! { <Shown media=media class="backdrop" /> }.into_any()
+                }
+            })}
             {move || {
                 if !revealed.get() { return None; }
                 let l = picture.selected_locus()?;

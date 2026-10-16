@@ -769,7 +769,10 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
 7. **Video-Räume** (Phase 3): am Locus anhalten, Zeitleiste.
    **Erster Editor-Schnitt umgesetzt:** Video-Orte über eine nichtnegative Sekundenangabe anlegen,
    inkl. Backend-Validierung (endlich, Video-Raum) und Persistenztest. Normales Ortsetzen bleibt
-   in Video-Räumen deaktiviert. Zeit von der Wiedergabe übernehmen, Taste L und Zeitleiste folgen.
+   in Video-Räumen deaktiviert. **Wiedergabezeit übernehmen umgesetzt:** „Ort an aktueller Videozeit“
+   pausiert das geladene Video und legt einen Ort am Playhead an. Taste L wirkt nur auf der
+   fokussierten Bühne (keine Texteingaben, Videosteuerung oder Marker; kein Key-Repeat).
+   WebView-Smoke-Test und Zeitleiste bleiben offen.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
 9. **Später:** Ton beim Aufdecken über Audio im `.sply`.
