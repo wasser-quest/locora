@@ -106,3 +106,5 @@ input[type=number] { font: inherit; padding: .5rem .7rem; border-radius: 10px; b
 dl.stats { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0; }
 dl.stats dt { color: var(--muted); }
 dl.stats dd { margin: 0; font-weight: 600; }
+.status { color: var(--ok); font-size: .9rem; }
+.status:empty, .notes:empty { display: none; }

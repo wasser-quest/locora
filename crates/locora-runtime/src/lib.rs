@@ -17,6 +17,7 @@ use locora_store::{PalaceTree, Store};
 
 pub mod journey;
 pub mod settings;
+pub mod transfer;
 pub mod tutorial;
 
 pub mod embedded {

@@ -12,7 +12,8 @@ Stand: 16.10.2026
 - [x] Editor-Grundschnitt: Loci setzen, ziehen/Pfeiltasten, Inhalte und Antworten inline mit Autosave, Bildgröße per Ziehgriff/Zahlenfeld, Löschen
 - [ ] Visuelle WebView-/E2E-Prüfung von Ortsbildern, Pointer-Gesten und Autosave-Fokus (`docs/app-editor-testplan.md`)
 - [x] „Weiter“-Zeile mit fälligen Loci; Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik (⚙ auf dem Startbildschirm)
-- [ ] Startbildschirm: Plugin-Kacheln (`ui.tile`), Befehlspalette (Strg/⌘+K), Import/Export
+- [x] Import/Export von `.locora` in der App (Dateidialoge, mit Wiederholungsstand)
+- [ ] Startbildschirm: Plugin-Kacheln (`ui.tile`), Befehlspalette (Strg/⌘+K)
 - [ ] Core-Ansicht: Palastliste mit ▶ auf der Karte, Raum mit Hintergrund und Locus-Markern, Bild am Ort
 - [x] Journey in der App: Recall (Leertaste, 1–4), Quiz, Guess; gleiche Bewertung über das Core-Plugin
 - [x] Aufdecken zeigt das `.sply` (es gehört zur Antwort), vorher nur Hintergrund und Marker

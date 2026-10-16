@@ -24,6 +24,26 @@ pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
 pub const CMD_JOURNEY_INPUTS: &str = "journey_inputs";
+pub const CMD_IMPORT_PICK: &str = "import_pick";
+pub const CMD_EXPORT_PICK: &str = "export_pick";
+
+/// After importing a `.locora` file.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ImportResult {
+    pub palaces: Vec<ImportedPalace>,
+    /// Loci whose review schedule came along; `None` when the file had none.
+    pub restored: Option<u32>,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImportedPalace {
+    pub id: String,
+    pub name: String,
+    /// Differs from `name` when the name was taken.
+    pub original_name: String,
+}
+
 pub const CMD_SETTINGS: &str = "settings";
 pub const CMD_SETTINGS_SET: &str = "settings_set";
 
