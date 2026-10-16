@@ -102,15 +102,14 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
             Response::Locus(locus(store.add_locus(
                 &room_id,
                 db::NewLocus {
-                    image_size: db::default_image_size(),
+                    image_size: new.image_size,
                     place: new.place,
                     item: new.item,
                     x: new.x,
                     y: new.y,
                     time: new.time,
                     answer: new.answer,
-                    // Pictures are not part of the palace service yet.
-                    image: None,
+                    image: new.image,
                     note: new.note,
                 },
             )?))
@@ -122,13 +121,13 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
             store.update_locus(
                 &id,
                 &db::LocusPatch {
-                    image_size: None,
+                    image_size: patch.image_size,
                     place: patch.place,
                     item: patch.item,
                     x: patch.x,
                     y: patch.y,
                     time: patch.time,
-                    image: None,
+                    image: patch.image,
                     answer: patch.answer,
                     note: patch.note,
                 },
@@ -171,6 +170,8 @@ fn locus(l: db::Locus) -> api::Locus {
         time: l.time,
         answer: l.answer,
         note: l.note,
+        image: l.image,
+        image_size: l.image_size,
     }
 }
 
@@ -186,5 +187,86 @@ fn room(r: db::Room, loci: Vec<db::Locus>) -> api::Room {
         },
         media: r.media,
         loci: loci.into_iter().map(locus).collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use locora_api::palaces::{LocusPatch, NewLocus, RoomKind};
+
+    fn new_locus(image: Option<String>) -> NewLocus {
+        NewLocus {
+            place: "Tor".into(),
+            item: "Sonne".into(),
+            x: 0.5,
+            y: 0.5,
+            time: None,
+            answer: Default::default(),
+            note: String::new(),
+            image,
+            image_size: 0.4,
+        }
+    }
+
+    #[test]
+    fn locus_pictures_travel_through_the_service() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let picture = store.put_media(b"\x89PNG", "image/png").unwrap().hash;
+        let video = store.put_media(b"mp4", "video/mp4").unwrap().hash;
+        let palace = store.create_palace("P").unwrap();
+        let room = match call(
+            &store,
+            Request::AddRoom {
+                palace_id: palace.id.clone(),
+                name: "R".into(),
+                kind: RoomKind::Blank,
+                media: None,
+            },
+        )
+        .unwrap()
+        .response
+        {
+            Response::Room(r) => r,
+            _ => panic!("room"),
+        };
+        let add = |image| Request::AddLocus {
+            room_id: room.id.clone(),
+            locus: new_locus(image),
+        };
+        let Response::Locus(locus) = call(&store, add(Some(picture.clone()))).unwrap().response
+        else {
+            panic!("locus")
+        };
+        assert_eq!(
+            (locus.image.as_deref(), locus.image_size),
+            (Some(picture.as_str()), 0.4)
+        );
+        assert!(
+            call(&store, add(Some(video))).is_err(),
+            "a video is no locus picture"
+        );
+        assert!(
+            call(&store, add(Some("0".repeat(64)))).is_err(),
+            "unknown media"
+        );
+
+        let patch = |image, image_size| Request::UpdateLocus {
+            id: locus.id.clone(),
+            patch: LocusPatch {
+                image,
+                image_size,
+                ..Default::default()
+            },
+        };
+        call(&store, patch(Some(None), Some(0.6))).unwrap();
+        let stored = store.palace(&palace.id).unwrap();
+        let l = stored.route().next().unwrap();
+        assert_eq!((l.image.as_deref(), l.image_size), (None, 0.6));
+        assert!(
+            call(&store, patch(None, Some(2.0))).is_err(),
+            "size out of range"
+        );
     }
 }
