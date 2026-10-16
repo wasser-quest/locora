@@ -11,7 +11,8 @@ Stand: 16.10.2026 (abends)
 - [x] Aufdecken: Bild zusätzlich direkt am Locus auf der Bühne zeigen; `image_size` über CLI/Quelldatei einstellbar (Standard 0,25)
 - [x] Editor-Grundschnitt: Loci setzen, ziehen/Pfeiltasten, Inhalte und Antworten inline mit Autosave, Bildgröße per Ziehgriff/Zahlenfeld, Löschen
 - [x] Splinely-Startprüfung pro Frame: Runtime-Bestätigung per Nachricht, sichtbarer Fehler bei fehlendem Start; expliziter Bootstrap als Fallback
-- [ ] Gemeldeten statischen Simo/Tutorial-Zustand in der vollständigen App reproduzieren; isolierter WebKit-Test von Simo zeigt laufende Runtime-Clips ohne Diagnosen
+- [x] Frischen Debug-Build mit separatem Profil nativ geprüft: Willkommens-Simo und Simo am ersten aufgedeckten Tutorial-Locus bewegen sich; REA-Prozessbeleg und Grenzen in `docs/splinely-runtime-smoke.md`
+- [ ] Gemeldeten statischen Zustand im betroffenen Build reproduzieren; Release-Build, alle Tutorial-Loci und Reduced Motion prüfen (Ursache noch nicht bestätigt)
 - [ ] Visuelle WebView-/E2E-Prüfung von Ortsbildern, Pointer-Gesten und Autosave-Fokus (`docs/app-editor-testplan.md`)
 - [x] „Weiter“-Zeile mit fälligen Loci; Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik (⚙ auf dem Startbildschirm)
 - [x] Import/Export von `.locora` in der App (Dateidialoge, mit Wiederholungsstand)
