@@ -4,10 +4,14 @@ All graphics are made with [Splinely](https://splinely.com) via `splinely-cli` a
 
 | File | What |
 |---|---|
-| `mascot/mnemo.sply` | **Mnemo**, the Locora firefly, named after *mnemo*nics (and Mnemosyne, the Greek goddess of memory). It lights up a numbered route of loci (1 → 2 → 3), which is the method of loci in one picture. It hovers, flaps, glows, blinks, follows the pointer with its eyes and hops on click. |
-| `brand/icon.sply` | App icon: a palace arch with a route of glowing loci and Mnemo's light. |
+| `mascot/mnemo.sply` | **Mnemo**, the Locora mascot, named after *mnemo*nics: a character with brown skin, a big afro, a loci hairpin whose three lights glow one after another (1 → 2 → 3) and a firefly companion. Mnemo breathes, blinks, follows the pointer with their eyes; clicking the face sends the firefly on a loop. Built from `mascot/src/build.py` via `mascot/src/make.sh`. |
+| `mascot/gluehwuermchen.sply` | Mnemo's firefly on its own: lights up a numbered route of loci; hovers, flaps, glows, blinks and hops on click. |
+| `brand/icon.sply` | App icon: a palace arch with a route of glowing loci and the firefly's light. |
+
+Style guide: [`STIL.md`](STIL.md) (German).
 
 ```bash
+SPLINELY_CLI=splinely-cli mascot/src/make.sh "$PWD/mascot/mnemo.sply"   # rebuild Mnemo from source
 splinely-cli export mascot/mnemo.sply --output mascot/mnemo.svg   # interactive SVG
 splinely-cli render mascot/mnemo.sply --output mascot/mnemo.gif   # animated preview
 splinely-cli render brand/icon.sply --time 0 --output brand/icon.png
