@@ -614,7 +614,7 @@ Stand: 16.10.2026. Dieser Abschnitt ist die Übergabe: was es gibt, wie man arbe
 | `crates/locora-format` | `.locora` v1 (siehe `format/README.md`) inkl. Tabellen und Bindungen |
 | `plugins/review` | Spaced Repetition als WASM-Plugin; wird per `apps/cli/build.rs` gebaut und in die CLI eingebettet |
 | `plugins/lernzeit`, `plugins/fixture` | Beispiel- bzw. Test-Plugin |
-| `apps/cli` | `new/add/edit/ls/show/rm/practice/review/due/export/import`, `plugin new/dev/run/check` |
+| `apps/cli` | `new/add/edit/ls/show/rm/practice/review/due/export/import`, `table show/set/rm`, `bind/unbind/calc`, `plugin new/dev/run/check`; Workbook-Eingaben, Aktivitätsfilter, Aufdecken und Aktionen in Practice/Review |
 | `assets/` | `brand/icon.sply`, `mascot/simo.sply`, `mascot/gluehwuermchen.sply` (+ Exporte), `STIL.md` |
 
 **Befehle:** `cargo test` (≈ 50 Tests, baut die Test-Plugins selbst), `cargo clippy --all-targets -- -D warnings`,
@@ -629,15 +629,33 @@ nach vorn holen), Gruppen sind erst ab 0.5.1 animierbar, `check` meldet bis 0.5.
 
 ### 13.3 Offen in Phase 1 (Reihenfolge = Empfehlung)
 
-1. **Workbook in der CLI** (Bausteine sind fertig: `locora_formula::workbook::Run`, `Store::set_row/rows/effective_rows/
-   set_binding/remove_binding`):
-   - `locora table show [PALAST] [--shared]`, `locora table set (--palace P | --shared) Tabelle.key[.spalte] WERT [-t typ]`,
-     `locora table rm …`
-   - `locora bind PALAST N feld "formel"`, `locora unbind PALAST N feld`, `locora calc [PALAST] "formel"`
-   - `practice/review`: Eingaben (`Inputs`) vor dem Start abfragen (Enter = Standard), Route nach `active` filtern
-     (mit `View.reveal = true`, kaputte Formeln bleiben auf der Route und zeigen den Fehler), Ort mit `reveal=false`,
-     Inhalt mit `reveal=true` auflösen, Aktionen per `!name` ausführen, `?` listet Aktionen.
-   - Integrationstests in `apps/cli/tests/` (Vorbild: `palaces.rs`).
+1. **Workbook in der CLI – erledigt:**
+   - `locora table show [PALAST]` zeigt effektive Tabellen; ohne Palast oder mit `--shared` nur gemeinsame Tabellen
+     (`PALAST` und `--shared` schließen sich aus).
+   - `locora table set (--palace P | --shared) Tabelle.key[.spalte] WERT [-t typ]`, Standardspalte `value`,
+     Standardtyp `text`; Typen: `text/number/boolean/json/formula/asset/palace/room`.
+     Änderungen erhalten andere Spalten derselben gespeicherten Zeile. Lokale Zeilen ersetzen gemeinsame **vollständig**;
+     beim ersten lokalen Set werden keine gemeinsamen Spalten kopiert.
+   - `locora table rm (--palace P | --shared) Tabelle.key[.spalte]` löscht eine Zeile oder einzelne Zelle;
+     nach Löschen der letzten lokalen Zelle greift wieder die gemeinsame Zeile. Punktgetrennte Adressen unterstützen
+     keine Punkte in Zeilenschlüsseln; solche Schlüssel bleiben über Store/Import nutzbar.
+   - `locora bind PALAST N feld "formel"`, `locora unbind PALAST N feld`, `locora calc [PALAST] "formel"`;
+     Nummern wie bei `show`, Felder `place/item/x/y/visible/active`. `calc` ohne Palast nutzt gemeinsame Tabellen,
+     mit Palast effektive Tabellen; `View.reveal=false`, Eingabestandards und keine interaktiven Aktionen.
+   - `practice/review`: typisierte `Inputs` vor der Routenauswahl (Enter = Standard, ungültige Werte erneut,
+     EOF = Abbruch), Groß-/Kleinschreibung bleibt erhalten. Pro Palast eigener flüchtiger Lauf.
+     `active` wird einmal mit `View.reveal=true` ausgewertet; Fehler bleiben mit Hinweis auf der Route.
+     Inaktive Loci verbrauchen kein Neulocus-Limit. Ort mit `reveal=false`, Inhalt erst beim Aufdecken mit `reveal=true`;
+     Bindungsfehler werden angezeigt, ohne die Journey abzubrechen.
+   - `?` listet Aktionen; `!name` führt `set/reveal/reset` vor und nach dem Aufdecken aus, ohne zu bewerten oder
+     weiterzugehen. Aktionen sind namensgetreu; nach Änderungen wird das aktuelle Feld neu angezeigt.
+     `reset` löscht auch Eingabe-Overrides; Route bleibt der Start-Snapshot. Tabellen/Bindungen werden nie verändert.
+     `x/y/visible` sind speicherbare Bindungen, haben aber im reinen Textterminal keine räumliche Darstellung;
+     `visible=false` entfernt keinen Locus aus der Route.
+   - Sechs Integrationstests in `apps/cli/tests/workbook.rs`: Bereiche/Overrides/Spalten/Typen, Calc/Bind/Unbind,
+     Eingaben/Standards/EOF, Aktivität/Aufdecken, Aktionen/Fehler/Atomarität/Reset, Laufisolation und Review-Planung.
+     Geprüft mit `cargo fmt --all`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`
+     und zusätzlich Clippy im Plugin-Workspace. Nächster offener Schritt: Punkt 2.
 2. **Hooks im Host** (Filter-Ketten aus 4.1, z. B. `core.journey.score`) und **Host-Services für Paläste**
    (`palaces:read`/`palaces:write`, bisher nur `storage` erzwungen).
 3. **`core` als eigenes Plugin**: Journey-Regeln, Bewertung (Recall/Quiz/Guess), Hooks für Gamification. Dafür im Store

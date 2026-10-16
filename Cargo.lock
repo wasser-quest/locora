@@ -1039,6 +1039,7 @@ dependencies = [
  "dirs",
  "locora-api",
  "locora-format",
+ "locora-formula",
  "locora-host",
  "locora-store",
  "notify",

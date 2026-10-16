@@ -507,10 +507,7 @@ mod tests {
         assert_eq!((video.time, video.item.as_str()), (Some(83.0), "These"));
         let full = parse_item("Herd | Merkur | 0.4,0.6").unwrap();
         assert_eq!(full.place.as_deref(), Some("Herd"));
-        assert_eq!(
-            (full.item.as_str(), full.at),
-            ("Merkur", Some((0.4, 0.6)))
-        );
+        assert_eq!((full.item.as_str(), full.at), ("Merkur", Some((0.4, 0.6))));
         let timed = parse_item("0:05 | Tür | Einleitung").unwrap();
         assert_eq!(
             (timed.time, timed.place.as_deref()),

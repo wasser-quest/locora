@@ -6,6 +6,7 @@ mod places;
 mod plugin;
 mod practice;
 mod transfer;
+mod workbook;
 
 use std::path::PathBuf;
 
@@ -125,6 +126,30 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Workbook-Tabellen anzeigen und bearbeiten
+    #[command(subcommand)]
+    Table(workbook::TableCommand),
+    /// Locus-Feld an eine Formel binden
+    Bind {
+        palace: String,
+        locus: usize,
+        field: String,
+        #[arg(allow_hyphen_values = true)]
+        expression: String,
+    },
+    /// Formelbindung eines Locus-Felds entfernen
+    Unbind {
+        palace: String,
+        locus: usize,
+        field: String,
+    },
+    /// Formel berechnen: [PALAST] FORMEL (ohne Palast: gemeinsame Tabellen)
+    Calc {
+        #[arg(allow_hyphen_values = true)]
+        first: String,
+        #[arg(allow_hyphen_values = true)]
+        expression: Option<String>,
+    },
     /// Plugins erstellen, entwickeln und testen
     #[command(subcommand)]
     Plugin(plugin::PluginCommand),
@@ -135,6 +160,27 @@ fn main() -> Result<()> {
     let data = cli.data.as_deref();
     match cli.command {
         Command::Plugin(cmd) => plugin::run(cmd),
+        Command::Table(cmd) => workbook::table(&mut app::App::open(data)?, cmd),
+        Command::Bind {
+            palace,
+            locus,
+            field,
+            expression,
+        } => workbook::bind(
+            &mut app::App::open(data)?,
+            &palace,
+            locus,
+            &field,
+            Some(expression),
+        ),
+        Command::Unbind {
+            palace,
+            locus,
+            field,
+        } => workbook::bind(&mut app::App::open(data)?, &palace, locus, &field, None),
+        Command::Calc { first, expression } => {
+            workbook::calc(&mut app::App::open(data)?, &first, expression.as_deref())
+        }
         Command::New {
             name,
             image,

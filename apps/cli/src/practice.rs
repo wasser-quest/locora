@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use anyhow::{Result, bail};
 use locora_api::core::{Grade, JourneyCompleted, LocusAnswered};
+use locora_formula::workbook::{ActionOutcome, BindingField, LocusInput, Run};
 use locora_store::{Locus, PalaceTree};
 
 use crate::app::{App, now};
@@ -26,30 +27,112 @@ fn read_line(input: &mut impl BufRead) -> Result<Option<String>> {
     if input.read_line(&mut line)? == 0 {
         return Ok(None);
     }
-    Ok(Some(line.trim().to_lowercase()))
+    Ok(Some(line.trim().to_owned()))
 }
 
-fn ask(input: &mut impl BufRead, n: usize, total: usize, locus: &Locus) -> Result<Step> {
-    print!(
-        "\n[{n}/{total}] {}   (Enter = aufdecken, q = beenden) ",
-        locus.place
-    );
-    io::stdout().flush()?;
-    match read_line(input)?.as_deref() {
-        None | Some("q") => return Ok(Step::Quit),
-        _ => {}
+fn display(run: &Run, locus: &Locus, reveal: bool) -> String {
+    // Resolve only the displayed field: a hidden answer must not leak or fail early.
+    let field = if reveal {
+        BindingField::Item
+    } else {
+        BindingField::Place
+    };
+    let bindings: Vec<_> = locus
+        .bindings
+        .iter()
+        .filter(|b| b.field == field)
+        .cloned()
+        .collect();
+    match run.resolve(
+        &LocusInput {
+            place: &locus.place,
+            item: &locus.item,
+            x: locus.x,
+            y: locus.y,
+            bindings: &bindings,
+        },
+        reveal,
+    ) {
+        Ok(resolved) => {
+            if reveal {
+                resolved.item
+            } else {
+                resolved.place
+            }
+        }
+        Err(err) => format!("⚠ Formel für {} fehlerhaft: {err}", field.name()),
     }
-    println!("        → {}", locus.item);
+}
+
+fn command(run: &mut Run, line: &str, reveal: bool) -> Option<bool> {
+    if line == "?" {
+        let actions = run.actions();
+        if actions.is_empty() {
+            println!("Keine Aktionen vorhanden.");
+        } else {
+            println!(
+                "Aktionen: {}",
+                actions
+                    .iter()
+                    .map(|a| format!("!{a}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+        return Some(reveal);
+    }
+    let key = line.strip_prefix('!')?;
+    match run.execute(key, reveal) {
+        Ok(ActionOutcome::Reveal) => Some(true),
+        Ok(ActionOutcome::Set | ActionOutcome::Reset) => Some(reveal),
+        Err(err) => {
+            println!("⚠ Aktion fehlgeschlagen: {err}");
+            Some(reveal)
+        }
+    }
+}
+
+fn ask(
+    input: &mut impl BufRead,
+    n: usize,
+    total: usize,
+    locus: &Locus,
+    run: &mut Run,
+) -> Result<Step> {
+    let mut revealed = false;
+    loop {
+        if revealed {
+            break;
+        }
+        print!(
+            "\n[{n}/{total}] {}   (Enter = aufdecken, q = beenden) ",
+            display(run, locus, false)
+        );
+        io::stdout().flush()?;
+        match read_line(input)?.as_deref() {
+            None | Some("q" | "Q") => return Ok(Step::Quit),
+            Some(line) => match command(run, line, false) {
+                Some(next) => revealed = next,
+                None => revealed = true,
+            },
+        }
+    }
+    println!("        → {}", display(run, locus, true));
     loop {
         print!("        1 Nochmal · 2 Schwer · 3 Gut · 4 Leicht  (Enter = Gut) ");
         io::stdout().flush()?;
         let grade = match read_line(input)?.as_deref() {
-            None | Some("q") => return Ok(Step::Quit),
+            None | Some("q" | "Q") => return Ok(Step::Quit),
             Some("1") => Grade::Again,
             Some("2") => Grade::Hard,
             Some("3") | Some("") => Grade::Good,
             Some("4") => Grade::Easy,
-            Some(_) => continue,
+            Some(line) => {
+                if command(run, line, true).is_some() {
+                    println!("        → {}", display(run, locus, true));
+                }
+                continue;
+            }
         };
         return Ok(Step::Graded(grade));
     }
@@ -66,6 +149,32 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .map(|p| app.store.palace(&p.id))
             .collect::<Result<_, _>>()?,
     };
+    let mut input = io::stdin().lock();
+    let mut runs = Vec::new();
+    for tree in &trees {
+        let mut run = Run::new(app.store.effective_rows(&tree.palace.id)?)?;
+        for spec in run.inputs()? {
+            loop {
+                print!(
+                    "{} · Eingabe {} [{}] (Enter = Standard): ",
+                    tree.palace.name, spec.key, spec.default
+                );
+                io::stdout().flush()?;
+                match read_line(&mut input)? {
+                    None => {
+                        println!("\nÜbung beendet.");
+                        return Ok(());
+                    }
+                    Some(text) if text.is_empty() => break,
+                    Some(text) => match run.set_input(&spec.key, &text) {
+                        Ok(()) => break,
+                        Err(err) => println!("⚠ Ungültige Eingabe: {err}"),
+                    },
+                }
+            }
+        }
+        runs.push(run);
+    }
     let cards = schedule(
         app,
         palace
@@ -73,10 +182,18 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .map(|t| t.palace.id.as_str()),
     );
     let now_at_start = now();
-    let mut plan: Vec<(&PalaceTree, &Locus)> = Vec::new();
+    let mut plan: Vec<(usize, &PalaceTree, &Locus)> = Vec::new();
     let mut new_left = options.new;
-    for tree in &trees {
+    for (index, tree) in trees.iter().enumerate() {
         for locus in tree.route() {
+            match runs[index].active(&locus.bindings) {
+                Ok(false) => continue,
+                Ok(true) => {}
+                Err(err) => println!(
+                    "⚠ {} · {}: active-Formel fehlerhaft: {err}",
+                    tree.palace.name, locus.place
+                ),
+            }
             let include = if !options.due_only {
                 true
             } else {
@@ -90,7 +207,7 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                 }
             };
             if include {
-                plan.push((tree, locus));
+                plan.push((index, tree, locus));
             }
         }
     }
@@ -102,7 +219,9 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .iter()
             .map(|t| count_due(t, &cards, now_at_start))
             .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
-        println!("Nichts fällig ({due} fällig, {fresh} neu). Alles üben: locora practice <Palast>");
+        println!(
+            "Keine aktiven Loci ausgewählt ({due} fällig, {fresh} neu). Alles üben: locora practice <Palast>"
+        );
         return Ok(());
     }
 
@@ -115,13 +234,13 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
         "▶ {title}: {count} {}",
         if count == 1 { "Locus" } else { "Loci" }
     );
-    let mut input = io::stdin().lock();
+    println!("? = Aktionen anzeigen · !name = Aktion ausführen · q = beenden");
     let started = Instant::now();
     let mut results: Vec<(String, bool)> = Vec::new();
     let total = plan.len();
-    for (i, (tree, locus)) in plan.iter().enumerate() {
+    for (i, (index, tree, locus)) in plan.iter().enumerate() {
         let asked = Instant::now();
-        match ask(&mut input, i + 1, total, locus)? {
+        match ask(&mut input, i + 1, total, locus, &mut runs[*index])? {
             Step::Quit => break,
             Step::Graded(grade) => {
                 results.push((tree.palace.id.clone(), grade != Grade::Again));
