@@ -51,6 +51,7 @@ pub mod prelude {
     pub use crate::api::host::Started;
     pub use crate::api::journey::{
         Answer, AnswerKind, Evaluate, EvaluateRequest, Evaluation, QuizOption, Scored, Submission,
+        normalize,
     };
     pub use crate::api::palaces;
     pub use crate::{Ctx, Error, Event, Hook, Plugin, Result, Service, Store, locora_plugin};

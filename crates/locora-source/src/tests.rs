@@ -15,7 +15,8 @@ name = "Garten"
 place = "Baum"
 item = "Mars"
 at = [0.4, 0.6]
-answer = "guess"
+answer = { type = "guess", accept = ["Roter Planet"] }
+note = "Ein Marsriegel hängt im Baum"
 
 [[room.locus]]
 item = "Jupiter"
@@ -152,11 +153,15 @@ fn dump_and_rebuild_round_trip() {
                     l.time,
                     l.answer.clone(),
                     l.bindings.clone(),
+                    l.note.clone(),
                 )
             })
             .collect::<Vec<_>>()
     };
     assert_eq!(view(&copy), view(&original));
+    let baum = original.route().find(|l| l.place == "Baum").unwrap();
+    assert_eq!(baum.answer.accept, ["Roter Planet"]);
+    assert_eq!(baum.note, "Ein Marsriegel hängt im Baum");
     assert_eq!(copy.tables, original.tables);
     let rooms = |t: &PalaceTree| {
         t.rooms
@@ -327,4 +332,21 @@ fn custom_marker_in_source() {
     );
     let err = err_of(&text.replace("stern.sply", "stern.png"), d);
     assert!(err.contains("muss eine .sply-Datei sein"), "{err}");
+}
+
+#[test]
+fn guess_tables_only_take_accept() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = "name = \"P\"\n[[room]]\nname = \"a\"\n[[room.locus]]\nitem = \"x\"\n";
+    for (answer, error) in [
+        (r#"{ type = "guess", correct = ["x"] }"#, "nur `accept`"),
+        (
+            r#"{ type = "quiz", correct = ["x"], wrong = ["y"], accept = ["z"] }"#,
+            "nur bei Guess",
+        ),
+        (r#"{ type = "guess", accept = ["X!", "x"] }"#, "eindeutig"),
+    ] {
+        let text = format!("{base}answer = {answer}\n");
+        assert!(err_of(&text, dir.path()).contains(error), "{answer}");
+    }
 }

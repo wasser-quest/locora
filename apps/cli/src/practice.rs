@@ -20,6 +20,76 @@ pub struct Options {
     pub new: usize,
     /// `new` comes from the daily limit (not from an explicit `--new`).
     pub daily_limit: bool,
+    pub modes: Modes,
+}
+
+/// How the route is asked.
+#[derive(clap::Args, Debug, Default, Clone, Copy)]
+pub struct Modes {
+    /// Rückwärts: Inhalt zeigen, Ort erinnern (immer als Erinnern bewertet)
+    #[arg(long)]
+    pub reverse: bool,
+    /// Nur die Ortsnummer zeigen („Ort 7 · Bibliothek“) statt des Ortsnamens
+    #[arg(long)]
+    pub numbers: bool,
+    /// In zufälliger Reihenfolge abfragen
+    #[arg(long)]
+    pub shuffle: bool,
+}
+
+/// One planned question: palace index, palace, locus, route number, room name.
+struct Entry<'a> {
+    index: usize,
+    tree: &'a PalaceTree,
+    locus: &'a Locus,
+    number: usize,
+    room: &'a str,
+}
+
+/// What one question shows and reveals, depending on the modes.
+struct View {
+    reverse: bool,
+    /// „Ort 7 · Bibliothek“ in numbers mode.
+    label: Option<String>,
+}
+
+impl View {
+    fn question(&self, run: &Run, locus: &Locus) -> String {
+        match (&self.label, self.reverse) {
+            (_, true) => display(run, locus, true),
+            (Some(label), false) => label.clone(),
+            (None, false) => display(run, locus, false),
+        }
+    }
+
+    fn solution(&self, run: &Run, locus: &Locus) -> String {
+        match (&self.label, self.reverse) {
+            (Some(label), true) => format!("{label}: {}", display(run, locus, false)),
+            (None, true) => display(run, locus, false),
+            (Some(_), false) => format!(
+                "{} → {}",
+                display(run, locus, false),
+                display(run, locus, true)
+            ),
+            (None, false) => display(run, locus, true),
+        }
+    }
+
+    /// Reverse questions are always recalled, whatever the locus asks for.
+    fn kind(&self, locus: &Locus) -> AnswerKind {
+        if self.reverse {
+            AnswerKind::Recall
+        } else {
+            locus.answer.kind
+        }
+    }
+}
+
+/// The memory aid, shown once the answer is visible.
+fn print_note(locus: &Locus) {
+    if !locus.note.is_empty() {
+        println!("        ✎ {}", locus.note);
+    }
 }
 
 enum Step {
@@ -107,9 +177,11 @@ fn ask(
     total: usize,
     locus: &Locus,
     run: &mut Run,
+    shown: &[u32],
+    view: &View,
 ) -> Result<Step> {
-    if locus.answer.kind != AnswerKind::Recall {
-        return ask_automatic(input, n, total, locus, run);
+    if view.kind(locus) != AnswerKind::Recall {
+        return ask_automatic(input, n, total, locus, run, shown, view);
     }
     let mut revealed = false;
     loop {
@@ -118,7 +190,7 @@ fn ask(
         }
         print!(
             "\n[{n}/{total}] {}   (Enter = aufdecken, q = beenden) ",
-            display(run, locus, false)
+            view.question(run, locus)
         );
         io::stdout().flush()?;
         match read_line(input)?.as_deref() {
@@ -129,7 +201,8 @@ fn ask(
             },
         }
     }
-    println!("        → {}", display(run, locus, true));
+    println!("        → {}", view.solution(run, locus));
+    print_note(locus);
     loop {
         print!("        1 Nochmal · 2 Schwer · 3 Gut · 4 Leicht  (Enter = Gut) ");
         io::stdout().flush()?;
@@ -141,7 +214,7 @@ fn ask(
             Some("4") => Grade::Easy,
             Some(line) => {
                 if command(run, line, true).is_some() {
-                    println!("        → {}", display(run, locus, true));
+                    println!("        → {}", view.solution(run, locus));
                 }
                 continue;
             }
@@ -156,12 +229,18 @@ fn ask_automatic(
     total: usize,
     locus: &Locus,
     run: &mut Run,
+    shown: &[u32],
+    view: &View,
 ) -> Result<Step> {
     loop {
-        println!("\n[{n}/{total}] {}", display(run, locus, false));
+        println!("\n[{n}/{total}] {}", view.question(run, locus));
         if locus.answer.kind == AnswerKind::Quiz {
-            for (index, option) in locus.answer.options.iter().enumerate() {
-                println!("        {} {}", index + 1, option.text);
+            for (number, index) in shown.iter().enumerate() {
+                println!(
+                    "        {} {}",
+                    number + 1,
+                    locus.answer.options[*index as usize].text
+                );
             }
             print!("Auswahl (z. B. 1,3; alle richtigen wählen)");
         } else {
@@ -203,7 +282,7 @@ fn ask_automatic(
             .split(',')
             .map(|part| {
                 let number: u32 = part.trim().parse().ok()?;
-                (number >= 1 && number as usize <= locus.answer.options.len()).then(|| number - 1)
+                (number >= 1).then(|| shown.get(number as usize - 1).copied())?
             })
             .collect();
         if let Some(selected) = selected {
@@ -218,7 +297,12 @@ fn ask_automatic(
 
 /// Keep workbook actions on the revealed locus; none of them evaluates it again.
 /// With no authored actions, automatic questions keep their single-submit flow.
-fn after_automatic(input: &mut impl BufRead, locus: &Locus, run: &mut Run) -> Result<bool> {
+fn after_automatic(
+    input: &mut impl BufRead,
+    locus: &Locus,
+    run: &mut Run,
+    view: &View,
+) -> Result<bool> {
     if run.actions().is_empty() {
         return Ok(true);
     }
@@ -229,7 +313,7 @@ fn after_automatic(input: &mut impl BufRead, locus: &Locus, run: &mut Run) -> Re
             None | Some("q" | "Q") => return Ok(false),
             Some("") => return Ok(true),
             Some(line) if command(run, line, true).is_some() => {
-                println!("        → {}", display(run, locus, true));
+                println!("        → {}", view.solution(run, locus));
             }
             Some(_) => println!("        Bereits bewertet; Enter zum Weitergehen."),
         }
@@ -285,10 +369,15 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .map(|t| t.palace.id.as_str()),
     );
     let now_at_start = now();
-    let mut plan: Vec<(usize, &PalaceTree, &Locus)> = Vec::new();
+    let mut plan: Vec<Entry> = Vec::new();
     let mut new_left = options.new;
     for (index, tree) in trees.iter().enumerate() {
-        for locus in tree.route() {
+        let route = tree.rooms.iter().flat_map(|room| {
+            room.loci
+                .iter()
+                .map(move |locus| (room.room.name.as_str(), locus))
+        });
+        for (number, (room, locus)) in route.enumerate() {
             match runs[index].active(&locus.bindings) {
                 Ok(false) => continue,
                 Ok(true) => {}
@@ -310,7 +399,13 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                 }
             };
             if include {
-                plan.push((index, tree, locus));
+                plan.push(Entry {
+                    index,
+                    tree,
+                    locus,
+                    number: number + 1,
+                    room,
+                });
             }
         }
     }
@@ -354,18 +449,48 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
     let mut results: Vec<(String, bool)> = Vec::new();
     let mut points = 0u64;
     let total = plan.len();
-    for (i, (index, tree, locus)) in plan.iter().enumerate() {
+    let seed = locora_runtime::now();
+    let recall = locora_api::journey::Answer::default();
+    if options.modes.shuffle {
+        locora_api::journey::shuffle(&mut plan, seed);
+    }
+    for (i, entry) in plan.iter().enumerate() {
+        let Entry {
+            index,
+            tree,
+            locus,
+            number,
+            room,
+        } = entry;
+        let view = View {
+            reverse: options.modes.reverse,
+            label: options.modes.numbers.then(|| {
+                if trees.len() > 1 {
+                    format!("{} · Ort {number} · {room}", tree.palace.name)
+                } else {
+                    format!("Ort {number} · {room}")
+                }
+            }),
+        };
+        let kind = view.kind(locus);
         let asked = Instant::now();
         let track = |spent: &mut HashMap<String, Duration>| {
             *spent.entry(tree.palace.id.clone()).or_default() += asked.elapsed();
         };
-        match ask(&mut input, i + 1, total, locus, &mut runs[*index])? {
+        let shown = locus.answer.quiz_selection(seed ^ i as u64);
+        match ask(
+            &mut input,
+            i + 1,
+            total,
+            locus,
+            &mut runs[*index],
+            &shown,
+            &view,
+        )? {
             Step::Quit => break,
             Step::Answered(submission) => {
                 let elapsed_ms = asked.elapsed().as_millis().min(u64::MAX as u128) as u64;
-                let expected = if locus.answer.kind == AnswerKind::Guess
-                    && submission != Submission::Forfeit
-                {
+                let expected = if kind == AnswerKind::Guess && submission != Submission::Forfeit {
                     match resolve_text(&runs[*index], locus, true) {
                         Ok(text) if !text.trim().is_empty() => text,
                         Ok(_) => {
@@ -385,14 +510,14 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                 let evaluation = app.answer(locora_runtime::AnswerRequest {
                     palace_id: &tree.palace.id,
                     locus_id: &locus.id,
-                    answer: &locus.answer,
+                    answer: if view.reverse { &recall } else { &locus.answer },
                     expected: &expected,
                     submission,
                     elapsed_ms,
                 })?;
                 points = points.saturating_add(evaluation.points);
                 results.push((tree.palace.id.clone(), evaluation.correct));
-                if locus.answer.kind != AnswerKind::Recall {
+                if kind != AnswerKind::Recall {
                     println!(
                         "        {} → {}",
                         if evaluation.correct {
@@ -400,20 +525,20 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                         } else {
                             "Nochmal"
                         },
-                        display(&runs[*index], locus, true)
+                        view.solution(&runs[*index], locus)
                     );
                     if locus.answer.kind == AnswerKind::Quiz {
-                        let correct: Vec<_> = locus
-                            .answer
-                            .options
+                        let correct: Vec<_> = shown
                             .iter()
                             .enumerate()
+                            .map(|(number, index)| (number, &locus.answer.options[*index as usize]))
                             .filter(|(_, option)| option.correct)
-                            .map(|(index, option)| format!("{} {}", index + 1, option.text))
+                            .map(|(number, option)| format!("{} {}", number + 1, option.text))
                             .collect();
                         println!("        Richtige Auswahl: {}", correct.join(", "));
                     }
-                    if !after_automatic(&mut input, locus, &mut runs[*index])? {
+                    print_note(locus);
+                    if !after_automatic(&mut input, locus, &mut runs[*index], &view)? {
                         track(&mut spent);
                         break;
                     }
@@ -430,7 +555,7 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .collect();
         let planned = plan
             .iter()
-            .filter(|(_, t, _)| t.palace.id == tree.palace.id)
+            .filter(|entry| entry.tree.palace.id == tree.palace.id)
             .count();
         if mine.is_empty() || mine.len() != planned {
             continue;
@@ -463,6 +588,7 @@ mod tests {
                 due_only: false,
                 new: 10,
                 daily_limit: false,
+                modes: Modes::default(),
             },
         )
         .unwrap_err();

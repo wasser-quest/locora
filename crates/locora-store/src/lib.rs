@@ -107,6 +107,9 @@ pub struct Locus {
     /// SHA-256 of a picture shown at this locus (image or `.sply` animation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+    /// Memory aid: the vivid image in words, shown after the answer.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub note: String,
     /// Formulas that compute fields of this locus from the palace's tables.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<Binding>,
@@ -155,6 +158,8 @@ pub struct NewLocus {
     /// SHA-256 of a stored picture (image or `.sply` animation).
     #[serde(default)]
     pub image: Option<String>,
+    #[serde(default)]
+    pub note: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -168,6 +173,8 @@ pub struct LocusPatch {
     /// `None` = keep, `Some(None)` = remove, `Some(Some(hash))` = set.
     #[serde(default)]
     pub image: Option<Option<String>>,
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 /// Media types a locus picture may have.
@@ -414,7 +421,7 @@ impl Store {
             });
         }
         let mut loci_stmt = conn.prepare(
-            "SELECT id, room_id, position, place, item, x, y, time, answer, image FROM loci WHERE room_id = ?1 ORDER BY position",
+            "SELECT id, room_id, position, place, item, x, y, time, answer, image, note FROM loci WHERE room_id = ?1 ORDER BY position",
         )?;
         let mut tree = Vec::new();
         for room in rooms {
@@ -431,6 +438,7 @@ impl Store {
                         time: r.get(7)?,
                         answer: read_answer(r, 8)?,
                         image: r.get(9)?,
+                        note: r.get(10)?,
                         bindings: Vec::new(),
                     })
                 })?
@@ -638,11 +646,12 @@ impl Store {
             time: locus.time,
             answer: locus.answer,
             image: locus.image,
+            note: locus.note.trim().to_owned(),
             bindings: Vec::new(),
         };
         conn.execute(
-            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image],
+            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(
@@ -659,7 +668,7 @@ impl Store {
         let conn = self.conn();
         let (palace_id, mut locus) = conn
             .query_row(
-                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image
+                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image, l.note
                  FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
                 [id],
                 |r| {
@@ -676,6 +685,7 @@ impl Store {
                             time: r.get(8)?,
                             answer: read_answer(r, 9)?,
                             image: r.get(10)?,
+                            note: r.get(11)?,
                             bindings: Vec::new(),
                         },
                     ))
@@ -688,6 +698,9 @@ impl Store {
         }
         if let Some(item) = &patch.item {
             locus.item = item.trim().to_owned();
+        }
+        if let Some(note) = &patch.note {
+            locus.note = note.trim().to_owned();
         }
         if let Some(answer) = &patch.answer {
             answer
@@ -708,8 +721,8 @@ impl Store {
         }
         check_position(locus.x, locus.y)?;
         conn.execute(
-            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7 WHERE id = ?8",
-            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, id],
+            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7, note = ?8 WHERE id = ?9",
+            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, id],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(

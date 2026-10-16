@@ -167,6 +167,9 @@ pub struct LocusDoc {
     /// SHA-256 of a picture shown at the locus (image or `.sply` animation; format 2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+    /// Memory aid shown after the answer (format 2).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub note: String,
 }
 
 /// Formulas computing locus fields, one per field.
@@ -255,6 +258,7 @@ impl From<&PalaceTree> for PalaceDoc {
                             bindings: Bindings::from_list(&l.bindings),
                             answer: l.answer.clone(),
                             image: l.image.clone(),
+                            note: l.note.clone(),
                         })
                         .collect(),
                 })
@@ -432,7 +436,7 @@ pub fn export_with<W: Write + Seek>(
             .iter()
             .flat_map(|p| &p.rooms)
             .flat_map(|r| &r.loci)
-            .all(|l| l.answer.is_recall() && l.image.is_none())
+            .all(|l| l.answer.is_recall() && l.image.is_none() && l.note.is_empty())
             && docs.iter().all(|d| d.marker.is_none())
         {
             1
@@ -911,6 +915,7 @@ impl<R: Read + Seek> Package<R> {
                             time: locus.time,
                             answer: locus.answer.clone(),
                             image: locus.image.clone(),
+                            note: locus.note.clone(),
                         },
                     )?;
                     for binding in locus.bindings.list() {

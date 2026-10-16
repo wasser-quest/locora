@@ -56,10 +56,22 @@ fn tutorial_is_a_palace_with_pictures_at_every_place() {
     );
     assert!(ok(d, &["tutorial"], "").contains("schon da"));
 
-    // Walk the whole route: six recalls, the quiz (answer 2) and the typed answer.
-    let answers = format!("{}2\nlocora new\n\n3\n", "\n3\n".repeat(6));
+    // Walk the whole route: six recalls, the quiz, the typed answer (an
+    // accepted variant) and a recall. The quiz is shuffled per question with
+    // the seed LOCORA_NOW ^ position, so pick the shown number of the right option.
+    let store = locora_store::Store::open(d).unwrap();
+    let tree = store.palace("Locora lernen").unwrap();
+    let quiz = &tree.route().nth(6).unwrap().answer;
+    let shown = quiz.quiz_selection(1_800_000_000 ^ 6);
+    let choice = 1 + shown
+        .iter()
+        .position(|i| quiz.options[*i as usize].correct)
+        .unwrap();
+    drop(store);
+    let answers = format!("{}{choice}\nNew\n\n3\n", "\n3\n".repeat(6));
     let out = ok(d, &["practice", "Locora lernen"], &answers);
     assert!(out.contains("9 von 9 geübt, 9 gewusst"), "{out}");
+    assert!(out.contains("✎ Aus dem Baum wächst"), "{out}");
 
     // --reset builds it again from scratch.
     assert!(ok(d, &["tutorial", "--reset"], "").contains("angelegt"));

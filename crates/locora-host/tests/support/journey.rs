@@ -16,6 +16,7 @@ fn core_bound_calls_and_profile_loads_cannot_be_hijacked() {
     let request = EvaluateRequest {
         answer: Answer {
             kind: AnswerKind::Guess,
+            accept: vec![],
             options: vec![],
         },
         expected: "Geheim".into(),
@@ -60,6 +61,7 @@ fn core_wasm_evaluation_hook_and_review_remain_separate() {
     let mut request = EvaluateRequest {
         answer: Answer {
             kind: AnswerKind::Guess,
+            accept: vec![],
             options: vec![],
         },
         expected: " Merkur ".into(),
@@ -111,6 +113,7 @@ fn core_wasm_evaluation_hook_and_review_remain_separate() {
 
     request.answer = Answer {
         kind: AnswerKind::Quiz,
+        accept: vec![],
         options: vec![
             QuizOption {
                 text: "a".into(),

@@ -2,10 +2,11 @@
 
 Plugins are WASI components (`wasm32-wasip2`). `#[locora_plugin]` generates the
 manifest and component exports. Import `locora_sdk::prelude::*` for the typed API.
-The host and plugins currently speak API/WIT **0.4**; rebuild older components.
+The host and plugins currently speak API/WIT **0.5**; rebuild older components.
 0.3 introduced filter/call imports and the filter export; 0.4 adds answer fields
-to palace DTOs, changing their Postcard layout. JSON defaults do not make that
-binary layout compatible. Neither 0.2 nor 0.3 components can simply be relabelled.
+to palace DTOs, changing their Postcard layout. 0.5 adds `Answer.accept`
+(further Guess answers) and `note` to palace loci – again a new layout. JSON defaults do not make that
+binary layout compatible. Neither 0.2, 0.3 nor 0.4 components can simply be relabelled.
 
 ## Host-driven filter chains
 
@@ -100,8 +101,11 @@ failures are explicit, with no native fallback evaluator.
 `locora edit P 1 --answer '{"type":"guess"}'` changes a locus; use
 `{"type":"recall"}` to reset it, or Quiz as shown in the
 [format guide](../../format/README.md). New/old loci default to Recall. Guess
-uses the resolved item; Quiz uses explicit correct/incorrect options, independent
-of the item (shown as explanation). `q`, `?` and `!name` are controls; prefix a
+uses the resolved item plus `accept` (`--accept TEXT`, repeatable), compared with
+`normalize` (case, punctuation, spaces ignored); Quiz uses explicit
+correct/incorrect options, independent of the item (shown as explanation), and
+the client shows `Answer::quiz_selection(seed)`: every correct option plus three
+random wrong ones. Indices in `Submission::Quiz` always refer to `options`. `q`, `?` and `!name` are controls; prefix a
 Guess with `=` for literal input, e.g. `=q`, `=?`, `=!name`, `==value`.
 Broken/empty Guess expected values are diagnosed and left ungraded, while a
 conscious Forfeit can still record Again. No hidden binding is evaluated just

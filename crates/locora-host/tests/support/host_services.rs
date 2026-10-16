@@ -157,6 +157,7 @@ fn new_locus() -> p::NewLocus {
         y: 0.8,
         time: None,
         answer: Default::default(),
+        note: String::new(),
     }
 }
 
@@ -566,6 +567,7 @@ fn guest_answer_dtos_round_trip_and_invalid_patches_are_atomic() {
     let mut locus = new_locus();
     locus.answer = Answer {
         kind: AnswerKind::Quiz,
+        accept: vec![],
         options: vec![
             QuizOption {
                 text: "a".into(),
@@ -598,6 +600,7 @@ fn guest_answer_dtos_round_trip_and_invalid_patches_are_atomic() {
                     item: Some("bad".into()),
                     answer: Some(Answer {
                         kind: AnswerKind::Quiz,
+                        accept: vec![],
                         options: vec![]
                     }),
                     ..Default::default()
@@ -615,6 +618,7 @@ fn guest_answer_dtos_round_trip_and_invalid_patches_are_atomic() {
             patch: p::LocusPatch {
                 answer: Some(Answer {
                     kind: AnswerKind::Guess,
+                    accept: vec![],
                     options: vec![],
                 }),
                 ..Default::default()

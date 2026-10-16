@@ -80,6 +80,7 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 - `x`, `y`: position in the room from 0 to 1 (left/top = 0).
 - `time`: seconds into the video; required in video rooms and not allowed elsewhere.
 - `image` (format 2): SHA-256 of a picture shown at the locus — an image or a `.sply` animation, never a video. Files with locus pictures are written as version 2; version 1 readers reject them instead of dropping the pictures.
+- `note` (format 2): memory aid, the vivid image in words; shown after the answer. Omitted when empty.
 - `bindings`: formulas for `place`, `item`, `x`, `y`, `visible`, `active` (each at most once).
 - `tables`: rows `{ table, key, cells: [{ column, type, value }] }`; `type` is `text`, `number`, `boolean`, `json`, `formula`, `asset`, `palace` or `room`.
 - Array order is route order.
@@ -88,7 +89,8 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 
 An absent `answer` defaults to Recall, including in version 1 files. Explicit
 Recall is `{"type":"recall"}`. Guess is `{"type":"guess"}` and checks the
-resolved `item`, not a second stored answer string. Quiz specifies authored
+resolved `item`; `"accept": ["Hermes", "der Bote"]` adds up to 20 further
+answers that also count (Guess only, nonblank and unique after normalizing). Quiz specifies authored
 options with one or more correct selections:
 
 ```json
@@ -102,16 +104,19 @@ options with one or more correct selections:
 }
 ```
 
-Quiz requires **2–9 total options**, at least one correct and one incorrect.
-Labels must be nonblank and unique after trimming and lowercasing, and respect
-text limits. Order is preserved; all correct options must be selected, with no
-partial credit. Recall/Guess cannot contain options (an empty list is allowed).
+Quiz requires **2–30 total options**, at least one and at most 9 correct and
+at least one incorrect. Labels must be nonblank and unique after trimming and
+lowercasing, and respect text limits. Each question shows every correct option
+plus up to **three randomly drawn incorrect ones**, in shuffled order (a larger
+pool of distractors keeps the quiz fresh). All shown correct options must be
+selected, with no partial credit. Recall/Guess cannot contain options (an empty list is allowed).
 Unknown types/fields and malformed configurations are rejected before import.
 These are explicit options, not legacy comma-separated correct answers or
-randomly generated distractors. For Quiz, `item` remains an explanation shown
+generated distractors. For Quiz, `item` remains an explanation shown
 after answering; it need not contain the correct labels.
 
-Correct Guess matching trims and lowercases both whole strings. Core maps
+Guess matching ignores case, punctuation and repeated spaces
+(`„Die  Erde!“` = `die erde`), against `item` and every `accept` entry. Core maps
 incorrect answers to Again and automatic correct answers to Easy at <=5,000 ms,
 otherwise Good. Recall stays self-rated. See the
 [SDK journey guide](../crates/locora-sdk/README.md#core-journeys) for runtime,

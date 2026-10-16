@@ -110,6 +110,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
                     answer: new.answer,
                     // Pictures are not part of the palace service yet.
                     image: None,
+                    note: new.note,
                 },
             )?))
         }
@@ -127,6 +128,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
                     time: patch.time,
                     image: None,
                     answer: patch.answer,
+                    note: patch.note,
                 },
             )?;
             // A write-only caller must not receive unchanged, previously stored fields.
@@ -166,6 +168,7 @@ fn locus(l: db::Locus) -> api::Locus {
         y: l.y,
         time: l.time,
         answer: l.answer,
+        note: l.note,
     }
 }
 

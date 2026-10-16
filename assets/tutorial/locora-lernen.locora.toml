@@ -68,7 +68,8 @@ place = "Der Baum – mit welchem Befehl legst du einen eigenen Palast an?"
 item = "locora new"
 at = [0.55, 0.6]
 image = "baum.sply"
-answer = "guess"
+answer = { type = "guess", accept = ["new", "locora new NAME"] }
+note = "Aus dem Baum wächst ein neuer Palast – „new“ steht auf dem Schild am Stamm"
 
 [[room.locus]]
 place = "Das Glühwürmchen – womit übst du, was fällig ist?"

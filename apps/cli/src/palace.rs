@@ -163,6 +163,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
                 time: item.time,
                 answer: Default::default(),
                 image: None,
+                note: String::new(),
             },
         )?;
     }
@@ -196,6 +197,7 @@ pub struct AddArgs {
     pub at: Option<String>,
     pub time: Option<String>,
     pub image: Option<PathBuf>,
+    pub note: Option<String>,
 }
 
 /// Store a picture file (image or `.sply` animation) for a locus.
@@ -248,6 +250,7 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
                 .as_deref()
                 .map(|path| store_picture(app, path))
                 .transpose()?,
+            note: args.note.unwrap_or_default(),
         },
     )?;
     println!(
@@ -383,6 +386,15 @@ pub fn show(app: &mut App, query: &str) -> Result<()> {
                 truncate(&locus.place, 18),
                 truncate(&locus.item, 24)
             );
+            if !locus.answer.accept.is_empty() {
+                println!(
+                    "              auch richtig: {}",
+                    locus.answer.accept.join(" · ")
+                );
+            }
+            if !locus.note.is_empty() {
+                println!("              ✎ {}", truncate(&locus.note, 60));
+            }
         }
     }
     if n == 0 {

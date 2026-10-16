@@ -115,6 +115,9 @@ pub struct Locus {
     pub time: Option<f64>,
     #[serde(default)]
     pub answer: crate::journey::Answer,
+    /// Memory aid shown after the answer.
+    #[serde(default)]
+    pub note: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -126,6 +129,8 @@ pub struct NewLocus {
     pub time: Option<f64>,
     #[serde(default)]
     pub answer: crate::journey::Answer,
+    #[serde(default)]
+    pub note: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -137,4 +142,6 @@ pub struct LocusPatch {
     /// None keeps the timestamp, Some(None) clears it.
     pub time: Option<Option<f64>>,
     pub answer: Option<crate::journey::Answer>,
+    #[serde(default)]
+    pub note: Option<String>,
 }

@@ -17,6 +17,8 @@ locora tutorial                # learn Locora with the method of loci itself: a 
 locora new "Planeten" -- Merkur Venus Erde Mars Jupiter Saturn Uranus Neptun
 locora practice Planeten       # walk the route: Enter reveals, 1–4 grades
 locora edit Planeten 1 --answer '{"type":"guess"}'  # typed answer, checked by Core
+locora edit Planeten 1 --accept Hermes --note "Ein Thermometer am Herd"  # more right answers, memory aid
+locora practice Planeten --reverse  # item → place; --numbers asks „Ort 7“, --shuffle mixes the order
 locora due                     # what is due today (FSRS via the review plugin)
 locora review                  # only what is due (plus new loci up to the daily limit)
 locora stats                   # answers, hit rate, streak
@@ -45,7 +47,7 @@ cd mein-plugin
 ```
 
 Host-driven filter chains and capability-checked palace services are documented
-in the [SDK guide](crates/locora-sdk/README.md), including API 0.4 migration,
+in the [SDK guide](crates/locora-sdk/README.md), including API 0.5 migration,
 Core journey evaluation, answer authoring, scoring hooks, limitations and
 integration-test commands. `plugin dev/run` use isolated in-memory storage;
 `plugin check` inspects metadata without activation or profile access.
@@ -64,7 +66,7 @@ locora --data ./test-profile plugin install ./mein_plugin.wasm --yes
 Installation never calls `activate`; activation happens on the next normal profile
 command. Only `storage`, `palaces:read` and `palaces:write` are supported; all other
 permissions (including `notify`/`network`) are refused. Components must match the
-host API (currently 0.4). Files live in `<data>/plugins/<id>.wasm`, alongside the
+host API (currently 0.5). Files live in `<data>/plugins/<id>.wasm`, alongside the
 approved manifest in `<id>.wasm.json`. Keep both files: manually copied components
 without approval are not activated. Changed manifests are rejected before activation.
 Existing destinations and duplicate IDs (even under another filename) are refused;

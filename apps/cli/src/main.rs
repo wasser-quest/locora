@@ -67,14 +67,23 @@ enum Command {
         /// Bild für den Ort (png, jpg, webp, gif, avif oder eine .sply-Animation)
         #[arg(long, value_name = "DATEI")]
         image: Option<PathBuf>,
+        /// Merkhilfe: das lebhafte Bild in Worten, gezeigt nach dem Aufdecken
+        #[arg(long)]
+        note: Option<String>,
     },
     /// Locus ändern (Nummer wie in `locora show`)
     Edit {
         palace: String,
         locus: usize,
         /// Antwortkonfiguration als JSON: {"type":"guess"} oder Quiz mit options
-        #[arg(long)]
+        #[arg(long, conflicts_with = "accept")]
         answer: Option<String>,
+        /// Als Guess abfragen; jede weitere gültige Antwort einzeln (mehrfach angeben)
+        #[arg(long, value_name = "TEXT")]
+        accept: Vec<String>,
+        /// Neue Merkhilfe ("" entfernt sie)
+        #[arg(long)]
+        note: Option<String>,
         /// Neuer Inhalt
         #[arg(long)]
         item: Option<String>,
@@ -112,6 +121,8 @@ enum Command {
         /// Höchstens so viele neue Loci (mit --due; Standard: was vom Tageslimit übrig ist)
         #[arg(long)]
         new: Option<usize>,
+        #[command(flatten)]
+        modes: practice::Modes,
     },
     /// Fällige Loci wiederholen (alle Paläste oder einer)
     Review {
@@ -119,6 +130,8 @@ enum Command {
         /// Höchstens so viele neue Loci (Standard: was vom Tageslimit übrig ist)
         #[arg(long)]
         new: Option<usize>,
+        #[command(flatten)]
+        modes: practice::Modes,
     },
     /// Was ist heute fällig?
     Due,
@@ -276,6 +289,7 @@ fn main() -> Result<()> {
             at,
             time,
             image,
+            note,
         } => palace::add(
             &mut app::App::open(data)?,
             palace::AddArgs {
@@ -285,12 +299,15 @@ fn main() -> Result<()> {
                 at,
                 time,
                 image,
+                note,
             },
         ),
         Command::Edit {
             palace,
             locus,
             answer,
+            accept,
+            note,
             item,
             place,
             at,
@@ -323,11 +340,20 @@ fn main() -> Result<()> {
                     x: point.0,
                     y: point.1,
                     time: None,
-                    answer: answer
-                        .map(|text| serde_json::from_str(&text))
-                        .transpose()
-                        .context("Ungültige Antwortkonfiguration")?,
+                    answer: if accept.is_empty() {
+                        answer
+                            .map(|text| serde_json::from_str(&text))
+                            .transpose()
+                            .context("Ungültige Antwortkonfiguration")?
+                    } else {
+                        Some(locora_api::journey::Answer {
+                            kind: locora_api::journey::AnswerKind::Guess,
+                            accept,
+                            ..Default::default()
+                        })
+                    },
                     image,
+                    note,
                 },
             )
         }
@@ -336,7 +362,12 @@ fn main() -> Result<()> {
         Command::Rm { palace, locus, yes } => {
             palace::remove(&mut app::App::open(data)?, &palace, locus, yes)
         }
-        Command::Practice { palace, due, new } => {
+        Command::Practice {
+            palace,
+            due,
+            new,
+            modes,
+        } => {
             let mut app = app::App::open(data)?;
             let daily_limit = new.is_none() && due;
             let new = match new {
@@ -351,10 +382,11 @@ fn main() -> Result<()> {
                     due_only: due,
                     new,
                     daily_limit,
+                    modes,
                 },
             )
         }
-        Command::Review { palace, new } => {
+        Command::Review { palace, new, modes } => {
             let mut app = app::App::open(data)?;
             let daily_limit = new.is_none();
             let new = match new {
@@ -368,6 +400,7 @@ fn main() -> Result<()> {
                     due_only: true,
                     new,
                     daily_limit,
+                    modes,
                 },
             )
         }

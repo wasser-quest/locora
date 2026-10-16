@@ -9,6 +9,7 @@ fn locus(place: &str, item: &str, x: f64) -> NewLocus {
         time: None,
         answer: Default::default(),
         image: None,
+        note: String::new(),
     }
 }
 
@@ -308,6 +309,7 @@ fn answers_persist_patch_and_validate_before_writing() {
                 correct: false,
             },
         ],
+        ..Answer::default()
     };
     store
         .update_locus(
@@ -325,6 +327,7 @@ fn answers_persist_patch_and_validate_before_writing() {
     let invalid = Answer {
         kind: AnswerKind::Quiz,
         options: vec![],
+        ..Answer::default()
     };
     assert!(
         store

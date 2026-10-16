@@ -21,17 +21,17 @@ Stand: 16.10.2026
 
 ## Antworten und Abfragen (aus dem Abgleich mit mnemodim)
 
-- [ ] Quiz mischen (stabil pro Durchlauf) und Ablenker zufällig aus einem größeren Pool ziehen
-- [ ] Guess: weitere gültige Antworten (`accept`) und tolerantere Prüfung (Groß-/Kleinschreibung, Satzzeichen, Leerzeichen)
-- [ ] Merkhilfe `note` pro Locus (das lebhafte Bild in Worten), beim Aufdecken gezeigt
-- [ ] Abfragerichtungen: rückwärts (Inhalt → Ort) und gemischte Reihenfolge mit Ortsnummer („Was liegt an Ort 7?“)
+- [x] Quiz mischen und Ablenker zufällig aus einem Pool (bis 30 Optionen) ziehen
+- [x] Guess: weitere gültige Antworten (`accept`) und tolerantere Prüfung
+- [x] Merkhilfe `note` pro Locus, beim Aufdecken gezeigt
+- [x] Abfragerichtungen: `--reverse`, `--numbers`, `--shuffle`
+- [ ] Dieselben Übungsarten und die Merkhilfe in der App (Schalter am Journey-Start)
 - [ ] Ton pro Locus (in mnemodim `soundPath`), z. B. über Audio in Splinely
 - [ ] Zoom/Schwenk pro Locus in der App (mnemodim `zoom/panX/panY`)
 
 ## Phase 1 – Reste
 
 - [ ] Bilder an Orten im Palast-Dienst `core.palaces@1` (bisher nur Store, Format, `locora.toml`, CLI)
-- [ ] Quiz-Kurzform `correct`/`wrong` sortiert die richtigen Antworten nach vorn; Mischen beim Abfragen (stabil pro Locus) erwägen
 - [ ] Sammlungen: mehrere Paläste mit gemeinsamer Navigation und `navigate`-Aktion (erst wenn gebraucht)
 - [ ] Automatische FSRS-Optimierung (z. B. Hinweis nach je 1 000 neuen Wiederholungen); Tageswechsel derzeit UTC – lokale Zeitzone/Tagesbeginn einstellbar machen
 - [ ] Plugin-Signaturen (Ed25519), Update-Befehl für Plugins

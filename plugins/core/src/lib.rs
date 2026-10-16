@@ -19,7 +19,10 @@ fn evaluate(request: EvaluateRequest) -> Result<Evaluation> {
             if text.trim().is_empty() || request.expected.trim().is_empty() {
                 return Err(Error::msg("Die Antwort darf nicht leer sein"));
             }
-            text.trim().to_lowercase() == request.expected.trim().to_lowercase()
+            let given = normalize(text);
+            std::iter::once(&request.expected)
+                .chain(&request.answer.accept)
+                .any(|candidate| normalize(candidate) == given)
         }
         (AnswerKind::Quiz, Submission::Quiz(selected)) => {
             let mut seen = Vec::new();
@@ -62,6 +65,7 @@ mod tests {
             answer: Answer {
                 kind,
                 options: vec![],
+                accept: vec![],
             },
             expected: " Merkur ".into(),
             submission,
@@ -81,6 +85,11 @@ mod tests {
         assert_eq!(evaluate(r.clone()).unwrap().grade, Grade::Good);
         r.submission = Submission::Guess("Merk".into());
         assert_eq!(evaluate(r.clone()).unwrap().grade, Grade::Again);
+        r.submission = Submission::Guess("  merkur!".into());
+        assert!(evaluate(r.clone()).unwrap().correct);
+        r.answer.accept = vec!["Hermes".into()];
+        r.submission = Submission::Guess("hermes".into());
+        assert!(evaluate(r.clone()).unwrap().correct);
         r.submission = Submission::Guess(" ".into());
         assert!(evaluate(r).is_err());
         assert!(

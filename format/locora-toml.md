@@ -28,7 +28,8 @@ name = "Garten"
 place = "Baum"                         # default: „Ort N“, counted across the palace
 item = "Mars"
 at = [0.4, 0.6]                        # default: automatic route
-answer = "guess"
+answer = { type = "guess", accept = ["Roter Planet"] }   # or just "guess"
+note = "Ein Marsriegel hängt im Baum"  # memory aid, shown after the answer
 
 [[room.locus]]
 item = "Jupiter"
@@ -73,7 +74,8 @@ cells = [{ column = "name", type = "text", value = "Ada" }, { column = "age", ty
 | | `place` | the place in the room |
 | | `at` | `[x, y]`, each from 0 to 1 |
 | | `time` | video rooms only, required there: `"m:ss"`, `"h:mm:ss"` or seconds |
-| | `answer` | `"recall"` (default), `"guess"`, or a quiz: `{ type = "quiz", correct = […], wrong = […] }` (right answers first) or `{ type = "quiz", options = [{ text, correct }] }` (explicit order) |
+| | `answer` | `"recall"` (default), `"guess"` or `{ type = "guess", accept = […] }` (further right answers), or a quiz: `{ type = "quiz", correct = […], wrong = […] }` or `{ type = "quiz", options = [{ text, correct }] }`; up to 30 options – each question shows all right ones plus three random wrong ones, shuffled |
+| | `note` | memory aid (the vivid image in words), shown after the answer |
 | | `image` | picture shown at the locus: png, jpg, webp, gif, avif or a `.sply` animation (no video) |
 | | `bindings` | formulas for `place`, `item`, `x`, `y`, `visible`, `active` |
 | `[[table]]` | `table`, `key` | the row address `Table.key` |

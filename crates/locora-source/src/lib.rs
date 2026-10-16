@@ -100,6 +100,9 @@ pub struct LocusSource {
     /// Picture shown at the locus: an image or a `.sply` animation, relative to the source file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+    /// Memory aid shown after the answer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
     /// Formulas per field: place, item, x, y, visible, active.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub bindings: BTreeMap<String, String>,
@@ -133,6 +136,9 @@ pub struct QuizSource {
     /// Long form with an explicit order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<QuizOption>,
+    /// Guess: further answers that also count as right.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub accept: Vec<String>,
 }
 
 /// A table row: short form `value` (+ `type`) or explicit `cells`.
@@ -246,7 +252,7 @@ impl AnswerSource {
                 "recall" => Answer::default(),
                 "guess" => Answer {
                     kind: AnswerKind::Guess,
-                    options: Vec::new(),
+                    ..Answer::default()
                 },
                 "quiz" => {
                     return Err(invalid(format!(
@@ -259,11 +265,27 @@ impl AnswerSource {
                     )));
                 }
             },
+            AnswerSource::Quiz(guess) if guess.kind == "guess" => {
+                if !guess.correct.is_empty() || !guess.wrong.is_empty() || !guess.options.is_empty()
+                {
+                    return Err(invalid(format!(
+                        "{where_}: Guess kennt nur `accept`, keine Quizoptionen"
+                    )));
+                }
+                Answer {
+                    kind: AnswerKind::Guess,
+                    accept: guess.accept.clone(),
+                    ..Answer::default()
+                }
+            }
             AnswerSource::Quiz(quiz) => {
                 if quiz.kind != "quiz" {
                     return Err(invalid(format!(
-                        "{where_}: Tabellenform gibt es nur für `type = \"quiz\"`"
+                        "{where_}: Tabellenform gibt es nur für `type = \"quiz\"` und `type = \"guess\"`"
                     )));
+                }
+                if !quiz.accept.is_empty() {
+                    return Err(invalid(format!("{where_}: `accept` gibt es nur bei Guess")));
                 }
                 let short = !quiz.correct.is_empty() || !quiz.wrong.is_empty();
                 if short == !quiz.options.is_empty() {
@@ -289,6 +311,7 @@ impl AnswerSource {
                 Answer {
                     kind: AnswerKind::Quiz,
                     options,
+                    ..Answer::default()
                 }
             }
         };
@@ -301,7 +324,16 @@ impl AnswerSource {
     fn from_answer(answer: &Answer) -> Option<Self> {
         match answer.kind {
             AnswerKind::Recall => None,
-            AnswerKind::Guess => Some(AnswerSource::Kind("guess".into())),
+            AnswerKind::Guess if answer.accept.is_empty() => {
+                Some(AnswerSource::Kind("guess".into()))
+            }
+            AnswerKind::Guess => Some(AnswerSource::Quiz(QuizSource {
+                kind: "guess".into(),
+                correct: Vec::new(),
+                wrong: Vec::new(),
+                options: Vec::new(),
+                accept: answer.accept.clone(),
+            })),
             AnswerKind::Quiz => {
                 // Keep the short form when it reproduces the exact order.
                 let split = answer
@@ -322,6 +354,7 @@ impl AnswerSource {
                             .map(|o| o.text.clone())
                             .collect(),
                         options: Vec::new(),
+                        accept: Vec::new(),
                     }
                 } else {
                     QuizSource {
@@ -329,6 +362,7 @@ impl AnswerSource {
                         correct: Vec::new(),
                         wrong: Vec::new(),
                         options: answer.options.clone(),
+                        accept: Vec::new(),
                     }
                 }))
             }
@@ -556,6 +590,7 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                     time,
                     answer,
                     image: None,
+                    note: locus.note.clone().unwrap_or_default(),
                 },
                 bindings,
                 picture,
@@ -717,6 +752,7 @@ pub fn to_source(tree: &PalaceTree, media_names: &HashMap<String, String>) -> So
                             time: l.time.map(clock),
                             answer: AnswerSource::from_answer(&l.answer),
                             image: l.image.as_ref().map(|h| media_names[h].clone()),
+                            note: (!l.note.is_empty()).then(|| l.note.clone()),
                             bindings: l
                                 .bindings
                                 .iter()

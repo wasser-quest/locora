@@ -654,6 +654,12 @@ Ausführliche Verträge, Randfälle und Grenzen: [`docs/phase-1-notizen.md`](doc
 Locus-Bilder in Store (Migration 5), `.locora` (Version 2) und `locora.toml` (`image`), `locora add/edit --image`.
 Noch offen: Bilder im Palast-Dienst `core.palaces@1`; das Tutorial-Plugin (Touren über `ui.highlight@1`) folgt mit der App.
 
+**Antworten und Abfragen (erledigt, aus dem Abgleich mit mnemodim):** Quiz mit bis zu 30 Optionen, pro Frage alle
+richtigen und drei zufällige falsche, gemischt (`Answer::quiz_selection`); Guess vergleicht ohne Groß-/Kleinschreibung,
+Satzzeichen und doppelte Leerzeichen (`normalize`) und nimmt weitere Antworten an (`accept`, `--accept`); Merkhilfe
+`note` pro Locus (Migration 7, `.locora` v2, `locora.toml`, `--note`), nach dem Aufdecken gezeigt; Übungsarten
+`--reverse` (Inhalt → Ort), `--numbers` („Ort 7 · Raum“) und `--shuffle`. Plugin-API 0.5 (neues Postcard-Layout).
+
 Nächster Schritt: Phase 2, die App (13.4). Die App spielt die `.sply`-Bilder der Orte mit der Splinely-Runtime ab.
 
 Behoben: Beim palastübergreifenden Review bekam jeder Palast die gesamte Laufzeit gemeldet (`lernzeit` zählte doppelt);

@@ -22,7 +22,7 @@ impl bindings::Guest for InstallProbe {
             &["storage", "palaces:write"],
         );
         // Distinct string lets tests patch only the manifest API, not WIT imports.
-        manifest.api = "0.4.123".into();
+        manifest.api = "0.5.123".into();
         manifest
     }
     fn activate() -> std::result::Result<(), String> {

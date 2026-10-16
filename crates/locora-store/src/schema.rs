@@ -65,6 +65,8 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE loci ADD COLUMN image TEXT REFERENCES media(hash);",
     // 6: an optional custom locus marker per palace (Splinely animation)
     "ALTER TABLE palaces ADD COLUMN marker TEXT REFERENCES media(hash);",
+    // 7: a memory aid per locus (the vivid image in words)
+    "ALTER TABLE loci ADD COLUMN note TEXT NOT NULL DEFAULT '';",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -130,5 +132,9 @@ mod tests {
             .query_row("SELECT image FROM loci", [], |r| r.get(0))
             .unwrap();
         assert_eq!(image, None, "existing loci have no picture");
+        let note: String = conn
+            .query_row("SELECT note FROM loci", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(note, "", "existing loci have no memory aid");
     }
 }

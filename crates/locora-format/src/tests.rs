@@ -22,6 +22,7 @@ fn sample(dir: &std::path::Path) -> Store {
                     time: None,
                     answer: Default::default(),
                     image: None,
+                    note: String::new(),
                 },
             )
             .unwrap();
@@ -41,6 +42,7 @@ fn sample(dir: &std::path::Path) -> Store {
                 time: Some(83.0),
                 answer: Default::default(),
                 image: None,
+                note: String::new(),
             },
         )
         .unwrap();
@@ -322,6 +324,7 @@ fn tables_and_bindings_travel_and_clashes_stay_local() {
                 time: None,
                 answer: Default::default(),
                 image: None,
+                note: String::new(),
             },
         )
         .unwrap();
@@ -411,7 +414,8 @@ fn answer_versions_round_trip_and_fail_closed() {
     let answers = [
         Answer {
             kind: AnswerKind::Guess,
-            options: vec![],
+            accept: vec!["Hermes".into()],
+            ..Answer::default()
         },
         Answer {
             kind: AnswerKind::Quiz,
@@ -429,6 +433,7 @@ fn answer_versions_round_trip_and_fail_closed() {
                     correct: true,
                 },
             ],
+            ..Answer::default()
         },
     ];
     for (l, answer) in tree.route().zip(&answers) {
@@ -550,6 +555,7 @@ fn splinely_animations_as_backdrops_and_locus_pictures() {
                 time: None,
                 answer: Default::default(),
                 image: Some(simo.hash.clone()),
+                note: String::new(),
             },
         )
         .unwrap();
