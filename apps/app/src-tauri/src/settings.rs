@@ -1,6 +1,6 @@
 //! Settings and statistics screen.
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use locora_api::review::ConfigureRequest;
 use locora_app_api::{SettingsChange, SettingsView, StatsView};
 use locora_runtime::Profile;
@@ -35,21 +35,27 @@ pub fn view(profile: &mut Profile) -> Result<SettingsView> {
     })
 }
 
-/// Apply a change; checks everything before writing anything.
+/// Apply a change. Every value is checked first; the plugin call (the one
+/// that can still fail) runs before the daily count is written.
 pub fn change(profile: &mut Profile, change: SettingsChange) -> Result<SettingsView> {
     let retention = change
         .retention
         .as_deref()
         .map(parse_retention)
         .transpose()?;
-    if let Some(n) = change.new_per_day {
-        profile.set_new_per_day(n as usize)?;
+    if let Some(n) = change.new_per_day
+        && n as usize > MAX_NEW_PER_DAY
+    {
+        bail!("Höchstens {MAX_NEW_PER_DAY} neue Loci pro Tag");
     }
     if let Some(v) = retention {
         profile.configure(ConfigureRequest {
             desired_retention: Some(v),
             ..Default::default()
         })?;
+    }
+    if let Some(n) = change.new_per_day {
+        profile.set_new_per_day(n as usize)?;
     }
     view(profile)
 }
@@ -95,6 +101,13 @@ mod tests {
             )
             .is_err()
         );
+        for bad in ["0,5", "100 %"] {
+            let attempt = SettingsChange {
+                retention: Some(bad.into()),
+                new_per_day: Some(4),
+            };
+            assert!(change(&mut profile, attempt).is_err(), "{bad}");
+        }
         assert_eq!(
             view(&mut profile).unwrap().new_per_day,
             15,

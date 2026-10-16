@@ -20,6 +20,8 @@ fn percent(v: f64) -> String {
 #[component]
 pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
     let data = load(call::<SettingsView>(CMD_SETTINGS, NoArgs {}));
+    // Lives here, not in `Form`: a save rebuilds the form with the new values.
+    let message = RwSignal::new(None::<Result<String, String>>);
     view! {
         <header class="bar">
             <button class="back" title="Zurück" on:click=move |_| screen.set(Screen::Home)>
@@ -30,16 +32,22 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
         {move || match data.get() {
             None => view! { <p class="loading">"Lädt …"</p> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
-            Some(Ok(v)) => view! { <Form view=v data=data /> }.into_any(),
+            Some(Ok(v)) => view! { <Form view=v data=data message=message /> }.into_any(),
         }}
     }
 }
 
 #[component]
-fn Form(view: SettingsView, data: RwSignal<Option<Result<SettingsView, String>>>) -> impl IntoView {
+fn Form(
+    view: SettingsView,
+    data: RwSignal<Option<Result<SettingsView, String>>>,
+    message: RwSignal<Option<Result<String, String>>>,
+) -> impl IntoView {
     let new_per_day = RwSignal::new(view.new_per_day.to_string());
-    let retention = RwSignal::new(view.retention.map(percent).unwrap_or_default());
-    let message = RwSignal::new(None::<Result<String, String>>);
+    // Shown rounded (0,875 → „88 %“); sent only when it was edited, so a
+    // save elsewhere never rounds the stored value.
+    let shown_retention = view.retention.map(percent).unwrap_or_default();
+    let retention = RwSignal::new(shown_retention.clone());
     let busy = RwSignal::new(false);
     let has_review = view.retention.is_some();
     let max = view.max_new_per_day;
@@ -53,18 +61,23 @@ fn Form(view: SettingsView, data: RwSignal<Option<Result<SettingsView, String>>>
         };
         let change = SettingsChange {
             new_per_day: Some(count),
-            retention: has_review.then(|| retention.get_untracked()),
+            retention: Some(retention.get_untracked())
+                .filter(|text| has_review && *text != shown_retention),
         };
         busy.set(true);
+        message.set(None);
         spawn_local(async move {
             match call::<SettingsView>(CMD_SETTINGS_SET, ChangeArgs { change }).await {
                 Ok(v) => {
-                    data.set(Some(Ok(v)));
                     message.set(Some(Ok("Gespeichert.".into())));
+                    // Rebuilds the form; `busy` belongs to the old one.
+                    data.set(Some(Ok(v)));
                 }
-                Err(e) => message.set(Some(Err(e))),
+                Err(e) => {
+                    message.set(Some(Err(e)));
+                    busy.set(false);
+                }
             }
-            busy.set(false);
         });
     };
     view! {

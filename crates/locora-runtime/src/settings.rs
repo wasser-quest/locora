@@ -88,7 +88,12 @@ pub fn parse_retention(text: &str) -> Result<f64> {
         .trim()
         .parse()
         .context("Zahl erwartet, z. B. 0,9 oder 90 %")?;
-    Ok(if v > 1.0 { v / 100.0 } else { v })
+    let v = if v > 1.0 { v / 100.0 } else { v };
+    // Same range as the review plugin, checked before anything is written.
+    if !v.is_finite() || !(0.7..=0.99).contains(&v) {
+        bail!("Die Ziel-Behaltensrate muss zwischen 0,70 und 0,99 liegen");
+    }
+    Ok(v)
 }
 
 impl Profile {
@@ -190,5 +195,8 @@ mod tests {
         assert_eq!(parse_retention("0,85").unwrap(), 0.85);
         assert_eq!(parse_retention("90 %").unwrap(), 0.9);
         assert!(parse_retention("viel").is_err());
+        assert!(parse_retention("0,5").is_err());
+        assert!(parse_retention("100 %").is_err());
+        assert!(parse_retention("NaN").is_err());
     }
 }
