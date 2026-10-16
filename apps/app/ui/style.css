@@ -46,6 +46,8 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .palaces { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; }
 .palace { display: flex; flex-direction: column; gap: .4rem; cursor: pointer; }
 .palace .name { font-weight: 600; }
+.palace .palace-title { padding: 0; border: 0; background: none; color: inherit; text-align: left; }
+.palace .palace-title:focus-visible { outline: 2px solid var(--indigo); outline-offset: 3px; }
 .palace .meta { color: var(--muted); font-size: .9rem; }
 .palace .row { display: flex; align-items: center; gap: .5rem; }
 .palace .row .meta { flex: 1; }

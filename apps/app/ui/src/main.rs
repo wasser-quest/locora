@@ -198,6 +198,31 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl In
     let busy = RwSignal::new(false);
     let message = RwSignal::new(String::new());
     let info = RwSignal::new(String::new());
+    tauri::on_file_drop(move |drop| {
+        if busy.get_untracked() {
+            return;
+        }
+        let ticket = match drop {
+            Ok(ticket) => ticket,
+            Err(error) => {
+                message.set(error);
+                return;
+            }
+        };
+        busy.set(true);
+        message.set(String::new());
+        spawn_local(async move {
+            #[derive(serde::Serialize)]
+            struct DropArgs {
+                ticket: String,
+            }
+            match call::<PalaceView>("home_import_drop", DropArgs { ticket }).await {
+                Ok(palace) => screen.set(Screen::Imported(palace)),
+                Err(error) => message.set(error),
+            }
+            busy.set(false);
+        });
+    });
     let pick_media = move |_| {
         if busy.get_untracked() {
             return;
@@ -442,7 +467,7 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
     view! {
         <article class="card palace" aria-disabled=move || busy.get()
             on:click=move |_| { if !busy.get_untracked() { screen.set(Screen::Palace(id.clone())); } }>
-            <span class="name">{palace.name.clone()}</span>
+            <button class="name palace-title" disabled=move || busy.get()>{palace.name.clone()}</button>
             <div class="row">
                 <span class="meta">{format!("{} · {}", loci_text(palace.loci), status)}</span>
                 <button

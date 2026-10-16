@@ -280,13 +280,36 @@ pub struct EditorChange {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum EditorAction {
-    Create { x: f64, y: f64 },
-    CreateVideo { time: f64 },
-    Paste { items: Vec<String> },
-    Save { id: String, content: LocusContent },
-    Move { id: String, x: f64, y: f64 },
-    Resize { id: String, image_size: f64 },
-    Delete { id: String },
+    Create {
+        x: f64,
+        y: f64,
+    },
+    CreateVideo {
+        time: f64,
+    },
+    Paste {
+        items: Vec<String>,
+    },
+    Save {
+        id: String,
+        content: LocusContent,
+    },
+    Move {
+        id: String,
+        x: f64,
+        y: f64,
+    },
+    Resize {
+        id: String,
+        image_size: f64,
+    },
+    Delete {
+        id: String,
+    },
+    /// Backend-issued, scoped, single-use structural undo/redo capability.
+    Restore {
+        receipt: String,
+    },
 }
 
 pub const MAX_PASTE_ITEMS: usize = 100;
@@ -330,6 +353,9 @@ pub fn paste_route_position(index: usize, count: usize) -> (f64, f64) {
 pub struct EditorUpdated {
     pub palace: PalaceView,
     pub selected: Option<String>,
+    /// Reciprocal receipt after a structural mutation or restore.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt: Option<String>,
 }
 
 /// Marker states; the names are the marker's state machine events.

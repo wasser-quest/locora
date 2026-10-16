@@ -2,6 +2,7 @@
 //! commands and serves media and `.sply` animations over `locora://`.
 
 mod assets;
+mod drops;
 mod editor;
 mod journey;
 mod media;
@@ -34,11 +35,13 @@ pub struct Backend {
     simo: String,
     /// The app's own graphics.
     assets: assets::Assets,
-    /// `.sply` hash → SVG, converted once per run.
+    /// Protocol kind + `.sply` hash → immutable SVG template, converted once per run.
     svg: HashMap<String, String>,
 }
 
 type Shared = Mutex<Backend>;
+// Native UI callbacks must never wait for profile/import operations.
+type DropInbox = Mutex<drops::Inbox>;
 
 /// The running journey; a finished one only takes actions on its last answer.
 fn running(journey: Option<&mut Journey>) -> Result<&mut Journey, String> {
@@ -92,9 +95,14 @@ async fn editor_change(
     // Do all fallible plugin reads before the write. A successful write must not
     // look like a failed command just because a subsequent schedule read failed.
     let cards = b.profile.schedule(Some(&change.palace_id)).map_err(err)?;
-    let (tree, selected) = editor::apply(&b.profile.store, &change).map_err(err)?;
+    let (tree, selected, receipt) =
+        editor::apply_with_history(&b.profile.store, &change).map_err(err)?;
     let palace = views::palace_view(&b.profile.store, &tree, &cards, &b.default_marker);
-    Ok(locora_app_api::EditorUpdated { palace, selected })
+    Ok(locora_app_api::EditorUpdated {
+        palace,
+        selected,
+        receipt,
+    })
 }
 
 /// The WebView supplies only scope; the native picker is the sole path authority.
@@ -132,7 +140,11 @@ async fn editor_pick_picture(
     let cards = b.profile.schedule(Some(&target.palace_id)).map_err(err)?;
     let (tree, selected) = editor::import_picture(&b.profile.store, &target, &path).map_err(err)?;
     let palace = views::palace_view(&b.profile.store, &tree, &cards, &b.default_marker);
-    Ok(Some(locora_app_api::EditorUpdated { palace, selected }))
+    Ok(Some(locora_app_api::EditorUpdated {
+        palace,
+        selected,
+        receipt: None,
+    }))
 }
 
 /// Only the native dialog can authorize a local path; the WebView sends no path.
@@ -169,6 +181,53 @@ async fn home_pick_media(
     Ok(tree.map(|tree| {
         views::palace_view(&b.profile.store, &tree, &HashMap::new(), &b.default_marker)
     }))
+}
+
+/// Import only the path authorized by a recent native drop, never a UI path.
+#[tauri::command]
+async fn home_import_drop(
+    state: State<'_, Shared>,
+    drops: State<'_, DropInbox>,
+    ticket: String,
+) -> Result<PalaceView, String> {
+    let path = drops
+        .lock()
+        .map_err(|_| "Dateifreigabe blockiert".to_owned())?
+        .take(&ticket)
+        .map_err(str::to_owned)?;
+    let b = lock(&state)?;
+    let tree = editor::import_palace(&b.profile.store, Some(&path))
+        .map_err(err)?
+        .ok_or_else(|| "Keine Datei verfügbar".to_owned())?;
+    Ok(views::palace_view(
+        &b.profile.store,
+        &tree,
+        &HashMap::new(),
+        &b.default_marker,
+    ))
+}
+
+#[tauri::command]
+async fn editor_import_drop(
+    state: State<'_, Shared>,
+    drops: State<'_, DropInbox>,
+    ticket: String,
+    target: locora_app_api::PictureTarget,
+) -> Result<locora_app_api::EditorUpdated, String> {
+    let mut b = lock(&state)?;
+    editor::picture_target(&b.profile.store, &target).map_err(err)?;
+    let cards = b.profile.schedule(Some(&target.palace_id)).map_err(err)?;
+    let path = drops
+        .lock()
+        .map_err(|_| "Dateifreigabe blockiert".to_owned())?
+        .take(&ticket)
+        .map_err(str::to_owned)?;
+    let (tree, selected) = editor::import_picture(&b.profile.store, &target, &path).map_err(err)?;
+    Ok(locora_app_api::EditorUpdated {
+        palace: views::palace_view(&b.profile.store, &tree, &cards, &b.default_marker),
+        selected,
+        receipt: None,
+    })
 }
 
 /// Pick a `.locora` archive or TOML source; `None` when the dialog was cancelled.
@@ -234,6 +293,7 @@ async fn export_pick(
 }
 
 /// Export a TOML source and its media to a chosen local directory.
+#[cfg(desktop)]
 #[tauri::command]
 async fn dump_pick(
     app: tauri::AppHandle,
@@ -259,6 +319,19 @@ async fn dump_pick(
     transfer::dump_path(&b.profile, &id, &path)
         .map(Some)
         .map_err(err)
+}
+
+// The dialog plugin has no mobile directory picker. Keep the build working and
+// fail explicitly instead of silently choosing an app-private destination.
+#[cfg(mobile)]
+#[tauri::command]
+async fn dump_pick(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+    id: String,
+) -> Result<Option<String>, String> {
+    let _ = (app, state, id);
+    Err("TOML-Ordnerexport ist nur auf dem Desktop verfügbar; bitte .locora exportieren".into())
 }
 
 /// Build (or rebuild) the tutorial palace; returns its id.
@@ -407,7 +480,7 @@ fn not_found() -> Response<Cow<'static, [u8]>> {
     )
 }
 
-/// `locora://localhost/media/<sha256>` and `…/sply/<sha256>`.
+/// Content-addressed media, standalone `.sply` and shared room-marker layers.
 fn serve(
     backend: &mut Backend,
     path: &str,
@@ -435,16 +508,23 @@ fn serve(
             Ok(response) => response,
             Err(_) => not_found(),
         },
-        "sply" if found.mime == SPLINELY => {
-            if let Some(svg) = backend.svg.get(hash) {
+        "sply" | "markers" if found.mime == SPLINELY => {
+            let key = format!("{kind}/{hash}");
+            if let Some(svg) = backend.svg.get(&key) {
                 return respond(StatusCode::OK, "image/svg+xml", svg.clone().into_bytes());
             }
             let converted = std::fs::read(&file)
                 .map_err(anyhow::Error::from)
-                .and_then(|bytes| sply::to_svg(&bytes));
+                .and_then(|bytes| {
+                    if kind == "markers" {
+                        sply::to_marker_layer(&bytes)
+                    } else {
+                        sply::to_svg(&bytes)
+                    }
+                });
             match converted {
                 Ok(svg) => {
-                    backend.svg.insert(hash.to_owned(), svg.clone());
+                    backend.svg.insert(key, svg.clone());
                     respond(StatusCode::OK, "image/svg+xml", svg.into_bytes())
                 }
                 Err(e) => respond(
@@ -490,11 +570,29 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(DropInbox::default())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let backend = open(app).map_err(|e| format!("Profil öffnen: {e:#}"))?;
             app.manage::<Shared>(Mutex::new(backend));
             Ok(())
+        })
+        .on_webview_event(|webview, event| {
+            if let tauri::WebviewEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                let state = webview.app_handle().state::<DropInbox>();
+                let result = state
+                    .lock()
+                    .map_err(|_| "Interner Fehler: Zustand blockiert")
+                    .and_then(|mut inbox| inbox.offer(paths));
+                // Only JSON-encoded tickets/errors enter the renderer. Native paths stay here.
+                let detail = match result {
+                    Ok(ticket) => serde_json::json!({"ticket": ticket}),
+                    Err(error) => serde_json::json!({"error": error}),
+                };
+                let _ = webview.eval(format!(
+                    "window.dispatchEvent(new CustomEvent('locora-file-drop', {{detail:{detail}}}))"
+                ));
+            }
         })
         .register_uri_scheme_protocol(locora_app_api::SCHEME, |ctx, request| {
             let state = ctx.app_handle().state::<Shared>();
@@ -517,6 +615,8 @@ pub fn run() {
             editor_change,
             editor_pick_picture,
             home_pick_media,
+            home_import_drop,
+            editor_import_drop,
             tutorial,
             journey_inputs,
             settings,

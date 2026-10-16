@@ -4,14 +4,10 @@ use locora_app_api::{
     CMD_EDITOR_CHANGE, EditorAction, EditorAnswer, EditorAnswerKind, EditorChange, EditorUpdated,
     LocusContent, LocusView, PalaceView, QuizOption,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use web_sys::PointerEvent;
 
-use crate::{
-    Answer,
-    sply::{Shown, Sply},
-    tauri::call,
-};
+use crate::{Answer, sply::Shown, tauri::call};
 
 /// Normalize viewport coordinates against the whole stage, not a child target.
 fn stage_point(x: f64, y: f64, left: f64, top: f64, width: f64, height: f64) -> Option<(f64, f64)> {
@@ -93,7 +89,7 @@ fn parse_answer(kind: &str, accept: &str, quiz: &str) -> Result<EditorAnswer, St
 }
 
 /// Raw text is retained even when a number or quiz is temporarily incomplete.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Draft {
     place: String,
     item: String,
@@ -166,6 +162,147 @@ impl Draft {
     }
 }
 
+/// Patches use inverse actions; structural edits use backend-issued receipts.
+/// Single-use receipts rotate only after a successful acknowledgement.
+#[derive(Clone, Default)]
+struct History {
+    undo: Vec<(EditorAction, EditorAction)>,
+    redo: Vec<(EditorAction, EditorAction)>,
+}
+
+impl History {
+    fn record(&mut self, before: EditorAction, after: EditorAction) {
+        if before == after {
+            return;
+        }
+        self.redo.clear();
+        self.undo.push((before, after));
+        if self.undo.len() > 100 {
+            self.undo.remove(0);
+        }
+    }
+
+    fn record_receipt(&mut self, receipt: String) {
+        let action = EditorAction::Restore { receipt };
+        self.redo.clear();
+        self.undo.push((action.clone(), action));
+        if self.undo.len() > 100 {
+            self.undo.remove(0);
+        }
+    }
+
+    fn completed(&mut self, redo: bool) {
+        let (source, target) = if redo {
+            (&mut self.redo, &mut self.undo)
+        } else {
+            (&mut self.undo, &mut self.redo)
+        };
+        if let Some(entry) = source.pop() {
+            target.push(entry);
+        }
+    }
+}
+
+fn inverse(action: &EditorAction, room: &locora_app_api::RoomView) -> Option<EditorAction> {
+    let id = match action {
+        EditorAction::Save { id, .. }
+        | EditorAction::Move { id, .. }
+        | EditorAction::Resize { id, .. } => id,
+        _ => return None,
+    };
+    let locus = room.loci.iter().find(|l| &l.id == id)?;
+    Some(match action {
+        EditorAction::Save { .. } => EditorAction::Save {
+            id: id.clone(),
+            content: Draft::from_locus(locus).content().ok()?,
+        },
+        EditorAction::Move { .. } => EditorAction::Move {
+            id: id.clone(),
+            x: locus.x,
+            y: locus.y,
+        },
+        EditorAction::Resize { .. } => EditorAction::Resize {
+            id: id.clone(),
+            image_size: locus.image_size,
+        },
+        _ => return None,
+    })
+}
+
+fn recoverable_draft(stored: Option<Draft>, committed: &Draft) -> Option<Draft> {
+    stored.filter(|draft| draft != committed)
+}
+
+fn draft_key(palace: &str, room: &str, locus: &str) -> String {
+    // Length prefixes avoid collisions even if imported IDs contain separators.
+    format!(
+        "locora.editor.draft.v1:{}:{palace}{}:{room}{}:{locus}",
+        palace.len(),
+        room.len(),
+        locus.len()
+    )
+}
+
+/// Access Storage through JS so this isolated editor change needs no extra
+/// web-sys features. All access can fail (private mode, quota, disabled storage).
+#[cfg(target_arch = "wasm32")]
+fn storage(method: &str, key: &str, value: Option<&str>) -> Result<wasm_bindgen::JsValue, String> {
+    use wasm_bindgen::{JsCast, JsValue};
+    let error =
+        |_| "Lokaler Entwurf konnte nicht gespeichert/gelesen werden (Browserspeicher)".to_owned();
+    let store = js_sys::Reflect::get(
+        &web_sys::window()
+            .ok_or_else(|| "Kein Fenster".to_owned())?
+            .into(),
+        &JsValue::from_str("localStorage"),
+    )
+    .map_err(error)?;
+    let function = js_sys::Reflect::get(&store, &JsValue::from_str(method))
+        .map_err(error)?
+        .dyn_into::<js_sys::Function>()
+        .map_err(error)?;
+    function
+        .call2(
+            &store,
+            &JsValue::from_str(key),
+            &value.map(JsValue::from_str).unwrap_or(JsValue::UNDEFINED),
+        )
+        .map_err(error)
+}
+
+fn load_draft(key: &str) -> Option<Draft> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let text = storage("getItem", key, None).ok()?.as_string()?;
+        let value = js_sys::JSON::parse(&text).ok()?;
+        serde_wasm_bindgen::from_value(value).ok()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = key;
+        None
+    }
+}
+
+fn persist_draft(key: &str, draft: Option<&Draft>) -> Result<(), String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(draft) = draft {
+            let value = serde_wasm_bindgen::to_value(draft).map_err(|e| e.to_string())?;
+            let text = js_sys::JSON::stringify(&value)
+                .map_err(|_| "Entwurf konnte nicht serialisiert werden".to_owned())?
+                .as_string()
+                .ok_or_else(|| "Entwurf konnte nicht serialisiert werden".to_owned())?;
+            storage("setItem", key, Some(&text))?;
+        } else {
+            storage("removeItem", key, None)?;
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (key, draft);
+    Ok(())
+}
+
 #[derive(Clone)]
 struct Editor {
     data: RwSignal<PalaceView>,
@@ -176,6 +313,8 @@ struct Editor {
     message: RwSignal<String>,
     gesture: RwSignal<Option<Gesture>>,
     paste_text: RwSignal<String>,
+    history: RwSignal<History>,
+    history_epoch: RwSignal<u64>,
 }
 
 #[derive(Clone)]
@@ -211,6 +350,26 @@ impl Editor {
     }
 
     fn change(&self, action: EditorAction) {
+        self.apply(action, None);
+    }
+
+    fn replay(&self, redo: bool) {
+        if self.dirty.get_untracked() || self.gesture.with_untracked(|g| g.is_some()) {
+            return;
+        }
+        let action = self.history.with_untracked(|h| {
+            if redo {
+                h.redo.last().map(|e| e.1.clone())
+            } else {
+                h.undo.last().map(|e| e.0.clone())
+            }
+        });
+        if let Some(action) = action {
+            self.apply(action, Some(redo));
+        }
+    }
+
+    fn apply(&self, action: EditorAction, replay: Option<bool>) {
         if self.busy.get_untracked() {
             return;
         }
@@ -218,6 +377,13 @@ impl Editor {
         let Some(room) = data.rooms.get(self.room.get_untracked()) else {
             return;
         };
+        let before = inverse(&action, room);
+        let after = action.clone();
+        let draft_storage_key = match &action {
+            EditorAction::Save { id, .. } => Some(draft_key(&data.id, &room.id, id)),
+            _ => None,
+        };
+        let submitted_draft = draft_storage_key.as_deref().and_then(load_draft);
         let pasted = matches!(&action, EditorAction::Paste { .. });
         let change = EditorChange {
             palace_id: data.id,
@@ -234,6 +400,33 @@ impl Editor {
             }
             match call::<EditorUpdated>(CMD_EDITOR_CHANGE, Args { change }).await {
                 Ok(result) => {
+                    if let Some(redo) = replay {
+                        this.history.update(|h| {
+                            if let Some(receipt) = &result.receipt {
+                                let stack = if redo { &mut h.redo } else { &mut h.undo };
+                                if let Some(entry) = stack.last_mut() {
+                                    let action = EditorAction::Restore {
+                                        receipt: receipt.clone(),
+                                    };
+                                    *entry = (action.clone(), action);
+                                }
+                            }
+                            h.completed(redo);
+                        });
+                        this.history_epoch.update(|epoch| *epoch += 1);
+                    } else if let Some(receipt) = &result.receipt {
+                        this.history.update(|h| h.record_receipt(receipt.clone()));
+                    } else if let Some(before) = before {
+                        this.history.update(|h| h.record(before, after));
+                    } else {
+                        this.history.set(History::default());
+                    }
+                    if let Some(key) = draft_storage_key {
+                        // A newer keystroke during IPC must survive this acknowledgement.
+                        if load_draft(&key) == submitted_draft {
+                            let _ = persist_draft(&key, None);
+                        }
+                    }
                     if pasted {
                         this.paste_text.set(String::new());
                     }
@@ -265,9 +458,28 @@ pub fn Rooms(
         message: RwSignal::new(String::new()),
         gesture: RwSignal::new(None),
         paste_text: RwSignal::new(String::new()),
+        history: RwSignal::new(History::default()),
+        history_epoch: RwSignal::new(0),
     };
-    let editing = RwSignal::new(initial_editing);
-    let adding = RwSignal::new(false);
+    // Reopen the first orphaned draft, but require an explicit restore/discard.
+    let recovered = editor.data.with_untracked(|p| {
+        p.rooms.iter().enumerate().find_map(|(i, r)| {
+            r.loci
+                .iter()
+                .find(|l| {
+                    !l.bound
+                        && load_draft(&draft_key(&p.id, &r.id, &l.id))
+                            .is_some_and(|draft| draft != Draft::from_locus(l))
+                })
+                .map(|l| (i, l.id.clone()))
+        })
+    });
+    let editing = RwSignal::new(initial_editing || recovered.is_some());
+    if let Some((room, id)) = recovered {
+        editor.room.set(room);
+        editor.selected.set(Some(id));
+    }
+    let adding = RwSignal::new(initial_editing);
     let revealed = RwSignal::new(false);
     let busy = editor.busy;
     let dirty = editor.dirty;
@@ -296,7 +508,47 @@ pub fn Rooms(
     });
     let video_time = RwSignal::new(String::from("0"));
     let create_video = StoredValue::new(editor.clone());
+    let shortcuts = editor.clone();
+    let drop_message = editor.message;
+    let drop_selection = editor.selected;
+    crate::tauri::on_file_drop(move |_| {
+        if !editing.get_untracked() || drop_selection.get_untracked().is_none() {
+            drop_message.set("Für ein Ortsbild bitte Bearbeiten aktivieren und einen Ort auswählen. Neue Bild-/Videoräume bitte auf der Palast-Startseite ablegen.".into());
+        }
+    });
     view! {
+        <div class="room-editor"
+            on:dragover=move |ev: web_sys::DragEvent| {
+                if ev.data_transfer().is_some_and(|data| data.types().includes(&"Files".into(), 0)) {
+                    ev.prevent_default();
+                }
+            }
+            on:drop=move |ev: web_sys::DragEvent| {
+                if ev.data_transfer().is_some_and(|data| data.types().includes(&"Files".into(), 0)) {
+                    // Never interpret dropped filenames as trusted native paths,
+                    // and do not let a browser navigate away from an unsaved draft.
+                    ev.prevent_default();
+                    drop_message.set("Dieser Browser-Drop enthält keine native Dateifreigabe. Bitte „Bild wählen…“ verwenden oder eine Datei im nativen App-Fenster ablegen.".into());
+                }
+            }
+            on:keydown=move |ev: web_sys::KeyboardEvent| {
+            use wasm_bindgen::JsCast;
+            // Native text undo remains native; only editor-level gestures use
+            // persisted history. Do not remount a form while text is unsaved.
+            if ev.default_prevented() || ev.is_composing() || ev.repeat() || ev.alt_key()
+                || !(ev.ctrl_key() || ev.meta_key()) || !editing.get_untracked()
+                || busy.get_untracked() || dirty.get_untracked() || dragging.get_untracked() {
+                return;
+            }
+            if ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                .is_some_and(|element| matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+                    || element.closest("[contenteditable]").ok().flatten().is_some()) { return; }
+            let key = ev.key().to_ascii_lowercase();
+            if key == "z" || key == "y" {
+                ev.prevent_default();
+                shortcuts.replay(key == "y" || ev.shift_key());
+            }
+        }>
         <div class="modes">
             <label><input type="checkbox" prop:checked=move || editing.get()
                 disabled=move || busy.get() || dirty.get() || dragging.get()
@@ -323,7 +575,11 @@ pub fn Rooms(
                             }
                         }>"Video-Ort hinzufügen"</button>
                 </Show>
-                <span>"Marker ziehen (Tastatur: Pfeiltasten) · Änderungen speichern automatisch"</span>
+                <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.undo.is_empty())}
+                    on:click={let e = editor.clone(); move |_| e.replay(false)}>"Rückgängig"</button>
+                <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.redo.is_empty())}
+                    on:click={let e = editor.clone(); move |_| e.replay(true)}>"Wiederholen"</button>
+                <span>"Marker ziehen (Tastatur: Pfeiltasten) · Änderungen speichern automatisch. Rückgängig (Strg/⌘+Z): Hinzufügen, Löschen, Inhalte/Bilder, Position und Größe; ein Raumwechsel beginnt einen neuen Verlauf."</span>
             </Show>
         </div>
         <Show when=move || editing.get()>
@@ -338,7 +594,7 @@ pub fn Rooms(
                         <span class="room-tab">
                             <crate::RoomIcon backdrop=room.backdrop.clone() />
                             <button class:on=move || tabs.room.get() == i disabled=move || busy.get() || dirty.get() || dragging.get()
-                                on:click=move |_| { tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
+                                on:click=move |_| { tabs.history.set(History::default()); tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
                                 {room.name.clone()}
                             </button>
                         </span>
@@ -361,9 +617,9 @@ pub fn Rooms(
             if editing.get() {
                 let items = panel.clone();
                 view! { <For
-                    each={move || items.selected_locus().into_iter().collect::<Vec<_>>()}
-                    key=|l| l.id.clone()
-                    children={move |l| view! { <ContentForm locus=l editor=panel.clone() revealed=revealed /> }}
+                    each={move || items.selected_locus().into_iter().map(|l| (l, items.history_epoch.get())).collect::<Vec<_>>()}
+                    key=|(l, epoch)| (l.id.clone(), *epoch)
+                    children={move |(l, _)| view! { <ContentForm locus=l editor=panel.clone() revealed=revealed adding=adding /> }}
                 /> }.into_any()
             } else {
                 panel.selected_locus().map(|locus| {
@@ -382,6 +638,7 @@ pub fn Rooms(
                 }).into_any()
             }
         }}
+        </div>
     }
 }
 
@@ -425,6 +682,23 @@ fn RoomStage(
     revealed: RwSignal<bool>,
 ) -> impl IntoView {
     let node = NodeRef::<html::Div>::new();
+    let layer_loci = room.loci.clone();
+    let layer_gesture = editor.gesture;
+    let marker_loci = Signal::derive(move || {
+        let preview = layer_gesture.get();
+        layer_loci
+            .iter()
+            .map(|locus| {
+                let (x, y) = preview_position(locus, preview.as_ref());
+                crate::sply::MarkerLocus {
+                    id: locus.id.clone(),
+                    x,
+                    y,
+                    status: locus.status.event(),
+                }
+            })
+            .collect::<Vec<_>>()
+    });
     let busy = editor.busy;
     let dirty = editor.dirty;
     let gesture = editor.gesture;
@@ -622,7 +896,7 @@ fn RoomStage(
                 let Some(g) = gesture.get_untracked().filter(|g| g.pointer == ev.pointer_id()) else { return; };
                 if let Some(stage) = node.get() { let _ = stage.release_pointer_capture(g.pointer); }
                 let action = match g.kind {
-                    DragKind::Create if !g.moved => { adding.set(false); revealed.set(false); Some(EditorAction::Create { x: g.point.0, y: g.point.1 }) }
+                    DragKind::Create if !g.moved => { revealed.set(false); Some(EditorAction::Create { x: g.point.0, y: g.point.1 }) }
                     DragKind::Move(ref l) if g.moved => {
                         let (x, y) = preview_position(l, Some(&g));
                         Some(EditorAction::Move { id: l.id.clone(), x, y })
@@ -677,17 +951,16 @@ fn RoomStage(
                     </div>
                 })
             }}
+            <crate::sply::MarkerLayer media=marker loci=marker_loci />
             {room.loci.into_iter().map(|locus| {
                 let editor = pick_editor.clone();
                 let keyboard_editor = editor.clone();
                 let l = StoredValue::new(locus.clone());
-                let marker = marker.clone();
                 view! {
                     <div class="marker"
                         style:left=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).0 * 100.0)
                         style:top=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).1 * 100.0)
                     >
-                        <Sply media=marker state=Signal::stored(locus.status.event()) />
                         <button title=format!("Ort {}: {}", locus.number, locus.place)
                             disabled=move || busy.get() || dirty.get()
                             on:pointerdown=move |ev: PointerEvent| {
@@ -747,7 +1020,22 @@ fn preview_position(locus: &LocusView, gesture: Option<&Gesture>) -> (f64, f64) 
 }
 
 #[component]
-fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> impl IntoView {
+fn ContentForm(
+    locus: LocusView,
+    editor: Editor,
+    revealed: RwSignal<bool>,
+    adding: RwSignal<bool>,
+) -> impl IntoView {
+    let name_field = NodeRef::<html::Input>::new();
+    Effect::new(move |_| {
+        if let Some(input) = name_field.get()
+            && adding.get_untracked()
+        {
+            let _ = input.focus();
+            input.select();
+        }
+    });
+    let finish_requested = RwSignal::new(false);
     let place = RwSignal::new(locus.place.clone());
     let item = RwSignal::new(locus.item.clone());
     let note = RwSignal::new(locus.note.clone());
@@ -770,13 +1058,28 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
             .collect::<Vec<_>>()
             .join("\n"),
     );
+    let key = editor
+        .data
+        .with_untracked(|p| draft_key(&p.id, &p.rooms[editor.room.get_untracked()].id, &locus.id));
+    let recovery = RwSignal::new(recoverable_draft(
+        load_draft(&key),
+        &Draft::from_locus(&locus),
+    ));
+    let storage_key = StoredValue::new(key);
+    let storage_error = RwSignal::new(String::new());
     let dirty = editor.dirty;
+    if recovery.get_untracked().is_some() {
+        dirty.set(true);
+    }
     let busy = editor.busy;
     let confirm_delete = RwSignal::new(false);
     let gesture = editor.gesture;
     let dragging = Memo::new(move |_| gesture.with(|g| g.is_some()));
     let save = editor.clone();
     let last_attempted = StoredValue::new(Draft::from_locus(&locus));
+    // Storage revisions are independent of IPC attempts: A -> B -> A while
+    // saving A must replace B on disk, even though A was already attempted.
+    let last_persisted = StoredValue::new(Draft::from_locus(&locus));
     let committed_size = RwSignal::new(locus.image_size);
     let projection = editor.clone();
     Effect::new(move |_| {
@@ -792,6 +1095,15 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
                 // A geometry-only resize must not be undone by the next content
                 // save from this stable form. Preserve newer typed size drafts.
                 last_attempted.update_value(|draft| draft.size = value.clone());
+                // This revision was already committed by the resize command;
+                // it must not reappear as a crash-recovery draft after Undo.
+                last_persisted.update_value(|draft| draft.size = value.clone());
+                if last_attempted.with_value(|draft| draft.content().ok())
+                    == Draft::from_locus(&updated).content().ok()
+                    && let Err(error) = persist_draft(&storage_key.get_value(), None)
+                {
+                    storage_error.set(error);
+                }
                 size.set(value);
             }
         }
@@ -809,6 +1121,20 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
             accept: accept.get(),
             quiz: quiz.get(),
         };
+        if locus.bound || recovery.get().is_some() {
+            return;
+        }
+        if last_persisted.with_value(|old| old != &draft) {
+            // Persist every raw revision, including reversions, before waiting
+            // for IPC. Invalid numbers/quiz lines are equally important.
+            match persist_draft(&storage_key.get_value(), Some(&draft)) {
+                Ok(()) => {
+                    last_persisted.set_value(draft.clone());
+                    storage_error.set(String::new());
+                }
+                Err(error) => storage_error.set(error),
+            }
+        }
         // Serialize saves, but keep the draft editable during IPC. Once the
         // current write finishes this effect sends the newest draft, not an
         // older queued keystroke. A rejected revision is not retried forever.
@@ -829,11 +1155,45 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
             Err(error) => save.message.set(format!("Noch nicht gespeichert: {error}")),
         }
     });
+    let finish = editor.clone();
+    Effect::new(move |_| {
+        if !finish_requested.get() || finish.busy.get() || finish.dirty.get() {
+            return;
+        }
+        let draft = Draft {
+            place: place.get(),
+            item: item.get(),
+            note: note.get(),
+            image: image.get(),
+            size: size.get(),
+            zoom: zoom.get(),
+            kind: kind.get(),
+            accept: accept.get(),
+            quiz: quiz.get(),
+        };
+        let Ok(content) = draft.content() else {
+            finish_requested.set(false);
+            return;
+        };
+        // Wait for the latest keystroke, not just an earlier IPC write, to commit.
+        if finish
+            .selected_locus()
+            .and_then(|l| Draft::from_locus(&l).content().ok())
+            == Some(content)
+        {
+            adding.set(true);
+            finish.selected.set(None);
+        }
+    });
     let picking = RwSignal::new(false);
     let picker = editor.clone();
     let pick_id = locus.id.clone();
-    let pick = move |_| {
-        if busy.get_untracked() || dirty.get_untracked() || dragging.get_untracked() {
+    let import_picture = StoredValue::new(move |ticket: Option<String>| {
+        if busy.get_untracked() || dirty.get_untracked() || dragging.get_untracked() || locus.bound
+        {
+            if ticket.is_some() {
+                picker.message.set("Datei nicht übernommen: erst Änderungen speichern/verwerfen und einen bearbeitbaren Ort auswählen.".into());
+            }
             return;
         }
         let data = picker.data.get_untracked();
@@ -845,6 +1205,10 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
             room_id: room.id.clone(),
             locus_id: pick_id.clone(),
         };
+        let before = picker
+            .selected_locus()
+            .and_then(|l| Draft::from_locus(&l).content().ok());
+        let history_id = pick_id.clone();
         let this = picker.clone();
         picking.set(true);
         busy.set(true);
@@ -854,13 +1218,47 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
             struct Args {
                 target: locora_app_api::PictureTarget,
             }
-            match call::<Option<EditorUpdated>>(
-                locora_app_api::CMD_EDITOR_PICK_PICTURE,
-                Args { target },
-            )
-            .await
-            {
+            let result = if let Some(ticket) = ticket {
+                #[derive(Serialize)]
+                struct DropArgs {
+                    ticket: String,
+                    target: locora_app_api::PictureTarget,
+                }
+                call::<EditorUpdated>("editor_import_drop", DropArgs { ticket, target })
+                    .await
+                    .map(Some)
+            } else {
+                call::<Option<EditorUpdated>>(
+                    locora_app_api::CMD_EDITOR_PICK_PICTURE,
+                    Args { target },
+                )
+                .await
+            };
+            match result {
                 Ok(Some(result)) => {
+                    let updated = result
+                        .palace
+                        .rooms
+                        .iter()
+                        .flat_map(|r| &r.loci)
+                        .find(|l| l.id == history_id);
+                    if let (Some(before), Some(after)) = (
+                        before,
+                        updated.and_then(|l| Draft::from_locus(l).content().ok()),
+                    ) {
+                        this.history.update(|h| {
+                            h.record(
+                                EditorAction::Save {
+                                    id: history_id.clone(),
+                                    content: before,
+                                },
+                                EditorAction::Save {
+                                    id: history_id,
+                                    content: after,
+                                },
+                            )
+                        });
+                    }
                     let hash = result
                         .palace
                         .rooms
@@ -880,18 +1278,59 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
             picking.set(false);
             busy.set(false);
         });
-    };
+    });
+    let drop_error = editor.message;
+    crate::tauri::on_file_drop(move |drop| match drop {
+        Ok(ticket) => import_picture.with_value(|import| import(Some(ticket))),
+        Err(error) => drop_error.set(error),
+    });
+    let pick = move |_| import_picture.with_value(|import| import(None));
     let delete = editor.clone();
     let cancel = editor.clone();
     let id = StoredValue::new(locus.id.clone());
+    let restore_fields = StoredValue::new(move |draft: Draft| {
+        place.set(draft.place);
+        item.set(draft.item);
+        note.set(draft.note);
+        image.set(draft.image);
+        size.set(draft.size);
+        zoom.set(draft.zoom);
+        kind.set(draft.kind);
+        accept.set(draft.accept);
+        quiz.set(draft.quiz);
+    });
     view! {
-        <form class="card panel editor-form" on:submit=move |ev| ev.prevent_default()>
+        <form class="card panel editor-form" on:submit=move |ev| ev.prevent_default()
+            on:keydown=move |ev: web_sys::KeyboardEvent| {
+                let single_line = ev.target().and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlInputElement>(t).ok()).is_some();
+                if single_line && ev.key() == "Enter" && !ev.is_composing() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() && recovery.get_untracked().is_none() {
+                    ev.prevent_default();
+                    finish_requested.set(true);
+                }
+            }>
             <div class="progress">{format!("Ort {} bearbeiten", locus.number)}</div>
+            <p class="notes">"Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen."</p>
+            <Show when=move || recovery.get().is_some()>
+                <p role="alert">"Ein lokaler, noch nicht gespeicherter Entwurf wurde gefunden. Wiederherstellen speichert gültige Inhalte automatisch."</p>
+                <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {
+                    if let Some(draft) = recovery.get_untracked() {
+                        restore_fields.with_value(|restore| restore(draft));
+                        recovery.set(None);
+                    }
+                }>"Entwurf wiederherstellen"</button>
+                <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {
+                    match persist_draft(&storage_key.get_value(), None) {
+                        Ok(()) => { recovery.set(None); dirty.set(false); storage_error.set(String::new()); }
+                        Err(error) => storage_error.set(error),
+                    }
+                }>"Lokalen Entwurf verwerfen"</button>
+            </Show>
+            <Show when=move || !storage_error.get().is_empty()><p role="alert">{move || storage_error.get()}</p></Show>
             <Show when=move || locus.bound><p class="notes">"Workbook-Ort: Inhalte bitte in der Quelldatei ändern. Verschieben und Bildgröße ziehen sind möglich."</p></Show>
-            <fieldset disabled=move || picking.get() || dragging.get() || locus.bound
+            <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get() || locus.bound
                 on:input=move |_| confirm_delete.set(false)
                 on:change=move |_| confirm_delete.set(false)>
-                <label>"Ort"<input type="text" bind:value=place /></label>
+                <label>"Ort"<input type="text" node_ref=name_field bind:value=place /></label>
                 <label>"Inhalt"<input type="text" bind:value=item /></label>
                 <label>"Merkhilfe"<textarea bind:value=note /></label>
                 <div class="tabs">
@@ -910,8 +1349,13 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
             <div class="tabs">
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {
                     let Some(l) = cancel.selected_locus() else { return; };
+                    if let Err(error) = persist_draft(&storage_key.get_value(), None) {
+                        storage_error.set(error); return;
+                    }
+                    recovery.set(None); storage_error.set(String::new());
                     let draft = Draft::from_locus(&l);
                     last_attempted.set_value(draft.clone());
+                    last_persisted.set_value(draft.clone());
                     place.set(draft.place); item.set(draft.item); note.set(draft.note); image.set(draft.image); size.set(draft.size); zoom.set(draft.zoom);
                     kind.set(draft.kind); accept.set(draft.accept); quiz.set(draft.quiz);
                     dirty.set(false); confirm_delete.set(false); cancel.message.set(String::new());
@@ -930,6 +1374,95 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn move_to(x: f64) -> EditorAction {
+        EditorAction::Move {
+            id: "locus".into(),
+            x,
+            y: 0.5,
+        }
+    }
+
+    #[test]
+    fn history_moves_entries_only_after_acknowledgement_and_branches() {
+        let mut history = History::default();
+        history.record(move_to(0.1), move_to(0.2));
+        history.record(move_to(0.2), move_to(0.3));
+        // A failed IPC does not call completed, so the retry remains available.
+        assert_eq!(history.undo.last().unwrap().0, move_to(0.2));
+        assert_eq!(history.undo.len(), 2);
+        history.completed(false);
+        assert_eq!(history.redo.last().unwrap().1, move_to(0.3));
+        history.completed(true);
+        assert_eq!(history.undo.len(), 2);
+        assert!(history.redo.is_empty());
+        history.completed(false);
+        history.record(move_to(0.2), move_to(0.4));
+        assert!(history.redo.is_empty());
+        assert_eq!(history.undo.last().unwrap().1, move_to(0.4));
+        history.record(move_to(0.4), move_to(0.4));
+        assert_eq!(history.undo.len(), 2);
+        for i in 0..150 {
+            history.record(move_to(i as f64), move_to(i as f64 + 1.0));
+        }
+        assert_eq!(history.undo.len(), 100);
+    }
+
+    #[test]
+    fn inverse_patches_preserve_content_and_refuse_structural_history() {
+        let locus = LocusView {
+            id: "locus".into(),
+            place: "Herd".into(),
+            item: "Merkur".into(),
+            note: "Notiz".into(),
+            image: Some("hash".into()),
+            image_size: 0.25,
+            zoom: 2.0,
+            bound: false,
+            time: None,
+            number: 1,
+            x: 0.1,
+            y: 0.5,
+            answer: EditorAnswer::default(),
+            picture: None,
+            status: locora_app_api::Status::Neu,
+        };
+        let room = locora_app_api::RoomView {
+            id: "room".into(),
+            name: "Küche".into(),
+            video: false,
+            backdrop: None,
+            loci: vec![locus.clone()],
+        };
+        assert_eq!(inverse(&move_to(0.8), &room), Some(move_to(0.1)));
+        let resize = EditorAction::Resize {
+            id: "locus".into(),
+            image_size: 0.8,
+        };
+        assert_eq!(
+            inverse(&resize, &room),
+            Some(EditorAction::Resize {
+                id: "locus".into(),
+                image_size: 0.25
+            })
+        );
+        let save = EditorAction::Save {
+            id: locus.id.clone(),
+            content: Draft::from_locus(&locus).content().unwrap(),
+        };
+        assert_eq!(inverse(&save, &room), Some(save));
+        assert!(inverse(&EditorAction::Delete { id: locus.id }, &room).is_none());
+        assert!(inverse(&EditorAction::Create { x: 0.2, y: 0.3 }, &room).is_none());
+    }
+
+    #[test]
+    fn draft_storage_keys_are_versioned_scoped_and_unambiguous() {
+        assert_ne!(draft_key("a", "bc", "d"), draft_key("ab", "c", "d"));
+        assert_ne!(draft_key("a", "r", "l"), draft_key("b", "r", "l"));
+        assert_ne!(draft_key("a", "r", "l"), draft_key("a", "s", "l"));
+        assert_ne!(draft_key("a:b", "c", "d"), draft_key("a", "b:c", "d"));
+        assert!(draft_key("p", "r", "l").starts_with("locora.editor.draft.v1:"));
+    }
+
     #[test]
     fn lists_trim_ignore_empty_lines_and_reject_limits() {
         assert_eq!(
@@ -984,6 +1517,17 @@ mod tests {
             quiz: String::new(),
         };
         assert!(draft.content().is_ok());
+        let committed = draft.clone();
+        assert!(recoverable_draft(None, &committed).is_none());
+        assert!(recoverable_draft(Some(committed.clone()), &committed).is_none());
+        // Recovery compares raw text, not parsed content: invalid and partially
+        // typed values must survive rather than being normalized or rejected.
+        draft.size.clear();
+        draft.quiz = "+ angefangene Option".into();
+        assert_eq!(
+            recoverable_draft(Some(draft.clone()), &committed),
+            Some(draft.clone())
+        );
         for value in ["", "NaN", "inf", "0", "1.01"] {
             draft.size = value.into();
             assert!(draft.content().is_err());

@@ -6,7 +6,17 @@ use locora_store::{LocusPatch, NewLocus, PalaceTree, RoomKind, Store};
 /// Check exact ownership before mutating; IPC must not target another room.
 /// Return a snapshot assembled from the successful store write, without a
 /// fallible post-commit reload that could invite replaying a completed mutation.
+#[cfg(test)]
 pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option<String>)> {
+    let (tree, selected, _) = apply_with_history(store, change)?;
+    Ok((tree, selected))
+}
+
+/// IPC entry point: forward the third value as `EditorUpdated.receipt`.
+pub fn apply_with_history(
+    store: &Store,
+    change: &EditorChange,
+) -> Result<(PalaceTree, Option<String>, Option<String>)> {
     let mut tree = store.palace(&change.palace_id)?;
     ensure!(
         tree.palace.id == change.palace_id,
@@ -18,14 +28,21 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
         .find(|r| r.room.id == change.room_id)
         .context("Raum gehört nicht zu diesem Palast")?;
     let id = match &change.action {
+        EditorAction::Restore { receipt } => {
+            let (loci, reciprocal) =
+                store.editor_restore(&change.palace_id, &change.room_id, receipt)?;
+            room.loci = loci;
+            return Ok((tree, None, Some(reciprocal)));
+        }
         EditorAction::Create { x, y } => {
             ensure!(
                 room.room.kind != RoomKind::Video,
                 "Neue Orte in Video-Räumen benötigen eine Zeit; bitte die CLI verwenden"
             );
-            let locus = store.add_locus(
+            let (mut loci, receipt) = store.editor_add_loci(
+                &change.palace_id,
                 &room.room.id,
-                NewLocus {
+                vec![NewLocus {
                     place: "Neuer Ort".into(),
                     item: String::new(),
                     x: *x,
@@ -36,11 +53,12 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                     image_size: locora_store::default_image_size(),
                     zoom: locora_store::default_zoom(),
                     note: String::new(),
-                },
+                }],
             )?;
+            let locus = loci.remove(0);
             let id = locus.id.clone();
             room.loci.push(locus);
-            return Ok((tree, Some(id)));
+            return Ok((tree, Some(id), Some(receipt)));
         }
         EditorAction::CreateVideo { time } => {
             ensure!(
@@ -51,9 +69,10 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                 time.is_finite() && *time >= 0.0,
                 "Zeit muss eine nichtnegative, endliche Sekundenzahl sein"
             );
-            let locus = store.add_locus(
+            let (mut loci, receipt) = store.editor_add_loci(
+                &change.palace_id,
                 &room.room.id,
-                NewLocus {
+                vec![NewLocus {
                     place: "Neuer Ort".into(),
                     item: String::new(),
                     x: 0.5,
@@ -64,11 +83,12 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                     image_size: locora_store::default_image_size(),
                     zoom: locora_store::default_zoom(),
                     note: String::new(),
-                },
+                }],
             )?;
+            let locus = loci.remove(0);
             let id = locus.id.clone();
             room.loci.push(locus);
-            return Ok((tree, Some(id)));
+            return Ok((tree, Some(id), Some(receipt)));
         }
         EditorAction::Paste { items } => {
             ensure!(
@@ -104,10 +124,10 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                     }
                 })
                 .collect();
-            let added = store.add_loci(&room.room.id, loci)?;
+            let (added, receipt) = store.editor_add_loci(&change.palace_id, &room.room.id, loci)?;
             let selected = added.first().map(|l| l.id.clone());
             room.loci.extend(added);
-            return Ok((tree, selected));
+            return Ok((tree, selected, Some(receipt)));
         }
         EditorAction::Save { id, .. }
         | EditorAction::Move { id, .. }
@@ -146,18 +166,19 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
             ..Default::default()
         },
         EditorAction::Delete { .. } => {
-            store.delete_locus(id)?;
+            let receipt = store.editor_delete_locus(&change.palace_id, &change.room_id, id)?;
             room.loci.retain(|l| &l.id != id);
-            return Ok((tree, None));
+            return Ok((tree, None, Some(receipt)));
         }
         EditorAction::Create { .. }
         | EditorAction::CreateVideo { .. }
-        | EditorAction::Paste { .. } => unreachable!(),
+        | EditorAction::Paste { .. }
+        | EditorAction::Restore { .. } => unreachable!(),
     };
     let mut updated = store.update_locus(id, &patch)?;
     updated.bindings = locus.bindings.clone();
     *locus = updated;
-    Ok((tree, Some(id.clone())))
+    Ok((tree, Some(id.clone()), None))
 }
 
 /// Validate ownership before opening a dialog or reading any selected file.

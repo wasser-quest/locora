@@ -186,6 +186,130 @@ pub fn Sply(
     }
 }
 
+/// One marker in a complete room snapshot. Coordinates are normalized room
+/// coordinates (including any drag preview); status is `LocusStatus::event()`.
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct MarkerLocus {
+    pub id: String,
+    pub x: f64,
+    pub y: f64,
+    pub status: &'static str,
+}
+
+fn marker_message(frame: NodeRef<Iframe>, message: &js_sys::Object) {
+    if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+        let _ = js_sys::Reflect::set(message, &"locora".into(), &1.into());
+        let _ = window.post_message(message, "*");
+    }
+}
+
+/// A room's marker artwork in one opaque frame, below the room's native buttons.
+/// The containing stage must be positioned; this layer never takes input/focus.
+#[component]
+pub fn MarkerLayer(media: Media, loci: Signal<Vec<MarkerLocus>>) -> impl IntoView {
+    let frame = NodeRef::<Iframe>::new();
+    let ready = RwSignal::new(false);
+    let failed = RwSignal::new(media.kind != MediaKind::Sply);
+    let src = crate::tauri::marker_url(&media);
+    let messages = window_event_listener(leptos::ev::message, move |event| {
+        let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) else {
+            return;
+        };
+        if js_sys::Reflect::get(event.as_ref(), &"source".into()).ok() != Some(window.into()) {
+            return;
+        }
+        let data = event.data();
+        if js_sys::Reflect::get(&data, &"locora".into())
+            .ok()
+            .and_then(|v| v.as_f64())
+            != Some(1.0)
+        {
+            return;
+        }
+        if let Some(value) = js_sys::Reflect::get(&data, &"markerLayerReady".into())
+            .ok()
+            .and_then(|v| v.as_bool())
+        {
+            ready.set(value);
+            failed.set(!value);
+        }
+    });
+    Effect::new(move |_| {
+        let snapshot = loci.get();
+        if !ready.get() {
+            return;
+        }
+        let message = js_sys::Object::new();
+        if let Ok(value) = serde_wasm_bindgen::to_value(&snapshot) {
+            let _ = js_sys::Reflect::set(&message, &"loci".into(), &value);
+            marker_message(frame, &message);
+        }
+    });
+    let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
+        if !ready.get_untracked() || event.pointer_type() != "mouse" {
+            return;
+        }
+        let Some(el) = frame.get_untracked() else {
+            return;
+        };
+        let rect = el.get_bounding_client_rect();
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return;
+        }
+        let point = js_sys::Object::new();
+        let x = (f64::from(event.client_x()) - rect.left()) * f64::from(el.client_width())
+            / rect.width();
+        let y = (f64::from(event.client_y()) - rect.top()) * f64::from(el.client_height())
+            / rect.height();
+        let _ = js_sys::Reflect::set(&point, &"x".into(), &x.into());
+        let _ = js_sys::Reflect::set(&point, &"y".into(), &y.into());
+        let message = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&message, &"pointer".into(), &point);
+        marker_message(frame, &message);
+    });
+    let leave = move || {
+        let message = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&message, &"pointerLeave".into(), &true.into());
+        marker_message(frame, &message);
+    };
+    let blur = window_event_listener(leptos::ev::blur, move |_| leave());
+    let pointerout = window_event_listener(leptos::ev::pointerout, move |event| {
+        if event.related_target().is_none() {
+            leave();
+        }
+    });
+    on_cleanup(move || {
+        messages.remove();
+        pointer.remove();
+        blur.remove();
+        pointerout.remove();
+    });
+    view! {
+        <iframe
+            node_ref=frame
+            class="sply marker-layer"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;z-index:1"
+            sandbox="allow-scripts"
+            tabindex="-1"
+            aria-hidden="true"
+            title="Raummarker"
+            src=src
+            on:load=move |_| {
+                ready.set(false);
+                let message = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&message, &"checkRuntime".into(), &true.into());
+                marker_message(frame, &message);
+                set_timeout(move || {
+                    if ready.try_get_untracked() == Some(false) { failed.try_set(true); }
+                }, std::time::Duration::from_secs(5));
+            }
+        ></iframe>
+        <Show when=move || failed.get()>
+            <span class="notes" role="alert">"Raummarker konnten nicht geladen werden."</span>
+        </Show>
+    }
+}
+
 /// Any stored media, filling its box.
 #[component]
 pub fn Shown(media: Media, #[prop(optional, into)] class: String) -> impl IntoView {

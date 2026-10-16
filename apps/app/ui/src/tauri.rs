@@ -31,6 +31,30 @@ pub async fn call<T: DeserializeOwned>(cmd: &str, args: impl Serialize) -> Resul
     serde_wasm_bindgen::from_value(value).map_err(|e| e.to_string())
 }
 
+/// A native drop exposes only a short-lived ticket. No path is trusted from JS.
+/// Registers for the current component lifetime.
+pub fn on_file_drop(callback: impl Fn(Result<String, String>) + 'static) {
+    use leptos::prelude::*;
+    let listener = window_event_listener_untyped("locora-file-drop", move |event| {
+        let detail = js_sys::Reflect::get(&event, &"detail".into()).unwrap_or(JsValue::NULL);
+        let field = |key: &str| {
+            js_sys::Reflect::get(&detail, &key.into())
+                .ok()
+                .and_then(|v| v.as_string())
+        };
+        callback(match (field("ticket"), field("error")) {
+            (_, Some(error)) => Err(error),
+            (Some(ticket), _) => Ok(ticket),
+            _ => Err("Ungültige Dateifreigabe".into()),
+        });
+    });
+    on_cleanup(move || listener.remove());
+}
+
+pub fn marker_url(media: &Media) -> String {
+    convert_file_src(&format!("markers/{}", media.hash), SCHEME)
+}
+
 /// URL of a stored file (or a `.sply` as interactive SVG).
 pub fn url(media: &Media) -> String {
     convert_file_src(&media.path(), SCHEME)
