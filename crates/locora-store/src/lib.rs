@@ -19,6 +19,7 @@ use sha2::{Digest, Sha256};
 
 pub use locora_api::journey::{Answer, AnswerKind, QuizOption};
 
+mod history;
 mod schema;
 
 #[derive(Debug, thiserror::Error)]

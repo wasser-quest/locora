@@ -71,6 +71,13 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE loci ADD COLUMN image_size REAL NOT NULL DEFAULT 0.25 CHECK(image_size >= 0.05 AND image_size <= 1.0);",
     // 9: how far the room zooms in on the locus while asking (1 = whole room)
     "ALTER TABLE loci ADD COLUMN zoom REAL NOT NULL DEFAULT 1 CHECK(zoom >= 1.0 AND zoom <= 4.0);",
+    // 10: opaque, single-use structural editor undo receipts (never client snapshots).
+    "CREATE TABLE editor_receipts(
+        id TEXT PRIMARY KEY,
+        palace_id TEXT NOT NULL REFERENCES palaces(id) ON DELETE CASCADE,
+        room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        before_json TEXT NOT NULL,
+        after_json TEXT NOT NULL);",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
