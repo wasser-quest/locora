@@ -42,6 +42,7 @@ fn App() -> impl IntoView {
     // only when it changed (summer time can switch while the app is open).
     // One request at a time; when it returns, the latest sample wins, so an
     // older answer can never overwrite a newer offset.
+    let offset_revision = RwSignal::new(0_u64);
     let sent = StoredValue::new(None::<i32>);
     let wanted = StoredValue::new(None::<i32>);
     let sending = StoredValue::new(false);
@@ -62,6 +63,7 @@ fn App() -> impl IntoView {
                     break; // tried again at the next focus or interval
                 }
                 sent.set_value(Some(minutes));
+                offset_revision.update(|revision| *revision += 1);
             }
             sending.set_value(false);
         });
@@ -79,7 +81,15 @@ fn App() -> impl IntoView {
         <palette::Palette screen=screen editing=editing />
         <main>
             {move || match screen.get() {
-                Screen::Home => view! { <HomeView screen=screen/> }.into_any(),
+                Screen::Home => {
+                    // Recreate the home load after synchronization, including
+                    // when its first request raced the startup offset update.
+                    let revision = offset_revision.get();
+                    view! {
+                        <For each=move || [revision] key=|revision| *revision
+                            children=move |_| view! { <HomeView screen=screen/> }/>
+                    }.into_any()
+                },
                 Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
                 Screen::Palace(id) => view! { <PalaceScreen id=id screen=screen/> }.into_any(),
                 Screen::Journey(start) => {
