@@ -90,15 +90,9 @@ fn App() -> impl IntoView {
         <palette::Palette screen=screen editing=editing />
         <main>
             {move || match screen.get() {
-                Screen::Home => {
-                    // Recreate the home load after synchronization, including
-                    // when its first request raced the startup offset update.
-                    let revision = offset_revision.get();
-                    view! {
-                        <For each=move || [revision] key=|revision| *revision
-                            children=move |_| view! { <HomeView screen=screen/> }/>
-                    }.into_any()
-                },
+                Screen::Home => view! {
+                    <HomeView screen=screen offset_revision=offset_revision/>
+                }.into_any(),
                 Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
                 Screen::Palace(id) => view! { <PalaceScreen id=id screen=screen/> }.into_any(),
                 Screen::Journey(start) => {
@@ -188,8 +182,18 @@ fn loci_text(n: u32) -> String {
 }
 
 #[component]
-fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
-    let home = load(call::<Home>(CMD_HOME, tauri::NoArgs {}));
+fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl IntoView {
+    let home = RwSignal::new(None::<Result<Home, String>>);
+    Effect::new(move |_| {
+        let revision = offset_revision.get();
+        spawn_local(async move {
+            let result = call::<Home>(CMD_HOME, tauri::NoArgs {}).await;
+            // Ignore an older load if synchronization triggered a newer one.
+            if offset_revision.try_get_untracked() == Some(revision) {
+                home.try_set(Some(result));
+            }
+        });
+    });
     let busy = RwSignal::new(false);
     let message = RwSignal::new(String::new());
     let info = RwSignal::new(String::new());

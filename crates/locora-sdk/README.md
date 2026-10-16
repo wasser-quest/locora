@@ -6,8 +6,8 @@ The host and plugins currently speak API/WIT **0.6**; rebuild older components.
 0.3 introduced filter/call imports and the filter export; 0.4 adds answer fields
 to palace DTOs, changing their Postcard layout. 0.5 adds `Answer.accept`
 (further Guess answers) and `note` to palace loci – again a new layout. 0.6 adds the locus
-picture (`image`, a media hash, and `image_size`) to palace loci, `NewLocus` and `LocusPatch`. JSON defaults do not make that
-binary layout compatible. Neither 0.2–0.5 components can simply be relabelled.
+picture (`image`, a media hash, and `image_size`) and `zoom` to `Locus`,
+`NewLocus` and `LocusPatch`. JSON defaults do not make that binary layout compatible. Neither 0.2–0.5 components can simply be relabelled.
 
 ## Host-driven filter chains
 
