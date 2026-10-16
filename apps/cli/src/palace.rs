@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use locora_api::core::{LocusDeleted, PalaceCreated, PalaceDeleted};
 use locora_api::review::{CardState, Schedule, ScheduleRequest};
-use locora_store::{Locus, LocusPatch, NewLocus, PalaceTree, StageKind};
+use locora_store::{Locus, LocusPatch, NewLocus, PalaceTree, RoomKind};
 
 use crate::app::{App, now};
 use crate::places;
@@ -16,8 +16,8 @@ use crate::places;
 /// One locus to create: from a command-line item or a line of a file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Item {
-    pub label: Option<String>,
-    pub memory: String,
+    pub place: Option<String>,
+    pub item: String,
     pub at: Option<(f64, f64)>,
     pub time: Option<f64>,
 }
@@ -48,8 +48,8 @@ pub fn parse_item(text: &str) -> Result<Item> {
     if text.contains('|') {
         let fields: Vec<&str> = text.split('|').map(str::trim).collect();
         let mut item = Item {
-            label: None,
-            memory: String::new(),
+            place: None,
+            item: String::new(),
             at: None,
             time: None,
         };
@@ -66,17 +66,17 @@ pub fn parse_item(text: &str) -> Result<Item> {
             rest = &rest[..rest.len() - 1];
         }
         match rest {
-            [memory] => item.memory = memory.to_string(),
+            [memory] => item.item = memory.to_string(),
             [label, memory] => {
-                item.label = Some(label.to_string()).filter(|l| !l.is_empty());
-                item.memory = memory.to_string();
+                item.place = Some(label.to_string()).filter(|l| !l.is_empty());
+                item.item = memory.to_string();
             }
-            _ => bail!(
-                "Zeile „{text}“: erwartet `Erinnerung`, `Ort | Erinnerung` oder `Ort | Erinnerung | x,y`"
-            ),
+            _ => {
+                bail!("Zeile „{text}“: erwartet `Inhalt`, `Ort | Inhalt` oder `Ort | Inhalt | x,y`")
+            }
         }
-        if item.memory.is_empty() {
-            bail!("Zeile „{text}“ hat keine Erinnerung");
+        if item.item.is_empty() {
+            bail!("Zeile „{text}“ hat keinen Inhalt");
         }
         return Ok(item);
     }
@@ -84,15 +84,15 @@ pub fn parse_item(text: &str) -> Result<Item> {
         && let Some(time) = parse_time(time)
     {
         return Ok(Item {
-            label: None,
-            memory: memory.trim().to_owned(),
+            place: None,
+            item: memory.trim().to_owned(),
             at: None,
             time: Some(time),
         });
     }
     Ok(Item {
-        label: None,
-        memory: text.to_owned(),
+        place: None,
+        item: text.to_owned(),
         at: None,
         time: None,
     })
@@ -107,21 +107,21 @@ fn read_items(file: &Path) -> Result<Vec<Item>> {
         .collect()
 }
 
-fn media_kind(path: &Path) -> Result<(StageKind, &'static str)> {
+fn media_kind(path: &Path) -> Result<(RoomKind, &'static str)> {
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
     Ok(match ext.as_str() {
-        "png" => (StageKind::Image, "image/png"),
-        "jpg" | "jpeg" => (StageKind::Image, "image/jpeg"),
-        "webp" => (StageKind::Image, "image/webp"),
-        "gif" => (StageKind::Image, "image/gif"),
-        "avif" => (StageKind::Image, "image/avif"),
-        "mp4" | "m4v" => (StageKind::Video, "video/mp4"),
-        "webm" => (StageKind::Video, "video/webm"),
-        "mov" => (StageKind::Video, "video/quicktime"),
+        "png" => (RoomKind::Image, "image/png"),
+        "jpg" | "jpeg" => (RoomKind::Image, "image/jpeg"),
+        "webp" => (RoomKind::Image, "image/webp"),
+        "gif" => (RoomKind::Image, "image/gif"),
+        "avif" => (RoomKind::Image, "image/avif"),
+        "mp4" | "m4v" => (RoomKind::Video, "video/mp4"),
+        "webm" => (RoomKind::Video, "video/webm"),
+        "mov" => (RoomKind::Video, "video/quicktime"),
         _ => bail!(
             "{}: unbekanntes Format. Bilder: png, jpg, webp, gif, avif · Videos: mp4, webm, mov",
             path.display()
@@ -151,41 +151,41 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
             let bytes = fs::read(path).with_context(|| format!("{} lesen", path.display()))?;
             (kind, Some(app.store.put_media(&bytes, mime)?.hash))
         }
-        None => (StageKind::Blank, None),
+        None => (RoomKind::Blank, None),
     };
-    if kind == StageKind::Video
+    if kind == RoomKind::Video
         && let Some(item) = items.iter().find(|i| i.time.is_none())
     {
         bail!(
             "„{}“ braucht im Video-Palast eine Zeit, z. B. `1:23={}`",
-            item.memory,
-            item.memory
+            item.item,
+            item.item
         );
     }
     let palace = app.store.create_palace(&args.name)?;
-    let stage_name = args
+    let room_name = args
         .media
         .as_deref()
         .and_then(|p| p.file_stem())
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "Raum 1".into());
-    let stage = app
+    let room = app
         .store
-        .add_stage(&palace.id, &stage_name, kind, media.as_deref())?;
+        .add_room(&palace.id, &room_name, kind, media.as_deref())?;
     let spots = places::route(items.len());
     for (i, item) in items.iter().enumerate() {
         let (x, y) = item.at.unwrap_or(spots[i]);
         app.store.add_locus(
-            &stage.id,
+            &room.id,
             NewLocus {
-                label: item
-                    .label
+                place: item
+                    .place
                     .clone()
                     .unwrap_or_else(|| format!("Ort {}", i + 1)),
-                memory: item.memory.clone(),
+                item: item.item.clone(),
                 x,
                 y,
-                at: item.time,
+                time: item.time,
             },
         )?;
     }
@@ -194,9 +194,9 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
         name: palace.name.clone(),
     })?;
     let what = match kind {
-        StageKind::Blank => String::new(),
-        StageKind::Image => " mit Bild".into(),
-        StageKind::Video => " mit Video".into(),
+        RoomKind::Blank => String::new(),
+        RoomKind::Image => " mit Bild".into(),
+        RoomKind::Video => " mit Video".into(),
     };
     let n = items.len();
     println!(
@@ -205,10 +205,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
         if n == 1 { "Locus" } else { "Loci" }
     );
     if items.is_empty() {
-        println!(
-            "  Loci hinzufügen: locora add \"{}\" <Erinnerung>",
-            palace.name
-        );
+        println!("  Loci hinzufügen: locora add \"{}\" <Inhalt>", palace.name);
     } else {
         println!("  Üben: locora practice \"{}\"", palace.name);
     }
@@ -217,18 +214,18 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
 
 pub struct AddArgs {
     pub palace: String,
-    pub memory: String,
-    pub label: Option<String>,
+    pub item: String,
+    pub place: Option<String>,
     pub at: Option<String>,
     pub time: Option<String>,
 }
 
 pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
     let tree = app.store.palace(&args.palace)?;
-    let Some(stage) = tree.stages.last() else {
-        bail!("Palast „{}“ hat noch keine Stage", tree.palace.name);
+    let Some(room) = tree.rooms.last() else {
+        bail!("Palast „{}“ hat noch keinen Raum", tree.palace.name);
     };
-    let count = stage.loci.len();
+    let count = room.loci.len();
     let (x, y) = match &args.at {
         Some(text) => {
             parse_point(text).context("--at erwartet x,y zwischen 0 und 1, z. B. 0.4,0.6")?
@@ -239,27 +236,27 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
         Some(t) => Some(parse_time(t).context("--time erwartet mm:ss oder Sekunden")?),
         None => None,
     };
-    if stage.stage.kind == StageKind::Video && time.is_none() {
+    if room.room.kind == RoomKind::Video && time.is_none() {
         bail!("Im Video-Palast braucht ein Locus eine Zeit: --time 1:23");
     }
     let locus = app.store.add_locus(
-        &stage.stage.id,
+        &room.room.id,
         NewLocus {
-            label: args
-                .label
+            place: args
+                .place
                 .unwrap_or_else(|| format!("Ort {}", tree.route().count() + 1)),
-            memory: args.memory,
+            item: args.item,
             x,
             y,
-            at: time,
+            time,
         },
     )?;
     println!(
         "✓ Locus {} in „{}“: {} → {}",
         tree.route().count() + 1,
         tree.palace.name,
-        locus.label,
-        locus.memory
+        locus.place,
+        locus.item
     );
     Ok(())
 }
@@ -362,14 +359,14 @@ pub fn show(app: &mut App, query: &str) -> Result<()> {
     let now = now();
     println!("{}", tree.palace.name);
     let mut n = 0;
-    for stage in &tree.stages {
-        let kind = match stage.stage.kind {
-            StageKind::Blank => "",
-            StageKind::Image => " 🖼",
-            StageKind::Video => " 🎞",
+    for room in &tree.rooms {
+        let kind = match room.room.kind {
+            RoomKind::Blank => "",
+            RoomKind::Image => " 🖼",
+            RoomKind::Video => " 🎞",
         };
-        println!("  {}{kind}", stage.stage.name);
-        for locus in &stage.loci {
+        println!("  {}{kind}", room.room.name);
+        for locus in &room.loci {
             n += 1;
             let when = match cards.get(&locus.id) {
                 None => "neu".into(),
@@ -377,13 +374,13 @@ pub fn show(app: &mut App, query: &str) -> Result<()> {
                 Some(card) => relative(card.due, now),
             };
             let time = locus
-                .at
+                .time
                 .map(|t| format!("{:>2}:{:02} ", t as u64 / 60, t as u64 % 60))
                 .unwrap_or_default();
             println!(
                 "  {n:>3}. {time}{:<18} → {:<24} {when}",
-                truncate(&locus.label, 18),
-                truncate(&locus.memory, 24)
+                truncate(&locus.place, 18),
+                truncate(&locus.item, 24)
             );
         }
     }
@@ -415,7 +412,7 @@ pub fn remove(app: &mut App, query: &str, locus: Option<usize>, yes: bool) -> Re
             if !yes
                 && !confirm(&format!(
                     "Locus {n} ({} → {}) löschen?",
-                    target.label, target.memory
+                    target.place, target.item
                 ))?
             {
                 println!("Abgebrochen.");
@@ -456,7 +453,7 @@ pub fn edit(app: &mut App, query: &str, n: usize, patch: LocusPatch) -> Result<(
         .nth(n.checked_sub(1).context("Loci zählen ab 1")?)
         .with_context(|| format!("„{}“ hat keinen Locus {n}", tree.palace.name))?;
     let locus = app.store.update_locus(&target.id, &patch)?;
-    println!("✓ Locus {n}: {} → {}", locus.label, locus.memory);
+    println!("✓ Locus {n}: {} → {}", locus.place, locus.item);
     Ok(())
 }
 
@@ -505,22 +502,22 @@ mod tests {
 
     #[test]
     fn items_parse_from_args_and_lines() {
-        assert_eq!(parse_item("Merkur").unwrap().memory, "Merkur");
+        assert_eq!(parse_item("Merkur").unwrap().item, "Merkur");
         let video = parse_item("1:23=These").unwrap();
-        assert_eq!((video.time, video.memory.as_str()), (Some(83.0), "These"));
+        assert_eq!((video.time, video.item.as_str()), (Some(83.0), "These"));
         let full = parse_item("Herd | Merkur | 0.4,0.6").unwrap();
-        assert_eq!(full.label.as_deref(), Some("Herd"));
+        assert_eq!(full.place.as_deref(), Some("Herd"));
         assert_eq!(
-            (full.memory.as_str(), full.at),
+            (full.item.as_str(), full.at),
             ("Merkur", Some((0.4, 0.6)))
         );
         let timed = parse_item("0:05 | Tür | Einleitung").unwrap();
         assert_eq!(
-            (timed.time, timed.label.as_deref()),
+            (timed.time, timed.place.as_deref()),
             (Some(5.0), Some("Tür"))
         );
         assert!(parse_item("a | b | c | d").is_err());
-        assert_eq!(parse_item("Gleich = 3").unwrap().memory, "Gleich = 3");
+        assert_eq!(parse_item("Gleich = 3").unwrap().item, "Gleich = 3");
     }
 
     #[test]

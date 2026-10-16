@@ -15,6 +15,7 @@
 
 mod parse;
 mod value;
+pub mod workbook;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -63,10 +64,11 @@ pub enum CellType {
     Formula,
     Asset,
     Palace,
-    Stage,
+    Room,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Cell {
     pub column: String,
     #[serde(rename = "type")]
@@ -74,24 +76,25 @@ pub struct Cell {
     pub value: String,
 }
 
-/// One table row: `Sheet.key` with typed cells.
+/// One table row: `Table.key` with typed cells.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Row {
-    pub sheet: String,
+    pub table: String,
     pub key: String,
     pub cells: Vec<Cell>,
 }
 
 impl Row {
     /// A row with a single text cell `value`.
-    pub fn value(sheet: &str, key: &str, value: &str) -> Self {
-        Self::typed(sheet, key, CellType::Text, value)
+    pub fn value(table: &str, key: &str, value: &str) -> Self {
+        Self::typed(table, key, CellType::Text, value)
     }
 
     /// A row with a single cell `value` of the given type.
-    pub fn typed(sheet: &str, key: &str, kind: CellType, value: &str) -> Self {
+    pub fn typed(table: &str, key: &str, kind: CellType, value: &str) -> Self {
         Self {
-            sheet: sheet.into(),
+            table: table.into(),
             key: key.into(),
             cells: vec![Cell {
                 column: "value".into(),
@@ -107,8 +110,8 @@ impl Row {
 
     /// Check names, limits and literal cell values.
     pub fn validate(&self) -> Result<()> {
-        if !is_identifier(&self.sheet) || blocked(&self.sheet) {
-            return fail("Use an identifier for the sheet name");
+        if !is_identifier(&self.table) || blocked(&self.table) {
+            return fail("Use an identifier for the table name");
         }
         if self.key.is_empty() || self.key.chars().count() > 64 || blocked(&self.key) {
             return fail("Invalid row key");
@@ -172,7 +175,7 @@ const MAX_CALL_DEPTH: usize = 16;
 const MAX_REFERENCE_DEPTH: usize = 48;
 
 /// Evaluates formulas against a set of rows. Cell results are cached; run-time
-/// overrides (`Sheet.key.column` → value) replace saved values without
+/// overrides (`Table.key.column` → value) replace saved values without
 /// changing the rows.
 pub struct Engine {
     rows: HashMap<String, Row>,
@@ -268,7 +271,7 @@ impl Engine {
         Self::with_overrides(rows, HashMap::new())
     }
 
-    /// `overrides` maps `Sheet.key.column` to a run-time value.
+    /// `overrides` maps `Table.key.column` to a run-time value.
     pub fn with_overrides(rows: &[Row], overrides: HashMap<String, Value>) -> Result<Self> {
         if rows.len() > MAX_ROWS {
             return fail("Workbook row limit exceeded");
@@ -277,7 +280,7 @@ impl Engine {
         let mut order = Vec::new();
         for row in rows {
             row.validate()?;
-            let id = format!("{}.{}", row.sheet, row.key);
+            let id = format!("{}.{}", row.table, row.key);
             if map.insert(id.clone(), row.clone()).is_some() {
                 return fail(format!("Duplicate row {id}"));
             }
@@ -388,7 +391,7 @@ impl Engine {
                     .iter()
                     .filter(|id| {
                         let r = &self.rows[*id];
-                        r.key == name && r.sheet != "Functions" && r.sheet != "Actions"
+                        r.key == name && r.table != "Functions" && r.table != "Actions"
                     })
                     .collect();
                 if matches.len() == 1 {
@@ -627,11 +630,11 @@ impl Engine {
         self.user_function(name, values)
     }
 
-    /// `Major(size, digits, sheet?)`: split digits into groups of `size` and
+    /// `Major(size, digits, table?)`: split digits into groups of `size` and
     /// look each group up in the Major table (no implicit zero padding).
     fn major(&mut self, args: &[Value]) -> Result<Value> {
         if args.len() < 2 || args.len() > 3 {
-            return fail("Major(size, digits, optionalSheet)");
+            return fail("Major(size, digits, optionalTable)");
         }
         let size = num(&args[0])?;
         if size.fract() != 0.0 || !(1.0..=6.0).contains(&size) {
@@ -644,7 +647,7 @@ impl Engine {
         if digits.is_empty() || digits.len() > 1000 || !digits.bytes().all(|b| b.is_ascii_digit()) {
             return fail("Major needs non-negative decimal digits");
         }
-        let sheet = if args.len() == 3 {
+        let table = if args.len() == 3 {
             text(&args[2])?.to_owned()
         } else {
             "Major".into()
@@ -652,10 +655,10 @@ impl Engine {
         let mut result = Vec::new();
         for chunk in digits.as_bytes().chunks(size as usize) {
             let key = std::str::from_utf8(chunk).expect("ascii digits");
-            let id = format!("{sheet}.{key}");
+            let id = format!("{table}.{key}");
             if !self.rows.contains_key(&id) {
                 return fail(format!(
-                    "Missing Major entry {sheet}[\"{key}\"] (no implicit zero padding)"
+                    "Missing Major entry {table}[\"{key}\"] (no implicit zero padding)"
                 ));
             }
             let object = self.cell(&id, "object")?;

@@ -69,7 +69,7 @@ locora/                          (öffentlich, MIT)
 │   ├── locora-formula/          Port von shared/formulas.ts + workbookRuntime.ts
 │   └── locora-sync/             (später) Op-Log-Sync-Client
 ├── plugins/
-│   ├── core/                    Paläste, Stages, Loci, Video-Stages, Journeys, Workbook
+│   ├── core/                    Paläste, Räume, Loci, Video-Räume, Journeys, Workbook
 │   ├── review/                  Spaced Repetition (FSRS): fällige Loci, Planung
 │   ├── notify/                  Benachrichtigungen: System, In-App, Zeitplanung, Ruhezeiten
 │   ├── tutorial/                Onboarding, interaktive Touren, Formel-Guide
@@ -365,7 +365,7 @@ So gibt es eine Einstellungsseite, einheitliche Ruhezeiten und keine Benachricht
 
 | mnemodim heute | Locora |
 |---|---|
-| Paläste, Stages, Loci, Recall/Quiz/Guess | `core` |
+| Paläste, Stages (jetzt **Räume**), Loci, Recall/Quiz/Guess | `core` |
 | Workbook, Formeln, Major-Tabellen, Actions, Collections | `core` (`locora-formula`) |
 | Import/Export `.mnemodim` | neues Format `.locora` (`locora-format`); `.mnemodim` wird nicht mehr unterstützt |
 | Timing-Punkte, Combos, Herzen, XP, Trophäen, Daily Challenges | `gamification` (kostenlos) |
@@ -412,7 +412,7 @@ Es gibt keine Zwischenseite „Palast-Details“: Ein Klick auf die Karte öffne
 | Aufgabe | mnemodim heute | Locora-Ziel |
 |---|---|---|
 | Journey für einen Palast starten | 3–4 | **1** (▶ auf Karte oder Enter auf „Weiter“) |
-| Neuen Palast mit Bild anlegen | ~6 + Formulare | **1** (Bild/Video ins Fenster ziehen = Palast + Stage + Editor offen) |
+| Neuen Palast mit Bild anlegen | ~6 + Formulare | **1** (Bild/Video ins Fenster ziehen = Palast + Raum + Editor offen) |
 | Locus platzieren und benennen | ~4 | **1 Klick + Tippen + Enter** (nächster Locus sofort bereit) |
 | 10 Begriffe auf einmal als Loci | n × 4 | **Liste einfügen** (Strg+V) → Loci werden als Pfad vorplatziert, Ziehen zum Korrigieren |
 | Video-Locus setzen | – | **Taste L** während Wiedergabe (+ optional Klick auf Bildposition) |
@@ -431,17 +431,18 @@ Weitere Regeln:
 
 ### 7.1 Modell
 
-Eine Stage hat `kind: "image" | "video"`. Ein Video-Locus enthält zusätzlich:
+Ein Raum hat optional einen Hintergrund (`backdrop`); ist es ein Video, ist es ein Video-Raum. Ein Video-Locus hat
+zusätzlich eine Zeit. Umgesetzt sind bereits `place`, `item`, `x`, `y`, `time` (siehe `format/README.md`); geplant sind:
 
 ```json
 {
   "id": "l7",
-  "label": "Merkur",
-  "memory": "kleinster Planet",
-  "at": 83.40,              // Sekunden; 0 = „am Anfang“
-  "pos": [0.42, 0.61],      // optional: Marker auf dem Videobild
-  "pause": "until_solved",  // "until_solved" | "brief" (3 s) | "none" (nur Marker)
-  "answer": { "type": "recall" }   // recall | quiz | guess, wie Bild-Loci
+  "place": "Tür",
+  "item": "kleinster Planet",
+  "x": 0.42, "y": 0.61,     // Marker auf dem Videobild
+  "time": 83.40,            // Sekunden; 0 = „am Anfang“
+  "pause": "untilSolved",   // geplant: "untilSolved" | "brief" (3 s) | "none" (nur Marker)
+  "answer": { "type": "recall" }   // geplant: recall | quiz | guess
 }
 ```
 
@@ -475,14 +476,16 @@ Die CLI arbeitet auf derselben Datenbank wie die App. Änderungen erscheinen liv
 # Palast in einem Befehl: Bild + Begriffe, Loci werden automatisch als Pfad verteilt
 locora new "Planeten" --image wohnung.jpg -- Merkur Venus Erde Mars Jupiter
 
-# Aus Datei (eine Zeile = ein Locus, optional "Begriff | Erinnerung | x,y")
+# Aus Datei (eine Zeile = ein Locus: "Inhalt", "Ort | Inhalt" oder "Ort | Inhalt | x,y")
 locora new "Vokabeln" --image buero.jpg --from vokabeln.txt
 
 # Video-Palast mit Zeitmarken
-locora video "Vortrag" vortrag.mp4 --loci 0:12=Einleitung 1:23=These 4:05=Fazit
+locora new "Vortrag" --video vortrag.mp4 -- 0:12=Einleitung 1:23=These 4:05=Fazit
 
 # Bearbeiten
-locora add Planeten "Saturn" --memory "Ringe" --at 0.7,0.3
+locora add Planeten "Saturn" --place Dachboden --at 0.7,0.3
+locora edit Planeten 3 --item "Erde"
+locora show Planeten
 locora ls                      # Paläste (mit Fälligkeiten, falls `review` installiert)
 locora practice Planeten       # Abfrage im Terminal (TUI, Text-Recall)
 locora export Planeten -o planeten.locora
@@ -502,20 +505,15 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 
 ## 9. Dateiformat `.locora` (Version 1)
 
-`.mnemodim`-Dateien müssen nicht kompatibel bleiben. Das Format startet deshalb neu als `.locora` Version 1.
-Der Container ist ZIP. Gegenüber dem alten Format ändert sich:
+**Umgesetzt**, Spezifikation in [`format/README.md`](format/README.md), Referenz-Implementierung `crates/locora-format`.
+`.mnemodim`-Dateien müssen nicht kompatibel bleiben.
 
-| alt (`.mnemodim`) | neu (`.locora`) | Warum |
-|---|---|---|
-| CSV mit JSON-Zellen | **JSON pro Palast** (`palaces/<id>.json`); CSV nur noch für Tabellen | einfacher zu erzeugen und zu validieren, keine doppelte Kodierung |
-| `assets/<id>` mit eigener ID | `media/<sha256>.<ext>` | dedupliziert, sync-freundlich, Integrität eingebaut |
-| nur Bild/Audio | + **Video** (MP4) | Video-Paläste |
-| fester Inhalt | **`plugins/<plugin-id>/…`** Namensräume | Plugins speichern eigene Daten; fehlt ein Plugin, bleiben seine Daten unverändert erhalten |
-| keine Abhängigkeiten | `manifest.requires: [{ plugin, version, required }]` | App kann sagen „Benötigt Plugin X“ statt still zu scheitern |
-| — | JSON-Schema in `format/` | Fremdtools und KI können valide Dateien bauen |
-
-Beibehalten werden: harte Limits, „fail closed“ bei Unbekanntem, keine Formel-Ausführung beim Import und Import als neue Kopie.
-Die Limits werden an Video angepasst (z. B. 2 GiB gesamt, ZIP64, Video-Einträge *stored* statt deflate).
+- ZIP mit `mimetype` (erster Eintrag, unkomprimiert, `application/vnd.locora+zip`), `manifest.json`, `palaces/<id>.json`,
+  optional `tables.json` (gemeinsame Tabellen), `media/<sha256>.<ext>`, reserviert `plugins/<id>/…`.
+- camelCase-JSON; Dateinamen werden aus Ids/Hashes abgeleitet, nie doppelt gespeichert; Raum-Art ergibt sich aus dem
+  Hintergrund-Medium. Ungültige Kombinationen sind damit nicht darstellbar.
+- Deterministische Exporte (gleicher Inhalt = gleiche Bytes), strenges „fail closed“-Lesen mit Limits, Hash-Prüfung vor
+  dem Schreiben, Import immer als neue Kopie; kollidierende gemeinsame Tabellenzeilen werden zu lokalen Zeilen.
 
 ---
 
@@ -545,7 +543,7 @@ Die Limits werden an Video angepasst (z. B. 2 GiB gesamt, ZIP64, Video-Einträge
 | **0** | Repo, Cargo-Workspace, CI (Linux/macOS/Windows), Lizenzen, Entscheidungen aus Abschnitt 12 | leeres, baubares Gerüst |
 | **1** | Plugin-Host mit wasmtime + WIT-SDK + Hot-Reload + `locora plugin new/dev` zuerst, dann `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format`, `core` und `review` als WASM-Plugins ohne UI, **CLI** | Paläste per CLI anlegen, fällige Loci wiederholen, importieren und exportieren |
 | **2** | Tauri-App: Startbildschirm, Befehlspalette, Core-Editor, Journey (Bild). **Android- und iOS-Builds ab Tag 1 in CI** | nutzbare App auf allen Plattformen |
-| **3** | Video-Stages: Editor + Journey + CLI; Plugin `notify` | Video-Paläste, Erinnerungen |
+| **3** | Video-Räume in der App: Editor + Journey; Plugin `notify` | Video-Paläste, Erinnerungen |
 | **4** | Plugin `tutorial` (Touren über `ui.highlight`, Beispielpalast, Formel-Guide) | Onboarding |
 | **5** | Plugin `gamification` (lokal, kostenlos), danach Locora Cloud: Server, Bezahlung, Entitlements | erstes Einkommen |
 | **6** | Sync (Op-Log ↔ Server) als optionaler Dienst | mehrere Geräte |
@@ -553,12 +551,7 @@ Die Limits werden an Video angepasst (z. B. 2 GiB gesamt, ZIP64, Video-Einträge
 
 Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI geprüft.
 
-**Stand (16.10.2026):** Phase 0 erledigt. Aus Phase 1 laufen: Plugin-Host (Laden zur Laufzeit, Hot-Reload, Services,
-dauerhafter Plugin-Speicher), `locora-store` (SQLite, Medien, Op-Log), `locora-fsrs`, Plugin `review` und die CLI
-(`new/add/edit/ls/show/rm/practice/review/due`, `plugin new/dev/run/check`). Dateiformat `.locora` mit `locora export/import` (Spezifikation: `format/README.md`).
-Formel-Sprache `locora-formula` (vollständiger Port inkl. aller Tests aus mnemodim).
-Offen in Phase 1: Workbook-Tabellen in Store und `.locora` (inkl. Inputs/Actions/Locus-Bindungen), `core` als eigenes Plugin,
-`locora.toml`-Quelltextformat.
+**Stand (16.10.2026):** Phase 0 erledigt, Phase 1 fast fertig. Details und alle offenen Aufgaben: Abschnitt 13.
 
 ---
 
@@ -579,3 +572,109 @@ Offen in Phase 1: Workbook-Tabellen in Store und `.locora` (inkl. Inputs/Actions
 | Plugin-Technik | **zur Laufzeit geladene Rust → WASM-Komponenten** (wasmtime), Hot-Reload ohne Neustart |
 | Fremde Plugins | erlaubt auf allen Plattformen; Android/iOS mit Warnung „gefährlich, auf eigene Verantwortung“, Desktop mit kurzer Warnung |
 | Eigene Plugins | Nutzer können selbst Plugins bauen: Vorlagen, `locora plugin dev`, Hot-Reload, Test-Harness |
+| Begriffe | **Palast → Räume → Loci**; ein Locus hat einen **Ort** (`place`) und einen **Inhalt** (`item`); Video-Zeit `time`; Tabellen (`table`) |
+| Maskottchen | **Simo** (nach Simonides), Ganzkörper, ohne Konturen, Cel-Shading; dazu das Glühwürmchen |
+
+---
+
+## 13. Handout für den nächsten Agenten
+
+Stand: 16.10.2026. Dieser Abschnitt ist die Übergabe: was es gibt, wie man arbeitet und was noch gebaut werden muss.
+
+### 13.1 Arbeitsweise und Vorgaben des Nutzers
+
+- **Kommunikation auf Deutsch.** Code, Kommentare, Commit-Messages und README auf Englisch; `PLAN.md`, `assets/STIL.md`
+  und alle Texte, die Nutzer sehen (CLI, App), auf Deutsch.
+- **Alles in Rust**, möglichst schnell. UI später mit Tauri 2 + Leptos.
+- **Alle Grafiken mit `splinely-cli` als `.sply`** (Installation unter `~/.local/opt/splinely-v0.5.1-x86_64-linux/bin`,
+  Version 0.5.2 ist als Release gebaut, aber noch nicht installiert). Für jede neue Idee mit Bildbedarf sofort eine `.sply`
+  unter `assets/` anlegen, bevorzugt per Bauskript unter `assets/**/src/`; die Splinely-Runtime soll sie später rendern.
+  Funktioniert in Splinely etwas nicht: dem Nutzer sagen. Splinely-Quellcode liegt in `~/svg_editor`
+  (Repo `wasser-quest/splinely`); Fixes dort nur auf Wunsch, Releases per Tag `vX.Y.Z` (Version in `Cargo.toml` mitziehen).
+- **Stil:** `assets/STIL.md` (ohne Konturen, Cel-Shading). Darin nie den Anime-Bezug oder Referenzbilder erwähnen.
+- **Maskottchen Simo** (`assets/mascot/src/simo.py`) und das Glühwürmchen (`gluehwuermchen.py`). Der Nutzer will eine
+  männlich wirkende Ganzkörperfigur; Mnemo wurde gelöscht.
+- Lizenz MIT; Gamification kostenlos, nur Locora Cloud kostet (9,99 €/Jahr oder 1,49 €/Monat).
+- Fremde Plugins: Warnung „gefährlich, auf eigene Verantwortung“ auf Android/iOS, kurze Warnung auf Desktop. Wird das
+  Laden auf Mobile schwierig, darf es dort abgeschaltet werden.
+- **Git:** Push per SSH (`~/.ssh/id_ed25519`, im Repo als `core.sshCommand` gesetzt). Commit-Messages enden mit
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Die GitHub-API meldet für das Repo derzeit „Not Found“
+  (vermutlich privat); CI-Ergebnisse deshalb nur über die Weboberfläche oder mit Token sichtbar.
+
+### 13.2 Was es schon gibt
+
+| Baustein | Stand |
+|---|---|
+| `crates/locora-api` | Events (`core.*`, `host.started`, `ui.tile`), Services (`review.schedule@1`), API-Version 0.2 |
+| `crates/locora-sdk` + `-macros` | `#[locora_plugin]`, `ctx.on`, `ctx.emit`, `ctx.provide`, `ctx.store()`, `ctx.tile`, WIT in `wit/plugin.wit` |
+| `crates/locora-host` | wasmtime-Komponenten, Hot-Reload, Fuel-Limit, Absturz-Isolation, Kompilat-Cache, Berechtigungen (`storage`), Services, austauschbarer `KvStore` |
+| `crates/locora-store` | SQLite (Migrationen 1–3), Paläste → Räume → Loci (`place`, `item`, `x`, `y`, `time`), Medien nach SHA-256, Tabellen (lokal/gemeinsam), Bindungen, Plugin-KV, Op-Log mit HLC |
+| `crates/locora-fsrs` | FSRS-5 mit Standardgewichten |
+| `crates/locora-formula` | vollständiger Port der mnemodim-Formelsprache + `workbook::Run` (Eingaben, Aktionen `set/reveal/reset`, Bindungen `place/item/x/y/visible/active`, `View.reveal`) |
+| `crates/locora-format` | `.locora` v1 (siehe `format/README.md`) inkl. Tabellen und Bindungen |
+| `plugins/review` | Spaced Repetition als WASM-Plugin; wird per `apps/cli/build.rs` gebaut und in die CLI eingebettet |
+| `plugins/lernzeit`, `plugins/fixture` | Beispiel- bzw. Test-Plugin |
+| `apps/cli` | `new/add/edit/ls/show/rm/practice/review/due/export/import`, `plugin new/dev/run/check` |
+| `assets/` | `brand/icon.sply`, `mascot/simo.sply`, `mascot/gluehwuermchen.sply` (+ Exporte), `STIL.md` |
+
+**Befehle:** `cargo test` (≈ 50 Tests, baut die Test-Plugins selbst), `cargo clippy --all-targets -- -D warnings`,
+`cargo fmt --all`; Plugins: `cd plugins && cargo clippy -- -D warnings`. Voraussetzung: `rustup target add wasm32-wasip2`
+(steht in `rust-toolchain.toml`). `LOCORA_SKIP_PLUGINS=1` baut die CLI ohne eingebettete Plugins. Tests der CLI nutzen
+`--data <tempdir>` und `LOCORA_NOW` für eine feste Uhrzeit.
+
+**Stolpersteine:** wasmtime 49 braucht das Feature `anyhow`; rusqlite 0.40 braucht `fallible_uint` für `u64`;
+zip 9: `file.name()` liefert ein `Result`; in Formeln `Major["7"]` statt `Major.7` (`.7` ist eine Zahl);
+Splinely: `node duplicate` legt die Kopie direkt über das Original (für Boolean-Differenzen die verschobene Kopie
+nach vorn holen), Gruppen sind erst ab 0.5.1 animierbar, `check` meldet bis 0.5.1 fälschlich State-Overrides als unsichtbar.
+
+### 13.3 Offen in Phase 1 (Reihenfolge = Empfehlung)
+
+1. **Workbook in der CLI** (Bausteine sind fertig: `locora_formula::workbook::Run`, `Store::set_row/rows/effective_rows/
+   set_binding/remove_binding`):
+   - `locora table show [PALAST] [--shared]`, `locora table set (--palace P | --shared) Tabelle.key[.spalte] WERT [-t typ]`,
+     `locora table rm …`
+   - `locora bind PALAST N feld "formel"`, `locora unbind PALAST N feld`, `locora calc [PALAST] "formel"`
+   - `practice/review`: Eingaben (`Inputs`) vor dem Start abfragen (Enter = Standard), Route nach `active` filtern
+     (mit `View.reveal = true`, kaputte Formeln bleiben auf der Route und zeigen den Fehler), Ort mit `reveal=false`,
+     Inhalt mit `reveal=true` auflösen, Aktionen per `!name` ausführen, `?` listet Aktionen.
+   - Integrationstests in `apps/cli/tests/` (Vorbild: `palaces.rs`).
+2. **Hooks im Host** (Filter-Ketten aus 4.1, z. B. `core.journey.score`) und **Host-Services für Paläste**
+   (`palaces:read`/`palaces:write`, bisher nur `storage` erzwungen).
+3. **`core` als eigenes Plugin**: Journey-Regeln, Bewertung (Recall/Quiz/Guess), Hooks für Gamification. Dafür im Store
+   Antwort-Arten für Loci ergänzen (mnemodim hatte Recall, Quiz mit mehreren richtigen Antworten, Guess).
+4. **`locora plugin install/remove/ls`** mit kurzer Warnung auf Desktop, Prüfung von Rechten, Ablage in `<data>/plugins`;
+   später Signaturen (Ed25519).
+5. **`locora.toml`-Quelltextformat** + `locora build` (Paläste in Git pflegen, per KI erzeugen).
+6. **`.locora` mit Fortschritt:** `locora export --with-progress` schreibt Review-Daten nach `plugins/review/`.
+7. **Review-Log** (jede Antwort speichern) und FSRS-Parameteroptimierung; Tageslimits für neue Loci in den Einstellungen.
+8. **Sammlungen** (mehrere Paläste mit gemeinsamer Navigation, `navigate`-Aktion aus mnemodim) – erst wenn gebraucht.
+
+### 13.4 Phase 2: die App (Tauri 2 + Leptos)
+
+- `apps/app/` anlegen: `src-tauri/` (Rust, nutzt `locora-store`, `locora-host`, `locora-format`, `locora-formula` direkt)
+  und `ui/` (Leptos → WASM, `trunk`). Die UI enthält keine Fachlogik und ruft nur Tauri-Commands.
+- **Startbildschirm** = Plugin-Übersicht mit Live-Kacheln (`ui.tile`-Events) und der „Weiter“-Zeile (fällige Loci aus
+  `review.schedule@1`), Befehlspalette (Strg/⌘+K).
+- **Core-Ansicht:** Palastliste mit ▶ direkt auf der Karte, Editor (Bild/Video ins Fenster ziehen = neuer Palast, Klick =
+  Locus setzen, Liste einfügen = Loci als Route), Journey mit Tastatur (Leertaste, 1–4).
+- **Splinely-Runtime einbinden:** Alle `.sply` aus `assets/` in der App abspielen. Optionen prüfen: die JS-Runtime aus
+  `~/svg_editor/runtime/src/splinely.js` (kann binäre `.sply` dekodieren, `sply_decode.js`) in der WebView, oder die native
+  Rust-Runtime `splinely_runtime` (Frames berechnen, Rendering trotzdem in der WebView). Doku: `RUNTIME_API.md`,
+  `docs/native-runtime.md` im Splinely-Repo. Ziel: ein Leptos-Component `<Sply src="…"/>`.
+- **Grafiken, die dafür als `.sply` entstehen müssen** (Stil: `assets/STIL.md`): Kachel-Icons für `core`, `review`,
+  `notify`, `tutorial`, `gamification`; Raum-Arten (ohne Bild, Bild, Video); Locus-Marker (leuchtender Punkt mit Nummer,
+  Zustände neu/fällig/gewusst); leere Zustände (keine Paläste, nichts fällig – Simo mit Laterne); Journey-Feedback
+  (richtig, nochmal, geschafft); Splash/Ladezustand; Onboarding-Szenen für das Tutorial; Benachrichtigungs-Icon;
+  später Trophäen und Streak-Flamme für Gamification.
+- Android- und iOS-Builds ab Tag 1 in CI; Klick-Budgets (6.3) als E2E-Tests.
+
+### 13.5 Danach (Phasen 3–7)
+
+- **Phase 3:** Video-Räume in der App (anhalten am Locus bis gelöst, Editor mit Taste L, Zeitleiste), Plugin `notify`
+  (4.6: lokale Benachrichtigungen, Ruhezeiten, Bündelung).
+- **Phase 4:** Plugin `tutorial` (Touren über `ui.highlight@1`, Beispielpalast, Formel-Guide), Simo als Begleiter.
+- **Phase 5:** Plugin `gamification` (XP, Combos, Herzen, Trophäen, Daily Challenges; lokal und kostenlos, Werte aus
+  mnemodim `shared/journeyScoring.ts`), danach privates Repo `locora-cloud` (axum + Postgres, Abo, Ranglisten,
+  Ed25519-Entitlements mit 14 Tagen Offline-Kulanz, In-App-Kauf auf iOS/Android).
+- **Phase 6:** Sync über das Op-Log (HLC, Last-Writer-Wins pro Feld) mit Locora Cloud.
+- **Phase 7:** Plugin-Verzeichnis, Signaturen, WASM-Plugins für Dritte inkl. deklarativer UI (4.4) und Store-Prüfung.

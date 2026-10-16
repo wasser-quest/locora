@@ -32,14 +32,14 @@ fn read_line(input: &mut impl BufRead) -> Result<Option<String>> {
 fn ask(input: &mut impl BufRead, n: usize, total: usize, locus: &Locus) -> Result<Step> {
     print!(
         "\n[{n}/{total}] {}   (Enter = aufdecken, q = beenden) ",
-        locus.label
+        locus.place
     );
     io::stdout().flush()?;
     match read_line(input)?.as_deref() {
         None | Some("q") => return Ok(Step::Quit),
         _ => {}
     }
-    println!("        → {}", locus.memory);
+    println!("        → {}", locus.item);
     loop {
         print!("        1 Nochmal · 2 Schwer · 3 Gut · 4 Leicht  (Enter = Gut) ");
         io::stdout().flush()?;
@@ -96,7 +96,7 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
     }
     if plan.is_empty() {
         if trees.iter().all(|t| t.route().next().is_none()) {
-            bail!("Keine Loci zum Üben. Hinzufügen: locora add <Palast> <Erinnerung>");
+            bail!("Keine Loci zum Üben. Hinzufügen: locora add <Palast> <Inhalt>");
         }
         let (due, fresh): (usize, usize) = trees
             .iter()

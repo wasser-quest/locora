@@ -7,42 +7,42 @@ fn sample(dir: &std::path::Path) -> Store {
     let image = store.put_media(b"\x89PNG fake", "image/png").unwrap();
     let video = store.put_media(b"fake mp4", "video/mp4").unwrap();
     let p = store.create_palace("Planeten").unwrap();
-    let s = store
-        .add_stage(&p.id, "Wohnung", StageKind::Image, Some(&image.hash))
+    let r = store
+        .add_room(&p.id, "Wohnung", RoomKind::Image, Some(&image.hash))
         .unwrap();
-    for (i, m) in ["Merkur", "Venus"].iter().enumerate() {
+    for (i, item) in ["Merkur", "Venus"].iter().enumerate() {
         store
             .add_locus(
-                &s.id,
+                &r.id,
                 NewLocus {
-                    label: format!("Ort {i}"),
-                    memory: m.to_string(),
+                    place: format!("Ort {i}"),
+                    item: item.to_string(),
                     x: 0.2 + 0.3 * i as f64,
                     y: 0.5,
-                    at: None,
+                    time: None,
                 },
             )
             .unwrap();
     }
     let v = store.create_palace("Vortrag").unwrap();
-    let vs = store
-        .add_stage(&v.id, "Talk", StageKind::Video, Some(&video.hash))
+    let vr = store
+        .add_room(&v.id, "Talk", RoomKind::Video, Some(&video.hash))
         .unwrap();
     store
         .add_locus(
-            &vs.id,
+            &vr.id,
             NewLocus {
-                label: "Tür".into(),
-                memory: "These".into(),
+                place: "Tür".into(),
+                item: "These".into(),
                 x: 0.5,
                 y: 0.5,
-                at: Some(83.0),
+                time: Some(83.0),
             },
         )
         .unwrap();
-    // A second stage reusing the same image is exported once.
+    // A second room reusing the same image is exported once.
     store
-        .add_stage(&p.id, "Flur", StageKind::Image, Some(&image.hash))
+        .add_room(&p.id, "Flur", RoomKind::Image, Some(&image.hash))
         .unwrap();
     store
 }
@@ -69,8 +69,16 @@ fn rewrite(
     }
     let mut out = ZipWriter::new(Cursor::new(Vec::new()));
     for (name, data) in edit(entries) {
-        out.start_file(name.as_str(), SimpleFileOptions::default())
-            .unwrap();
+        let method = if name == "mimetype" {
+            CompressionMethod::Stored
+        } else {
+            CompressionMethod::Deflated
+        };
+        out.start_file(
+            name.as_str(),
+            SimpleFileOptions::default().compression_method(method),
+        )
+        .unwrap();
         out.write_all(&data).unwrap();
     }
     out.finish().unwrap().into_inner()
@@ -115,25 +123,22 @@ fn round_trip_into_another_store() {
     let original = source.palace("Planeten").unwrap();
     let copy = target.palace("Planeten").unwrap();
     assert_ne!(copy.palace.id, original.palace.id, "imports are new copies");
-    assert_eq!(PalaceDoc::from(&copy).stages.len(), 2);
-    let memories: Vec<_> = copy
-        .route()
-        .map(|l| (l.label.clone(), l.memory.clone(), l.x))
-        .collect();
-    let expected: Vec<_> = original
-        .route()
-        .map(|l| (l.label.clone(), l.memory.clone(), l.x))
-        .collect();
-    assert_eq!(memories, expected);
-    let hash = copy.stages[0].stage.media.clone().unwrap();
+    assert_eq!(copy.rooms.len(), 2);
+    assert_eq!(copy.rooms[0].room.kind, RoomKind::Image);
+    let fields = |t: &PalaceTree| {
+        t.route()
+            .map(|l| (l.place.clone(), l.item.clone(), l.x))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(fields(&copy), fields(&original));
+    let hash = copy.rooms[0].room.media.clone().unwrap();
     assert_eq!(
         std::fs::read(target.media_file(&hash).unwrap()).unwrap(),
         b"\x89PNG fake"
     );
-    assert_eq!(
-        target.palace("Vortrag").unwrap().route().next().unwrap().at,
-        Some(83.0)
-    );
+    let talk = target.palace("Vortrag").unwrap();
+    assert_eq!(talk.rooms[0].room.kind, RoomKind::Video);
+    assert_eq!(talk.route().next().unwrap().time, Some(83.0));
 
     // Importing again keeps both: „Planeten (2)“.
     let again = Package::open(Cursor::new(bytes))
@@ -142,6 +147,41 @@ fn round_trip_into_another_store() {
         .unwrap();
     assert_eq!(again[0].name, "Planeten (2)");
     assert_eq!(again[0].original_name, "Planeten");
+}
+
+#[test]
+fn exports_are_reproducible_and_self_describing() {
+    let a = tempfile::tempdir().unwrap();
+    let store = sample(a.path());
+    let first = exported(&store, &["Planeten", "Vortrag"]);
+    let second = exported(&store, &["Planeten", "Vortrag"]);
+    assert_eq!(first, second, "same content, same bytes");
+    // `file`-style detection: the archive starts with the stored mimetype.
+    assert_eq!(&first[30..38], b"mimetype");
+    assert_eq!(&first[38..38 + MEDIA_TYPE.len()], MEDIA_TYPE.as_bytes());
+    let mut archive = ZipArchive::new(Cursor::new(&first)).unwrap();
+    assert_eq!(
+        archive.by_index(1).unwrap().name().unwrap(),
+        "manifest.json"
+    );
+    let manifest: serde_json::Value = {
+        let mut text = String::new();
+        archive
+            .by_name("manifest.json")
+            .unwrap()
+            .read_to_string(&mut text)
+            .unwrap();
+        serde_json::from_str(&text).unwrap()
+    };
+    assert!(
+        manifest["createdBy"]
+            .as_str()
+            .unwrap()
+            .starts_with("locora ")
+    );
+    assert!(
+        manifest["media"][0]["mediaType"].is_string() && manifest["media"][0]["sha256"].is_string()
+    );
 }
 
 #[test]
@@ -162,6 +202,11 @@ fn broken_and_hostile_files_are_rejected() {
     }));
     assert!(err.contains("unknown field"), "{err}");
 
+    let err = open_err(rewrite(&good, |e| {
+        e.into_iter().filter(|(n, _)| n != "mimetype").collect()
+    }));
+    assert!(err.contains("mimetype"), "{err}");
+
     let err = open_err(rewrite(&good, |mut e| {
         e.push(("notes.txt".into(), b"hi".to_vec()));
         e
@@ -174,6 +219,14 @@ fn broken_and_hostile_files_are_rejected() {
     }));
     assert!(err.contains("unsicherer Pfad"), "{err}");
 
+    let err = open_err(rewrite(&good, |mut e| {
+        edit_json(&mut e, "manifest.json", |m| {
+            m["palaces"][0]["id"] = "../x".into()
+        });
+        e
+    }));
+    assert!(err.contains("ungültige Palast-Id"), "{err}");
+
     let err = open_err(rewrite(&good, |e| {
         e.into_iter()
             .filter(|(n, _)| !n.ends_with(".mp4"))
@@ -183,11 +236,19 @@ fn broken_and_hostile_files_are_rejected() {
 
     let err = open_err(rewrite(&good, |mut e| {
         edit_json(&mut e, "palace", |p| {
-            p["stages"][0]["loci"][0]["x"] = 1.5.into()
+            p["rooms"][0]["loci"][0]["x"] = 1.5.into()
         });
         e
     }));
-    assert!(err.contains("außerhalb der Stage"), "{err}");
+    assert!(err.contains("außerhalb des Raums"), "{err}");
+
+    let err = open_err(rewrite(&good, |mut e| {
+        edit_json(&mut e, "palace", |p| {
+            p["rooms"][0]["loci"][0]["time"] = 3.into()
+        });
+        e
+    }));
+    assert!(err.contains("kein Video"), "{err}");
 
     // Plugin data is reserved and ignored by version 1.
     let with_plugin = rewrite(&good, |mut e| {
@@ -215,30 +276,116 @@ fn broken_and_hostile_files_are_rejected() {
         .import(&target)
         .unwrap_err()
         .to_string();
-    assert!(err.contains("passt nicht zum Hash"), "{err}");
+    assert!(err.contains("passt nicht zum SHA-256"), "{err}");
     assert!(target.palaces().unwrap().is_empty());
 }
 
 #[test]
-fn video_loci_need_times_and_blank_stages_no_media() {
+fn video_loci_need_times() {
     let a = tempfile::tempdir().unwrap();
     let store = sample(a.path());
     let good = exported(&store, &["Vortrag"]);
     let err = open_err(rewrite(&good, |mut e| {
         edit_json(&mut e, "palace", |p| {
-            p["stages"][0]["loci"][0]
+            p["rooms"][0]["loci"][0]
                 .as_object_mut()
                 .unwrap()
-                .remove("at");
+                .remove("time");
         });
         e
     }));
     assert!(err.contains("hat keine Zeit"), "{err}");
-    let err = open_err(rewrite(&good, |mut e| {
+}
+
+#[test]
+fn tables_and_bindings_travel_and_clashes_stay_local() {
+    let a = tempfile::tempdir().unwrap();
+    let source = Store::open(a.path()).unwrap();
+    let p = source.create_palace("Zahlen").unwrap();
+    let r = source
+        .add_room(&p.id, "Raum", RoomKind::Blank, None)
+        .unwrap();
+    let l = source
+        .add_locus(
+            &r.id,
+            NewLocus {
+                place: "Tür".into(),
+                item: "?".into(),
+                x: 0.5,
+                y: 0.5,
+                time: None,
+            },
+        )
+        .unwrap();
+    source
+        .set_binding(
+            &l.id,
+            &Binding {
+                field: BindingField::Item,
+                expression: "Major[\"7\"]".into(),
+            },
+        )
+        .unwrap();
+    source
+        .set_row(None, &Row::value("Major", "7", "Kuh"))
+        .unwrap();
+    source
+        .set_row(Some(&p.id), &Row::value("Inputs", "zahl", "47"))
+        .unwrap();
+    let bytes = exported(&source, &["Zahlen"]);
+
+    // The target already has a different shared Major.7.
+    let b = tempfile::tempdir().unwrap();
+    let target = Store::open(b.path()).unwrap();
+    target
+        .set_row(None, &Row::value("Major", "7", "Kaffee"))
+        .unwrap();
+    let package = Package::open(Cursor::new(bytes.clone())).unwrap();
+    assert_eq!(package.shared_tables.len(), 1);
+    assert_eq!(
+        package.palaces[0].rooms[0].loci[0].bindings.item.as_deref(),
+        Some("Major[\"7\"]")
+    );
+    let imported = package.import(&target).unwrap();
+    assert_eq!(imported[0].localized_rows, 1);
+    let copy = target.palace("Zahlen").unwrap();
+    assert_eq!(
+        copy.route().next().unwrap().bindings[0].expression,
+        "Major[\"7\"]"
+    );
+    let rows = target.effective_rows(&copy.palace.id).unwrap();
+    let major = rows.iter().find(|r| r.table == "Major").unwrap();
+    assert_eq!(
+        major.cells[0].value, "Kuh",
+        "the palace keeps its own value"
+    );
+    assert_eq!(
+        target.rows(None).unwrap()[0].cells[0].value,
+        "Kaffee",
+        "existing shared rows are untouched"
+    );
+    assert!(rows.iter().any(|r| r.table == "Inputs"));
+
+    let err = open_err(rewrite(&bytes, |mut e| {
         edit_json(&mut e, "palace", |p| {
-            p["stages"][0]["kind"] = "blank".into()
+            p["rooms"][0]["loci"][0]["bindings"]["item"] = "1 +".into()
         });
         e
     }));
-    assert!(err.contains("ohne Bild hat ein Medium"), "{err}");
+    assert!(err.contains("Formel für item"), "{err}");
+    let err = open_err(rewrite(&bytes, |mut e| {
+        edit_json(&mut e, "palace", |p| {
+            p["rooms"][0]["loci"][0]["bindings"]["colour"] = "1".into()
+        });
+        e
+    }));
+    assert!(err.contains("unknown field"), "{err}");
+    let err = open_err(rewrite(&bytes, |mut e| {
+        edit_json(&mut e, "palace", |p| {
+            let row = p["tables"][0].clone();
+            p["tables"].as_array_mut().unwrap().push(row);
+        });
+        e
+    }));
+    assert!(err.contains("doppelt"), "{err}");
 }

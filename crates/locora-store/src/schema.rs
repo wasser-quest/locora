@@ -37,6 +37,28 @@ const MIGRATIONS: &[&str] = &[
         entity_id TEXT NOT NULL,
         op TEXT NOT NULL,
         data TEXT);",
+    // 2: workbook tables (palace-local or shared) and formula bindings on loci
+    "CREATE TABLE table_rows(
+        id TEXT PRIMARY KEY,
+        palace_id TEXT REFERENCES palaces(id) ON DELETE CASCADE,
+        sheet TEXT NOT NULL,
+        key TEXT NOT NULL,
+        cells TEXT NOT NULL);
+     CREATE UNIQUE INDEX table_rows_key ON table_rows(COALESCE(palace_id, ''), sheet, key);
+     CREATE TABLE bindings(
+        locus_id TEXT NOT NULL REFERENCES loci(id) ON DELETE CASCADE,
+        field TEXT NOT NULL,
+        expression TEXT NOT NULL,
+        PRIMARY KEY(locus_id, field));",
+    // 3: clearer names: stages are rooms; loci have a place, an item and a video time
+    "ALTER TABLE stages RENAME TO rooms;
+     ALTER TABLE loci RENAME COLUMN stage_id TO room_id;
+     ALTER TABLE loci RENAME COLUMN label TO place;
+     ALTER TABLE loci RENAME COLUMN memory TO item;
+     ALTER TABLE loci RENAME COLUMN at TO time;
+     ALTER TABLE table_rows RENAME COLUMN sheet TO table_name;
+     UPDATE bindings SET field = 'place' WHERE field = 'label';
+     UPDATE bindings SET field = 'item' WHERE field = 'memory';",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {

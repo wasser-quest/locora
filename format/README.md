@@ -1,15 +1,31 @@
 # The `.locora` file format, version 1
 
-A `.locora` file holds one or more memory palaces with their images and videos. It is a ZIP archive (entries *stored* or *deflated*):
+A `.locora` file holds one or more memory palaces with their rooms, loci, workbook tables, images and videos. It is a ZIP archive:
 
 ```text
+mimetype                 application/vnd.locora+zip   (first entry, stored uncompressed)
 manifest.json            what the file contains
-palaces/<id>.json        one palace: stages and loci in route order
+palaces/<id>.json        one palace: rooms, loci in route order, its own tables
+tables.json              tables shared by all palaces (only if manifest.sharedTables)
 media/<sha256>.<ext>     images and videos, named by the SHA-256 of their bytes
 plugins/<plugin-id>/…    reserved for plugin data; version 1 readers ignore it
 ```
 
-The reference implementation is [`crates/locora-format`](../crates/locora-format). `locora export` and `locora import` use it.
+- Like EPUB and ODF, the first entry `mimetype` is stored uncompressed, so tools can recognise the file from its first bytes. `manifest.json` follows directly, so readers can stream.
+- JSON documents use **camelCase** and are deflated; media is stored as is.
+- Writing is **deterministic**: entries have a fixed timestamp and order (mimetype, manifest, palaces in export order, `tables.json`, media sorted by SHA-256). The same content always produces the same bytes, which suits Git and sync.
+
+The reference implementation is [`crates/locora-format`](../crates/locora-format); `locora export` and `locora import` use it.
+
+## Words
+
+| Term | Meaning |
+| --- | --- |
+| palace | a memory palace |
+| room | one room of a palace, optionally with a backdrop image or video |
+| locus | a stop on the route: a **place** in the room and the **item** stored there |
+| table | workbook data used by formulas (`Table.key.column`) |
+| binding | a formula computing a locus field |
 
 ## `manifest.json`
 
@@ -17,51 +33,64 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 {
   "format": "locora",
   "version": 1,
-  "generator": "locora 0.1.0",
-  "palaces": [{ "id": "0199f…", "name": "Planeten", "file": "palaces/0199f….json" }],
-  "media": [{ "hash": "9f86d0…", "mime": "image/png", "size": 48213, "file": "media/9f86d0….png" }],
-  "requires": [{ "plugin": "review", "version": "0.1", "required": false }]
+  "createdBy": "locora 0.1.0",
+  "palaces": [{ "id": "0199f3a2…", "name": "Planeten" }],
+  "media": [{ "sha256": "9f86d081…", "mediaType": "image/png", "size": 48213 }],
+  "plugins": [{ "id": "review", "version": "0.1", "required": false }],
+  "sharedTables": true
 }
 ```
 
-- `version` greater than the reader's version: the file is rejected with "needs a newer Locora".
-- `media[].file` is always `media/<hash>.<ext>`; extensions: `png jpg webp gif avif mp4 webm mov`.
-- `requires`: plugins the file uses. A missing `required` plugin blocks the import.
+- `version` above the reader's version → rejected with "needs a newer Locora".
+- File names are derived, never stored: `palaces/<id>.json`, `media/<sha256>.<ext>`.
+- Media types and extensions: `image/png` png, `image/jpeg` jpg, `image/webp` webp, `image/gif` gif, `image/avif` avif, `video/mp4` mp4, `video/webm` webm, `video/quicktime` mov.
+- `plugins`: plugins the file uses. A missing `required` plugin blocks the import.
 
 ## `palaces/<id>.json`
 
 ```json
 {
-  "id": "0199f…",
+  "id": "0199f3a2…",
   "name": "Planeten",
-  "stages": [
+  "rooms": [
     {
-      "id": "0199f…",
+      "id": "0199f3a3…",
       "name": "Wohnung",
-      "kind": "image",
-      "media": "9f86d0…",
+      "backdrop": "9f86d081…",
       "loci": [
-        { "id": "0199f…", "label": "Herd", "memory": "Merkur", "x": 0.42, "y": 0.61 },
-        { "id": "0199f…", "label": "Tür", "memory": "These", "x": 0.5, "y": 0.5, "at": 83.0 }
+        { "id": "0199f3a4…", "place": "Herd", "item": "Merkur", "x": 0.42, "y": 0.61 },
+        { "id": "0199f3a5…", "place": "Tür", "item": "?", "x": 0.5, "y": 0.5,
+          "bindings": { "item": "Major[\"7\"].object", "active": "Integer($zahl) > 2" } }
       ]
     }
+  ],
+  "tables": [
+    { "table": "Inputs", "key": "zahl", "cells": [{ "column": "value", "type": "text", "value": "47" }] }
   ]
 }
 ```
 
-- `kind`: `blank` (no media), `image` or `video` (`media` required and must match the kind).
-- `x`, `y`: position on the stage from 0 to 1 (left/top = 0).
-- `at`: seconds into the video; required on video stages.
-- Order in the arrays is the route order.
+- `backdrop`: SHA-256 of a media entry. Its media type decides the room: `image/*` image room, `video/*` video room; no backdrop = plain room.
+- `x`, `y`: position in the room from 0 to 1 (left/top = 0).
+- `time`: seconds into the video; required in video rooms and not allowed elsewhere.
+- `bindings`: formulas for `place`, `item`, `x`, `y`, `visible`, `active` (each at most once).
+- `tables`: rows `{ table, key, cells: [{ column, type, value }] }`; `type` is `text`, `number`, `boolean`, `json`, `formula`, `asset`, `palace` or `room`.
+- Array order is route order.
+
+## `tables.json`
+
+An array of rows (same shape as above) shared by all palaces. A palace's own row with the same `table` and `key` replaces the shared one.
 
 ## Rules for readers
 
 Readers fail closed instead of guessing:
 
-- unknown fields, unknown files outside `plugins/`, duplicate entries and ids;
-- absolute paths, `..`, `.` or backslashes in entry names;
+- a missing or wrong `mimetype` entry; unknown fields; unknown files outside `plugins/`; duplicate entries, ids or table rows;
+- absolute paths, `..`, `.` or backslashes in entry names; ids outside `[A-Za-z0-9_-]{1,64}`;
 - media whose size or SHA-256 does not match the manifest (hashes are checked while importing, before anything is written);
-- positions outside 0–1, non-finite numbers, video loci without `at`;
-- limits: 500 palaces, 200 stages per palace, 50 000 loci, 5 000 media, 10 000 entries, 16 MiB per JSON document, 1 GiB per media file, 10 000 characters per text.
+- positions outside 0–1, non-finite numbers, video loci without `time`, `time` outside video rooms, formulas that do not parse, invalid table rows;
+- limits: 500 palaces, 200 rooms per palace, 50 000 loci, 5 000 media, 10 000 entries, 1 000 table rows per scope, 16 MiB per JSON document, 1 GiB per media file, 10 000 characters per text.
 
-Imports always create new copies with new ids. A palace whose name already exists is imported as `Name (2)`.
+## Importing
+
+Imports always create new copies with new ids; a name that exists becomes `Name (2)`. Shared rows that already exist with the same content are skipped; a shared row that clashes with an existing different row is copied into each imported palace as its own row, so the imported formulas keep their meaning and existing palaces are untouched.

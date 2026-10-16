@@ -1,8 +1,8 @@
 //! Ported from mnemodim's `formulas.spec.ts`, plus Rust-specific checks.
 use super::*;
 
-fn row(sheet: &str, key: &str, value: &str, kind: CellType) -> Row {
-    Row::typed(sheet, key, kind, value)
+fn row(table: &str, key: &str, value: &str, kind: CellType) -> Row {
+    Row::typed(table, key, kind, value)
 }
 
 fn cell(column: &str, kind: CellType, value: &str) -> Cell {
@@ -18,7 +18,7 @@ fn base() -> Vec<Row> {
         row("Inputs", "input1", "487", CellType::Text),
         row("RAM", "carry", "0", CellType::Number),
         Row {
-            sheet: "Major".into(),
+            table: "Major".into(),
             key: "48".into(),
             cells: vec![
                 cell("object", CellType::Text, "Reif"),
@@ -26,17 +26,17 @@ fn base() -> Vec<Row> {
             ],
         },
         Row {
-            sheet: "Major".into(),
+            table: "Major".into(),
             key: "7".into(),
             cells: vec![cell("object", CellType::Text, "Kuh")],
         },
         Row {
-            sheet: "Major".into(),
+            table: "Major".into(),
             key: "00".into(),
             cells: vec![cell("object", CellType::Text, "Sauce")],
         },
         Row {
-            sheet: "Functions".into(),
+            table: "Functions".into(),
             key: "T".into(),
             cells: vec![
                 cell("params", CellType::Text, "d1,d2,c"),
@@ -184,7 +184,7 @@ fn cycles_recursion_and_huge_syntax_fail_instead_of_hanging() {
     ];
     assert!(eval(&cyclic, "A.one").unwrap_err().0.contains("Circular"));
     let recursive = vec![Row {
-        sheet: "Functions".into(),
+        table: "Functions".into(),
         key: "Loop".into(),
         cells: vec![
             cell("params", CellType::Text, "x"),
@@ -200,7 +200,7 @@ fn cycles_recursion_and_huge_syntax_fail_instead_of_hanging() {
 #[test]
 fn text_numbers_and_records_print_naturally() {
     let rows = vec![Row {
-        sheet: "Data".into(),
+        table: "Data".into(),
         key: "p".into(),
         cells: vec![
             cell("name", CellType::Text, "Ada"),
@@ -229,7 +229,7 @@ fn text_numbers_and_records_print_naturally() {
 
 #[test]
 fn rows_are_validated() {
-    assert!(Engine::new(&[row("bad sheet", "k", "1", CellType::Text)]).is_err());
+    assert!(Engine::new(&[row("bad table", "k", "1", CellType::Text)]).is_err());
     assert!(Engine::new(&[row("S", "k", "abc", CellType::Number)]).is_err());
     assert!(Engine::new(&[row("S", "k", "yes", CellType::Boolean)]).is_err());
     assert!(Engine::new(&[row("S", "k", "{\"constructor\":1}", CellType::Json)]).is_err());

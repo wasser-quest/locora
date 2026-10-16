@@ -1,6 +1,6 @@
 //! Offline-first local storage for Locora.
 //!
-//! One SQLite database per profile holds palaces, stages, loci, media
+//! One SQLite database per profile holds palaces, rooms, loci, media
 //! metadata and plugin key-value data. Media files are stored next to it,
 //! named by their SHA-256 (deduplicated, immutable). Every change is also
 //! appended to an operation log stamped with a hybrid logical clock, so a
@@ -11,6 +11,8 @@ use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs, io};
 
+use locora_formula::Row;
+use locora_formula::workbook::{Binding, BindingField, effective_rows};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -42,41 +44,41 @@ pub struct Palace {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum StageKind {
+pub enum RoomKind {
     /// No picture: loci are placed on an empty canvas.
     Blank,
     Image,
     Video,
 }
 
-impl StageKind {
+impl RoomKind {
     fn as_str(self) -> &'static str {
         match self {
-            StageKind::Blank => "blank",
-            StageKind::Image => "image",
-            StageKind::Video => "video",
+            RoomKind::Blank => "blank",
+            RoomKind::Image => "image",
+            RoomKind::Video => "video",
         }
     }
 
     fn parse(value: &str) -> Result<Self> {
         match value {
-            "blank" => Ok(StageKind::Blank),
-            "image" => Ok(StageKind::Image),
-            "video" => Ok(StageKind::Video),
+            "blank" => Ok(RoomKind::Blank),
+            "image" => Ok(RoomKind::Image),
+            "video" => Ok(RoomKind::Video),
             other => Err(StoreError::Invalid(format!(
-                "unbekannte Stage-Art `{other}`"
+                "unbekannte Raum-Art `{other}`"
             ))),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Stage {
+pub struct Room {
     pub id: String,
     pub palace_id: String,
     pub position: u32,
     pub name: String,
-    pub kind: StageKind,
+    pub kind: RoomKind,
     /// SHA-256 of the image or video, if any.
     pub media: Option<String>,
 }
@@ -84,36 +86,41 @@ pub struct Stage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Locus {
     pub id: String,
-    pub stage_id: String,
+    pub room_id: String,
     pub position: u32,
     /// The place, e.g. "Herd".
-    pub label: String,
+    pub place: String,
     /// What to remember there, e.g. "Merkur".
-    pub memory: String,
-    /// Position on the stage, 0..1 from the left / top.
+    pub item: String,
+    /// Position on the room, 0..1 from the left / top.
     pub x: f64,
     pub y: f64,
-    /// For video stages: seconds into the video.
-    pub at: Option<f64>,
+    /// For video rooms: seconds into the video.
+    pub time: Option<f64>,
+    /// Formulas that compute fields of this locus from the palace's tables.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bindings: Vec<Binding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct StageTree {
-    pub stage: Stage,
+pub struct RoomTree {
+    pub room: Room,
     pub loci: Vec<Locus>,
 }
 
-/// A palace with all stages and loci in route order.
+/// A palace with all rooms and loci in route order.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PalaceTree {
     pub palace: Palace,
-    pub stages: Vec<StageTree>,
+    pub rooms: Vec<RoomTree>,
+    /// Tables that belong to this palace (shared tables are separate).
+    pub tables: Vec<Row>,
 }
 
 impl PalaceTree {
-    /// All loci in route order (stage by stage).
+    /// All loci in route order (room by room).
     pub fn route(&self) -> impl Iterator<Item = &Locus> {
-        self.stages.iter().flat_map(|s| &s.loci)
+        self.rooms.iter().flat_map(|s| &s.loci)
     }
 }
 
@@ -121,27 +128,27 @@ impl PalaceTree {
 pub struct PalaceSummary {
     pub id: String,
     pub name: String,
-    pub stages: u32,
+    pub rooms: u32,
     pub loci: u32,
     pub updated_at: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NewLocus {
-    pub label: String,
-    pub memory: String,
+    pub place: String,
+    pub item: String,
     pub x: f64,
     pub y: f64,
-    pub at: Option<f64>,
+    pub time: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LocusPatch {
-    pub label: Option<String>,
-    pub memory: Option<String>,
+    pub place: Option<String>,
+    pub item: Option<String>,
     pub x: Option<f64>,
     pub y: Option<f64>,
-    pub at: Option<Option<f64>>,
+    pub time: Option<Option<f64>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -191,7 +198,7 @@ fn check_position(x: f64, y: f64) -> Result<()> {
         Ok(())
     } else {
         Err(StoreError::Invalid(format!(
-            "Position ({x}, {y}) liegt außerhalb der Stage (0..1)"
+            "Position ({x}, {y}) liegt außerhalb des Raums (0..1)"
         )))
     }
 }
@@ -352,9 +359,9 @@ impl Store {
             .find_palace(query)?
             .ok_or_else(|| StoreError::NotFound(format!("Palast „{query}“")))?;
         let conn = self.conn();
-        let mut stages = Vec::new();
+        let mut rooms = Vec::new();
         let mut stmt = conn.prepare(
-            "SELECT id, palace_id, position, name, kind, media FROM stages WHERE palace_id = ?1 ORDER BY position",
+            "SELECT id, palace_id, position, name, kind, media FROM rooms WHERE palace_id = ?1 ORDER BY position",
         )?;
         let rows = stmt.query_map([&palace.id], |r| {
             Ok((
@@ -368,39 +375,60 @@ impl Store {
         })?;
         for row in rows {
             let (id, palace_id, position, name, kind, media) = row?;
-            stages.push(Stage {
+            rooms.push(Room {
                 id,
                 palace_id,
                 position,
                 name,
-                kind: StageKind::parse(&kind)?,
+                kind: RoomKind::parse(&kind)?,
                 media,
             });
         }
         let mut loci_stmt = conn.prepare(
-            "SELECT id, stage_id, position, label, memory, x, y, at FROM loci WHERE stage_id = ?1 ORDER BY position",
+            "SELECT id, room_id, position, place, item, x, y, time FROM loci WHERE room_id = ?1 ORDER BY position",
         )?;
         let mut tree = Vec::new();
-        for stage in stages {
+        for room in rooms {
             let loci = loci_stmt
-                .query_map([&stage.id], |r| {
+                .query_map([&room.id], |r| {
                     Ok(Locus {
                         id: r.get(0)?,
-                        stage_id: r.get(1)?,
+                        room_id: r.get(1)?,
                         position: r.get(2)?,
-                        label: r.get(3)?,
-                        memory: r.get(4)?,
+                        place: r.get(3)?,
+                        item: r.get(4)?,
                         x: r.get(5)?,
                         y: r.get(6)?,
-                        at: r.get(7)?,
+                        time: r.get(7)?,
+                        bindings: Vec::new(),
                     })
                 })?
-                .collect::<Result<_, _>>()?;
-            tree.push(StageTree { stage, loci });
+                .collect::<Result<Vec<Locus>, _>>()?;
+            tree.push(RoomTree { room, loci });
         }
+        let mut bind_stmt = conn
+            .prepare("SELECT field, expression FROM bindings WHERE locus_id = ?1 ORDER BY field")?;
+        for room in &mut tree {
+            for locus in &mut room.loci {
+                let rows = bind_stmt.query_map([&locus.id], |r| {
+                    Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                })?;
+                for row in rows {
+                    let (field, expression) = row?;
+                    let field =
+                        BindingField::parse(&field).map_err(|e| StoreError::Invalid(e.0))?;
+                    locus.bindings.push(Binding { field, expression });
+                }
+            }
+        }
+        drop(bind_stmt);
+        drop(loci_stmt);
+        drop(stmt);
+        let tables = rows_in(&conn, Some(&palace.id))?;
         Ok(PalaceTree {
             palace,
-            stages: tree,
+            rooms: tree,
+            tables,
         })
     }
 
@@ -409,8 +437,8 @@ impl Store {
         let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT p.id, p.name, p.updated_at,
-                    (SELECT COUNT(*) FROM stages s WHERE s.palace_id = p.id),
-                    (SELECT COUNT(*) FROM loci l JOIN stages s ON l.stage_id = s.id WHERE s.palace_id = p.id)
+                    (SELECT COUNT(*) FROM rooms s WHERE s.palace_id = p.id),
+                    (SELECT COUNT(*) FROM loci l JOIN rooms s ON l.room_id = s.id WHERE s.palace_id = p.id)
              FROM palaces p ORDER BY p.updated_at DESC, p.name",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -418,7 +446,7 @@ impl Store {
                 id: r.get(0)?,
                 name: r.get(1)?,
                 updated_at: r.get(2)?,
-                stages: r.get(3)?,
+                rooms: r.get(3)?,
                 loci: r.get(4)?,
             })
         })?;
@@ -447,7 +475,7 @@ impl Store {
         )
     }
 
-    /// Delete a palace with all stages and loci. Returns false if it did not exist.
+    /// Delete a palace with all rooms and loci. Returns false if it did not exist.
     pub fn delete_palace(&self, id: &str) -> Result<bool> {
         let conn = self.conn();
         let deleted = conn.execute("DELETE FROM palaces WHERE id = ?1", [id])? > 0;
@@ -457,27 +485,27 @@ impl Store {
         Ok(deleted)
     }
 
-    // ------------------------------------------------------------ stages
+    // ------------------------------------------------------------ rooms
 
-    pub fn add_stage(
+    pub fn add_room(
         &self,
         palace_id: &str,
         name: &str,
-        kind: StageKind,
+        kind: RoomKind,
         media: Option<&str>,
-    ) -> Result<Stage> {
-        if kind != StageKind::Blank && media.is_none() {
+    ) -> Result<Room> {
+        if kind != RoomKind::Blank && media.is_none() {
             return Err(StoreError::Invalid(
-                "Bild- und Video-Stages brauchen eine Mediendatei".into(),
+                "Räume mit Bild oder Video brauchen eine Mediendatei".into(),
             ));
         }
         let conn = self.conn();
         let position: u32 = conn.query_row(
-            "SELECT COALESCE(MAX(position) + 1, 0) FROM stages WHERE palace_id = ?1",
+            "SELECT COALESCE(MAX(position) + 1, 0) FROM rooms WHERE palace_id = ?1",
             [palace_id],
             |r| r.get(0),
         )?;
-        let stage = Stage {
+        let room = Room {
             id: new_id(),
             palace_id: palace_id.to_owned(),
             position,
@@ -486,8 +514,8 @@ impl Store {
             media: media.map(str::to_owned),
         };
         conn.execute(
-            "INSERT INTO stages(id, palace_id, position, name, kind, media) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![stage.id, stage.palace_id, position, stage.name, kind.as_str(), stage.media],
+            "INSERT INTO rooms(id, palace_id, position, name, kind, media) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![room.id, room.palace_id, position, room.name, kind.as_str(), room.media],
         )
         .map_err(|e| match e {
             rusqlite::Error::SqliteFailure(f, _)
@@ -500,45 +528,46 @@ impl Store {
         self.touch(&conn, palace_id)?;
         self.log(
             &conn,
-            "stage",
-            &stage.id,
+            "room",
+            &room.id,
             "create",
-            Some(serde_json::to_value(&stage).expect("serializable")),
+            Some(serde_json::to_value(&room).expect("serializable")),
         )?;
-        Ok(stage)
+        Ok(room)
     }
 
     // ------------------------------------------------------------ loci
 
-    pub fn add_locus(&self, stage_id: &str, locus: NewLocus) -> Result<Locus> {
+    pub fn add_locus(&self, room_id: &str, locus: NewLocus) -> Result<Locus> {
         check_position(locus.x, locus.y)?;
         let conn = self.conn();
         let palace_id: String = conn
             .query_row(
-                "SELECT palace_id FROM stages WHERE id = ?1",
-                [stage_id],
+                "SELECT palace_id FROM rooms WHERE id = ?1",
+                [room_id],
                 |r| r.get(0),
             )
             .optional()?
-            .ok_or_else(|| StoreError::NotFound(format!("Stage {stage_id}")))?;
+            .ok_or_else(|| StoreError::NotFound(format!("Raum {room_id}")))?;
         let position: u32 = conn.query_row(
-            "SELECT COALESCE(MAX(position) + 1, 0) FROM loci WHERE stage_id = ?1",
-            [stage_id],
+            "SELECT COALESCE(MAX(position) + 1, 0) FROM loci WHERE room_id = ?1",
+            [room_id],
             |r| r.get(0),
         )?;
         let locus = Locus {
             id: new_id(),
-            stage_id: stage_id.to_owned(),
+            room_id: room_id.to_owned(),
             position,
-            label: locus.label.trim().to_owned(),
-            memory: locus.memory.trim().to_owned(),
+            place: locus.place.trim().to_owned(),
+            item: locus.item.trim().to_owned(),
             x: locus.x,
             y: locus.y,
-            at: locus.at,
+            time: locus.time,
+            bindings: Vec::new(),
         };
         conn.execute(
-            "INSERT INTO loci(id, stage_id, position, label, memory, x, y, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![locus.id, stage_id, position, locus.label, locus.memory, locus.x, locus.y, locus.at],
+            "INSERT INTO loci(id, room_id, position, place, item, x, y, time) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(
@@ -555,42 +584,43 @@ impl Store {
         let conn = self.conn();
         let (palace_id, mut locus) = conn
             .query_row(
-                "SELECT s.palace_id, l.id, l.stage_id, l.position, l.label, l.memory, l.x, l.y, l.at
-                 FROM loci l JOIN stages s ON l.stage_id = s.id WHERE l.id = ?1",
+                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time
+                 FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
                 [id],
                 |r| {
                     Ok((
                         r.get::<_, String>(0)?,
                         Locus {
                             id: r.get(1)?,
-                            stage_id: r.get(2)?,
+                            room_id: r.get(2)?,
                             position: r.get(3)?,
-                            label: r.get(4)?,
-                            memory: r.get(5)?,
+                            place: r.get(4)?,
+                            item: r.get(5)?,
                             x: r.get(6)?,
                             y: r.get(7)?,
-                            at: r.get(8)?,
+                            time: r.get(8)?,
+                            bindings: Vec::new(),
                         },
                     ))
                 },
             )
             .optional()?
             .ok_or_else(|| StoreError::NotFound(format!("Locus {id}")))?;
-        if let Some(label) = &patch.label {
-            locus.label = label.trim().to_owned();
+        if let Some(place) = &patch.place {
+            locus.place = place.trim().to_owned();
         }
-        if let Some(memory) = &patch.memory {
-            locus.memory = memory.trim().to_owned();
+        if let Some(item) = &patch.item {
+            locus.item = item.trim().to_owned();
         }
         locus.x = patch.x.unwrap_or(locus.x);
         locus.y = patch.y.unwrap_or(locus.y);
-        if let Some(at) = patch.at {
-            locus.at = at;
+        if let Some(time) = patch.time {
+            locus.time = time;
         }
         check_position(locus.x, locus.y)?;
         conn.execute(
-            "UPDATE loci SET label = ?1, memory = ?2, x = ?3, y = ?4, at = ?5 WHERE id = ?6",
-            params![locus.label, locus.memory, locus.x, locus.y, locus.at, id],
+            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5 WHERE id = ?6",
+            params![locus.place, locus.item, locus.x, locus.y, locus.time, id],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(
@@ -608,7 +638,7 @@ impl Store {
         let conn = self.conn();
         let palace_id: Option<String> = conn
             .query_row(
-                "SELECT s.palace_id FROM loci l JOIN stages s ON l.stage_id = s.id WHERE l.id = ?1",
+                "SELECT s.palace_id FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
                 [id],
                 |r| r.get(0),
             )
@@ -619,6 +649,135 @@ impl Store {
             self.log(&conn, "locus", id, "delete", None)?;
         }
         Ok(palace_id)
+    }
+
+    // ------------------------------------------------------------ tables
+
+    /// Insert or replace a table row of a palace (`Some(id)`) or a shared row (`None`).
+    pub fn set_row(&self, palace_id: Option<&str>, row: &Row) -> Result<()> {
+        row.validate().map_err(|e| StoreError::Invalid(e.0))?;
+        let conn = self.conn();
+        if let Some(id) = palace_id {
+            let exists: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM palaces WHERE id = ?1)",
+                [id],
+                |r| r.get(0),
+            )?;
+            if !exists {
+                return Err(StoreError::NotFound(format!("Palast {id}")));
+            }
+        }
+        let count: u32 = conn.query_row(
+            "SELECT COUNT(*) FROM table_rows WHERE COALESCE(palace_id, '') = COALESCE(?1, '')",
+            [palace_id],
+            |r| r.get(0),
+        )?;
+        let cells = serde_json::to_string(&row.cells).expect("serializable");
+        let changed = conn.execute(
+            "UPDATE table_rows SET cells = ?1 WHERE COALESCE(palace_id, '') = COALESCE(?2, '') AND table_name = ?3 AND key = ?4",
+            params![cells, palace_id, row.table, row.key],
+        )?;
+        if changed == 0 {
+            if count >= 1000 {
+                return Err(StoreError::Invalid("Höchstens 1000 Tabellenzeilen".into()));
+            }
+            conn.execute(
+                "INSERT INTO table_rows(id, palace_id, table_name, key, cells) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![new_id(), palace_id, row.table, row.key, cells],
+            )?;
+        }
+        if let Some(id) = palace_id {
+            self.touch(&conn, id)?;
+        }
+        let entity = format!(
+            "{}/{}.{}",
+            palace_id.unwrap_or("shared"),
+            row.table,
+            row.key
+        );
+        self.log(
+            &conn,
+            "row",
+            &entity,
+            "set",
+            Some(serde_json::to_value(row).expect("serializable")),
+        )
+    }
+
+    /// Delete a table row. Returns false if it did not exist.
+    pub fn delete_row(&self, palace_id: Option<&str>, table: &str, key: &str) -> Result<bool> {
+        let conn = self.conn();
+        let deleted = conn.execute(
+            "DELETE FROM table_rows WHERE COALESCE(palace_id, '') = COALESCE(?1, '') AND table_name = ?2 AND key = ?3",
+            params![palace_id, table, key],
+        )? > 0;
+        if deleted {
+            let entity = format!("{}/{table}.{key}", palace_id.unwrap_or("shared"));
+            self.log(&conn, "row", &entity, "delete", None)?;
+        }
+        Ok(deleted)
+    }
+
+    /// Rows of exactly one scope (a palace, or shared with `None`), in creation order.
+    pub fn rows(&self, palace_id: Option<&str>) -> Result<Vec<Row>> {
+        rows_in(&self.conn(), palace_id)
+    }
+
+    /// Shared rows replaced by the palace's own rows: what formulas of the palace see.
+    pub fn effective_rows(&self, palace_id: &str) -> Result<Vec<Row>> {
+        Ok(effective_rows(
+            &self.rows(None)?,
+            &self.rows(Some(palace_id))?,
+        ))
+    }
+
+    // ------------------------------------------------------------ bindings
+
+    /// Compute a locus field with a formula (replaces an existing binding).
+    pub fn set_binding(&self, locus_id: &str, binding: &Binding) -> Result<()> {
+        binding
+            .validate()
+            .map_err(|e| StoreError::Invalid(format!("Formel: {}", e.0)))?;
+        let conn = self.conn();
+        let palace_id: String = conn
+            .query_row(
+                "SELECT s.palace_id FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
+                [locus_id],
+                |r| r.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::NotFound(format!("Locus {locus_id}")))?;
+        conn.execute(
+            "INSERT INTO bindings(locus_id, field, expression) VALUES (?1, ?2, ?3)
+             ON CONFLICT(locus_id, field) DO UPDATE SET expression = excluded.expression",
+            params![locus_id, binding.field.name(), binding.expression],
+        )?;
+        self.touch(&conn, &palace_id)?;
+        self.log(
+            &conn,
+            "binding",
+            &format!("{locus_id}/{}", binding.field.name()),
+            "set",
+            Some(serde_json::json!({ "expression": binding.expression })),
+        )
+    }
+
+    pub fn remove_binding(&self, locus_id: &str, field: BindingField) -> Result<bool> {
+        let conn = self.conn();
+        let removed = conn.execute(
+            "DELETE FROM bindings WHERE locus_id = ?1 AND field = ?2",
+            params![locus_id, field.name()],
+        )? > 0;
+        if removed {
+            self.log(
+                &conn,
+                "binding",
+                &format!("{locus_id}/{}", field.name()),
+                "delete",
+                None,
+            )?;
+        }
+        Ok(removed)
     }
 
     // ------------------------------------------------------------ media
@@ -719,6 +878,27 @@ impl Store {
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
+}
+
+fn rows_in(conn: &Connection, palace_id: Option<&str>) -> Result<Vec<Row>> {
+    let mut stmt = conn.prepare(
+        "SELECT table_name, key, cells FROM table_rows WHERE COALESCE(palace_id, '') = COALESCE(?1, '') ORDER BY rowid",
+    )?;
+    let rows = stmt.query_map([palace_id], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, String>(2)?,
+        ))
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (table, key, cells) = row?;
+        let cells = serde_json::from_str(&cells)
+            .map_err(|e| StoreError::Invalid(format!("Tabellenzeile {table}.{key}: {e}")))?;
+        out.push(Row { table, key, cells });
+    }
+    Ok(out)
 }
 
 fn media_path(dir: &Path, hash: &str) -> PathBuf {

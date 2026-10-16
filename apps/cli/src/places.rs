@@ -1,4 +1,4 @@
-//! Automatic placement: spread loci along a readable route over the stage.
+//! Automatic placement: spread loci along a readable route through the room.
 
 /// Positions (0..1) for `n` loci on a serpentine route: left to right, then
 /// right to left one row lower, and so on, with a margin around the edge.

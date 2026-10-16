@@ -95,16 +95,12 @@ pub fn import(app: &mut App, path: &Path, dry_run: bool) -> Result<()> {
     let package = Package::open(BufReader::new(file))?;
     println!("{}: {} Loci", path.display(), package.loci());
     for p in &package.palaces {
-        let loci: usize = p.stages.iter().map(|s| s.loci.len()).sum();
+        let loci: usize = p.rooms.iter().map(|r| r.loci.len()).sum();
         println!("  • {} ({loci} Loci)", p.name);
     }
-    for r in package.manifest.requires.iter().filter(|r| r.required) {
-        if !app.host.plugins().any(|m| m.id == r.plugin) {
-            bail!(
-                "Diese Datei braucht das Plugin `{}` {}",
-                r.plugin,
-                r.version
-            );
+    for r in package.manifest.plugins.iter().filter(|r| r.required) {
+        if !app.host.plugins().any(|m| m.id == r.id) {
+            bail!("Diese Datei braucht das Plugin `{}` {}", r.id, r.version);
         }
     }
     if dry_run {

@@ -40,22 +40,22 @@ enum Command {
         /// Video als Hintergrund (mp4, webm, mov); Loci brauchen dann Zeiten: 1:23=These
         #[arg(long)]
         video: Option<PathBuf>,
-        /// Loci aus Datei: je Zeile `Erinnerung`, `Ort | Erinnerung` oder `Ort | Erinnerung | x,y`
+        /// Loci aus Datei: je Zeile `Inhalt`, `Ort | Inhalt` oder `Ort | Inhalt | x,y`
         #[arg(long, value_name = "DATEI")]
         from: Option<PathBuf>,
-        /// Erinnerungen, je eine pro Locus, in Routen-Reihenfolge
+        /// Inhalte, je einer pro Locus, in Routen-Reihenfolge
         #[arg(trailing_var_arg = true)]
         items: Vec<String>,
     },
     /// Locus an einen Palast anhängen
     Add {
         palace: String,
-        /// Was man sich an diesem Ort merkt
-        memory: String,
+        /// Was man an diesem Ort ablegt
+        item: String,
         /// Name des Orts (Standard: „Ort N“)
         #[arg(long)]
-        label: Option<String>,
-        /// Position auf der Stage, x,y zwischen 0 und 1
+        place: Option<String>,
+        /// Position im Raum, x,y zwischen 0 und 1
         #[arg(long)]
         at: Option<String>,
         /// Zeit im Video (mm:ss oder Sekunden)
@@ -66,10 +66,12 @@ enum Command {
     Edit {
         palace: String,
         locus: usize,
+        /// Neuer Inhalt
         #[arg(long)]
-        memory: Option<String>,
+        item: Option<String>,
+        /// Neuer Ortsname
         #[arg(long)]
-        label: Option<String>,
+        place: Option<String>,
         #[arg(long)]
         at: Option<String>,
     },
@@ -150,16 +152,16 @@ fn main() -> Result<()> {
         ),
         Command::Add {
             palace,
-            memory,
-            label,
+            item,
+            place,
             at,
             time,
         } => palace::add(
             &mut app::App::open(data)?,
             palace::AddArgs {
                 palace,
-                memory,
-                label,
+                item,
+                place,
                 at,
                 time,
             },
@@ -167,8 +169,8 @@ fn main() -> Result<()> {
         Command::Edit {
             palace,
             locus,
-            memory,
-            label,
+            item,
+            place,
             at,
         } => {
             let point = match at {
@@ -186,11 +188,11 @@ fn main() -> Result<()> {
                 &palace,
                 locus,
                 LocusPatch {
-                    label,
-                    memory,
+                    place,
+                    item,
                     x: point.0,
                     y: point.1,
-                    at: None,
+                    time: None,
                 },
             )
         }

@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+locora-formula = { path = "../locora-formula" }
 locora-store = { path = "../locora-store" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
