@@ -302,8 +302,11 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
                     .map(|t| {
                         view! {
                             <article class="card tile" title=t.plugin>
-                                <span class="meta">{t.title}</span>
-                                <span class="count">{t.text}</span>
+                                {t.icon.map(|m| view! { <div class="icon"><Sply media=m /></div> })}
+                                <div class="text">
+                                    <span class="meta">{t.title}</span>
+                                    <span class="count">{t.text}</span>
+                                </div>
                             </article>
                         }
                     })

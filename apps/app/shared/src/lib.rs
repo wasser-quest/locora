@@ -24,7 +24,17 @@ pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
 pub const CMD_JOURNEY_INPUTS: &str = "journey_inputs";
+pub const CMD_UI_ASSETS: &str = "ui_assets";
 pub const CMD_IMPORT_PICK: &str = "import_pick";
+
+/// The app's own animations (assets/ui).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UiAssets {
+    /// Journey feedback: right, again, journey done.
+    pub right: Media,
+    pub again: Media,
+    pub done: Media,
+}
 pub const CMD_EXPORT_PICK: &str = "export_pick";
 
 /// After importing a `.locora` file.
@@ -112,6 +122,8 @@ pub struct TileView {
     pub plugin: String,
     pub title: String,
     pub text: String,
+    #[serde(default)]
+    pub icon: Option<Media>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
