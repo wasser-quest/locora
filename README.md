@@ -46,6 +46,7 @@ crates/locora-host         loads plugins at runtime (wasmtime), sandbox, events,
 crates/locora-store        offline-first SQLite storage: palaces, stages, loci, media, plugin data, op log
 crates/locora-fsrs         FSRS-5 spaced-repetition scheduling
 crates/locora-format       the .locora file format (export, strict import)
+crates/locora-formula      safe, bounded formula language for workbook tables (Major system, functions)
 apps/cli                   the `locora` command (palaces, practice, review, plugin development)
 plugins/review             official spaced-repetition plugin (built into the CLI)
 plugins/                   other plugins compiled to wasm32-wasip2 (example: lernzeit)
