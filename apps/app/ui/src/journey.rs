@@ -153,9 +153,14 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             match call::<ActionDone>(CMD_JOURNEY_ACTION, args).await {
                 // After grading only the shown answer changes; grades stay.
                 Ok(done) if after => {
-                    if let (Some(r), Phase::Judged(mut f)) = (done.revealed, phase.get_untracked())
-                    {
-                        f.revealed = r;
+                    if let Phase::Judged(mut f) = phase.get_untracked() {
+                        if let Some(r) = done.revealed {
+                            f.revealed = r;
+                        }
+                        // The next question as the action left it.
+                        if let (Some(q), Step::Question(_)) = (done.next, &f.next) {
+                            f.next = Step::Question(q);
+                        }
                         phase.set(Phase::Judged(f));
                     }
                     busy.set(false);
@@ -180,6 +185,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         });
     };
     let next = move || {
+        // Not while an action on the answered question is still running.
+        if busy.get_untracked() {
+            return;
+        }
         let Phase::Judged(feedback) = phase.get_untracked() else {
             return;
         };
@@ -307,7 +316,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                                 .into_any()
                         }
                         Phase::Judged(f) => {
-                            view! { <Judged feedback=*f question=q.clone() next=next /> }.into_any()
+                            view! { <Judged feedback=*f question=q.clone() next=next busy=busy /> }.into_any()
                         }
                     }}
                 </section>
@@ -449,7 +458,12 @@ fn Grades(reply: impl Fn(Reply) + Copy + 'static, busy: RwSignal<bool>) -> impl 
 }
 
 #[component]
-fn Judged(feedback: Feedback, question: Question, next: impl Fn() + 'static) -> impl IntoView {
+fn Judged(
+    feedback: Feedback,
+    question: Question,
+    next: impl Fn() + 'static,
+    busy: RwSignal<bool>,
+) -> impl IntoView {
     let r = feedback.revealed;
     let automatic = question.kind != AnswerKind::Recall;
     let right: Vec<String> = r
@@ -471,7 +485,7 @@ fn Judged(feedback: Feedback, question: Question, next: impl Fn() + 'static) -> 
             .then(|| {
                 view! { <div class="progress">{format!("Richtig: {}", right.join(", "))}</div> }
             })}
-        <button class="primary" on:click=move |_| next()>
+        <button class="primary" disabled=move || busy.get() on:click=move |_| next()>
             "Weiter (Leertaste)"
         </button>
     }

@@ -322,6 +322,10 @@ pub struct ActionDone {
     pub question: Question,
     /// The answer side, when it is (or becomes) visible.
     pub revealed: Option<Revealed>,
+    /// After grading: the next question, recomputed (actions change the run
+    /// values later stops use). `None` at the end of the journey.
+    #[serde(default)]
+    pub next: Option<Question>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

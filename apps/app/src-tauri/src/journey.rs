@@ -259,6 +259,7 @@ impl Journey {
             reveal,
             question: self.question(profile, default_marker),
             revealed: (reveal || revealed).then(|| self.reveal(profile)),
+            next: None,
         })
     }
 
@@ -280,7 +281,11 @@ impl Journey {
         let result = self.action(profile, key, true, default_marker);
         self.at = at;
         self.shown = shown;
-        result
+        // Actions write run values that later stops read: the next question
+        // is shown – and graded – with them.
+        let mut done = result?;
+        done.next = (!self.done()).then(|| self.question(profile, default_marker));
+        Ok(done)
     }
 
     /// The answer side of the current question.
@@ -613,5 +618,81 @@ mod tests {
 
         start.inputs[0].palace_id = "anderer".into();
         assert!(Journey::start(&mut profile, start).is_err());
+    }
+
+    #[test]
+    fn actions_after_grading_update_the_next_question() {
+        use locora_formula::workbook::{Binding, BindingField};
+        use locora_formula::{Cell, CellType, Row};
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let p = profile.store.create_palace("P").unwrap();
+        let r = profile
+            .store
+            .add_room(&p.id, "R", RoomKind::Blank, None)
+            .unwrap();
+        for item in ["a", "b"] {
+            let locus = profile
+                .store
+                .add_locus(
+                    &r.id,
+                    NewLocus {
+                        place: "?".into(),
+                        item: item.into(),
+                        x: 0.5,
+                        y: 0.5,
+                        time: None,
+                        answer: Answer::default(),
+                        image: None,
+                        note: String::new(),
+                        image_size: 0.25,
+                    },
+                )
+                .unwrap();
+            let binding = Binding {
+                field: BindingField::Place,
+                expression: "RAM.x".into(),
+            };
+            profile.store.set_binding(&locus.id, &binding).unwrap();
+        }
+        let cell = |column: &str, value: &str| Cell {
+            column: column.into(),
+            kind: CellType::Text,
+            value: value.into(),
+        };
+        let rows = [
+            Row::typed("RAM", "x", CellType::Number, "1"),
+            Row {
+                table: "Actions".into(),
+                key: "plus".into(),
+                cells: vec![
+                    cell("kind", "set"),
+                    cell("target", "RAM.x"),
+                    cell("expression", "RAM.x + 1"),
+                ],
+            },
+        ];
+        for row in &rows {
+            profile.store.set_row(Some(&p.id), row).unwrap();
+        }
+        let start = JourneyStart {
+            palace_id: Some(p.id.clone()),
+            ..Default::default()
+        };
+        let mut journey = Journey::start(&mut profile, start).unwrap().unwrap();
+        let feedback = journey
+            .answer(&mut profile, Reply::Recall(3), "marker")
+            .unwrap();
+        let Step::Question(before) = feedback.next else {
+            panic!("a second question")
+        };
+        assert_eq!(before.prompt, "1");
+        let done = journey.action_after(&profile, "plus", "marker").unwrap();
+        assert_eq!(
+            done.next.unwrap().prompt,
+            "2",
+            "the next stop sees the new value"
+        );
+        assert_eq!(journey.question(&profile, "marker").prompt, "2");
     }
 }
