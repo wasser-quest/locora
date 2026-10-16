@@ -343,7 +343,13 @@ impl Profile {
         if offsets.last().map(|(_, m)| *m) == Some(minutes) {
             return Ok(());
         }
-        offsets.push((now(), minutes));
+        // A change at the same moment (or a clock set back) replaces, so a
+        // short-lived value never decides how earlier answers are counted.
+        let at = now();
+        offsets.retain(|(since, _)| *since < at);
+        if offsets.last().map(|(_, m)| *m) != Some(minutes) {
+            offsets.push((at, minutes));
+        }
         if offsets.len() > MAX_OFFSET_CHANGES {
             offsets.drain(..offsets.len() - MAX_OFFSET_CHANGES);
         }
