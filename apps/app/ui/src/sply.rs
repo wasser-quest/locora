@@ -82,6 +82,55 @@ pub fn Sply(
         let _ = js_sys::Reflect::set(&message, &"pointer".into(), &point);
         let _ = window.post_message(&message, "*");
     });
+    let clicks = window_event_listener(leptos::ev::click, move |event| {
+        use wasm_bindgen::JsCast;
+        if !ready.get_untracked() || event.button() != 0 {
+            return;
+        }
+        let Some(target) = event
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+        else {
+            return;
+        };
+        // Never duplicate an app command or interfere with editor gestures.
+        if target.closest("button, a, input, select, textarea, [role=button], [contenteditable], .stage.editing").ok().flatten().is_some() {
+            return;
+        }
+        let Some(frame) = frame.get_untracked() else {
+            return;
+        };
+        let Some(window) = frame.content_window() else {
+            return;
+        };
+        let rect = frame.get_bounding_client_rect();
+        let x = f64::from(event.client_x()) - rect.left();
+        let y = f64::from(event.client_y()) - rect.top();
+        if rect.width() <= 0.0
+            || rect.height() <= 0.0
+            || x < 0.0
+            || y < 0.0
+            || x >= rect.width()
+            || y >= rect.height()
+        {
+            return;
+        }
+        let point = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(
+            &point,
+            &"x".into(),
+            &(x * f64::from(frame.client_width()) / rect.width()).into(),
+        );
+        let _ = js_sys::Reflect::set(
+            &point,
+            &"y".into(),
+            &(y * f64::from(frame.client_height()) / rect.height()).into(),
+        );
+        let message = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+        let _ = js_sys::Reflect::set(&message, &"click".into(), &point);
+        let _ = window.post_message(&message, "*");
+    });
     let blur = window_event_listener(leptos::ev::blur, move |_| {
         if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
             let message = js_sys::Object::new();
@@ -93,6 +142,7 @@ pub fn Sply(
     on_cleanup(move || {
         messages.remove();
         pointer.remove();
+        clicks.remove();
         blur.remove();
     });
     let push = move || {

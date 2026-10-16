@@ -33,6 +33,15 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
       }));
       return;
     }
+    if (d.click && Number.isFinite(d.click.x) && Number.isFinite(d.click.y)) {
+      var target = document.elementFromPoint(d.click.x, d.click.y);
+      if (target && svg.contains(target)) {
+        target.dispatchEvent(new MouseEvent('click', {
+          clientX: d.click.x, clientY: d.click.y, bubbles: true, button: 0
+        }));
+      }
+      return;
+    }
     if (d.pointerLeave) {
       svg.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
       return;

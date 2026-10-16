@@ -44,6 +44,21 @@ It paused the timeline, sent left/right pointer messages and ticked the runtime.
 and actual follower response in isolated WebKit, not every app placement or every
 asset. Full native-app pointer mapping still needs visual checks.
 
+## Figure click regression
+
+The app also forwards primary clicks inside animation bounds to the frame. It
+leaves app buttons, links, form controls, editable content and editing stages
+alone; it does not prevent or stop the original app event. Inside the frame,
+`elementFromPoint` selects the actual SVG element and a bubbling click reaches
+Splinely's authored interaction handlers.
+
+REA-controlled WebKit probe:
+`ev_a454268a1fe136ac46b277812e7dd09e99ec0107eca5f434aa791578aceb713b`.
+A bridged click at the center of Simo's `face` changed the authored `hop` clip
+from `active: false, playing: false` to `active: true, playing: true`; exit code 0.
+This verifies the frame bridge and runtime interaction, not full-app click routing
+or all figures. Assets without authored click handlers do not gain an action.
+
 ## Limits
 
 The reported static Simo/tutorial behavior was not reproduced in this build. This does not establish that every installed build or every tutorial locus animates correctly. An outdated frontend is a possible explanation, not a confirmed cause. The generated SVG is a document containing the original embedded `.sply` project and Splinely JavaScript runtime, not a raster conversion or evidence of static rendering by itself.
