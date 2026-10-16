@@ -50,6 +50,10 @@ mitbringen, und das ist ein Projekt für sich.
 **Grafiken: Splinely.** Alle Grafiken (Maskottchen, Icons, Illustrationen, Animationen) werden mit `splinely-cli`
 als `.sply`-Dateien erstellt und in der App über die Splinely-Runtime abgespielt. Sie liegen unter `assets/`.
 
+**Maskottchen: Mnemo**, ein Glühwürmchen, benannt nach der *Mnemo*technik (und Mnemosyne, der Göttin der Erinnerung).
+Es leuchtet eine nummerierte Route aus Loci an, also die Loci-Methode in einem Bild. Mnemo begleitet Tutorial, leere Zustände,
+Erfolge (Gamification) und Benachrichtigungen. App-Icon: Palast-Torbogen mit leuchtenden Loci und Mnemos Licht.
+
 ---
 
 ## 3. Repository-Struktur

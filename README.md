@@ -1,5 +1,7 @@
 # locora
 
+<p align="center"><img src="assets/mascot/mnemo.gif" width="260" alt="Mnemo, the Locora firefly, lighting up loci 1, 2 and 3"></p>
+
 **Offline-first memory palaces, written in pure Rust.** Build palaces from images or videos, place loci in a few clicks, and practice recall on desktop, Android, iOS and the command line.
 
 > **Status:** early development. The runtime plugin host works; the app itself is not built yet. See [`PLAN.md`](PLAN.md) for the architecture and roadmap (German).
@@ -36,6 +38,10 @@ plugins/                   plugins compiled to wasm32-wasip2 (example: lernzeit)
 - **Fast CLI:** `locora new "Planets" --image flat.jpg -- Mercury Venus Earth`
 - **Minimal clicks:** one click to start a journey; drop an image or video to create a palace.
 - **Portable `.locora` files** with embedded media.
+
+## Mnemo
+
+Mnemo is Locora's mascot: a firefly named after **mnemonics**. Like the method of loci, Mnemo lights up one place after another along a route through your memory palace. All graphics are made with [Splinely](assets/README.md).
 
 ## Open core
 
