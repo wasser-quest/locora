@@ -11,7 +11,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use locora_app_api::{
-    Feedback, Home, JourneyStart, PalaceView, Question, Reply, Revealed, Step, Summary,
+    ActionDone, Feedback, Home, InputField, JourneyStart, PalaceView, Question, Reply, Revealed,
+    Step, Summary,
 };
 use locora_runtime::Profile;
 use locora_store::SPLINELY;
@@ -167,6 +168,31 @@ async fn journey_start(state: State<'_, Shared>, start: JourneyStart) -> Result<
     }
 }
 
+/// Workbook inputs to ask before `journey_start`.
+#[tauri::command]
+async fn journey_inputs(
+    state: State<'_, Shared>,
+    start: JourneyStart,
+) -> Result<Vec<InputField>, String> {
+    let b = lock(&state)?;
+    journey::inputs(&b.profile, &start).map_err(err)
+}
+
+/// Run a workbook action (`!name`) on the current question.
+#[tauri::command]
+async fn journey_action(
+    state: State<'_, Shared>,
+    key: String,
+    revealed: bool,
+) -> Result<ActionDone, String> {
+    let mut b = lock(&state)?;
+    let b = &mut *b;
+    let journey = b.journey.as_mut().ok_or("Keine Journey aktiv")?;
+    journey
+        .action(&b.profile, &key, revealed, &b.default_marker)
+        .map_err(err)
+}
+
 #[tauri::command]
 async fn journey_reveal(state: State<'_, Shared>) -> Result<Revealed, String> {
     let b = lock(&state)?;
@@ -312,7 +338,9 @@ pub fn run() {
             editor_pick_picture,
             home_pick_media,
             tutorial,
+            journey_inputs,
             journey_start,
+            journey_action,
             journey_reveal,
             journey_answer,
             journey_stop
