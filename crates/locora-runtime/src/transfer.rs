@@ -310,12 +310,13 @@ impl Profile {
         // A temporary file of our own next to the target: two exports (CLI and
         // app) to the same name never truncate each other's work.
         let tmp = temporary_sibling(output);
+        // Created before the cleanup scope: a file that is not ours is never removed.
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+            .with_context(|| format!("{} anlegen", tmp.display()))?;
         let result = (|| {
-            let file = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&tmp)
-                .with_context(|| format!("{} anlegen", tmp.display()))?;
             let summary =
                 locora_format::export_with(&self.store, queries, progress.as_slice(), file)?;
             std::fs::rename(&tmp, output)?;
