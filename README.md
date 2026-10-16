@@ -9,6 +9,7 @@
 - **Pure Rust:** core, plugins, CLI and UI (Tauri 2 + Leptos). No JavaScript framework.
 - **Offline first:** a local SQLite database is the source of truth. No account required.
 - **Plugins everywhere:** `core`, `review`, `notify`, `tutorial` and `gamification` are written in Rust, compiled to WebAssembly components and loaded at runtime (hot reload, sandboxed). They talk to each other through events, services and hooks.
+- **Build your own plugins:** `locora plugin new` + `locora plugin dev` gives you a running, hot-reloading plugin in minutes.
 - **Spaced repetition:** the `review` plugin schedules due loci with FSRS and keeps the route order of your palace.
 - **Notifications:** the `notify` plugin bundles reminders from all plugins, with quiet hours and one-tap actions.
 - **Video palaces:** the video pauses at each locus and continues once you have recalled it.

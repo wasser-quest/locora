@@ -202,10 +202,87 @@ Ein zur Laufzeit geladenes Plugin kann keine Leptos-Komponenten in die fertig ko
 - **Eigene UI (Ausnahme):** Ein Plugin kann zusätzlich ein eigenes Leptos-WASM-Bundle mitliefern. Das läuft in einem sandboxed iframe
   mit Nachrichten-Brücke zum Plugin.
 
-**Mobile App Stores:** Apple und Google erlauben nachgeladenen Code nur eingeschränkt. Darum werden die offiziellen Plugins
-(`core`, `review`, `notify`, `tutorial`, `gamification`) **mit der App ausgeliefert** und trotzdem über denselben Lade-Mechanismus geladen.
-Plugins von Dritten zur Laufzeit gibt es zunächst auf Desktop und Android (Sideload). Für iOS wird das vor dem Release gegen die
-Store-Richtlinien geprüft.
+**Fremde Plugins auf dem Handy: Warnung, dann auf eigene Verantwortung**
+
+Die offiziellen Plugins (`core`, `review`, `notify`, `tutorial`, `gamification`) sind signiert und kommen mit der App.
+Für alle anderen Plugins gilt auf **Android und iOS**:
+
+```text
+┌──────────────────────────────────────────────────┐
+│ ⚠  Plugin aus unbekannter Quelle                 │
+│                                                  │
+│ „Vokabel-Import“ von maxmuster ist nicht von     │
+│ Locora geprüft. Das Installieren von Plugins ist │
+│ gefährlich und geschieht auf eigene Verantwortung.│
+│                                                  │
+│ Es möchte:  ✓ Paläste lesen  ✓ Paläste ändern     │
+│                                                  │
+│ [ Abbrechen ]        [ Trotzdem installieren ]   │
+└──────────────────────────────────────────────────┘
+```
+
+- Der Dialog erscheint bei jeder Installation und bei jedem Update, das neue Rechte verlangt. Abbrechen ist die Standard-Taste.
+- Auf Desktop erscheint derselbe Dialog, nur ohne den Hinweis auf App-Store-Regeln.
+- Ein Plugin, das abstürzt oder zu lange rechnet, wird automatisch deaktiviert.
+- **Risiko App Store:** Die Warnung schützt den Nutzer, aber nicht vor einer Ablehnung durch Apple oder Google
+  (Apple 2.5.2 und Google Play „Device and Network Abuse“). Vor dem ersten Store-Release prüfen.
+  Notfalls lässt sich das Installieren fremder Plugins in der Store-Version per Build-Flag abschalten, während es in Sideload-/F-Droid-Builds bleibt.
+
+### 4.4.1 Eigene Plugins bauen: so einfach wie möglich
+
+Jeder Nutzer soll ein Plugin in **wenigen Minuten** bauen können, ohne WIT, wasmtime oder Build-Details zu kennen.
+
+**In drei Befehlen vom Nichts zum laufenden Plugin**
+
+```bash
+locora plugin new mein-plugin            # fragt nach Vorlage, legt fertiges Projekt an
+cd mein-plugin
+locora plugin dev                        # baut, installiert und lädt live in die offene App neu
+```
+
+- `locora plugin dev` installiert fehlende Teile selbst (z. B. `rustup target add wasm32-wasip2`), mit Rückfrage.
+- Jede Änderung wird in unter einer Sekunde neu gebaut und live geladen. Zustand bleibt erhalten.
+- `locora plugin dev --device` schickt das Plugin über WLAN an Handy oder Tablet (Pairing per QR-Code). So testet man mobil ohne App-Store.
+- `locora plugin pack` erzeugt die `.locora-plugin`-Datei zum Weitergeben. `locora plugin check` prüft Manifest, Rechte und API-Version.
+
+**Vorlagen** (`locora plugin new --template …`)
+
+| Vorlage | Ergebnis |
+|---|---|
+| `kachel` | eigene Kachel auf dem Startbildschirm |
+| `befehl` | Befehl in der Befehlspalette und in der CLI |
+| `locus-typ` | neue Abfrageart (z. B. „Bild zeichnen“, „Reihenfolge sortieren“) |
+| `importer` | Paläste aus anderen Quellen (CSV, Anki, Text) erzeugen |
+| `ereignis` | auf Events reagieren (z. B. nach jeder Journey etwas tun) |
+
+**Ein komplettes Plugin passt in eine Datei:**
+
+```rust
+use locora_sdk::prelude::*;
+
+#[locora_plugin(name = "Lernzeit", permissions = [palaces_read])]
+struct Lernzeit;
+
+impl Plugin for Lernzeit {
+    fn activate(ctx: &mut Ctx) -> Result<()> {
+        ctx.on::<JourneyCompleted>(|ctx, ev| {
+            let minuten = ctx.store().add("minuten", ev.duration.as_secs() / 60)?;
+            ctx.tile("Lernzeit", format!("{minuten} min"));
+            Ok(())
+        })
+    }
+}
+```
+
+**Hilfen für Plugin-Autoren**
+
+- Das SDK nutzt normale Rust-Typen mit Autovervollständigung und Doku in der IDE. Fehler kommen als verständliche Meldungen:
+  „Plugin braucht die Berechtigung `palaces_write`, füge sie in `#[locora_plugin]` hinzu“.
+- **Entwicklerpanel in der App** (nur im Entwicklermodus): Live-Log, empfangene Events, Service-Aufrufe, Speicher-Inhalt, Neu-laden-Knopf.
+- **Testen ohne App:** `locora_sdk::testing` simuliert Host, Events und Speicher. `cargo test` reicht.
+- **Dokumentation:** Schritt-für-Schritt-Tutorial, Rezepte für alle Vorlagen, API-Referenz (`docs.rs`) und eine `llms.txt`,
+  damit auch KI-Assistenten korrekte Plugins schreiben.
+- **API-Stabilität:** WIT-Interface mit Versionsnummer. Plugins für API 1.x laufen in allen 1.x-Versionen der App.
 
 ### 4.5 Plugin `review`: Spaced Repetition
 
@@ -453,13 +530,13 @@ Die Limits werden an Video angepasst (z. B. 2 GiB gesamt, ZIP64, Video-Einträge
 | Phase | Inhalt | Ergebnis |
 |---|---|---|
 | **0** | Repo, Cargo-Workspace, CI (Linux/macOS/Windows), Lizenzen, Entscheidungen aus Abschnitt 12 | leeres, baubares Gerüst |
-| **1** | Plugin-Host mit wasmtime + WIT-SDK + Hot-Reload zuerst, dann `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format`, `core` und `review` als WASM-Plugins ohne UI, **CLI** | Paläste per CLI anlegen, fällige Loci wiederholen, importieren und exportieren |
+| **1** | Plugin-Host mit wasmtime + WIT-SDK + Hot-Reload + `locora plugin new/dev` zuerst, dann `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format`, `core` und `review` als WASM-Plugins ohne UI, **CLI** | Paläste per CLI anlegen, fällige Loci wiederholen, importieren und exportieren |
 | **2** | Tauri-App: Startbildschirm, Befehlspalette, Core-Editor, Journey (Bild). **Android- und iOS-Builds ab Tag 1 in CI** | nutzbare App auf allen Plattformen |
 | **3** | Video-Stages: Editor + Journey + CLI; Plugin `notify` | Video-Paläste, Erinnerungen |
 | **4** | Plugin `tutorial` (Touren über `ui.highlight`, Beispielpalast, Formel-Guide) | Onboarding |
 | **5** | Plugin `gamification` (lokal, kostenlos), danach Locora Cloud: Server, Bezahlung, Entitlements | erstes Einkommen |
 | **6** | Sync (Op-Log ↔ Server) als optionaler Dienst | mehrere Geräte |
-| **7** | Plugin-Verzeichnis für Dritte, Signaturen, Store-Prüfung iOS | offenes Ökosystem |
+| **7** | Plugin-Verzeichnis für Dritte, Signaturen, Store-Prüfung, Plugin-Tutorial und Vorlagen-Feinschliff | offenes Ökosystem |
 
 Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI geprüft.
 
@@ -479,3 +556,5 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 | Spaced Repetition | eigenes Plugin `review` (FSRS), kostenlos und MIT |
 | Benachrichtigungen | eigenes Plugin `notify`, kostenlos und MIT |
 | Plugin-Technik | **zur Laufzeit geladene Rust → WASM-Komponenten** (wasmtime), Hot-Reload ohne Neustart |
+| Fremde Plugins | erlaubt auf allen Plattformen; auf Android/iOS mit Warnung „gefährlich, auf eigene Verantwortung“ |
+| Eigene Plugins | Nutzer können selbst Plugins bauen: Vorlagen, `locora plugin dev`, Hot-Reload, Test-Harness |
