@@ -4,7 +4,24 @@
 
 **Offline-first memory palaces, written in pure Rust.** Build palaces from images or videos, place loci in a few clicks, and practice recall on desktop, Android, iOS and the command line.
 
-> **Status:** early development. The runtime plugin host works; the app itself is not built yet. See [`PLAN.md`](PLAN.md) for the architecture and roadmap (German).
+> **Status:** early development. The command line works end to end (palaces, practice, spaced repetition through the `review` plugin, local SQLite storage); the desktop/mobile app is next. See [`PLAN.md`](PLAN.md) for the architecture and roadmap (German).
+
+## Try it
+
+```bash
+cargo build --release          # also compiles the built-in plugins to WebAssembly
+alias locora=./target/release/locora
+
+locora new "Planeten" -- Merkur Venus Erde Mars Jupiter Saturn Uranus Neptun
+locora practice Planeten       # walk the route: Enter reveals, 1–4 grades
+locora due                     # what is due today (FSRS via the review plugin)
+locora review                  # only what is due
+locora show Planeten
+locora new Vortrag --video talk.mp4 -- 0:12=Einleitung 1:23=These
+locora new Vokabeln --image kueche.jpg --from vokabeln.txt   # lines: `Ort | Erinnerung | x,y`
+```
+
+Data lives in your platform data directory (`--data DIR` or `$LOCORA_DATA` to change it).
 
 ## Try the plugin system
 
@@ -21,9 +38,12 @@ cd mein-plugin
 crates/locora-api          shared event types (host ⇄ plugins)
 crates/locora-sdk          write plugins in plain Rust (#[locora_plugin])
 crates/locora-sdk-macros   the #[locora_plugin] attribute
-crates/locora-host         loads plugins at runtime (wasmtime), sandbox, events, hot reload
-apps/cli                   the `locora` command
-plugins/                   plugins compiled to wasm32-wasip2 (example: lernzeit)
+crates/locora-host         loads plugins at runtime (wasmtime), sandbox, events, services, hot reload
+crates/locora-store        offline-first SQLite storage: palaces, stages, loci, media, plugin data, op log
+crates/locora-fsrs         FSRS-5 spaced-repetition scheduling
+apps/cli                   the `locora` command (palaces, practice, review, plugin development)
+plugins/review             official spaced-repetition plugin (built into the CLI)
+plugins/                   other plugins compiled to wasm32-wasip2 (example: lernzeit)
 ```
 
 ## Highlights

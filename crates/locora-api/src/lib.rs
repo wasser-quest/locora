@@ -12,12 +12,23 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// Plugin API version implemented by this crate.
-pub const API_VERSION: &str = "0.1";
+pub const API_VERSION: &str = "0.2";
 
 /// A typed event with a stable topic name.
 pub trait Event: Serialize + DeserializeOwned {
     /// Topic the event is published on, namespaced by the owning plugin.
     const TOPIC: &'static str;
+}
+
+/// A request/response interface one plugin offers to the host and others.
+///
+/// The name carries a version (`review.due@1`); a breaking change gets a new
+/// name so old and new callers can coexist.
+pub trait Service {
+    /// Versioned service name, namespaced by the providing plugin.
+    const NAME: &'static str;
+    type Request: Serialize + DeserializeOwned;
+    type Response: Serialize + DeserializeOwned;
 }
 
 /// Encode an event payload.
@@ -103,6 +114,8 @@ pub mod core {
         pub correct: bool,
         pub grade: Grade,
         pub elapsed_ms: u64,
+        /// When the answer was given, in seconds since the Unix epoch.
+        pub answered_at: u64,
     }
 
     impl Event for LocusAnswered {
@@ -120,6 +133,70 @@ pub mod core {
 
     impl Event for JourneyCompleted {
         const TOPIC: &'static str = "core.journey.completed";
+    }
+
+    /// A palace and everything in it was deleted.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct PalaceDeleted {
+        pub palace_id: String,
+    }
+
+    impl Event for PalaceDeleted {
+        const TOPIC: &'static str = "core.palace.deleted";
+    }
+
+    /// A locus was deleted.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct LocusDeleted {
+        pub palace_id: String,
+        pub locus_id: String,
+    }
+
+    impl Event for LocusDeleted {
+        const TOPIC: &'static str = "core.locus.deleted";
+    }
+}
+
+/// Services of the `review` plugin (spaced repetition).
+pub mod review {
+    use super::*;
+
+    /// Scheduling state of one locus.
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+    pub struct CardState {
+        /// Days until recall probability drops to 90 %.
+        pub stability: f64,
+        /// 1 (easy) … 10 (hard).
+        pub difficulty: f64,
+        /// Last review, seconds since the Unix epoch.
+        pub last_review: u64,
+        /// Next review, seconds since the Unix epoch.
+        pub due: u64,
+        pub reps: u32,
+        pub lapses: u32,
+    }
+
+    /// A scheduled locus.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct ScheduledLocus {
+        pub palace_id: String,
+        pub locus_id: String,
+        pub card: CardState,
+    }
+
+    /// Scheduled loci (all, or one palace's), with whether each is due at `now`.
+    /// Loci that were never answered are not listed: they are new.
+    pub struct Schedule;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct ScheduleRequest {
+        pub palace_id: Option<String>,
+    }
+
+    impl Service for Schedule {
+        const NAME: &'static str = "review.schedule@1";
+        type Request = ScheduleRequest;
+        type Response = Vec<ScheduledLocus>;
     }
 }
 

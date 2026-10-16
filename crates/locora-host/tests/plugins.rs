@@ -155,3 +155,59 @@ fn compiled_plugins_are_cached() {
     assert_eq!(tiles(&host.drain_events()), ["1 min"]);
     let _ = std::fs::remove_dir_all(&cache);
 }
+
+#[test]
+fn review_schedules_answers_and_forgets_deleted_loci() {
+    use locora_api::core::{Grade, LocusAnswered, LocusDeleted, PalaceDeleted};
+    use locora_api::review::{Schedule, ScheduleRequest};
+
+    let mut host = PluginHost::new(None).unwrap();
+    load(&mut host, "review");
+    assert!(host.provides("review.schedule@1"));
+    let t0 = 1_800_000_000;
+    for (locus, grade) in [("l1", Grade::Good), ("l2", Grade::Again)] {
+        host.publish(&LocusAnswered {
+            palace_id: "p".into(),
+            locus_id: locus.into(),
+            correct: grade != Grade::Again,
+            grade,
+            elapsed_ms: 1200,
+            answered_at: t0,
+        })
+        .unwrap();
+    }
+    let all = |host: &mut PluginHost| {
+        host.call::<Schedule>(&ScheduleRequest { palace_id: None })
+            .unwrap()
+    };
+    let scheduled = all(&mut host);
+    assert_eq!(scheduled.len(), 2, "{:?}", host.drain_events());
+    let good = scheduled.iter().find(|s| s.locus_id == "l1").unwrap();
+    assert_eq!(good.card.due, t0 + 3 * 86_400);
+    let again = scheduled.iter().find(|s| s.locus_id == "l2").unwrap();
+    assert_eq!(again.card.due, t0 + 600);
+
+    // Storage survives a reload of the plugin.
+    load(&mut host, "review");
+    assert_eq!(all(&mut host).len(), 2);
+
+    host.publish(&LocusDeleted {
+        palace_id: "p".into(),
+        locus_id: "l1".into(),
+    })
+    .unwrap();
+    assert_eq!(all(&mut host).len(), 1);
+    host.publish(&PalaceDeleted {
+        palace_id: "p".into(),
+    })
+    .unwrap();
+    assert!(all(&mut host).is_empty());
+}
+
+#[test]
+fn calling_a_missing_service_is_an_error() {
+    let mut host = PluginHost::new(None).unwrap();
+    load(&mut host, "lernzeit");
+    let err = host.call_raw("nobody.home@1", &[]).unwrap_err();
+    assert!(err.to_string().contains("nobody.home@1"));
+}

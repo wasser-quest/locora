@@ -1,4 +1,4 @@
-package locora:plugin@0.1.0;
+package locora:plugin@0.2.0;
 
 /// Shared types between the Locora host and plugins.
 interface types {
@@ -28,6 +28,8 @@ interface host {
     subscribe: func(topic: string);
     /// Publish an event. Delivered after the current call returns.
     publish: func(topic: string, payload: list<u8>);
+    /// Answer calls to `service` via `on-call`.
+    provide: func(service: string);
     /// Plugin-private key-value storage. Requires the `storage` permission.
     kv-get: func(key: string) -> result<option<list<u8>>, string>;
     kv-set: func(key: string, value: list<u8>) -> result<_, string>;
@@ -41,4 +43,5 @@ world plugin {
     export activate: func() -> result<_, string>;
     export deactivate: func();
     export on-event: func(topic: string, payload: list<u8>) -> result<_, string>;
+    export on-call: func(service: string, request: list<u8>) -> result<list<u8>, string>;
 }

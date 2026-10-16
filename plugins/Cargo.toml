@@ -2,7 +2,7 @@
 # by the host at runtime, so they live in their own workspace.
 [workspace]
 resolver = "3"
-members = ["lernzeit", "fixture"]
+members = ["lernzeit", "fixture", "review"]
 
 [profile.release]
 lto = true

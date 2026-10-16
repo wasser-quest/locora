@@ -1,0 +1,13 @@
+[package]
+name = "review"
+description = "Spaced repetition for Locora: schedules every locus with FSRS"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+locora-fsrs = { path = "../../crates/locora-fsrs" }
+locora-sdk = { path = "../../crates/locora-sdk" }

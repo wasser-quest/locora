@@ -1,0 +1,11 @@
+[package]
+name = "locora-fsrs"
+description = "FSRS spaced-repetition scheduling for Locora"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+locora-api.workspace = true

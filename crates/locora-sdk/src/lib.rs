@@ -25,7 +25,7 @@ use std::fmt;
 use std::rc::Rc;
 
 pub use locora_api as api;
-pub use locora_api::Event;
+pub use locora_api::{Event, Service};
 pub use locora_sdk_macros::locora_plugin;
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -44,9 +44,11 @@ use __bindings::locora::plugin::{host, types};
 
 /// Everything a plugin usually needs.
 pub mod prelude {
-    pub use crate::api::core::{Grade, JourneyCompleted, LocusAnswered, PalaceCreated};
+    pub use crate::api::core::{
+        Grade, JourneyCompleted, LocusAnswered, LocusDeleted, PalaceCreated, PalaceDeleted,
+    };
     pub use crate::api::host::Started;
-    pub use crate::{Ctx, Error, Event, Plugin, Result, Store, locora_plugin};
+    pub use crate::{Ctx, Error, Event, Plugin, Result, Service, Store, locora_plugin};
 }
 
 /// Error returned by plugin code. Any standard error converts into it with `?`.
@@ -90,9 +92,11 @@ pub trait Plugin {
 }
 
 type Handler = Rc<RefCell<dyn FnMut(&mut Ctx, &[u8]) -> Result>>;
+type ServiceHandler = Rc<RefCell<dyn FnMut(&mut Ctx, &[u8]) -> Result<Vec<u8>>>>;
 
 thread_local! {
     static HANDLERS: RefCell<HashMap<String, Vec<Handler>>> = RefCell::new(HashMap::new());
+    static SERVICES: RefCell<HashMap<String, ServiceHandler>> = RefCell::new(HashMap::new());
 }
 
 /// Access to the host: events, storage, logging and UI.
@@ -119,6 +123,21 @@ impl Ctx {
         if first {
             host::subscribe(E::TOPIC);
         }
+        Ok(())
+    }
+
+    /// Answer calls to service `S` (one provider per service).
+    pub fn provide<S: Service + 'static>(
+        &mut self,
+        mut handler: impl FnMut(&mut Ctx, S::Request) -> Result<S::Response> + 'static,
+    ) -> Result {
+        let erased: ServiceHandler = Rc::new(RefCell::new(move |ctx: &mut Ctx, bytes: &[u8]| {
+            let request = api::decode::<S::Request>(bytes)
+                .map_err(|e| Error::msg(format!("cannot decode request for `{}`: {e}", S::NAME)))?;
+            Ok(api::encode(&handler(ctx, request)?)?)
+        }));
+        SERVICES.with_borrow_mut(|services| services.insert(S::NAME.to_owned(), erased));
+        host::provide(S::NAME);
         Ok(())
     }
 
@@ -206,6 +225,15 @@ pub mod __rt {
     pub fn deactivate<P: Plugin>() {
         P::deactivate(&mut Ctx { _private: () });
         HANDLERS.with_borrow_mut(HashMap::clear);
+        SERVICES.with_borrow_mut(HashMap::clear);
+    }
+
+    pub fn call(service: &str, request: &[u8]) -> std::result::Result<Vec<u8>, String> {
+        let handler = SERVICES
+            .with_borrow(|s| s.get(service).cloned())
+            .ok_or_else(|| format!("service `{service}` is not provided by this plugin"))?;
+        let mut ctx = Ctx { _private: () };
+        (handler.borrow_mut())(&mut ctx, request).map_err(|e| e.0)
     }
 
     pub fn dispatch(topic: &str, payload: &[u8]) -> std::result::Result<(), String> {

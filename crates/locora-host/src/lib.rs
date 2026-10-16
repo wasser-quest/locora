@@ -9,6 +9,7 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context as _, Result, bail};
 use sha2::{Digest, Sha256};
@@ -84,12 +85,38 @@ pub enum HostEvent {
     },
 }
 
+/// Where plugin key-value storage lives. Keys are private per plugin id, so
+/// storage survives hot reloads, unloads and app restarts (with a persistent
+/// backend such as `locora-store`).
+pub trait KvStore: Send + Sync {
+    fn get(&self, plugin: &str, key: &str) -> Result<Option<Vec<u8>>, String>;
+    fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String>;
+}
+
+/// In-memory storage, used when the host is created without a backend.
+#[derive(Default)]
+pub struct MemoryKv(Mutex<HashMap<(String, String), Vec<u8>>>);
+
+impl KvStore for MemoryKv {
+    fn get(&self, plugin: &str, key: &str) -> Result<Option<Vec<u8>>, String> {
+        let map = self.0.lock().map_err(|e| e.to_string())?;
+        Ok(map.get(&(plugin.to_owned(), key.to_owned())).cloned())
+    }
+
+    fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String> {
+        let mut map = self.0.lock().map_err(|e| e.to_string())?;
+        map.insert((plugin.to_owned(), key.to_owned()), value.to_vec());
+        Ok(())
+    }
+}
+
 /// Per-plugin sandbox state.
 struct PluginState {
     id: String,
     permissions: Vec<String>,
-    kv: BTreeMap<String, Vec<u8>>,
+    kv: Arc<dyn KvStore>,
     subscriptions: Vec<String>,
+    provided: Vec<String>,
     outbox: Vec<(String, Vec<u8>)>,
     logs: Vec<(Level, String)>,
     wasi: WasiCtx,
@@ -97,12 +124,13 @@ struct PluginState {
 }
 
 impl PluginState {
-    fn new(kv: BTreeMap<String, Vec<u8>>) -> Self {
+    fn new(kv: Arc<dyn KvStore>) -> Self {
         Self {
             id: String::new(),
             permissions: Vec::new(),
             kv,
             subscriptions: Vec::new(),
+            provided: Vec::new(),
             outbox: Vec::new(),
             logs: Vec::new(),
             // No files, network, env or clock access beyond the defaults.
@@ -149,15 +177,20 @@ impl host::Host for PluginState {
         self.outbox.push((topic, payload));
     }
 
+    fn provide(&mut self, service: String) {
+        if !self.provided.contains(&service) {
+            self.provided.push(service);
+        }
+    }
+
     fn kv_get(&mut self, key: String) -> Result<Option<Vec<u8>>, String> {
         self.require(locora_api::permission::STORAGE)?;
-        Ok(self.kv.get(&key).cloned())
+        self.kv.get(&self.id, &key)
     }
 
     fn kv_set(&mut self, key: String, value: Vec<u8>) -> Result<(), String> {
         self.require(locora_api::permission::STORAGE)?;
-        self.kv.insert(key, value);
-        Ok(())
+        self.kv.set(&self.id, &key, &value)
     }
 }
 
@@ -174,14 +207,19 @@ pub struct PluginHost {
     linker: Linker<PluginState>,
     cache_dir: Option<PathBuf>,
     plugins: BTreeMap<String, LoadedPlugin>,
-    /// Storage of plugins that were unloaded or disabled, kept for a reload.
-    parked_kv: HashMap<String, BTreeMap<String, Vec<u8>>>,
+    kv: Arc<dyn KvStore>,
     events: Vec<HostEvent>,
 }
 
 impl PluginHost {
-    /// Create a host. `cache_dir` stores compiled plugins so later starts skip compilation.
+    /// Create a host with in-memory plugin storage. `cache_dir` stores
+    /// compiled plugins so later starts skip compilation.
     pub fn new(cache_dir: Option<PathBuf>) -> Result<Self> {
+        Self::with_kv(cache_dir, Arc::new(MemoryKv::default()))
+    }
+
+    /// Create a host whose plugins keep their storage in `kv`.
+    pub fn with_kv(cache_dir: Option<PathBuf>, kv: Arc<dyn KvStore>) -> Result<Self> {
         let mut config = Config::new();
         config.wasm_component_model(true);
         config.consume_fuel(true);
@@ -196,7 +234,7 @@ impl PluginHost {
             linker,
             cache_dir,
             plugins: BTreeMap::new(),
-            parked_kv: HashMap::new(),
+            kv,
             events: Vec::new(),
         })
     }
@@ -218,7 +256,7 @@ impl PluginHost {
 
         // Peek at the manifest in a throwaway instance to learn the id.
         let manifest = {
-            let mut store = self.new_store(BTreeMap::new());
+            let mut store = self.new_store(Arc::new(MemoryKv::default()));
             let instance = bindings::Plugin::instantiate(&mut store, &component, &self.linker)?;
             Manifest::from(instance.call_manifest(&mut store)?)
         };
@@ -235,12 +273,11 @@ impl PluginHost {
         }
 
         let reloading = self.plugins.contains_key(&manifest.id);
-        let kv = match self.plugins.remove(&manifest.id) {
-            Some(old) => self.shutdown(old),
-            None => self.parked_kv.remove(&manifest.id).unwrap_or_default(),
-        };
+        if let Some(old) = self.plugins.remove(&manifest.id) {
+            self.shutdown(old);
+        }
 
-        let mut store = self.new_store(kv);
+        let mut store = self.new_store(self.kv.clone());
         store.data_mut().id = manifest.id.clone();
         store.data_mut().permissions = manifest.permissions.clone();
         let instance = bindings::Plugin::instantiate(&mut store, &component, &self.linker)?;
@@ -257,17 +294,9 @@ impl PluginHost {
         match activated {
             Ok(Ok(())) => {}
             Ok(Err(message)) => {
-                self.parked_kv.insert(
-                    manifest.id.clone(),
-                    std::mem::take(&mut plugin.store.data_mut().kv),
-                );
                 bail!("Plugin `{}` konnte nicht starten: {message}", manifest.id);
             }
             Err(trap) => {
-                self.parked_kv.insert(
-                    manifest.id.clone(),
-                    std::mem::take(&mut plugin.store.data_mut().kv),
-                );
                 bail!(
                     "Plugin `{}` ist beim Start abgestürzt: {trap:#}",
                     manifest.id
@@ -290,8 +319,7 @@ impl PluginHost {
         let Some(plugin) = self.plugins.remove(id) else {
             return false;
         };
-        let kv = self.shutdown(plugin);
-        self.parked_kv.insert(id.to_owned(), kv);
+        self.shutdown(plugin);
         self.events.push(HostEvent::Unloaded(id.to_owned()));
         true
     }
@@ -306,6 +334,58 @@ impl PluginHost {
     pub fn publish_raw(&mut self, topic: &str, payload: Vec<u8>) {
         let mut queue = VecDeque::from([(String::from("host"), topic.to_owned(), payload)]);
         self.dispatch(&mut queue);
+    }
+
+    /// Call service `S` on the plugin that provides it.
+    pub fn call<S: locora_api::Service>(&mut self, request: &S::Request) -> Result<S::Response> {
+        let bytes = self.call_raw(S::NAME, &locora_api::encode(request)?)?;
+        Ok(locora_api::decode(&bytes)?)
+    }
+
+    /// Whether some active plugin provides `service`.
+    pub fn provides(&self, service: &str) -> bool {
+        self.plugins
+            .values()
+            .any(|p| p.store.data().provided.iter().any(|s| s == service))
+    }
+
+    /// Call an already encoded service request.
+    pub fn call_raw(&mut self, service: &str, request: &[u8]) -> Result<Vec<u8>> {
+        let Some(id) = self
+            .plugins
+            .iter()
+            .find(|(_, p)| p.store.data().provided.iter().any(|s| s == service))
+            .map(|(id, _)| id.clone())
+        else {
+            bail!("Kein aktives Plugin bietet den Dienst `{service}` an");
+        };
+        let mut plugin = self.plugins.remove(&id).expect("found above");
+        let _ = plugin.store.set_fuel(FUEL_PER_CALL);
+        let result = plugin
+            .instance
+            .call_on_call(&mut plugin.store, service, request);
+        let mut outbox = self.collect(&mut plugin);
+        let response = match result {
+            Ok(Ok(bytes)) => {
+                self.plugins.insert(id, plugin);
+                Ok(bytes)
+            }
+            Ok(Err(message)) => {
+                self.plugins.insert(id.clone(), plugin);
+                Err(anyhow::anyhow!("Dienst `{service}` von `{id}`: {message}"))
+            }
+            Err(trap) => {
+                self.events.push(HostEvent::Disabled {
+                    plugin: id.clone(),
+                    reason: format!("{trap:#}"),
+                });
+                Err(anyhow::anyhow!(
+                    "Plugin `{id}` ist beim Dienst `{service}` abgestürzt"
+                ))
+            }
+        };
+        self.deliver(&mut outbox);
+        response
     }
 
     /// Manifests of all active plugins, ordered by id.
@@ -323,7 +403,7 @@ impl PluginHost {
         std::mem::take(&mut self.events)
     }
 
-    fn new_store(&self, kv: BTreeMap<String, Vec<u8>>) -> Store<PluginState> {
+    fn new_store(&self, kv: Arc<dyn KvStore>) -> Store<PluginState> {
         let mut store = Store::new(&self.engine, PluginState::new(kv));
         // Instantiation runs the component's start code, which also costs fuel.
         store
@@ -367,12 +447,11 @@ impl PluginHost {
         Ok(component)
     }
 
-    /// Deactivate a plugin and return its storage.
-    fn shutdown(&mut self, mut plugin: LoadedPlugin) -> BTreeMap<String, Vec<u8>> {
+    /// Deactivate a plugin. Its storage stays in the kv backend.
+    fn shutdown(&mut self, mut plugin: LoadedPlugin) {
         let _ = plugin.store.set_fuel(FUEL_PER_CALL);
         let _ = plugin.instance.call_deactivate(&mut plugin.store);
         let _ = self.collect(&mut plugin);
-        std::mem::take(&mut plugin.store.data_mut().kv)
     }
 
     /// Move logs into host events and return the plugin's published events.
@@ -447,9 +526,7 @@ impl PluginHost {
                         self.plugins.insert(id, plugin);
                     }
                     Err(trap) => {
-                        // A trapped instance is unusable; disable it but keep its data.
-                        self.parked_kv
-                            .insert(id.clone(), std::mem::take(&mut plugin.store.data_mut().kv));
+                        // A trapped instance is unusable; disable it (its data stays in kv).
                         self.events.push(HostEvent::Disabled {
                             plugin: id,
                             reason: format!("{trap:#}"),
@@ -482,8 +559,8 @@ mod tests {
 
     #[test]
     fn api_versions() {
-        assert!(api_compatible("0.1"));
-        assert!(!api_compatible("0.2"));
+        assert!(api_compatible("0.2"));
+        assert!(!api_compatible("0.1"));
         assert!(!api_compatible("1.0"));
     }
 }
