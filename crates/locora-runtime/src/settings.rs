@@ -81,14 +81,16 @@ pub fn stats(entries: &[LogEntry], schedule: &[ScheduledLocus], now: u64) -> Sta
 
 /// A target retention as people type it: `0,9`, `0.85`, `90 %`.
 pub fn parse_retention(text: &str) -> Result<f64> {
-    let v: f64 = text
-        .trim()
-        .replace(',', ".")
-        .trim_end_matches('%')
-        .trim()
+    let text = text.trim().replace(',', ".");
+    // „85 %“ and „0,85 %“ are percentages; a bare number above 1 is one too.
+    let (number, percent) = match text.strip_suffix('%') {
+        Some(n) => (n.trim(), true),
+        None => (text.as_str(), false),
+    };
+    let v: f64 = number
         .parse()
         .context("Zahl erwartet, z. B. 0,9 oder 90 %")?;
-    let v = if v > 1.0 { v / 100.0 } else { v };
+    let v = if percent || v > 1.0 { v / 100.0 } else { v };
     // Same range as the review plugin, checked before anything is written.
     if !v.is_finite() || !(0.7..=0.99).contains(&v) {
         bail!("Die Ziel-Behaltensrate muss zwischen 0,70 und 0,99 liegen");
@@ -198,5 +200,7 @@ mod tests {
         assert!(parse_retention("0,5").is_err());
         assert!(parse_retention("100 %").is_err());
         assert!(parse_retention("NaN").is_err());
+        assert!(parse_retention("0,85 %").is_err(), "0,85 % is not 85 %");
+        assert_eq!(parse_retention("85,5 %").unwrap(), 0.855);
     }
 }
