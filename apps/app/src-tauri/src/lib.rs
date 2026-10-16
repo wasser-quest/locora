@@ -4,6 +4,7 @@
 mod assets;
 mod editor;
 mod journey;
+mod media;
 mod settings;
 mod sply;
 mod transfer;
@@ -407,7 +408,12 @@ fn not_found() -> Response<Cow<'static, [u8]>> {
 }
 
 /// `locora://localhost/media/<sha256>` and `…/sply/<sha256>`.
-fn serve(backend: &mut Backend, path: &str) -> Response<Cow<'static, [u8]>> {
+fn serve(
+    backend: &mut Backend,
+    path: &str,
+    range: Option<&str>,
+    head: bool,
+) -> Response<Cow<'static, [u8]>> {
     // `convertFileSrc` percent-encodes the slash between kind and hash.
     let path = path.replace("%2F", "/").replace("%2f", "/");
     let mut parts = path.trim_start_matches('/').splitn(2, '/');
@@ -425,8 +431,8 @@ fn serve(backend: &mut Backend, path: &str) -> Response<Cow<'static, [u8]>> {
         return not_found();
     };
     match kind {
-        "media" => match std::fs::read(&file) {
-            Ok(bytes) => respond(StatusCode::OK, &found.mime, bytes),
+        "media" => match media::serve(&file, &found.mime, range, head) {
+            Ok(response) => response,
             Err(_) => not_found(),
         },
         "sply" if found.mime == SPLINELY => {
@@ -495,7 +501,15 @@ pub fn run() {
             let Ok(mut backend) = state.lock() else {
                 return not_found();
             };
-            serve(&mut backend, request.uri().path())
+            serve(
+                &mut backend,
+                request.uri().path(),
+                request
+                    .headers()
+                    .get(header::RANGE)
+                    .and_then(|v| v.to_str().ok()),
+                request.method() == tauri::http::Method::HEAD,
+            )
         })
         .invoke_handler(tauri::generate_handler![
             home,

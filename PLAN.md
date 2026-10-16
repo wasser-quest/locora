@@ -761,7 +761,11 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Willkommensbildschirm mit Simo (`assets/mascot/src/simo.py`). Ebenfalls umgesetzt: Raum-Arten (Tabs), „nichts fällig“
    (Simo), Ladezustand (Logo).
 6. **Leistung:** Jeder Marker ist ein eigener Frame mit eigener Runtime – bei vielen Loci alle Marker eines Raums in
-   einem gemeinsamen SVG zusammenfassen; Medien mit Range-Anfragen ausliefern (Video-Spulen).
+   einem gemeinsamen SVG zusammenfassen. **Medien mit Range-Anfragen umgesetzt:** Einzelbereiche,
+   offene und Suffix-Bereiche liefern 206 mit `Content-Range`; nicht erfüllbare Bereiche 416.
+   Es wird nur der angeforderte Dateiausschnitt gelesen; HEAD liefert Metadaten ohne Body.
+   Multipart/fehlerhafte Bereiche fallen auf die vollständige Antwort zurück. Backend-getestet;
+   Video-Spulen in der nativen WebView noch manuell prüfen.
 7. **Video-Räume** (Phase 3): am Locus anhalten, Zeitleiste.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
