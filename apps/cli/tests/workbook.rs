@@ -203,7 +203,10 @@ fn inputs_active_reveal_and_new_limit_in_review() {
     assert!(ok(d, &["due"], "").contains("2 neu"));
     assert_eq!(ok(d, &["calc", "A", "$n"], ""), "1\n");
     let out = ok(d, &["practice", "A", "--due", "--new", "0"], "\n\n");
-    assert!(out.contains("Keine aktiven Loci ausgewählt"), "{out}");
+    assert!(
+        out.contains("neue Loci warten (mit --new 0 ausgeschlossen)"),
+        "{out}"
+    );
     let out = ok(d, &["practice", "A"], "");
     assert!(
         out.contains("Übung beendet") && !out.contains("[1/"),

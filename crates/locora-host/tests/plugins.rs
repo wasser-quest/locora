@@ -317,3 +317,78 @@ fn review_restores_imported_cards_and_rejects_bad_ones() {
         "a rejected restore changes nothing"
     );
 }
+
+#[test]
+fn review_logs_every_answer_and_keeps_settings() {
+    use locora_api::core::{Grade, LocusAnswered, PalaceDeleted};
+    use locora_api::review::{Configure, ConfigureRequest, Log, LogRequest};
+
+    let mut host = PluginHost::new(None).unwrap();
+    load(&mut host, "review");
+    // More than one log chunk (256 entries).
+    for i in 0..300u64 {
+        host.publish(&LocusAnswered {
+            palace_id: "p".into(),
+            locus_id: format!("l{}", i % 7),
+            correct: true,
+            grade: Grade::Good,
+            elapsed_ms: i,
+            answered_at: 1_800_000_000 + i * 86_400,
+        })
+        .unwrap();
+    }
+    let log = host.call::<Log>(&LogRequest { palace_id: None }).unwrap();
+    assert_eq!(log.len(), 300, "{:?}", host.drain_events());
+    assert!(log.windows(2).all(|w| w[0].answered_at < w[1].answered_at));
+    assert_eq!(log[299].elapsed_ms, 299);
+
+    let s = host
+        .call::<Configure>(&ConfigureRequest::default())
+        .unwrap();
+    assert_eq!((s.weights.clone(), s.desired_retention), (None, 0.9));
+    let s = host
+        .call::<Configure>(&ConfigureRequest {
+            desired_retention: Some(0.8),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(s.desired_retention, 0.8);
+    for bad in [
+        ConfigureRequest {
+            desired_retention: Some(0.5),
+            ..Default::default()
+        },
+        ConfigureRequest {
+            weights: Some(Some(vec![1.0; 18])),
+            ..Default::default()
+        },
+    ] {
+        assert!(host.call::<Configure>(&bad).is_err());
+    }
+    let weights = locora_fsrs::DEFAULT_WEIGHTS.to_vec();
+    let s = host
+        .call::<Configure>(&ConfigureRequest {
+            weights: Some(Some(weights.clone())),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(s.weights, Some(weights));
+    assert_eq!(s.desired_retention, 0.8, "settings persist across calls");
+
+    host.publish(&PalaceDeleted {
+        palace_id: "p".into(),
+    })
+    .unwrap();
+    assert!(
+        host.call::<Log>(&LogRequest {
+            palace_id: Some("p".into())
+        })
+        .unwrap()
+        .is_empty()
+    );
+    assert!(
+        host.call::<Log>(&LogRequest { palace_id: None })
+            .unwrap()
+            .is_empty()
+    );
+}

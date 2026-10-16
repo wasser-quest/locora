@@ -16,7 +16,10 @@ locora new "Planeten" -- Merkur Venus Erde Mars Jupiter Saturn Uranus Neptun
 locora practice Planeten       # walk the route: Enter reveals, 1–4 grades
 locora edit Planeten 1 --answer '{"type":"guess"}'  # typed answer, checked by Core
 locora due                     # what is due today (FSRS via the review plugin)
-locora review                  # only what is due
+locora review                  # only what is due (plus new loci up to the daily limit)
+locora stats                   # answers, hit rate, streak
+locora settings                # new loci per day, target retention
+locora optimize                # personal FSRS weights from your own history
 locora show Planeten
 locora new Vortrag --video talk.mp4 -- 0:12=Einleitung 1:23=These
 locora new Vokabeln --image kueche.jpg --from vokabeln.txt   # lines: `Ort | Erinnerung | x,y`

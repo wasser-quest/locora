@@ -1040,6 +1040,7 @@ dependencies = [
  "locora-api",
  "locora-format",
  "locora-formula",
+ "locora-fsrs",
  "locora-host",
  "locora-source",
  "locora-store",
@@ -1094,6 +1095,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "locora-api",
+ "locora-fsrs",
  "locora-store",
  "serde",
  "sha2",

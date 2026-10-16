@@ -18,6 +18,8 @@ pub struct Options {
     /// Only loci that are due (plus up to `new` never-answered ones).
     pub due_only: bool,
     pub new: usize,
+    /// `new` comes from the daily limit (not from an explicit `--new`).
+    pub daily_limit: bool,
 }
 
 enum Step {
@@ -320,9 +322,19 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .iter()
             .map(|t| count_due(t, &cards, now_at_start))
             .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
-        println!(
-            "Keine aktiven Loci ausgewählt ({due} fällig, {fresh} neu). Alles üben: locora practice <Palast>"
-        );
+        if options.due_only && due == 0 && fresh > 0 && options.new == 0 && options.daily_limit {
+            println!(
+                "Nichts fällig. Das Tageslimit für neue Loci ist erreicht ({fresh} warten).\n  Mehr heute: locora review --new 5 · dauerhaft: locora settings new-per-day 20"
+            );
+        } else if options.due_only && due == 0 && fresh > 0 && options.new == 0 {
+            println!("Nichts fällig; {fresh} neue Loci warten (mit --new 0 ausgeschlossen).");
+        } else if options.due_only && due == 0 {
+            println!("Nichts fällig. Alles üben: locora practice <Palast>");
+        } else {
+            println!(
+                "Keine aktiven Loci ausgewählt ({due} fällig, {fresh} neu). Alles üben: locora practice <Palast>"
+            );
+        }
         return Ok(());
     }
 
@@ -475,6 +487,7 @@ mod tests {
             Options {
                 due_only: false,
                 new: 10,
+                daily_limit: false,
             },
         )
         .unwrap_err();

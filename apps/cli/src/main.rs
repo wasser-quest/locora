@@ -4,6 +4,7 @@ mod app;
 mod palace;
 mod plugin;
 mod practice;
+mod settings;
 mod source;
 mod transfer;
 mod workbook;
@@ -98,19 +99,35 @@ enum Command {
         /// Nur fällige Loci
         #[arg(long)]
         due: bool,
-        /// Höchstens so viele neue Loci (mit --due)
-        #[arg(long, default_value_t = 10)]
-        new: usize,
+        /// Höchstens so viele neue Loci (mit --due; Standard: was vom Tageslimit übrig ist)
+        #[arg(long)]
+        new: Option<usize>,
     },
     /// Fällige Loci wiederholen (alle Paläste oder einer)
     Review {
         palace: Option<String>,
-        /// Höchstens so viele neue Loci
-        #[arg(long, default_value_t = 10)]
-        new: usize,
+        /// Höchstens so viele neue Loci (Standard: was vom Tageslimit übrig ist)
+        #[arg(long)]
+        new: Option<usize>,
     },
     /// Was ist heute fällig?
     Due,
+    /// Einstellungen anzeigen oder ändern
+    Settings {
+        #[command(subcommand)]
+        command: Option<settings::SettingsCommand>,
+    },
+    /// FSRS-Gewichte aus dem eigenen Wiederholungsverlauf berechnen
+    Optimize {
+        /// Nur berechnen und anzeigen
+        #[arg(long, conflicts_with = "reset")]
+        dry_run: bool,
+        /// Zurück zu den Standardgewichten
+        #[arg(long)]
+        reset: bool,
+    },
+    /// Lernstatistik: Antworten, Trefferquote, Serie
+    Stats,
     /// Paläste als .locora-Datei speichern (mit Bildern und Videos)
     Export {
         /// Paläste (Name oder Id); leer mit --all
@@ -282,19 +299,46 @@ fn main() -> Result<()> {
         Command::Rm { palace, locus, yes } => {
             palace::remove(&mut app::App::open(data)?, &palace, locus, yes)
         }
-        Command::Practice { palace, due, new } => practice::run(
-            &mut app::App::open(data)?,
-            Some(&palace),
-            practice::Options { due_only: due, new },
-        ),
-        Command::Review { palace, new } => practice::run(
-            &mut app::App::open(data)?,
-            palace.as_deref(),
-            practice::Options {
-                due_only: true,
-                new,
-            },
-        ),
+        Command::Practice { palace, due, new } => {
+            let mut app = app::App::open(data)?;
+            let daily_limit = new.is_none() && due;
+            let new = match new {
+                Some(n) => n,
+                None if due => settings::new_budget(&mut app)?,
+                None => 0,
+            };
+            practice::run(
+                &mut app,
+                Some(&palace),
+                practice::Options {
+                    due_only: due,
+                    new,
+                    daily_limit,
+                },
+            )
+        }
+        Command::Review { palace, new } => {
+            let mut app = app::App::open(data)?;
+            let daily_limit = new.is_none();
+            let new = match new {
+                Some(n) => n,
+                None => settings::new_budget(&mut app)?,
+            };
+            practice::run(
+                &mut app,
+                palace.as_deref(),
+                practice::Options {
+                    due_only: true,
+                    new,
+                    daily_limit,
+                },
+            )
+        }
+        Command::Settings { command } => settings::settings(&mut app::App::open(data)?, command),
+        Command::Optimize { dry_run, reset } => {
+            settings::optimize_command(&mut app::App::open(data)?, dry_run, reset)
+        }
+        Command::Stats => settings::stats(&mut app::App::open(data)?),
         Command::Due => palace::due(&mut app::App::open(data)?),
         Command::Export {
             palaces,

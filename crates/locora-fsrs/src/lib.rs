@@ -5,13 +5,15 @@
 //! and a *difficulty* (1–10). Each answer updates both and schedules the next
 //! review so that recall probability stays at the desired retention.
 
+pub mod optimize;
+
 use locora_api::core::Grade;
 use locora_api::review::CardState;
 
 const DECAY: f64 = -0.5;
 /// Chosen so that retrievability is exactly 90 % after `stability` days.
 const FACTOR: f64 = 19.0 / 81.0;
-const DAY: u64 = 86_400;
+pub(crate) const DAY: u64 = 86_400;
 /// After a lapse the locus comes back after this many seconds.
 const RELEARN_SECS: u64 = 10 * 60;
 

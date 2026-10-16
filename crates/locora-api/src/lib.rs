@@ -240,6 +240,56 @@ pub mod review {
         type Response = u32;
     }
 
+    /// One answer in the review log.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct LogEntry {
+        pub palace_id: String,
+        pub locus_id: String,
+        pub grade: crate::core::Grade,
+        /// Seconds since the Unix epoch.
+        pub answered_at: u64,
+        pub elapsed_ms: u64,
+    }
+
+    /// The review log (all palaces or one), oldest answer first per palace.
+    pub struct Log;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct LogRequest {
+        pub palace_id: Option<String>,
+    }
+
+    impl Service for Log {
+        const NAME: &'static str = "review.log@1";
+        type Request = LogRequest;
+        type Response = Vec<LogEntry>;
+    }
+
+    /// Scheduler settings of the review plugin.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct Settings {
+        /// Personal FSRS weights; `None` = the defaults.
+        pub weights: Option<Vec<f64>>,
+        /// Target probability of remembering at review time (0.7–0.99).
+        pub desired_retention: f64,
+    }
+
+    /// Read (empty request) or change the scheduler settings; answers the new settings.
+    pub struct Configure;
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    pub struct ConfigureRequest {
+        /// `None` = keep, `Some(None)` = back to defaults, `Some(Some(w))` = use `w`.
+        pub weights: Option<Option<Vec<f64>>>,
+        pub desired_retention: Option<f64>,
+    }
+
+    impl Service for Configure {
+        const NAME: &'static str = "review.configure@1";
+        type Request = ConfigureRequest;
+        type Response = Settings;
+    }
+
     impl CardState {
         /// Whether the numbers are usable for scheduling.
         pub fn is_valid(&self) -> bool {

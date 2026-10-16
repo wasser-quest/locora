@@ -61,7 +61,7 @@ fn mixed_answers_review_and_archive_round_trip() {
     assert!(out.contains("Richtige Auswahl: 1 Merkur, 3 Erde"));
     assert_eq!(cards(d).len(), 3);
     assert!(cards(d).values().all(|c| c.reps == 1 && c.lapses == 0));
-    assert!(ok(d, &["review", "P", "--new", "0"], "").contains("Keine aktiven Loci"));
+    assert!(ok(d, &["review", "P", "--new", "0"], "").contains("Nichts fällig"));
     let out = ok(d, &["practice", "P"], "\n1\nNein\n1\n");
     assert!(out.contains("3 von 3 geübt, 0 gewusst. 0 Punkte."));
     assert!(cards(d).values().all(|c| c.reps == 2 && c.lapses == 1));

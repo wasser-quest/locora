@@ -642,8 +642,10 @@ Ausführliche Verträge, Randfälle und Grenzen: [`docs/phase-1-notizen.md`](doc
 | 4 | `locora plugin install/remove/ls` mit Rechteanzeige, Zustimmung, geschützten eingebauten Plugins | erledigt |
 | 5 | `locora.toml` + `locora build` (`--check`, `--replace`) und `locora dump`; Doku `format/locora-toml.md`, Crate `locora-source` | erledigt |
 | 6 | `locora export --with-progress` / `import [--without-progress]`: Review-Plan als `plugins/review/progress.json`, Dienst `review.restore@1` | erledigt |
-| 7 | Review-Log (jede Antwort speichern), FSRS-Parameteroptimierung, Tageslimits für neue Loci | **als Nächstes** |
+| 7 | Review-Log im Plugin (Dienst `review.log@1`), `locora optimize` (FSRS-Gewichte nativ aus dem Verlauf, `review.configure@1`), `locora settings` (neue Loci pro Tag, Ziel-Behaltensrate), `locora stats`; Tage zählen in UTC | erledigt |
 | 8 | Sammlungen (mehrere Paläste mit gemeinsamer Navigation, `navigate`-Aktion) | erst wenn gebraucht |
+
+**Phase 1 ist damit abgeschlossen** (Punkt 8 bleibt bewusst offen). Nächster Schritt: Phase 2, die App (13.4).
 
 Behoben: Beim palastübergreifenden Review bekam jeder Palast die gesamte Laufzeit gemeldet (`lernzeit` zählte doppelt);
 jetzt zählt nur die Zeit an den eigenen Loci. Die CLI-Tests waren gelegentlich rot, wenn ein Prozess vor dem Lesen der
