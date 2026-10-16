@@ -8,7 +8,8 @@
 
 - **Pure Rust:** core, plugins, CLI and UI (Tauri 2 + Leptos). No JavaScript framework.
 - **Offline first:** a local SQLite database is the source of truth. No account required.
-- **Plugins everywhere:** `core`, `tutorial` and `gamification` use the same plugin API and talk to each other through events, services and hooks.
+- **Plugins everywhere:** `core`, `review`, `tutorial` and `gamification` use the same plugin API and talk to each other through events, services and hooks.
+- **Spaced repetition:** the `review` plugin schedules due loci with FSRS and keeps the route order of your palace.
 - **Video palaces:** the video pauses at each locus and continues once you have recalled it.
 - **Fast CLI:** `locora new "Planets" --image flat.jpg -- Mercury Venus Earth`
 - **Minimal clicks:** one click to start a journey; drop an image or video to create a palace.
@@ -16,7 +17,7 @@
 
 ## Open core
 
-The whole app is MIT-licensed and free, including the `core`, `tutorial` and `gamification` plugins and the CLI. Gamification (XP, trophies, daily challenges) works fully offline. Only the optional **Locora Cloud** web service (leaderboards, friends, shared challenges, sync across devices) is a paid, proprietary service at an affordable price.
+The whole app is MIT-licensed and free, including the `core`, `review`, `tutorial` and `gamification` plugins and the CLI. Gamification (XP, trophies, daily challenges) works fully offline. Only the optional **Locora Cloud** web service (leaderboards, friends, shared challenges, sync across devices) is a paid, proprietary service at an affordable price.
 
 ## License
 

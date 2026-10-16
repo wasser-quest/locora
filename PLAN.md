@@ -14,7 +14,7 @@
 | **Pures Rust** | Logik *und* UI sind Rust: Datenmodell, Formeln, Journeys, Format, Plugins, Sync, CLI und Oberfläche (Leptos → WASM). Kein JavaScript-Framework, kein Node im Build. |
 | **Offline first** | Lokale SQLite-Datenbank ist die Wahrheit. Kein Account nötig. Die Cloud (später) synchronisiert nur. |
 | **Sehr schnell** | Start in < 300 ms, Journey-Schritte ohne Netz, Medien lokal und nach Inhalt adressiert. |
-| **Alles ist ein Plugin** | `core`, `tutorial` und `gamification` sind Plugins mit derselben API. Der Host selbst kann nichts außer Plugins laden. |
+| **Alles ist ein Plugin** | `core`, `review` (Spaced Repetition), `tutorial` und `gamification` sind Plugins mit derselben API. Der Host selbst kann nichts außer Plugins laden. |
 | **Open Core** | Die ganze App inkl. `gamification` ist Open Source (MIT) und kostenlos. Nur der Web-Service **Locora Cloud** (Ranglisten, Sync, gemeinsame Challenges) ist proprietär und kostet ein günstiges Abo. |
 | **Wenig Klicks** | Für jede häufige Aufgabe gibt es ein festes Klick-Budget (siehe Abschnitt 6). |
 | **CLI** | Paläste in Sekunden aus dem Terminal anlegen, auf derselben Datenbank wie die App. |
@@ -59,7 +59,8 @@ locora/                          (öffentlich, MIT)
 │   ├── locora-formula/          Port von shared/formulas.ts + workbookRuntime.ts
 │   └── locora-sync/             (später) Op-Log-Sync-Client
 ├── plugins/
-│   ├── core/                    Paläste, Stages, Loci, Video-Stages, Journeys, Workbook, Wiederholung
+│   ├── core/                    Paläste, Stages, Loci, Video-Stages, Journeys, Workbook
+│   ├── review/                  Spaced Repetition (FSRS): fällige Loci, Planung, Erinnerungen
 │   ├── tutorial/                Onboarding, interaktive Touren, Formel-Guide
 │   └── gamification/            XP, Herzen, Combos, Trophäen, Daily Challenges (lokal, kostenlos) + Cloud-Client
 ├── apps/
@@ -106,19 +107,23 @@ pub trait Plugin: Send + Sync {
 Payloads sind serde-Structs. Sie werden im SDK als Typen veröffentlicht und intern als JSON/Postcard übertragen.
 Dadurch funktioniert dieselbe API später auch über die WASM-Grenze.
 
-### 4.2 So reden die drei Plugins miteinander
+### 4.2 So reden die Plugins miteinander
 
 ```text
 core ──event: journey.locus_answered──▶ gamification (Combo, Herz-Verlust)
 core ──hook:  journey.score ──────────▶ gamification (Multiplikator) ──▶ zurück an core
 core ──event: palace.created ─────────▶ tutorial (nächster Tour-Schritt)
+core ──event: journey.locus_answered──▶ review (FSRS-Bewertung, neuer Fälligkeitstermin)
+core ──hook:  journey.roster ─────────▶ review (nur fällige Loci abfragen)
+core/host ──service: review.due@1 ────▶ review (Badges auf Palastkarten, Weiter-Zeile)
+review ──event: review.session_done ──▶ gamification (Streak, Daily Challenge „alles Fällige erledigt“)
 tutorial ──service: core.palaces@1 ───▶ core (Beispielpalast anlegen)
 tutorial ──service: ui.highlight@1 ───▶ host (Element hervorheben)
 gamification ──event: trophy.unlocked ▶ tutorial (erklärt Trophäen beim ersten Mal)
 ```
 
 Alle Abhängigkeiten außer `core` sind **optional**. Fehlt Gamification, rechnet `core` die Journey
-einfach ohne Hook. Fehlt Tutorial, passiert gar nichts.
+einfach ohne Hook. Fehlt `review`, gibt es keine Fälligkeiten und die Weiter-Zeile zeigt den zuletzt bearbeiteten Palast. Fehlt Tutorial, passiert gar nichts.
 
 ### 4.3 Open Core: was ist offen, was kostet
 
@@ -145,6 +150,33 @@ offenen Repos sollte man ein DCO/CLA einführen, damit du die Lizenz später noc
 - Berechtigungen werden im Manifest deklariert (`storage`, `palaces:read`, `palaces:write`, `network`) und beim Installieren bestätigt.
 - Eigene UI von Drittanbietern läuft in einem sandboxed iframe mit `postMessage`-Brücke. Die eingebauten Plugins nutzen native Komponenten.
 
+
+### 4.5 Plugin `review`: Spaced Repetition
+
+Plant, **wann** welcher Locus wiederholt werden muss, damit man ihn nicht vergisst.
+
+- **Algorithmus:** FSRS über die Crate `fsrs` (pures Rust, vom Open-Spaced-Repetition-Projekt).
+  Jeder Locus ist eine Karte mit Stabilität, Schwierigkeit und Fälligkeitsdatum. Ziel-Behaltensrate einstellbar, Standard 90 %.
+- **Persönliche Optimierung:** Aus dem lokalen Wiederholungs-Log werden die FSRS-Parameter auf dem Gerät neu berechnet
+  (automatisch alle ~1.000 Wiederholungen oder per `locora review optimize`). Es gibt keinen Server dafür.
+- **Bewertung ohne Extra-Klicks:**
+
+  | Locus-Typ | Bewertung |
+  |---|---|
+  | Recall | Tasten **1–4** (Nochmal / Schwer / Gut / Leicht) direkt nach dem Aufdecken, auf Mobile Wischgesten |
+  | Quiz / Guess | automatisch: falsch → *Nochmal*; richtig → *Gut* oder *Leicht* je nach Antwortzeit |
+
+- **Räumliche Reihenfolge bleibt erhalten:** Die Loci-Methode lebt von der Route. Im Fällig-Modus läuft die Journey trotzdem
+  den Palast in Routen-Reihenfolge ab. Nicht fällige Loci werden kurz gezeigt (Orientierung), aber nicht abgefragt.
+  Video-Paläste springen jeweils ein paar Sekunden vor den nächsten fälligen Locus.
+- **Ganze Paläste:** Ein Palast gilt als fällig, sobald einer seiner Loci fällig ist. Die Palastkarte zeigt ein Badge („7“),
+  ▶ startet direkt den Fällig-Modus.
+- **Tageslimits:** maximale neue Loci pro Tag und maximale Wiederholungen. Neue Loci werden zuerst „eingeführt“ (einmal ansehen, dann abfragen).
+- **Erinnerungen:** lokale Benachrichtigungen (Tauri Notification Plugin) zu einer wählbaren Uhrzeit, z. B. „12 Loci fällig“. Es gibt keinen Push-Server.
+- **Speicher:** eigene Tabellen `review.cards` und `review.log` (Op-Log, also später mit Locora Cloud synchronisierbar).
+  Im Export optional über `--with-progress` unter `plugins/review/` enthalten.
+- **CLI:** `locora due`, `locora review [Palast]`, `locora review stats`, `locora review optimize`.
+
 ---
 
 ## 5. Datenmodell und Offline first
@@ -156,8 +188,7 @@ offenen Repos sollte man ein DCO/CLA einführen, damit du die Lizenz später noc
 - **Medien:** Sie werden nach SHA-256 benannt (`media/ab/cd…`). Das liefert automatisches Deduplizieren, einfachen Sync und unveränderliche Dateien.
 - **Journeys** werden vollständig lokal bewertet. Eine Server-Validierung (wie bisher in Convex) gibt es nur
   für Gamification-Ranglisten. Dort wird das Transkript wie heute serverseitig nachgespielt, mit derselben Rust-Crate kompiliert für den Server.
-- **Wiederholung:** In `core` kommt FSRS (`fsrs` Crate) dazu und plant fällige Loci.
-  Damit kann der Startbildschirm direkt „7 Loci fällig“ zeigen. Das bisherige *Mastery* wird darauf abgebildet.
+- **Wiederholung:** übernimmt das eigene Plugin `review` (siehe 4.5). Das bisherige *Mastery* wird auf dessen Stabilitätswerte abgebildet.
 
 ### Was aus mnemodim wohin wandert
 
@@ -183,16 +214,16 @@ offenen Repos sollte man ein DCO/CLA einführen, damit du die Lizenz später noc
 │                                                      │
 │  ▶ Weiter: „Planeten“ – 7 Loci fällig      [Enter]   │  ← 1 Klick zurück in die Arbeit
 │                                                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────┐        │
-│  │  Core    │  │ Tutorial │  │ Gamification │        │
-│  │ 12 Pal.  │  │ 3/8 ✓    │  │ 🔥 5 Tage    │        │
-│  └──────────┘  └──────────┘  └──────────────┘        │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+│  │  Core    │ │ Review   │ │ Tutorial │ │ Gamific. │ │
+│  │ 12 Pal.  │ │ 7 fällig │ │ 3/8 ✓    │ │ 🔥 5 Tage│ │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ │
 │  + Plugin hinzufügen                                 │
 └──────────────────────────────────────────────────────┘
 ```
 
 - Jede Kachel ist ein **Live-Widget** des Plugins (deklarativer UI-Beitrag), nicht nur ein Icon.
-- Die **Weiter-Zeile** ist die wichtigste Aktion. Sie kommt aus `core` (fällige Wiederholung oder zuletzt bearbeitet).
+- Die **Weiter-Zeile** ist die wichtigste Aktion. Sie kommt aus `review` (fällige Loci) bzw. ohne `review` aus `core` (zuletzt bearbeitet).
 - **Befehlspalette** (Strg/⌘+K, auf Mobile Wischen nach unten) durchsucht alle Befehle aller Plugins und alle Paläste.
 - Einstellung „Direkt in Core starten“ für alle, die den Übersichtsschritt nicht wollen.
 
@@ -277,13 +308,15 @@ locora video "Vortrag" vortrag.mp4 --loci 0:12=Einleitung 1:23=These 4:05=Fazit
 
 # Bearbeiten
 locora add Planeten "Saturn" --memory "Ringe" --at 0.7,0.3
-locora ls                      # Paläste mit fälligen Loci
+locora ls                      # Paläste (mit Fälligkeiten, falls `review` installiert)
 locora practice Planeten       # Abfrage im Terminal (TUI, Text-Recall)
 locora export Planeten -o planeten.locora
 locora import planeten.locora
 
 # Plugins
 locora plugin ls
+locora due                     # was ist heute fällig (aus `review`)
+locora review                  # nur fällige Loci abfragen, in Routen-Reihenfolge
 locora stats                   # kommt aus dem Gamification-Plugin, falls installiert
 ```
 
@@ -335,7 +368,7 @@ Die Limits werden an Video angepasst (z. B. 2 GiB gesamt, ZIP64, Video-Einträge
 | Phase | Inhalt | Ergebnis |
 |---|---|---|
 | **0** | Repo, Cargo-Workspace, CI (Linux/macOS/Windows), Lizenzen, Entscheidungen aus Abschnitt 12 | leeres, baubares Gerüst |
-| **1** | `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format`, Plugin-Host + SDK, `core` ohne UI, **CLI** | Paläste per CLI anlegen, üben, importieren und exportieren |
+| **1** | `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format`, Plugin-Host + SDK, `core` und `review` ohne UI, **CLI** | Paläste per CLI anlegen, fällige Loci wiederholen, importieren und exportieren |
 | **2** | Tauri-App: Startbildschirm, Befehlspalette, Core-Editor, Journey (Bild). **Android- und iOS-Builds ab Tag 1 in CI** | nutzbare App auf allen Plattformen |
 | **3** | Video-Stages: Editor + Journey + CLI | Video-Paläste |
 | **4** | Plugin `tutorial` (Touren über `ui.highlight`, Beispielpalast, Formel-Guide) | Onboarding |
@@ -358,3 +391,4 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 | Gamification | **kostenlos**, nur Locora Cloud kostet |
 | Preis Locora Cloud | **9,99 €/Jahr** oder 1,49 €/Monat |
 | `.mnemodim` | **keine Kompatibilität** nötig, neues Format `.locora` |
+| Spaced Repetition | eigenes Plugin `review` (FSRS), kostenlos und MIT |
