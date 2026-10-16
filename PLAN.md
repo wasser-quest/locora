@@ -14,7 +14,7 @@
 | **Pures Rust** | Logik *und* UI sind Rust: Datenmodell, Formeln, Journeys, Format, Plugins, Sync, CLI und Oberfläche (Leptos → WASM). Kein JavaScript-Framework, kein Node im Build. |
 | **Offline first** | Lokale SQLite-Datenbank ist die Wahrheit. Kein Account nötig. Die Cloud (später) synchronisiert nur. |
 | **Sehr schnell** | Start in < 300 ms, Journey-Schritte ohne Netz, Medien lokal und nach Inhalt adressiert. |
-| **Alles ist ein Plugin** | `core`, `review` (Spaced Repetition), `tutorial` und `gamification` sind Plugins mit derselben API. Der Host selbst kann nichts außer Plugins laden. |
+| **Alles ist ein Plugin** | `core`, `review` (Spaced Repetition), `notify` (Benachrichtigungen), `tutorial` und `gamification` sind Plugins mit derselben API. Der Host selbst kann nichts außer Plugins laden. |
 | **Open Core** | Die ganze App inkl. `gamification` ist Open Source (MIT) und kostenlos. Nur der Web-Service **Locora Cloud** (Ranglisten, Sync, gemeinsame Challenges) ist proprietär und kostet ein günstiges Abo. |
 | **Wenig Klicks** | Für jede häufige Aufgabe gibt es ein festes Klick-Budget (siehe Abschnitt 6). |
 | **CLI** | Paläste in Sekunden aus dem Terminal anlegen, auf derselben Datenbank wie die App. |
@@ -53,14 +53,15 @@ mitbringen, und das ist ein Projekt für sich.
 locora/                          (öffentlich, MIT)
 ├── crates/
 │   ├── locora-sdk/              Plugin-API: Traits, Events, Services, UI-Beiträge, WIT-Definition
-│   ├── locora-host/             Plugin-Loader, Event-Bus, Service-Registry, Berechtigungen
+│   ├── locora-host/             wasmtime-Plugin-Loader, Hot-Reload, Event-Bus, Service-Registry, Berechtigungen
 │   ├── locora-store/            SQLite (rusqlite), Migrationen, Operations-Log, Medien-Store
 │   ├── locora-format/           .locora lesen/schreiben
 │   ├── locora-formula/          Port von shared/formulas.ts + workbookRuntime.ts
 │   └── locora-sync/             (später) Op-Log-Sync-Client
 ├── plugins/
 │   ├── core/                    Paläste, Stages, Loci, Video-Stages, Journeys, Workbook
-│   ├── review/                  Spaced Repetition (FSRS): fällige Loci, Planung, Erinnerungen
+│   ├── review/                  Spaced Repetition (FSRS): fällige Loci, Planung
+│   ├── notify/                  Benachrichtigungen: System, In-App, Zeitplanung, Ruhezeiten
 │   ├── tutorial/                Onboarding, interaktive Touren, Formel-Guide
 │   └── gamification/            XP, Herzen, Combos, Trophäen, Daily Challenges (lokal, kostenlos) + Cloud-Client
 ├── apps/
@@ -85,11 +86,21 @@ der nur mit einem aktiven Abo Daten an den Server schickt. Ohne Abo läuft alles
 Der Host kann nur drei Dinge: **Plugins laden**, **Nachrichten vermitteln** und **UI-Beiträge anzeigen**.
 Alles Fachliche steckt in Plugins, auch der Kern.
 
+**Plugins werden zur Laufzeit geladen** (siehe 4.4). Man schreibt sie in Rust und kompiliert sie zu einer
+`.wasm`-Komponente. Die App lädt, entlädt und aktualisiert sie, ohne neu zu starten. Plugins schreibt man so:
+
 ```rust
-pub trait Plugin: Send + Sync {
-    fn manifest(&self) -> &PluginManifest;      // id, version, requires, optional, permissions, license
-    fn activate(&self, ctx: &mut PluginContext) -> Result<()>;
-    fn deactivate(&self, ctx: &mut PluginContext) -> Result<()> { Ok(()) }
+use locora_sdk::prelude::*;
+
+#[locora_plugin]                       // erzeugt Manifest-Export und WIT-Bindings
+struct Review;
+
+impl Plugin for Review {
+    fn activate(ctx: &mut Ctx) -> Result<()> {
+        ctx.on::<LocusAnswered>(|ctx, ev| schedule(ctx, ev))?;
+        ctx.provide::<DueService>(DueImpl)?;
+        Ok(())
+    }
 }
 ```
 
@@ -105,7 +116,7 @@ pub trait Plugin: Send + Sync {
 | **CLI-Beiträge** | Eigene Unterbefehle | `locora tutorial reset`, `locora stats` |
 
 Payloads sind serde-Structs. Sie werden im SDK als Typen veröffentlicht und intern als JSON/Postcard übertragen.
-Dadurch funktioniert dieselbe API später auch über die WASM-Grenze.
+Dieselben Typen gelten auf beiden Seiten der WASM-Grenze.
 
 ### 4.2 So reden die Plugins miteinander
 
@@ -116,6 +127,8 @@ core ──event: palace.created ─────────▶ tutorial (nächs
 core ──event: journey.locus_answered──▶ review (FSRS-Bewertung, neuer Fälligkeitstermin)
 core ──hook:  journey.roster ─────────▶ review (nur fällige Loci abfragen)
 core/host ──service: review.due@1 ────▶ review (Badges auf Palastkarten, Weiter-Zeile)
+review ──service: notify.schedule@1 ──▶ notify (Erinnerung „12 Loci fällig“)
+gamification ──service: notify.send@1 ▶ notify (Streak in Gefahr, Trophäe freigeschaltet)
 review ──event: review.session_done ──▶ gamification (Streak, Daily Challenge „alles Fällige erledigt“)
 tutorial ──service: core.palaces@1 ───▶ core (Beispielpalast anlegen)
 tutorial ──service: ui.highlight@1 ───▶ host (Element hervorheben)
@@ -143,13 +156,56 @@ offenen Repos sollte man ein DCO/CLA einführen, damit du die Lizenz später noc
 (`service`, `plan`, `expires`). Die App prüft es lokal mit dem eingebauten Public Key und gewährt
 14 Tage Kulanz ohne Netz. Es gibt kein „Phone home“ bei jedem Start.
 
-### 4.4 Drittanbieter-Plugins (Phase 7)
+### 4.4 Plugins zur Laufzeit laden: Rust → WebAssembly-Komponenten
 
-- Gleiche API als **WIT-Interface** (WebAssembly Component Model).
-- Desktop und Android laufen mit **wasmtime**. iOS verbietet JIT, deshalb dort wasmtime mit dem Interpreter **Pulley** (oder `wasmi`).
-- Berechtigungen werden im Manifest deklariert (`storage`, `palaces:read`, `palaces:write`, `network`) und beim Installieren bestätigt.
-- Eigene UI von Drittanbietern läuft in einem sandboxed iframe mit `postMessage`-Brücke. Die eingebauten Plugins nutzen native Komponenten.
+**Entscheidung:** Plugins werden in Rust geschrieben und nach `wasm32-wasip2` als **WebAssembly-Komponente** kompiliert.
+Der Host lädt sie mit **wasmtime** zur Laufzeit. Die Plugin-API ist ein **WIT-Interface** (`crates/locora-sdk/wit/`).
+Das `locora-sdk` versteckt WIT komplett, Plugin-Autoren schreiben normales Rust.
 
+| Ansatz | Laufzeit laden | Hot-Reload | Sicher (Sandbox) | Android | iOS | Urteil |
+|---|---|---|---|---|---|---|
+| **WASM-Komponenten (wasmtime)** | ✅ | ✅ | ✅ | ✅ (Cranelift) | ✅ (Interpreter Pulley) | **gewählt** |
+| Native `.so`/`.dll`/`.dylib` (`libloading`) | ✅ | ⚠️ | ❌ volle Rechte | ⚠️ Play-Store verbietet nachgeladenen Code | ❌ verboten | abgelehnt |
+| Statisch einkompiliert | ❌ | ❌ | – | ✅ | ✅ | nur als Fallback |
+
+Native Libraries scheiden aus: Rust hat keine stabile ABI, ein Plugin hätte vollen Zugriff auf das Gerät,
+und iOS bzw. der Play Store verbieten nachgeladenen nativen Code.
+
+**Geschwindigkeit**
+
+- Desktop und Android kompilieren WASM per **Cranelift** zu nativem Maschinencode, typisch 1,1–1,5× nativer Laufzeit.
+  Das Kompilat wird gecacht (`~/.cache/locora/plugins/<hash>.cwasm`), der zweite Start lädt in Millisekunden.
+- iOS verbietet JIT. Dort läuft wasmtimes Interpreter **Pulley**. Das reicht für Plugin-Logik (Events, Planung, Punkte),
+  weil die schweren Teile (SQLite, Formeln, Medien, Video) im nativen Host liegen und Plugins sie über Services aufrufen.
+- Aufrufe über die Grenze werden gebündelt (Events in Batches, Daten als kompaktes Postcard statt JSON).
+- Hot Paths, die messbar zu langsam sind, wandern als Service in den Host. Das Plugin bleibt die Logik-Schicht.
+
+**Laufzeit-Verhalten**
+
+- **Installieren:** `.locora-plugin`-Paket (ZIP: `plugin.wasm` + `manifest.toml` + Icon + Signatur) per Drag-and-drop, CLI oder später Plugin-Verzeichnis.
+- **Laden/Entladen/Update ohne Neustart:** Der Host ruft `deactivate`, tauscht die Komponente und ruft `activate`.
+  Plugin-Zustand liegt in SQLite, nicht im WASM-Speicher, und überlebt das Neuladen.
+- **Hot-Reload für Entwickler:** `locora plugin dev ./plugins/review` beobachtet den Ordner, kompiliert bei jeder Änderung neu
+  und lädt das Plugin live in die laufende App.
+- **Absturzsicher:** Ein Panic oder eine Endlosschleife (Fuel/Epoch-Limit) beendet nur dieses Plugin. Die App läuft weiter und zeigt einen Hinweis.
+- **Berechtigungen** werden im Manifest deklariert (`storage`, `palaces:read`, `palaces:write`, `notify`, `network`) und beim Installieren bestätigt.
+  Ohne Berechtigung existiert die Host-Funktion für das Plugin nicht (Capability-basiert).
+- **Signaturen:** Offizielle Plugins sind mit Ed25519 signiert. Unsignierte Plugins gehen nur im Entwicklermodus.
+
+**UI aus Plugins**
+
+Ein zur Laufzeit geladenes Plugin kann keine Leptos-Komponenten in die fertig kompilierte App einbauen. Deshalb:
+
+- **Deklarative UI (Standard):** Das Plugin liefert einen View-Baum aus festen Bausteinen (Kachel, Liste, Button, Formular,
+  Overlay, Badge, Diagramm, Canvas-Zeichenbefehle). Die App rendert ihn mit nativen Leptos-Komponenten. Das ist schnell,
+  sieht einheitlich aus und hält die Klick-Regeln aus Abschnitt 6 ein.
+- **Eigene UI (Ausnahme):** Ein Plugin kann zusätzlich ein eigenes Leptos-WASM-Bundle mitliefern. Das läuft in einem sandboxed iframe
+  mit Nachrichten-Brücke zum Plugin.
+
+**Mobile App Stores:** Apple und Google erlauben nachgeladenen Code nur eingeschränkt. Darum werden die offiziellen Plugins
+(`core`, `review`, `notify`, `tutorial`, `gamification`) **mit der App ausgeliefert** und trotzdem über denselben Lade-Mechanismus geladen.
+Plugins von Dritten zur Laufzeit gibt es zunächst auf Desktop und Android (Sideload). Für iOS wird das vor dem Release gegen die
+Store-Richtlinien geprüft.
 
 ### 4.5 Plugin `review`: Spaced Repetition
 
@@ -172,10 +228,35 @@ Plant, **wann** welcher Locus wiederholt werden muss, damit man ihn nicht vergis
 - **Ganze Paläste:** Ein Palast gilt als fällig, sobald einer seiner Loci fällig ist. Die Palastkarte zeigt ein Badge („7“),
   ▶ startet direkt den Fällig-Modus.
 - **Tageslimits:** maximale neue Loci pro Tag und maximale Wiederholungen. Neue Loci werden zuerst „eingeführt“ (einmal ansehen, dann abfragen).
-- **Erinnerungen:** lokale Benachrichtigungen (Tauri Notification Plugin) zu einer wählbaren Uhrzeit, z. B. „12 Loci fällig“. Es gibt keinen Push-Server.
+- **Erinnerungen:** über den Service `notify.schedule@1` des Plugins `notify` (siehe 4.6), z. B. täglich „12 Loci fällig“. Ohne `notify` gibt es nur das Badge in der App.
 - **Speicher:** eigene Tabellen `review.cards` und `review.log` (Op-Log, also später mit Locora Cloud synchronisierbar).
   Im Export optional über `--with-progress` unter `plugins/review/` enthalten.
 - **CLI:** `locora due`, `locora review [Palast]`, `locora review stats`, `locora review optimize`.
+
+### 4.6 Plugin `notify`: Benachrichtigungen
+
+Eine zentrale Stelle für **alle** Benachrichtigungen. Kein anderes Plugin spricht direkt mit dem Betriebssystem.
+So gibt es eine Einstellungsseite, einheitliche Ruhezeiten und keine Benachrichtigungsflut.
+
+- **Services für andere Plugins:**
+  - `notify.send@1`: sofort anzeigen (In-App-Toast und/oder System-Benachrichtigung).
+  - `notify.schedule@1`: zu einem Zeitpunkt oder wiederkehrend planen (`daily 18:00`), mit Schlüssel zum Ersetzen/Abbrechen.
+  - Jede Nachricht hat Plugin, Kanal (z. B. `review.due`, `gamification.streak`), Priorität und eine **Aktion**
+    (z. B. `review.start@Planeten`). Ein Tipp auf die Benachrichtigung öffnet direkt die passende Ansicht: **0 Zusatzklicks**.
+- **Ausgabe:**
+
+  | Plattform | Umsetzung |
+  |---|---|
+  | Desktop (Windows/macOS/Linux) | System-Benachrichtigungen (`tauri-plugin-notification`); Zeitplanung durch den Host, solange die App oder der Tray-Prozess läuft |
+  | Android / iOS | vom System geplante lokale Benachrichtigungen, funktionieren auch bei geschlossener App |
+  | In der App | Toasts und eine Glocke mit Verlauf |
+  | CLI | `locora notify ls`; optional Ausgabe beim Start von `locora` („12 Loci fällig“) |
+
+- **Offline:** Alles ist lokal geplant und in SQLite gespeichert (`notify.queue`, `notify.settings`). Push über Locora Cloud (z. B. „Freund hat dich überholt“) kommt erst später als optionaler Kanal.
+- **Gegen Nerven:** Ruhezeiten, Tageslimit pro Kanal, und Bündeln: Nachrichten im selben Zeitfenster werden zu **einer** zusammengefasst
+  („12 Loci fällig · Streak endet heute“). Jeder Kanal lässt sich einzeln abschalten.
+- **Ohne `notify`:** Plugins laufen weiter, Hinweise erscheinen nur als Badges in der App.
+- **CLI:** `locora notify ls`, `locora notify mute <kanal>`, `locora notify quiet 22:00-08:00`.
 
 ---
 
@@ -218,6 +299,10 @@ Plant, **wann** welcher Locus wiederholt werden muss, damit man ihn nicht vergis
 │  │  Core    │ │ Review   │ │ Tutorial │ │ Gamific. │ │
 │  │ 12 Pal.  │ │ 7 fällig │ │ 3/8 ✓    │ │ 🔥 5 Tage│ │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ │
+│  ┌──────────┐                                        │
+│  │ Notify 🔔│                                        │
+│  │ 18:00 ⏰  │                                        │
+│  └──────────┘                                        │
 │  + Plugin hinzufügen                                 │
 └──────────────────────────────────────────────────────┘
 ```
@@ -368,13 +453,13 @@ Die Limits werden an Video angepasst (z. B. 2 GiB gesamt, ZIP64, Video-Einträge
 | Phase | Inhalt | Ergebnis |
 |---|---|---|
 | **0** | Repo, Cargo-Workspace, CI (Linux/macOS/Windows), Lizenzen, Entscheidungen aus Abschnitt 12 | leeres, baubares Gerüst |
-| **1** | `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format`, Plugin-Host + SDK, `core` und `review` ohne UI, **CLI** | Paläste per CLI anlegen, fällige Loci wiederholen, importieren und exportieren |
+| **1** | Plugin-Host mit wasmtime + WIT-SDK + Hot-Reload zuerst, dann `locora-store`, `locora-formula` (Port inkl. der bestehenden Testfälle aus `formulas.spec.ts` etc.), `locora-format`, `core` und `review` als WASM-Plugins ohne UI, **CLI** | Paläste per CLI anlegen, fällige Loci wiederholen, importieren und exportieren |
 | **2** | Tauri-App: Startbildschirm, Befehlspalette, Core-Editor, Journey (Bild). **Android- und iOS-Builds ab Tag 1 in CI** | nutzbare App auf allen Plattformen |
-| **3** | Video-Stages: Editor + Journey + CLI | Video-Paläste |
+| **3** | Video-Stages: Editor + Journey + CLI; Plugin `notify` | Video-Paläste, Erinnerungen |
 | **4** | Plugin `tutorial` (Touren über `ui.highlight`, Beispielpalast, Formel-Guide) | Onboarding |
 | **5** | Plugin `gamification` (lokal, kostenlos), danach Locora Cloud: Server, Bezahlung, Entitlements | erstes Einkommen |
 | **6** | Sync (Op-Log ↔ Server) als optionaler Dienst | mehrere Geräte |
-| **7** | WASM-Plugins für Dritte | offenes Ökosystem |
+| **7** | Plugin-Verzeichnis für Dritte, Signaturen, Store-Prüfung iOS | offenes Ökosystem |
 
 Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI geprüft.
 
@@ -392,3 +477,5 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 | Preis Locora Cloud | **9,99 €/Jahr** oder 1,49 €/Monat |
 | `.mnemodim` | **keine Kompatibilität** nötig, neues Format `.locora` |
 | Spaced Repetition | eigenes Plugin `review` (FSRS), kostenlos und MIT |
+| Benachrichtigungen | eigenes Plugin `notify`, kostenlos und MIT |
+| Plugin-Technik | **zur Laufzeit geladene Rust → WASM-Komponenten** (wasmtime), Hot-Reload ohne Neustart |
