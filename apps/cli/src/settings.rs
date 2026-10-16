@@ -45,7 +45,7 @@ fn log(app: &mut App) -> Result<Vec<LogEntry>> {
 pub fn new_budget(app: &mut App) -> Result<usize> {
     let limit = new_per_day(app)?;
     let clock = app.day_clock()?;
-    Ok(limit.saturating_sub(introduced_today(&log(app)?, now(), clock)))
+    Ok(limit.saturating_sub(introduced_today(&log(app)?, now(), &clock)))
 }
 
 fn configure(app: &mut App, request: ConfigureRequest) -> Result<Settings> {
@@ -187,7 +187,7 @@ mod tests {
             entry("a", today + 1),
             entry("b", today + 2),
         ];
-        assert_eq!(introduced_today(&entries, now, clock), 2);
+        assert_eq!(introduced_today(&entries, now, &clock), 2);
         let h = histories(&entries);
         assert_eq!(h.len(), 3);
         assert!(h.iter().all(|h| h.windows(2).all(|w| w[0].0 <= w[1].0)));

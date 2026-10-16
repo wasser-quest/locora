@@ -38,9 +38,32 @@ fn App() -> impl IntoView {
     provide_context(editing);
     // Learning days follow local time: tell the backend the system's offset
     // (JavaScript reports minutes *west* of UTC).
-    spawn_local(async {
+    // Sent at start, when the window comes back and every 15 minutes, but
+    // only when it changed (summer time can switch while the app is open).
+    let last_offset = StoredValue::new(None::<i32>);
+    let sync_offset = move || {
         let minutes = -(js_sys::Date::new_0().get_timezone_offset() as i32);
-        let _ = call::<()>(locora_app_api::CMD_SET_UTC_OFFSET, UtcOffset { minutes }).await;
+        if last_offset.get_value() == Some(minutes) {
+            return;
+        }
+        last_offset.set_value(Some(minutes));
+        spawn_local(async move {
+            if call::<()>(locora_app_api::CMD_SET_UTC_OFFSET, UtcOffset { minutes })
+                .await
+                .is_err()
+            {
+                last_offset.set_value(None);
+            }
+        });
+    };
+    sync_offset();
+    let focus = window_event_listener(leptos::ev::focus, move |_| sync_offset());
+    let every = set_interval_with_handle(sync_offset, std::time::Duration::from_secs(15 * 60)).ok();
+    on_cleanup(move || {
+        focus.remove();
+        if let Some(handle) = every {
+            handle.clear();
+        }
     });
     view! {
         <palette::Palette screen=screen editing=editing />
