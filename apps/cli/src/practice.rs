@@ -1,7 +1,8 @@
 //! Practising in the terminal: walk the route, recall each locus, grade it.
 
+use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use locora_api::Service;
@@ -335,12 +336,17 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
         if count == 1 { "Locus" } else { "Loci" }
     );
     println!("? = Aktionen anzeigen · !name = Aktion ausführen · q = beenden");
-    let started = Instant::now();
+    // Time spent per palace: only the time at its own loci, so a review across
+    // several palaces does not report the whole session to each of them.
+    let mut spent: HashMap<String, Duration> = HashMap::new();
     let mut results: Vec<(String, bool)> = Vec::new();
     let mut points = 0u64;
     let total = plan.len();
     for (i, (index, tree, locus)) in plan.iter().enumerate() {
         let asked = Instant::now();
+        let track = |spent: &mut HashMap<String, Duration>| {
+            *spent.entry(tree.palace.id.clone()).or_default() += asked.elapsed();
+        };
         match ask(&mut input, i + 1, total, locus, &mut runs[*index])? {
             Step::Quit => break,
             Step::Answered(submission) => {
@@ -352,10 +358,12 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                         Ok(text) if !text.trim().is_empty() => text,
                         Ok(_) => {
                             println!("⚠ Leere erwartete Antwort – nicht bewertet.");
+                            track(&mut spent);
                             continue;
                         }
                         Err(error) => {
                             println!("{error} – nicht bewertet.");
+                            track(&mut spent);
                             continue;
                         }
                     }
@@ -416,9 +424,11 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                         println!("        Richtige Auswahl: {}", correct.join(", "));
                     }
                     if !after_automatic(&mut input, locus, &mut runs[*index])? {
+                        track(&mut spent);
                         break;
                     }
                 }
+                track(&mut spent);
             }
         }
     }
@@ -439,7 +449,9 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             palace_id: tree.palace.id.clone(),
             correct: mine.iter().filter(|ok| **ok).count() as u32,
             total: mine.len() as u32,
-            duration_secs: started.elapsed().as_secs(),
+            duration_secs: spent
+                .get(&tree.palace.id)
+                .map_or(0, |d| d.as_secs_f64().round() as u64),
         })?;
     }
     let answered = results.len();
