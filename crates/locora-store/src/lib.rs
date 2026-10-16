@@ -101,6 +101,9 @@ pub struct Locus {
     pub time: Option<f64>,
     #[serde(default)]
     pub answer: Answer,
+    /// SHA-256 of a picture shown at this locus (image or `.sply` animation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
     /// Formulas that compute fields of this locus from the palace's tables.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<Binding>,
@@ -146,6 +149,9 @@ pub struct NewLocus {
     pub time: Option<f64>,
     #[serde(default)]
     pub answer: Answer,
+    /// SHA-256 of a stored picture (image or `.sply` animation).
+    #[serde(default)]
+    pub image: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -156,7 +162,18 @@ pub struct LocusPatch {
     pub y: Option<f64>,
     pub time: Option<Option<f64>>,
     pub answer: Option<Answer>,
+    /// `None` = keep, `Some(None)` = remove, `Some(Some(hash))` = set.
+    #[serde(default)]
+    pub image: Option<Option<String>>,
 }
+
+/// Media types a locus picture may have.
+pub fn is_picture(media_type: &str) -> bool {
+    media_type.starts_with("image/") || media_type == SPLINELY
+}
+
+/// Media type of Splinely animations (`.sply`).
+pub const SPLINELY: &str = "application/vnd.splinely";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MediaRef {
@@ -392,7 +409,7 @@ impl Store {
             });
         }
         let mut loci_stmt = conn.prepare(
-            "SELECT id, room_id, position, place, item, x, y, time, answer FROM loci WHERE room_id = ?1 ORDER BY position",
+            "SELECT id, room_id, position, place, item, x, y, time, answer, image FROM loci WHERE room_id = ?1 ORDER BY position",
         )?;
         let mut tree = Vec::new();
         for room in rooms {
@@ -408,6 +425,7 @@ impl Store {
                         y: r.get(6)?,
                         time: r.get(7)?,
                         answer: read_answer(r, 8)?,
+                        image: r.get(9)?,
                         bindings: Vec::new(),
                     })
                 })?
@@ -553,6 +571,9 @@ impl Store {
             .validate()
             .map_err(|e| StoreError::Invalid(e.into()))?;
         let conn = self.conn();
+        if let Some(hash) = &locus.image {
+            check_picture(&conn, hash)?;
+        }
         let palace_id: String = conn
             .query_row(
                 "SELECT palace_id FROM rooms WHERE id = ?1",
@@ -576,11 +597,12 @@ impl Store {
             y: locus.y,
             time: locus.time,
             answer: locus.answer,
+            image: locus.image,
             bindings: Vec::new(),
         };
         conn.execute(
-            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable")],
+            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(
@@ -597,7 +619,7 @@ impl Store {
         let conn = self.conn();
         let (palace_id, mut locus) = conn
             .query_row(
-                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer
+                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image
                  FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
                 [id],
                 |r| {
@@ -613,6 +635,7 @@ impl Store {
                             y: r.get(7)?,
                             time: r.get(8)?,
                             answer: read_answer(r, 9)?,
+                            image: r.get(10)?,
                             bindings: Vec::new(),
                         },
                     ))
@@ -637,10 +660,16 @@ impl Store {
         if let Some(time) = patch.time {
             locus.time = time;
         }
+        if let Some(image) = &patch.image {
+            if let Some(hash) = image {
+                check_picture(&conn, hash)?;
+            }
+            locus.image = image.clone();
+        }
         check_position(locus.x, locus.y)?;
         conn.execute(
-            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6 WHERE id = ?7",
-            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), id],
+            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7 WHERE id = ?8",
+            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, id],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(
@@ -927,6 +956,22 @@ fn media_path(dir: &Path, hash: &str) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+/// A locus picture must be stored media of an image or Splinely type.
+fn check_picture(conn: &Connection, hash: &str) -> Result<()> {
+    let mime: Option<String> = conn
+        .query_row("SELECT mime FROM media WHERE hash = ?1", [hash], |r| {
+            r.get(0)
+        })
+        .optional()?;
+    match mime {
+        None => Err(StoreError::NotFound(format!("Medium {hash}"))),
+        Some(m) if is_picture(&m) => Ok(()),
+        Some(m) => Err(StoreError::Invalid(format!(
+            "Ein Locus-Bild muss ein Bild oder eine .sply-Animation sein, nicht {m}"
+        ))),
+    }
+}
 
 fn read_answer(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<Answer> {
     let text: String = row.get(index)?;

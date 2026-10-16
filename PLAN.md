@@ -645,7 +645,16 @@ Ausführliche Verträge, Randfälle und Grenzen: [`docs/phase-1-notizen.md`](doc
 | 7 | Review-Log im Plugin (Dienst `review.log@1`), `locora optimize` (FSRS-Gewichte nativ aus dem Verlauf, `review.configure@1`), `locora settings` (neue Loci pro Tag, Ziel-Behaltensrate), `locora stats`; Tage zählen in UTC | erledigt |
 | 8 | Sammlungen (mehrere Paläste mit gemeinsamer Navigation, `navigate`-Aktion) | erst wenn gebraucht |
 
-**Phase 1 ist damit abgeschlossen** (Punkt 8 bleibt bewusst offen). Nächster Schritt: Phase 2, die App (13.4).
+**Phase 1 ist damit abgeschlossen** (Punkt 8 bleibt bewusst offen).
+
+**Tutorial als Palast (erledigt, Teil von Phase 4 vorgezogen):** Das Tutorial besteht aus Loci mit `.sply`-Grafiken:
+`assets/tutorial/locora-lernen.locora.toml` (3 Räume, 9 Orte, Recall/Quiz/Guess), Grafiken per
+`assets/tutorial/src/tutorial.py`, Simo und Glühwürmchen aus `assets/mascot/`. In die CLI eingebaut: `locora tutorial
+[--reset]`. Dafür neu: Medientyp `application/vnd.splinely` (`.sply`) für Raum-Hintergründe und Bilder an Orten,
+Locus-Bilder in Store (Migration 5), `.locora` (Version 2) und `locora.toml` (`image`), `locora add/edit --image`.
+Noch offen: Bilder im Palast-Dienst `core.palaces@1`; das Tutorial-Plugin (Touren über `ui.highlight@1`) folgt mit der App.
+
+Nächster Schritt: Phase 2, die App (13.4). Die App spielt die `.sply`-Bilder der Orte mit der Splinely-Runtime ab.
 
 Behoben: Beim palastübergreifenden Review bekam jeder Palast die gesamte Laufzeit gemeldet (`lernzeit` zählte doppelt);
 jetzt zählt nur die Zeit an den eigenen Loci. Die CLI-Tests waren gelegentlich rot, wenn ein Prozess vor dem Lesen der
@@ -674,7 +683,8 @@ Testeingabe endete (Broken Pipe); die Test-Helfer behandeln das jetzt als normal
 
 - **Phase 3:** Video-Räume in der App (anhalten am Locus bis gelöst, Editor mit Taste L, Zeitleiste), Plugin `notify`
   (4.6: lokale Benachrichtigungen, Ruhezeiten, Bündelung).
-- **Phase 4:** Plugin `tutorial` (Touren über `ui.highlight@1`, Beispielpalast, Formel-Guide), Simo als Begleiter.
+- **Phase 4:** Plugin `tutorial`: der Tutorial-Palast existiert schon (`locora tutorial`); dazu kommen Touren durch die
+  App über `ui.highlight@1`, ein Formel-Guide (ebenfalls als Palast mit `.sply`-Bildern) und Simo als Begleiter.
 - **Phase 5:** Plugin `gamification` (XP, Combos, Herzen, Trophäen, Daily Challenges; lokal und kostenlos, Werte aus
   mnemodim `shared/journeyScoring.ts`), danach privates Repo `locora-cloud` (axum + Postgres, Abo, Ranglisten,
   Ed25519-Entitlements mit 14 Tagen Offline-Kulanz, In-App-Kauf auf iOS/Android).

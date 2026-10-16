@@ -61,6 +61,8 @@ const MIGRATIONS: &[&str] = &[
      UPDATE bindings SET field = 'item' WHERE field = 'memory';",
     // 4: answer configuration; existing loci remain Recall.
     "ALTER TABLE loci ADD COLUMN answer TEXT NOT NULL DEFAULT '{\"type\":\"recall\",\"options\":[]}';",
+    // 5: an optional picture per locus (image or Splinely animation)
+    "ALTER TABLE loci ADD COLUMN image TEXT REFERENCES media(hash);",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -120,7 +122,11 @@ mod tests {
         assert_eq!(
             conn.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                 .unwrap(),
-            4
+            MIGRATIONS.len() as u32
         );
+        let image: Option<String> = conn
+            .query_row("SELECT image FROM loci", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(image, None, "existing loci have no picture");
     }
 }

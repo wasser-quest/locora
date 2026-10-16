@@ -108,6 +108,8 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
                     y: new.y,
                     time: new.time,
                     answer: new.answer,
+                    // Pictures are not part of the palace service yet.
+                    image: None,
                 },
             )?))
         }
@@ -123,6 +125,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
                     x: patch.x,
                     y: patch.y,
                     time: patch.time,
+                    image: None,
                     answer: patch.answer,
                 },
             )?;

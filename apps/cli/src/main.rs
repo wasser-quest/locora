@@ -7,6 +7,7 @@ mod practice;
 mod settings;
 mod source;
 mod transfer;
+mod tutorial;
 mod workbook;
 
 use std::path::PathBuf;
@@ -63,6 +64,9 @@ enum Command {
         /// Zeit im Video (mm:ss oder Sekunden)
         #[arg(long)]
         time: Option<String>,
+        /// Bild für den Ort (png, jpg, webp, gif, avif oder eine .sply-Animation)
+        #[arg(long, value_name = "DATEI")]
+        image: Option<PathBuf>,
     },
     /// Locus ändern (Nummer wie in `locora show`)
     Edit {
@@ -79,6 +83,12 @@ enum Command {
         place: Option<String>,
         #[arg(long)]
         at: Option<String>,
+        /// Neues Bild für den Ort (Bild oder .sply-Animation)
+        #[arg(long, value_name = "DATEI", conflicts_with = "no_image")]
+        image: Option<PathBuf>,
+        /// Bild des Orts entfernen
+        #[arg(long)]
+        no_image: bool,
     },
     /// Alle Paläste mit fälligen und neuen Loci
     #[command(alias = "list")]
@@ -128,6 +138,12 @@ enum Command {
     },
     /// Lernstatistik: Antworten, Trefferquote, Serie
     Stats,
+    /// Tutorial-Palast „Locora lernen“ anlegen (Locora mit der Loci-Methode lernen)
+    Tutorial {
+        /// Vorhandenes Tutorial neu anlegen (sein Wiederholungsplan geht verloren)
+        #[arg(long)]
+        reset: bool,
+    },
     /// Paläste als .locora-Datei speichern (mit Bildern und Videos)
     Export {
         /// Paläste (Name oder Id); leer mit --all
@@ -249,6 +265,7 @@ fn main() -> Result<()> {
             place,
             at,
             time,
+            image,
         } => palace::add(
             &mut app::App::open(data)?,
             palace::AddArgs {
@@ -257,6 +274,7 @@ fn main() -> Result<()> {
                 place,
                 at,
                 time,
+                image,
             },
         ),
         Command::Edit {
@@ -266,7 +284,15 @@ fn main() -> Result<()> {
             item,
             place,
             at,
+            image,
+            no_image,
         } => {
+            let mut app = app::App::open(data)?;
+            let image = match (image, no_image) {
+                (Some(path), _) => Some(Some(palace::store_picture(&app, &path)?)),
+                (None, true) => Some(None),
+                (None, false) => None,
+            };
             let point = match at {
                 Some(text) => {
                     let (x, y) = text
@@ -278,7 +304,7 @@ fn main() -> Result<()> {
                 None => (None, None),
             };
             palace::edit(
-                &mut app::App::open(data)?,
+                &mut app,
                 &palace,
                 locus,
                 LocusPatch {
@@ -291,6 +317,7 @@ fn main() -> Result<()> {
                         .map(|text| serde_json::from_str(&text))
                         .transpose()
                         .context("Ungültige Antwortkonfiguration")?,
+                    image,
                 },
             )
         }
@@ -339,6 +366,7 @@ fn main() -> Result<()> {
             settings::optimize_command(&mut app::App::open(data)?, dry_run, reset)
         }
         Command::Stats => settings::stats(&mut app::App::open(data)?),
+        Command::Tutorial { reset } => tutorial::run(&mut app::App::open(data)?, reset),
         Command::Due => palace::due(&mut app::App::open(data)?),
         Command::Export {
             palaces,

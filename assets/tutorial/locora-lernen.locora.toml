@@ -1,0 +1,77 @@
+# Das Tutorial: Locora mit der Loci-Methode lernen.
+# Jeder Ort zeigt eine animierte Grafik (.sply), die die App mit der Splinely-Runtime abspielt.
+# Bauen: locora tutorial (oder locora build assets/tutorial/locora-lernen.locora.toml)
+
+name = "Locora lernen"
+
+[[room]]
+name = "Eingangshalle"
+image = "halle.sply"
+
+[[room.locus]]
+place = "Das Tor – was ist ein Gedächtnispalast?"
+item = "Ein Ort, den du gut kennst"
+at = [0.5, 0.45]
+image = "../mascot/simo.sply"
+
+[[room.locus]]
+place = "Der Teppich – was gibt die Reihenfolge vor?"
+item = "Die Route durch die Orte"
+at = [0.5, 0.88]
+image = "teppich.sply"
+
+[[room.locus]]
+place = "Die Laterne – was legst du an jeden Ort?"
+item = "Ein lebhaftes Bild"
+at = [0.82, 0.3]
+image = "laterne.sply"
+
+[[room]]
+name = "Bibliothek"
+image = "bibliothek.sply"
+
+[[room.locus]]
+place = "Das Regal – welche Bilder bleiben hängen?"
+item = "Je seltsamer, desto besser"
+at = [0.3, 0.4]
+image = "regal.sply"
+
+[[room.locus]]
+place = "Der Leseplatz – wie übst du?"
+item = "Route abgehen und jeden Ort abrufen"
+at = [0.6, 0.75]
+image = "leseplatz.sply"
+
+[[room.locus]]
+place = "Die Uhr – wann wiederholst du?"
+item = "Kurz bevor du vergisst"
+at = [0.82, 0.12]
+image = "uhr.sply"
+
+[[room]]
+name = "Garten"
+image = "garten.sply"
+
+[[room.locus]]
+place = "Der Brunnen – wie bewertest du eine Antwort?"
+item = "Ehrlich, von 1 bis 4"
+at = [0.2, 0.75]
+image = "brunnen.sply"
+answer = { type = "quiz", options = [
+  { text = "Immer 4, dann geht es schneller", correct = false },
+  { text = "Ehrlich, von 1 bis 4", correct = true },
+  { text = "Gar nicht", correct = false },
+] }
+
+[[room.locus]]
+place = "Der Baum – mit welchem Befehl legst du einen eigenen Palast an?"
+item = "locora new"
+at = [0.55, 0.6]
+image = "baum.sply"
+answer = "guess"
+
+[[room.locus]]
+place = "Das Glühwürmchen – womit übst du, was fällig ist?"
+item = "locora review"
+at = [0.8, 0.35]
+image = "../mascot/gluehwuermchen.sply"

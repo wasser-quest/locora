@@ -21,6 +21,7 @@ fn sample(dir: &std::path::Path) -> Store {
                     y: 0.5,
                     time: None,
                     answer: Default::default(),
+                    image: None,
                 },
             )
             .unwrap();
@@ -39,6 +40,7 @@ fn sample(dir: &std::path::Path) -> Store {
                 y: 0.5,
                 time: Some(83.0),
                 answer: Default::default(),
+                image: None,
             },
         )
         .unwrap();
@@ -319,6 +321,7 @@ fn tables_and_bindings_travel_and_clashes_stay_local() {
                 y: 0.5,
                 time: None,
                 answer: Default::default(),
+                image: None,
             },
         )
         .unwrap();
@@ -520,4 +523,73 @@ fn plugin_files_travel_and_paths_are_checked() {
         ..file
     };
     assert!(write(&[bad_id]).is_err());
+}
+
+#[test]
+fn splinely_animations_as_backdrops_and_locus_pictures() {
+    let a = tempfile::tempdir().unwrap();
+    let store = Store::open(a.path()).unwrap();
+    let scene = store
+        .put_media(b"\x89SPLY\r\n\x1a scene", locora_store::SPLINELY)
+        .unwrap();
+    let simo = store
+        .put_media(b"\x89SPLY\r\n\x1a simo", locora_store::SPLINELY)
+        .unwrap();
+    let p = store.create_palace("Tutorial").unwrap();
+    let r = store
+        .add_room(&p.id, "Eingang", RoomKind::Image, Some(&scene.hash))
+        .unwrap();
+    store
+        .add_locus(
+            &r.id,
+            NewLocus {
+                place: "Tor".into(),
+                item: "Ein Palast ist eine Route".into(),
+                x: 0.5,
+                y: 0.5,
+                time: None,
+                answer: Default::default(),
+                image: Some(simo.hash.clone()),
+            },
+        )
+        .unwrap();
+    let bytes = exported(&store, &["Tutorial"]);
+    let package = Package::open(Cursor::new(bytes.clone())).unwrap();
+    assert_eq!(package.manifest.version, 2, "locus pictures need format 2");
+    assert!(
+        package
+            .manifest
+            .media
+            .iter()
+            .all(|m| m.media_type == locora_store::SPLINELY)
+    );
+    let mut archive = ZipArchive::new(Cursor::new(&bytes)).unwrap();
+    assert!(
+        archive
+            .by_name(&format!("media/{}.sply", simo.hash))
+            .is_ok()
+    );
+
+    let b = tempfile::tempdir().unwrap();
+    let target = Store::open(b.path()).unwrap();
+    package.import(&target).unwrap();
+    let copy = target.palace("Tutorial").unwrap();
+    assert_eq!(copy.rooms[0].room.kind, RoomKind::Image);
+    assert_eq!(
+        copy.route().next().unwrap().image.as_deref(),
+        Some(simo.hash.as_str())
+    );
+
+    let err = open_err(rewrite(&bytes, |mut e| {
+        edit_json(&mut e, "manifest.json", |m| m["version"] = 1.into());
+        e
+    }));
+    assert!(err.contains("Format 2"), "{err}");
+    let err = open_err(rewrite(&bytes, |mut e| {
+        edit_json(&mut e, "palace", |p| {
+            p["rooms"][0]["loci"][0]["image"] = "f".repeat(64).into()
+        });
+        e
+    }));
+    assert!(err.contains("Bild") && err.contains("fehlt"), "{err}");
 }

@@ -259,3 +259,52 @@ fn times_parse() {
     assert!(matches!(clock(83.0), TimeSource::Clock(ref c) if c == "1:23"));
     assert!(matches!(clock(3605.0), TimeSource::Clock(ref c) if c == "1:00:05"));
 }
+
+#[test]
+fn splinely_pictures_and_backdrops() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    fs::write(d.join("szene.sply"), b"\x89SPLY\r\n\x1a scene").unwrap();
+    fs::write(d.join("simo.sply"), b"\x89SPLY\r\n\x1a simo").unwrap();
+    fs::write(d.join("falsch.sply"), b"<svg/>").unwrap();
+    fs::write(d.join("talk.mp4"), b"fake mp4").unwrap();
+    let text = r#"
+name = "Tutorial"
+[[room]]
+name = "Eingang"
+image = "szene.sply"
+[[room.locus]]
+place = "Tor"
+item = "Ein Palast ist eine Route"
+image = "simo.sply"
+"#;
+    let plan = plan_of(text, d).unwrap();
+    let store = Store::open(&d.join("profil")).unwrap();
+    let tree = build(&store, &plan).unwrap();
+    assert_eq!(tree.rooms[0].room.kind, RoomKind::Image);
+    let picture = tree.route().next().unwrap().image.clone().unwrap();
+    assert_eq!(
+        store.media(&picture).unwrap().unwrap().mime,
+        locora_store::SPLINELY
+    );
+
+    let out = d.join("out");
+    let file = dump(&store, "Tutorial", &out).unwrap();
+    let dumped = fs::read_to_string(&file).unwrap();
+    assert!(
+        dumped.contains("image = \"tor.sply\"") && dumped.contains("image = \"eingang.sply\""),
+        "{dumped}"
+    );
+    assert_eq!(
+        fs::read(out.join("tor.sply")).unwrap(),
+        b"\x89SPLY\r\n\x1a simo"
+    );
+
+    let err = err_of(&text.replace("simo.sply", "falsch.sply"), d);
+    assert!(err.contains("keine binäre .sply-Datei"), "{err}");
+    let err = err_of(
+        &text.replace("image = \"simo.sply\"", "image = \"talk.mp4\""),
+        d,
+    );
+    assert!(err.contains("kann kein Video sein"), "{err}");
+}

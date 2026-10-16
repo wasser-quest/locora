@@ -12,6 +12,8 @@
 cargo build --release          # also compiles the built-in plugins to WebAssembly
 alias locora=./target/release/locora
 
+locora tutorial                # learn Locora with the method of loci itself: a palace with an animation at every place
+
 locora new "Planeten" -- Merkur Venus Erde Mars Jupiter Saturn Uranus Neptun
 locora practice Planeten       # walk the route: Enter reveals, 1–4 grades
 locora edit Planeten 1 --answer '{"type":"guess"}'  # typed answer, checked by Core

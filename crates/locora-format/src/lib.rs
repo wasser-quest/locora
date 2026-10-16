@@ -161,6 +161,9 @@ pub struct LocusDoc {
     pub bindings: Bindings,
     #[serde(default, skip_serializing_if = "locora_store::Answer::is_recall")]
     pub answer: locora_store::Answer,
+    /// SHA-256 of a picture shown at the locus (image or `.sply` animation; format 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
 }
 
 /// Formulas computing locus fields, one per field.
@@ -247,6 +250,7 @@ impl From<&PalaceTree> for PalaceDoc {
                             time: l.time,
                             bindings: Bindings::from_list(&l.bindings),
                             answer: l.answer.clone(),
+                            image: l.image.clone(),
                         })
                         .collect(),
                 })
@@ -267,6 +271,7 @@ const MEDIA_TYPES: &[(&str, &str)] = &[
     ("video/mp4", "mp4"),
     ("video/webm", "webm"),
     ("video/quicktime", "mov"),
+    (locora_store::SPLINELY, "sply"),
 ];
 
 fn extension(media_type: &str) -> Option<&'static str> {
@@ -389,7 +394,13 @@ pub fn export_with<W: Write + Seek>(
         if docs.iter().any(|d| d.id == tree.palace.id) {
             continue;
         }
-        for hash in tree.rooms.iter().filter_map(|r| r.room.media.as_ref()) {
+        let pictures = tree.route().filter_map(|l| l.image.as_ref());
+        for hash in tree
+            .rooms
+            .iter()
+            .filter_map(|r| r.room.media.as_ref())
+            .chain(pictures)
+        {
             if media.contains_key(hash) {
                 continue;
             }
@@ -414,7 +425,7 @@ pub fn export_with<W: Write + Seek>(
             .iter()
             .flat_map(|p| &p.rooms)
             .flat_map(|r| &r.loci)
-            .all(|l| l.answer.is_recall())
+            .all(|l| l.answer.is_recall() && l.image.is_none())
         {
             1
         } else {
@@ -692,6 +703,20 @@ impl<R: Read + Seek> Package<R> {
                     if manifest.version == 1 && !locus.answer.is_recall() {
                         return Err(invalid("Antworttypen benötigen Format 2"));
                     }
+                    if let Some(hash) = &locus.image {
+                        if manifest.version == 1 {
+                            return Err(invalid("Locus-Bilder benötigen Format 2"));
+                        }
+                        let kind = media.get(hash).ok_or_else(|| {
+                            invalid(format!("Locus „{}“: Bild {hash} fehlt", locus.place))
+                        })?;
+                        if !locora_store::is_picture(kind) {
+                            return Err(invalid(format!(
+                                "Locus „{}“: {kind} ist kein Bild",
+                                locus.place
+                            )));
+                        }
+                    }
                     for option in &locus.answer.options {
                         check_text("Quizoption", &option.text)?;
                     }
@@ -859,6 +884,7 @@ impl<R: Read + Seek> Package<R> {
                             y: locus.y,
                             time: locus.time,
                             answer: locus.answer.clone(),
+                            image: locus.image.clone(),
                         },
                     )?;
                     for binding in locus.bindings.list() {

@@ -94,6 +94,9 @@ pub struct LocusSource {
     pub time: Option<TimeSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answer: Option<AnswerSource>,
+    /// Picture shown at the locus: an image or a `.sply` animation, relative to the source file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
     /// Formulas per field: place, item, x, y, visible, active.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub bindings: BTreeMap<String, String>,
@@ -174,8 +177,48 @@ pub fn media_type(path: &Path) -> Option<(RoomKind, &'static str)> {
         "mp4" | "m4v" => (RoomKind::Video, "video/mp4"),
         "webm" => (RoomKind::Video, "video/webm"),
         "mov" => (RoomKind::Video, "video/quicktime"),
+        "sply" => (RoomKind::Image, locora_store::SPLINELY),
         _ => return None,
     })
+}
+
+const SPLY_MAGIC: &[u8] = b"\x89SPLY\r\n\x1a";
+
+/// A picture file for a locus: an image or a `.sply` animation that exists.
+fn check_picture(base: &Path, file: &str, where_: &str) -> Result<(PathBuf, &'static str)> {
+    let path = base.join(file);
+    let (kind, media_type) = media_type(&path).ok_or_else(|| {
+        invalid(format!(
+            "{where_}: {file}: unbekanntes Format (png, jpg, webp, gif, avif, sply)"
+        ))
+    })?;
+    if kind != RoomKind::Image {
+        return Err(invalid(format!(
+            "{where_}: {file}: ein Locus-Bild kann kein Video sein"
+        )));
+    }
+    check_file(&path, media_type, where_)?;
+    Ok((path, media_type))
+}
+
+/// The file exists; `.sply` files must really be binary Splinely projects.
+fn check_file(path: &Path, media_type: &str, where_: &str) -> Result<()> {
+    if !path.is_file() {
+        return Err(invalid(format!("{where_}: Datei {} fehlt", path.display())));
+    }
+    if media_type == locora_store::SPLINELY {
+        let mut head = [0u8; 8];
+        let ok = fs::File::open(path)
+            .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut head))
+            .is_ok();
+        if !ok || head != SPLY_MAGIC {
+            return Err(invalid(format!(
+                "{where_}: {} ist keine binäre .sply-Datei (mit `splinely-cli convert` umwandeln)",
+                path.display()
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn extension_of(media_type: &str) -> &'static str {
@@ -188,6 +231,7 @@ fn extension_of(media_type: &str) -> &'static str {
         "video/mp4" => "mp4",
         "video/webm" => "webm",
         "video/quicktime" => "mov",
+        locora_store::SPLINELY => "sply",
         _ => "bin",
     }
 }
@@ -345,13 +389,17 @@ pub struct Plan {
     pub tables: Vec<Row>,
 }
 
+/// A media file on disk and its media type.
+pub type MediaFile = (PathBuf, &'static str);
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlannedRoom {
     pub name: String,
     pub kind: RoomKind,
     /// Backdrop file and its media type.
-    pub media: Option<(PathBuf, &'static str)>,
-    pub loci: Vec<(NewLocus, Vec<Binding>)>,
+    pub media: Option<MediaFile>,
+    /// Each locus with its bindings and optional picture file.
+    pub loci: Vec<(NewLocus, Vec<Binding>, Option<MediaFile>)>,
 }
 
 impl Plan {
@@ -405,12 +453,7 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                     };
                     return Err(invalid(format!("{where_room}: {file} ist {what}")));
                 }
-                if !path.is_file() {
-                    return Err(invalid(format!(
-                        "{where_room}: Datei {} fehlt",
-                        path.display()
-                    )));
-                }
+                check_file(&path, media_type, &where_room)?;
                 Some((path, media_type))
             }
             (None, None) => None,
@@ -491,6 +534,10 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                 })?;
                 bindings.push(binding);
             }
+            let picture = match &locus.image {
+                Some(file) => Some(check_picture(base, file, &where_)?),
+                None => None,
+            };
             loci.push((
                 NewLocus {
                     place: locus
@@ -503,8 +550,10 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                     y,
                     time,
                     answer,
+                    image: None,
                 },
                 bindings,
+                picture,
             ));
         }
         rooms.push(PlannedRoom {
@@ -561,8 +610,14 @@ pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
                 None => None,
             };
             let created = store.add_room(&palace.id, &room.name, room.kind, media.as_deref())?;
-            for (locus, bindings) in &room.loci {
-                let new = store.add_locus(&created.id, locus.clone())?;
+            for (locus, bindings, picture) in &room.loci {
+                let mut locus = locus.clone();
+                if let Some((path, media_type)) = picture {
+                    let bytes = fs::read(path)
+                        .map_err(|e| SourceError::File(path.display().to_string(), e))?;
+                    locus.image = Some(store.put_media(&bytes, media_type)?.hash);
+                }
+                let new = store.add_locus(&created.id, locus)?;
                 for binding in bindings {
                     store.set_binding(&new.id, binding)?;
                 }
@@ -635,6 +690,7 @@ pub fn to_source(tree: &PalaceTree, media_names: &HashMap<String, String>) -> So
                             at: Some([l.x, l.y]),
                             time: l.time.map(clock),
                             answer: AnswerSource::from_answer(&l.answer),
+                            image: l.image.as_ref().map(|h| media_names[h].clone()),
                             bindings: l
                                 .bindings
                                 .iter()
@@ -657,24 +713,26 @@ pub fn dump(store: &Store, query: &str, dir: &Path) -> Result<PathBuf> {
     let target = dir.join(format!("{}.locora.toml", slug(&tree.palace.name)));
     let mut names: HashMap<String, String> = HashMap::new();
     let mut writes: Vec<(PathBuf, PathBuf)> = Vec::new();
-    for room in &tree.rooms {
-        let Some(hash) = &room.room.media else {
-            continue;
-        };
+    // Backdrops are named after their room, pictures after their place.
+    let files = tree
+        .rooms
+        .iter()
+        .filter_map(|r| r.room.media.as_ref().map(|h| (h, r.room.name.as_str())))
+        .chain(
+            tree.route()
+                .filter_map(|l| l.image.as_ref().map(|h| (h, l.place.as_str()))),
+        );
+    for (hash, label) in files {
         if names.contains_key(hash) {
             continue;
         }
         let media = store
             .media(hash)?
             .ok_or_else(|| invalid(format!("Medium {hash} fehlt")))?;
-        let mut name = format!("{}.{}", slug(&room.room.name), extension_of(&media.mime));
+        let mut name = format!("{}.{}", slug(label), extension_of(&media.mime));
         let mut n = 2;
         while names.values().any(|v| *v == name) {
-            name = format!(
-                "{}-{n}.{}",
-                slug(&room.room.name),
-                extension_of(&media.mime)
-            );
+            name = format!("{}-{n}.{}", slug(label), extension_of(&media.mime));
             n += 1;
         }
         let from = store

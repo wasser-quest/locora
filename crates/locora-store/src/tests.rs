@@ -8,6 +8,7 @@ fn locus(place: &str, item: &str, x: f64) -> NewLocus {
         y: 0.5,
         time: None,
         answer: Default::default(),
+        image: None,
     }
 }
 
@@ -375,4 +376,81 @@ fn answers_persist_patch_and_validate_before_writing() {
             .answer
             .is_recall()
     );
+}
+
+#[test]
+fn loci_can_show_pictures_but_not_videos() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let sply = store.put_media(b"\x89SPLY\r\n\x1a fake", SPLINELY).unwrap();
+    let png = store.put_media(b"\x89PNG fake", "image/png").unwrap();
+    let mp4 = store.put_media(b"fake mp4", "video/mp4").unwrap();
+    let p = store.create_palace("Bilder").unwrap();
+    let r = store
+        .add_room(&p.id, "Raum", RoomKind::Blank, None)
+        .unwrap();
+    let l = store
+        .add_locus(
+            &r.id,
+            NewLocus {
+                image: Some(sply.hash.clone()),
+                ..locus("a", "b", 0.5)
+            },
+        )
+        .unwrap();
+    assert_eq!(l.image.as_deref(), Some(sply.hash.as_str()));
+    assert!(
+        store
+            .add_locus(
+                &r.id,
+                NewLocus {
+                    image: Some(mp4.hash.clone()),
+                    ..locus("c", "d", 0.5)
+                }
+            )
+            .is_err()
+    );
+    assert!(
+        store
+            .add_locus(
+                &r.id,
+                NewLocus {
+                    image: Some("0".repeat(64)),
+                    ..locus("c", "d", 0.5)
+                }
+            )
+            .is_err()
+    );
+    let changed = store
+        .update_locus(
+            &l.id,
+            &LocusPatch {
+                image: Some(Some(png.hash.clone())),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(changed.image.as_deref(), Some(png.hash.as_str()));
+    assert_eq!(
+        store
+            .palace("Bilder")
+            .unwrap()
+            .route()
+            .next()
+            .unwrap()
+            .image
+            .as_deref(),
+        Some(png.hash.as_str())
+    );
+    let cleared = store
+        .update_locus(
+            &l.id,
+            &LocusPatch {
+                image: Some(None),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(cleared.image, None);
+    assert!(is_picture(SPLINELY) && is_picture("image/webp") && !is_picture("video/mp4"));
 }

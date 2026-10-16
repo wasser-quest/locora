@@ -66,17 +66,20 @@ cells = [{ column = "name", type = "text", value = "Ada" }, { column = "age", ty
 | --- | --- | --- |
 | top | `name` | palace name (must be free unless `--replace`) |
 | `[[room]]` | `name` | room name |
-| | `image` / `video` | backdrop file (png, jpg, webp, gif, avif / mp4, webm, mov), at most one |
+| | `image` / `video` | backdrop file (png, jpg, webp, gif, avif, sply / mp4, webm, mov), at most one |
 | | `items` | short form: list of items; or use `[[room.locus]]`, not both |
 | `[[room.locus]]` | `item` | what is stored at the place (required) |
 | | `place` | the place in the room |
 | | `at` | `[x, y]`, each from 0 to 1 |
 | | `time` | video rooms only, required there: `"m:ss"`, `"h:mm:ss"` or seconds |
 | | `answer` | `"recall"` (default), `"guess"`, or a quiz: `{ type = "quiz", correct = […], wrong = […] }` (right answers first) or `{ type = "quiz", options = [{ text, correct }] }` (explicit order) |
+| | `image` | picture shown at the locus: png, jpg, webp, gif, avif or a `.sply` animation (no video) |
 | | `bindings` | formulas for `place`, `item`, `x`, `y`, `visible`, `active` |
 | `[[table]]` | `table`, `key` | the row address `Table.key` |
 | | `value` (+ `type`) | short form for a single `value` cell, type default `text` |
 | | `cells` | explicit cells `{ column, type, value }` |
+
+`.sply` files must be binary Splinely projects (convert JSON projects with `splinely-cli convert`). The built-in tutorial (`assets/tutorial/locora-lernen.locora.toml`) is a complete example with an animation at every place.
 
 Everything is checked before anything is written: unknown fields, missing media files, wrong media kinds, positions, times, answers, formulas and duplicate table rows are reported with the room and locus number. A build that fails half-way removes the partly built palace; `--replace` builds the new palace first and only then removes the old one.
 

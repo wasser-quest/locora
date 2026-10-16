@@ -162,6 +162,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
                 y,
                 time: item.time,
                 answer: Default::default(),
+                image: None,
             },
         )?;
     }
@@ -194,6 +195,20 @@ pub struct AddArgs {
     pub place: Option<String>,
     pub at: Option<String>,
     pub time: Option<String>,
+    pub image: Option<PathBuf>,
+}
+
+/// Store a picture file (image or `.sply` animation) for a locus.
+pub fn store_picture(app: &App, path: &Path) -> Result<String> {
+    let (kind, media_type) = media_kind(path)?;
+    if kind == RoomKind::Video {
+        bail!("{}: Ein Locus-Bild kann kein Video sein", path.display());
+    }
+    let bytes = fs::read(path).with_context(|| format!("{} lesen", path.display()))?;
+    if media_type == locora_store::SPLINELY && !bytes.starts_with(b"\x89SPLY\r\n\x1a") {
+        bail!("{} ist keine binäre .sply-Datei", path.display());
+    }
+    Ok(app.store.put_media(&bytes, media_type)?.hash)
 }
 
 pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
@@ -228,6 +243,11 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
             y,
             time,
             answer: Default::default(),
+            image: args
+                .image
+                .as_deref()
+                .map(|path| store_picture(app, path))
+                .transpose()?,
         },
     )?;
     println!(
@@ -356,8 +376,10 @@ pub fn show(app: &mut App, query: &str) -> Result<()> {
                 .time
                 .map(|t| format!("{:>2}:{:02} ", t as u64 / 60, t as u64 % 60))
                 .unwrap_or_default();
+            // ▣ marks a locus with its own picture (image or animation).
+            let picture = if locus.image.is_some() { "▣ " } else { "  " };
             println!(
-                "  {n:>3}. {time}{:<18} → {:<24} {when}",
+                "  {n:>3}. {picture}{time}{:<18} → {:<24} {when}",
                 truncate(&locus.place, 18),
                 truncate(&locus.item, 24)
             );

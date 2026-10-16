@@ -93,6 +93,13 @@ Leuchten nutzt immer denselben Aufbau: radialer Hof (`rgba(230,255,120,0.8)` →
 - **Loci-Anstecker:** drei Punkte, die in der Animation **nacheinander** (1 → 2 → 3) aufleuchten – die Loci-Methode in einem Bild.
 - **Glühwürmchen:** Begleiter mit indigo Kopf, großen weißen Augen, transparenten, unterschiedlich getönten Flügeln (links heller) und leuchtendem Hinterleib; ohne Fühler, Mund oder Wangen. Allein dargestellt ist es dieselbe Form, nur größer.
 
+## 8a. Szenen und Bilder an Orten
+
+- **Raum-Hintergründe** 512 × 384 (Querformat), **Bilder an Orten** 384 × 384 mit transparentem Rand.
+- Ein Bild zeigt **einen** Gedanken, groß und mittig; leuchtende Loci zeigen, worauf es ankommt.
+- Jede Szene bewegt sich leicht (Leuchten, Abfolge 1 → 2 → 3, Zeiger, Blinzeln), nie hektisch.
+- Beispiele: das Tutorial unter `assets/tutorial/` (Bauskript `assets/tutorial/src/tutorial.py`).
+
 ## 9. Bewegung
 
 | Bewegung | Werte |

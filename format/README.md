@@ -48,7 +48,7 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
   non-Recall answer is rejected; older readers reject version 2 rather than
   silently converting automatic questions into Recall.
 - File names are derived, never stored: `palaces/<id>.json`, `media/<sha256>.<ext>`.
-- Media types and extensions: `image/png` png, `image/jpeg` jpg, `image/webp` webp, `image/gif` gif, `image/avif` avif, `video/mp4` mp4, `video/webm` webm, `video/quicktime` mov.
+- Media types and extensions: `image/png` png, `image/jpeg` jpg, `image/webp` webp, `image/gif` gif, `image/avif` avif, `video/mp4` mp4, `video/webm` webm, `video/quicktime` mov, and **`application/vnd.splinely` sply** (binary Splinely animations; the app plays them with the Splinely runtime).
 - `plugins`: plugins the file uses. A missing `required` plugin blocks the import.
 
 ## `palaces/<id>.json`
@@ -75,9 +75,10 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 }
 ```
 
-- `backdrop`: SHA-256 of a media entry. Its media type decides the room: `image/*` image room, `video/*` video room; no backdrop = plain room.
+- `backdrop`: SHA-256 of a media entry. Its media type decides the room: `video/*` video room, any picture (`image/*`, `.sply`) image room; no backdrop = plain room.
 - `x`, `y`: position in the room from 0 to 1 (left/top = 0).
 - `time`: seconds into the video; required in video rooms and not allowed elsewhere.
+- `image` (format 2): SHA-256 of a picture shown at the locus — an image or a `.sply` animation, never a video. Files with locus pictures are written as version 2; version 1 readers reject them instead of dropping the pictures.
 - `bindings`: formulas for `place`, `item`, `x`, `y`, `visible`, `active` (each at most once).
 - `tables`: rows `{ table, key, cells: [{ column, type, value }] }`; `type` is `text`, `number`, `boolean`, `json`, `formula`, `asset`, `palace` or `room`.
 - Array order is route order.
