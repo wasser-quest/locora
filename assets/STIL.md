@@ -1,6 +1,6 @@
 # Locora-Stil
 
-Dieser Leitfaden beschreibt, wie Figuren und Illustrationen in Locora aussehen. Ziel ist ein freundlicher, farbkräftiger Zeichentrick-Look mit klaren Formen, der in klein (App-Icon, Benachrichtigung) genauso funktioniert wie groß (Startbildschirm, Tutorial).
+Dieser Leitfaden beschreibt, wie Figuren und Illustrationen in Locora aussehen: ein freundlicher, farbkräftiger Zeichentrick-Look **ohne Konturen**, nur aus Flächen mit **Cel-Shading**. Er muss klein (App-Icon, Benachrichtigung) genauso funktionieren wie groß (Startbildschirm, Tutorial).
 
 Alle Grafiken entstehen mit `splinely-cli` als `.sply`-Dateien und werden in der App über die Splinely-Runtime abgespielt (siehe [`README.md`](README.md)).
 
@@ -8,169 +8,118 @@ Alle Grafiken entstehen mit `splinely-cli` als `.sply`-Dateien und werden in der
 
 ## 1. Grundidee
 
-- **Kindchenschema:** großer Kopf, große Augen, kleiner Mund, kleine Nase. Im Brustbild nimmt der Kopf etwa die Hälfte der Bildhöhe ein; in der Ganzkörperfigur ist die Figur etwa **2,5 Köpfe** hoch (Kopf inklusive Haar ≈ 40 % der Höhe).
-- **Ruhig und freundlich:** Figuren lächeln leicht und wirken neugierig, nie streng. Brauen sind dünn und leicht gewölbt; der innere Brauenpunkt liegt nie tiefer als der äußere.
-- **Wenige, klare Formen:** lieber eine gut gesetzte Fläche als viele kleine Details. Jede Form muss bei 64 px noch lesbar sein.
-- **Leuchten als Erinnerung:** Licht steht in Locora für *Erinnern*. Leuchtende Punkte (Loci), das Glühwürmchen und die Brosche tragen die Markenfarbe Limettengrün.
+- **Keine Konturen.** Formen werden nur durch Farbflächen und Tonwerte getrennt. Wo zwei gleichfarbige Teile übereinanderliegen (Ärmel vor Jacke), trennt sie ein Schatten- oder Lichtton – nie eine Linie.
+- **Cel-Shading:** jede Fläche besteht aus einem Grundton, **einer** harten Schattenfläche und höchstens **einer** harten Lichtkante. Keine weichen Verläufe auf Haut, Haar oder Kleidung.
+- **Kindchenschema, ruhig und freundlich:** großer Kopf, Ganzkörperfigur etwa **2,5–3 Köpfe** hoch. Figuren lächeln leicht und wirken zugewandt.
+- **Wenige, klare Formen:** jede Form muss bei 64 px noch lesbar sein.
+- **Leuchten als Erinnerung:** Licht steht in Locora für *Erinnern*. Loci-Punkte, das Glühwürmchen und die Laterne tragen die Markenfarbe Limettengrün und sind die einzigen Stellen mit weichem Verlauf.
 
-### Figuren
+## 2. Licht und Schatten
 
-| Figur | Ansicht | Merkmale |
-| --- | --- | --- |
-| **Mnemo** | Brustbild 512 × 512 | brauner Hautton, großer Afro, Loci-Haarspange, violette Augen, Glühwürmchen als Begleiter |
-| **Simo** | Ganzkörper 512 × 768 | hellbrauner Hautton, Afro, bernsteinfarbene Augen, Jacke mit Loci-Anstecker, Laterne mit Glühwürmchen-Licht |
+- **Lichtquelle oben links.** Schatten liegen unten rechts, Lichtkanten oben links.
+- **Schatten folgen der Silhouette.** Eine Schattenfläche entsteht, indem man eine Kopie der Form nach oben links verschiebt und von der Form abzieht: übrig bleibt eine Sichel am rechten/unteren Rand (`crescent` im Bauskript). Die Lichtkante entsteht genauso mit Verschiebung nach unten rechts.
+- **Schlagschatten:** Haar wirft einen Schatten auf die Stirn, das Kinn auf den Hals. Dazu wird die schattenwerfende Form leicht nach unten verschoben und mit der Zielfläche geschnitten (`cast`).
+- Typische Verschiebungen bei 512 px Breite: Schatten 12–18 px, Lichtkante 8–12 px, Schlagschatten 10–14 px.
 
-Männliche Figuren: kräftigere, flächige Brauen (Keilform), eine schlanke Lidlinie mit kleinem Schwung statt dichter Wimpern, Rouge nur angedeutet (Deckkraft 0,25, ohne Striche), Mund als einfacher Bogen.
+## 3. Proportionen (Ganzkörper, 512 × 768)
 
-## 2. Linien
+| Teil | Maß |
+| --- | --- |
+| Kopf inkl. Haar | ≈ 40 % der Höhe |
+| Gesicht | ≈ 184 px breit, breiter, kantiger Kiefer, deutliches Kinn |
+| Schultern | ≈ 256 px breit, Oberkörper V-förmig |
+| Arme | Kapseln, 46 px breit; Hände als Kreise (Ø 36 px) |
+| Beine | Kapseln, 54 px breit; Schuhe kräftig, abgerundet |
 
-| Element | Farbe | Stärke (bei 512 px) |
-| --- | --- | --- |
-| Außenkontur (Haare, Gesicht, Kleidung) | `#24140E` | 5–6 |
-| Innenkonturen (Pony über dunklem Haar) | `#2A170E` | 4–4,5 |
-| Feine Linien (Brauen, Unterlid, Mund, Nase) | `#24140E` … `#5A2C14` | 2,5–3,5 |
-| Dekorkanten (Kragen) | `#C9E85A` | 4 |
+## 4. Gesicht
 
-- Konturen sind **dunkelbraun, nie reines Schwarz**. Das wirkt weicher und passt zu warmen Hauttönen.
-- Feine Linien im Gesicht werden zur Mitte hin heller und dünner (Nase `#5A2C14`, Mund `#3A1A0E`).
+- **Augen mandelförmig**, eher breit als hoch. Iris mittelgroß mit Verlauf dunkel oben → hell unten, Pupille klein, **ein** Glanzlicht oben links und ein kleiner Punkt unten rechts.
+- **Oberlid** als kräftige, dunkle Fläche (kein dichter Wimpernkranz, kein Schwung). Unterlid nur als schmale, dunklere Hautfläche angedeutet.
+- **Brauen** kräftig, fast gerade, als flächige Keile im dunklen Haarton.
+- **Nase** als kleine, dunklere Hautfläche (Winkel), **Mund** als schmale dunkle Fläche mit leichtem Lächeln, ein Mundwinkel etwas höher.
+- **Ohren** sichtbar, mit dunklerer Innenfläche; das abgewandte Ohr liegt im Schatten.
+- Kein Rouge, keine Wangenstriche.
 
-## 3. Farben
+Gesichtsmerkmale (Lider, Brauen, Mund) sind **Formen**, keine Konturen: sie haben eine eigene Fläche und Dicke.
 
-### Haut (Beispiel Mnemo)
+## 5. Haare (Afro)
+
+- **Kompakter, runder Afro:** großer Kreis plus gleichmäßig verteilte Wölbungen, zu **einer** Form vereinigt.
+- **Haarlinie:** klare, fast gerade Kante über der Stirn mit sauberen Ecken an den Schläfen (aus der Haarform ausgeschnitten). Die Ohren bleiben frei.
+- **Cel-Shading:** Schatten-Sichel unten rechts, Lichtkante oben links.
+- **Textur:** verstreute kleine Locken-Häkchen als Flächen, links im Lichtton, rechts im Schattenton, mit zufälliger Drehung und Größe. Nie in Reihen anordnen.
+
+## 6. Kleidung
+
+- **Jacke** in Indigo mit kurzem Kragen (eine Kragenseite im Licht-, eine im Schattenton), Reißverschluss und Bündchen in Limettengrün.
+- **Loci-Anstecker:** drei leuchtende Punkte in einer schrägen Reihe auf der Brust.
+- **Hose** in dunklem Indigo, **Schuhe** cremeweiß mit dunklerer Sohle und limettengrünem Streifen.
+
+## 7. Farben
+
+### Simo
+
+| Rolle | Grundton | Schatten | Licht / tief |
+| --- | --- | --- | --- |
+| Haut | `#C88B5E` | `#A86C44` | Licht `#DDA77C`, tief `#8E5634` |
+| Haar | `#3E2416` | `#24140B` | `#5E3A24` |
+| Jacke | `#3A3D92` | `#25276A` | `#5258BC` |
+| Hose | `#2A2C70` | `#1A1B4C` | – |
+| Shirt / Schuhe | `#F3EEE3` | `#D3CBB9` | – |
+| Gesichtsmerkmale | `#2A160C` | – | – |
+
+### Augen (Bernstein)
 
 | Rolle | Farbe |
 | --- | --- |
-| Licht (Stirn, Kinn) | `#B97A4C` |
-| Grundton | `#9A5B32` |
-| Schatten (Cel) | `#7A4322` |
+| Iris oben → unten | `#3E1904` → `#9A5716` → `#E9C06A` |
+| Pupille | `#1E0B02` |
+| Augenweiß | `#FBF6EE` (warmes Weiß, nie `#FFFFFF`) |
 
-### Haut (Beispiel Simo, hellbraun)
-
-| Rolle | Farbe |
-| --- | --- |
-| Licht | `#DDA67C` |
-| Grundton | `#C68A5E` |
-| Schatten (Cel) | `#A66C42` |
-
-### Haare (Afro)
+### Marke und Leuchten
 
 | Rolle | Farbe |
 | --- | --- |
-| Mitte / Licht | `#70432A` |
-| Grundton | `#47291A` |
-| Rand / Tiefe | `#2A170E` |
-| Locken-Häkchen | `#8A5536` (Deckkraft 0,8) |
-| Glanz-Sichel | `rgba(175,115,80,0.32)` |
-
-### Augen
-
-| Rolle | Farbe |
-| --- | --- |
-| Iris oben | `#2E0F52` |
-| Iris Mitte | `#6E35A8` |
-| Iris unten | `#C88AF0` |
-| Pupille | `#1C0A30` |
-| Unterer Iris-Schimmer | `#F3D2FF` (Deckkraft 0,85) |
-| Augenweiß | `#FFF8F2` (warmes Weiß, nie `#FFFFFF`) |
-| Wimpern | `#1A0E0A` |
-
-### Augen (Simo, Bernstein)
-
-| Rolle | Farbe |
-| --- | --- |
-| Iris oben | `#4A1E06` |
-| Iris Mitte | `#B0651A` |
-| Iris unten | `#F2CF7A` |
-| Pupille | `#2A1004` |
-| Unterer Iris-Schimmer | `#FFE9B8` |
-
-Jede Figur bekommt eine eigene Augenfarbe; der Aufbau (dunkel oben → hell unten, Schimmer, drei Glanzlichter) bleibt immer gleich.
-
-### Marke
-
-| Rolle | Farbe |
-| --- | --- |
-| Indigo hell | `#5A63D8` / `#3A3D92` |
-| Indigo dunkel | `#2E2F78` / `#1E1F55` |
 | Limettengrün (Leuchten) | `#DDF76A` |
-| Limettengrün Kante | `#C9E85A` |
+| Limettengrün (Bündchen, Streifen) | `#C9E85A` |
 | Leuchtkern | `#FFFFF0` |
+| Glühwürmchen-Kopf | `#5A63D8` → `#2E2F78` |
 
-### Wangen
-
-Rouge `#F2728A` mit Deckkraft 0,42 als liegende Ellipse, darauf drei kurze schräge Striche `#C9455F`.
-
-## 4. Schattierung
-
-- **Cel-Shading:** eine Grundfläche plus **eine** harte Schattenfläche. Keine weichen Airbrush-Verläufe auf der Haut.
-- Ausnahmen mit weichem Verlauf: das **Leuchten** (radiale Verläufe, die nach außen transparent werden) und ein sehr flacher Licht-Verlauf von oben auf Gesicht und Haar.
-- Schatten fallen **unter den Pony** (sanfter Bogen, keine Spitze in der Mitte) und auf die **lichtabgewandte Wangenseite** (rechts).
-- Lichtquelle ist **oben links**: Glanzlichter in den Augen sitzen links oben, die Glanz-Sichel im Haar ebenfalls.
-
-## 5. Augen – Aufbau von hinten nach vorn
-
-1. Augenweiß: oben flach gewölbt, unten rund.
-2. Iris: hohe Ellipse (Verhältnis etwa 20 : 26) mit Verlauf dunkel oben → hell unten und dünner dunkler Kontur.
-3. Innerer Iris-Ring: feine, halbtransparente helle Linie.
-4. Pupille: dunkle Ellipse, leicht nach oben versetzt.
-5. Unterer Schimmer: heller Halbmond im unteren Iris-Drittel.
-6. Glanzlichter: **ein großes Oval** oben links, **ein kleiner Punkt** unten rechts, **ein vierzackiger Funkelstern** oben rechts.
-7. Oberes Lid: kräftiger, nach außen dicker werdender Wimpernbogen mit **zwei Schwüngen am äußeren Augenwinkel**. Der Schwung zeigt immer nach außen.
-8. Unterlid: kurzer, dünner Bogen.
-
-Blinzeln: Alle Augenteile werden ausgeblendet, ein geschlossener Lidbogen (nach unten gewölbt) eingeblendet.
-
-## 6. Haare (Afro)
-
-- **Silhouette:** großer Kreis mit gleichmäßig verteilten, leicht unterschiedlich großen Wölbungen (wolkenartig), per Boolescher Vereinigung zu **einer** Form verbunden.
-- **Pony:** eigene, wolkige Form über der Stirn, die den Haaransatz verdeckt. Der untere Rand besteht aus runden Wölbungen; die Brauen schauen knapp darunter hervor.
-- **Textur:** verstreute kleine Locken-Häkchen mit zufälliger Drehung und Größe (0,75–1,15). Nie in Reihen anordnen.
-- **Glanz:** eine einzige Sichel, die der oberen Rundung folgt.
-
-## 7. Kleidung
-
-- Indigo-Oberteil mit hohem Kragen; die Kragenspitzen schwingen nach außen und haben eine Kante in Limettengrün.
-- In der Mitte sitzt eine **rautenförmige Leucht-Brosche** – ein Locus.
-
-## 7a. Ganzkörper
-
-- **Arme** sind abgerundete Kapseln mit limettengrünem Bündchen; Hände sind schlichte Kreise in Hautfarbe mit Kontur.
-- **Beine** sind etwas breitere Kapseln in dunklem Indigo; **Schuhe** cremeweiß mit limettengrünem Streifen.
-- **Rig:** ein Rumpf-Bone (Atmen), je ein Arm-Bone an der Schulter; Dinge in der Hand (z. B. die Laterne) hängen an einem eigenen Bone, der die Armdrehung ausgleicht und beim Schwingen leicht nachpendelt.
+Leuchten nutzt immer denselben Aufbau: radialer Hof (`rgba(230,255,120,0.8)` → transparent) und darauf ein Kern mit Verlauf `#FFFFF0` → `#DDF76A` → `#A8CF2E`.
 
 ## 8. Locora-Motive
 
-- **Laterne:** Glaskörper mit Leuchtverlauf, indigo Kappe und Boden; das Licht pulsiert wie das Glühwürmchen.
-- **Loci-Haarspange / Loci-Anstecker:** drei leuchtende Punkte in einer schrägen Reihe, die in der Animation **nacheinander** (1 → 2 → 3) aufleuchten – die Loci-Methode in einem Bild.
+- **Laterne:** Glaskörper mit Leuchtverlauf, Kappe und Boden in Indigo; das Licht pulsiert.
+- **Loci-Anstecker:** drei Punkte, die in der Animation **nacheinander** (1 → 2 → 3) aufleuchten – die Loci-Methode in einem Bild.
 - **Glühwürmchen:** Begleiter mit indigo Kopf, großen weißen Augen, transparenten Flügeln und leuchtendem Hinterleib.
-- Leuchten nutzt immer denselben Aufbau: radialer Hof (`rgba(230,255,120,0.8)` → transparent) und darauf ein Kern mit Verlauf `#FFFFF0` → `#DDF76A` → `#A8CF2E` und dunkler Kontur.
 
 ## 9. Bewegung
 
 | Bewegung | Werte |
 | --- | --- |
-| Atmen (ganze Figur als Gruppe) | 4 px hoch und zurück, 3,6 s, ease-in-out, Endlosschleife |
-| Blinzeln | alle 3,4 s, geschlossen 0,13 s, Überblendung 0,06 s |
-| Blick | Iris, Pupille und Glanzlichter folgen dem Zeiger um höchstens 3,5 px |
+| Atmen (Rumpf-Bone) | 3 px hoch und zurück, 3,6 s, ease-in-out, Endlosschleife |
+| Blinzeln | alle 3,8 s, geschlossen 0,13 s, Überblendung 0,06 s; geschlossenes Auge als gebogene Lidfläche |
+| Blick | Iris, Pupille und Glanzlichter folgen dem Zeiger um höchstens 3 px |
+| Laterne | Arm schwingt um 4°, die Laterne pendelt um 8° nach (2,4 s) |
 | Glühwürmchen | schwebt 10 px auf und ab (2,6 s), Flügelschlag 0,2 s, Leuchten pulsiert (2,4 s) |
 | Loci | leuchten nacheinander auf (Abstand 0,5 s), halten, verblassen gemeinsam (Zyklus 3 s) |
-| Laterne | Arm schwingt um 4°, die Laterne pendelt um 8° nach (2,4 s) |
 
-Bewegungen sind **klein und ruhig**. Nichts blinkt hektisch; nichts bewegt sich schneller als der Flügelschlag.
+Bewegungen sind **klein und ruhig**; nichts blinkt hektisch.
+
+**Rig:** ein Rumpf-Bone (Atmen), je ein Arm-Bone an der Schulter; Dinge in der Hand hängen an einem eigenen Bone, der die Armdrehung ausgleicht und beim Schwingen nachpendelt. Schattenflächen eines Teils hängen am selben Bone wie das Teil.
 
 ## 10. Arbeitsweise mit Splinely
 
-- Figuren werden **per Skript** gebaut (`assets/mascot/src/build.py` bzw. `build_simo.py` erzeugen die Befehle, `make.sh` bzw. `make_simo.sh` führen sie mit `splinely-cli batch` aus). So bleibt jede Grafik reproduzierbar und überprüfbar.
-- Ganze Figuren werden als **Gruppe** animiert (Atmen, Schweben), Einzelteile direkt.
-- Nach jeder Änderung: `splinely-cli check`, dann `splinely-cli render … --width 1024` und das Bild ansehen, Gesicht zusätzlich vergrößert prüfen.
+- Figuren werden **per Skript** gebaut: `assets/mascot/src/simo.py` ruft `splinely-cli` auf, erzeugt Formen, Schatten (`crescent`, `cast`), Rig und Animationen.
+- Nach jeder Änderung: `splinely-cli check`, dann `splinely-cli render … --width 1024` und das Bild ansehen; Gesicht vergrößert, geschlossene Augen und Bewegungen zusätzlich prüfen.
 - Exporte (`.svg`, `.gif`, `.png`) werden immer aus der `.sply`-Quelle erzeugt, nie von Hand bearbeitet.
 
 ## 11. Checkliste
 
-- [ ] Kontur dunkelbraun, nicht schwarz
-- [ ] Glanzlichter in beiden Augen auf derselben Seite (oben links)
-- [ ] Wimpernschwung zeigt nach außen
-- [ ] Innere Brauenenden nicht tiefer als äußere (freundlicher Ausdruck)
-- [ ] Genau eine harte Schattenfläche pro Hautbereich
+- [ ] Keine einzige Kontur – Trennung nur über Tonwerte
+- [ ] Jede Fläche: Grundton + eine harte Schattenfläche (unten rechts), höchstens eine Lichtkante (oben links)
+- [ ] Schatten bleiben innerhalb der Silhouette
+- [ ] Glanzlichter in beiden Augen oben links
+- [ ] Gesicht klar lesbar: kräftige Brauen, mandelförmige Augen, sichtbare Ohren
 - [ ] Mindestens ein leuchtender Locus im Bild
 - [ ] Bei 64 px noch erkennbar
