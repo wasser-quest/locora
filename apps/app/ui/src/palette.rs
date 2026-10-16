@@ -77,6 +77,8 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
     let all = RwSignal::new(Vec::<Command>::new());
     let note = RwSignal::new(String::new());
     let input = NodeRef::<leptos::html::Input>::new();
+    // Counts openings: only the latest request may fill the list.
+    let generation = StoredValue::new(0u64);
     // Where focus was before opening; it returns there on close.
     let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
     let close = move || {
@@ -112,8 +114,14 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
         selected.set(0);
         note.set(String::new());
         open.set(true);
+        // Static commands right away; palaces when the newest request answers.
+        all.set(commands(&Home::default()));
+        let this = generation.get_value() + 1;
+        generation.set_value(this);
         spawn_local(async move {
-            if let Ok(home) = call::<Home>(CMD_HOME, NoArgs {}).await {
+            if let Ok(home) = call::<Home>(CMD_HOME, NoArgs {}).await
+                && generation.get_value() == this
+            {
                 all.set(commands(&home));
             }
         });
