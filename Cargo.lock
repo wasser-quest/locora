@@ -1112,10 +1112,12 @@ dependencies = [
  "anyhow",
  "dirs",
  "locora-api",
+ "locora-format",
  "locora-formula",
  "locora-host",
  "locora-source",
  "locora-store",
+ "serde",
  "serde_json",
  "tempfile",
 ]

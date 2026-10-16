@@ -5,6 +5,7 @@ mod editor;
 mod journey;
 mod settings;
 mod sply;
+mod transfer;
 mod views;
 
 use std::borrow::Cow;
@@ -12,8 +13,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use locora_app_api::{
-    ActionDone, Feedback, Home, InputField, JourneyStart, PalaceView, Question, Reply, Revealed,
-    SettingsChange, SettingsView, Step, Summary,
+    ActionDone, Feedback, Home, ImportResult, InputField, JourneyStart, PalaceView, Question,
+    Reply, Revealed, SettingsChange, SettingsView, Step, Summary,
 };
 use locora_runtime::Profile;
 use locora_store::SPLINELY;
@@ -142,6 +143,68 @@ async fn home_pick_media(
     Ok(tree.map(|tree| {
         views::palace_view(&b.profile.store, &tree, &HashMap::new(), &b.default_marker)
     }))
+}
+
+/// Pick a `.locora` file and import it; `None` when the dialog was cancelled.
+#[tauri::command]
+async fn import_pick(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+) -> Result<Option<ImportResult>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Paläste importieren")
+            .add_filter("Locora-Paläste", &["locora"])
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| format!("Dateiauswahl fehlgeschlagen: {e}"))?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let path = selected
+        .into_path()
+        .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())?;
+    let mut b = lock(&state)?;
+    transfer::import_path(&mut b.profile, &path)
+        .map(Some)
+        .map_err(err)
+}
+
+/// Save one palace (with its review schedule) as `.locora`; `None` when cancelled.
+#[tauri::command]
+async fn export_pick(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+    id: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let suggested = {
+        let b = lock(&state)?;
+        transfer::suggested_name(&b.profile, &id).map_err(err)?
+    };
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Palast exportieren")
+            .set_file_name(suggested)
+            .add_filter("Locora-Paläste", &["locora"])
+            .blocking_save_file()
+    })
+    .await
+    .map_err(|e| format!("Dateiauswahl fehlgeschlagen: {e}"))?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let path = selected
+        .into_path()
+        .map_err(|_| "Dieses Ziel ist keine lokale Datei".to_owned())?;
+    let mut b = lock(&state)?;
+    transfer::export_path(&mut b.profile, &id, &transfer::with_extension(path))
+        .map(Some)
+        .map_err(err)
 }
 
 /// Build (or rebuild) the tutorial palace; returns its id.
@@ -356,6 +419,8 @@ pub fn run() {
             tutorial,
             journey_inputs,
             settings,
+            import_pick,
+            export_pick,
             settings_set,
             journey_start,
             journey_action,

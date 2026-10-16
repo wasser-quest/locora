@@ -59,6 +59,26 @@ where
     data
 }
 
+/// „„Planeten“ importiert“, with renamed copies and the review schedule.
+fn import_message(result: &locora_app_api::ImportResult) -> String {
+    let mut parts: Vec<String> = result
+        .palaces
+        .iter()
+        .map(|p| {
+            if p.name == p.original_name {
+                format!("„{}“ importiert", p.name)
+            } else {
+                format!("„{}“ importiert als „{}“", p.original_name, p.name)
+            }
+        })
+        .collect();
+    if let Some(n) = result.restored {
+        parts.push(format!("Wiederholungsstand für {n} Loci übernommen"));
+    }
+    parts.extend(result.notes.iter().cloned());
+    parts.join(" · ")
+}
+
 fn loci_text(n: u32) -> String {
     if n == 1 {
         "1 Locus".into()
@@ -72,6 +92,7 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
     let home = load(call::<Home>(CMD_HOME, tauri::NoArgs {}));
     let busy = RwSignal::new(false);
     let message = RwSignal::new(String::new());
+    let info = RwSignal::new(String::new());
     let pick_media = move |_| {
         if busy.get_untracked() {
             return;
@@ -83,6 +104,30 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
                 .await
             {
                 Ok(Some(palace)) => screen.set(Screen::Imported(palace)),
+                Ok(None) => {}
+                Err(error) => message.set(error),
+            }
+            busy.set(false);
+        });
+    };
+    let import = move |_| {
+        if busy.get_untracked() {
+            return;
+        }
+        busy.set(true);
+        message.set(String::new());
+        info.set(String::new());
+        spawn_local(async move {
+            let picked = call::<Option<locora_app_api::ImportResult>>(
+                locora_app_api::CMD_IMPORT_PICK,
+                tauri::NoArgs {},
+            )
+            .await;
+            match picked {
+                Ok(Some(result)) => {
+                    info.set(import_message(&result));
+                    home.set(Some(call::<Home>(CMD_HOME, tauri::NoArgs {}).await));
+                }
                 Ok(None) => {}
                 Err(error) => message.set(error),
             }
@@ -108,11 +153,15 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
         <header class="bar">
             <h1>"Locora"</h1>
             <button disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
+            <button disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei">
+                "Importieren…"
+            </button>
             <button title="Einstellungen & Statistik" on:click=move |_| screen.set(Screen::Settings)>
                 "⚙"
             </button>
         </header>
         <p class="notes" role="status">{move || message.get()}</p>
+        <p class="status" role="status">{move || info.get()}</p>
         {move || match home.get() {
             None => view! { <p class="loading">"Lädt …"</p> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
@@ -260,6 +309,7 @@ struct IdArgs {
 fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     let palace = load(call::<PalaceView>(CMD_PALACE, IdArgs { id: id.clone() }));
     let blocked = RwSignal::new(false);
+    let saved = RwSignal::new(Ok::<String, String>(String::new()));
     let reverse = RwSignal::new(false);
     let numbers = RwSignal::new(false);
     let shuffle = RwSignal::new(false);
@@ -283,10 +333,33 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
                 {move || palace.get().and_then(|p| p.ok()).map(|p| p.name).unwrap_or_default()}
             </h1>
             <button disabled=move || blocked.get() on:click=move |_| start(true)>"Fällige"</button>
+            <button
+                disabled=move || blocked.get()
+                title="Als .locora-Datei speichern (mit Wiederholungsstand)"
+                on:click=move |_| {
+                    let id = id.get_value();
+                    saved.set(Ok(String::new()));
+                    spawn_local(async move {
+                        match call::<Option<String>>(locora_app_api::CMD_EXPORT_PICK, IdArgs { id })
+                            .await
+                        {
+                            Ok(Some(text)) => saved.set(Ok(text)),
+                            Err(text) => saved.set(Err(text)),
+                            Ok(None) => {}
+                        }
+                    });
+                }
+            >
+                "Exportieren…"
+            </button>
             <button class="primary" disabled=move || blocked.get() on:click=move |_| start(false)>
                 "▶ Route ablaufen"
             </button>
         </header>
+        {move || match saved.get() {
+            Ok(text) => view! { <p class="status" role="status">{text}</p> }.into_any(),
+            Err(text) => view! { <p class="notes" role="alert">{text}</p> }.into_any(),
+        }}
         <div class="modes">
             <label>
                 <input type="checkbox" bind:checked=reverse />

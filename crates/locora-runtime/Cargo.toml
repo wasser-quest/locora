@@ -12,9 +12,11 @@ anyhow.workspace = true
 dirs = "6"
 locora-api.workspace = true
 locora-host.workspace = true
+locora-format = { path = "../locora-format" }
 locora-formula = { path = "../locora-formula" }
 locora-source = { path = "../locora-source" }
 locora-store = { path = "../locora-store" }
 tempfile = "3"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
