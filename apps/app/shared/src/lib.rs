@@ -43,6 +43,7 @@ pub struct UiAssets {
     pub simo: Media,
 }
 pub const CMD_EXPORT_PICK: &str = "export_pick";
+pub const CMD_DUMP_PICK: &str = "dump_pick";
 
 /// After importing a `.locora` file.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

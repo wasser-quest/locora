@@ -556,6 +556,24 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
             >
                 "Exportieren…"
             </button>
+            <button disabled=move || blocked.get() || exporting.get()
+                title="Bearbeitbare TOML-Quelle und Medien in einen Ordner exportieren (ohne Wiederholungsstand)"
+                on:click=move |_| {
+                    if exporting.get_untracked() { return; }
+                    let id = id.get_value();
+                    saved.set(Ok(String::new()));
+                    exporting.set(true);
+                    spawn_local(async move {
+                        match call::<Option<String>>(locora_app_api::CMD_DUMP_PICK, IdArgs { id }).await {
+                            Ok(Some(text)) => saved.set(Ok(text)),
+                            Err(text) => saved.set(Err(text)),
+                            Ok(None) => {}
+                        }
+                        exporting.set(false);
+                    });
+                }>
+                "TOML exportieren…"
+            </button>
             <button class="primary" disabled=move || blocked.get() on:click=move |_| start(false)>
                 "▶ Route ablaufen"
             </button>

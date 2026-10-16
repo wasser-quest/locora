@@ -232,6 +232,34 @@ async fn export_pick(
         .map_err(err)
 }
 
+/// Export a TOML source and its media to a chosen local directory.
+#[tauri::command]
+async fn dump_pick(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+    id: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Ordner für TOML und Medien wählen")
+            .blocking_pick_folder()
+    })
+    .await
+    .map_err(|e| format!("Ordnerauswahl fehlgeschlagen: {e}"))?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let path = selected
+        .into_path()
+        .map_err(|_| "Dieses Ziel ist kein lokaler Ordner".to_owned())?;
+    let b = lock(&state)?;
+    transfer::dump_path(&b.profile, &id, &path)
+        .map(Some)
+        .map_err(err)
+}
+
 /// Build (or rebuild) the tutorial palace; returns its id.
 #[tauri::command]
 async fn tutorial(state: State<'_, Shared>) -> Result<String, String> {
@@ -481,6 +509,7 @@ pub fn run() {
             ui_assets,
             import_pick,
             export_pick,
+            dump_pick,
             settings_set,
             settings_optimize,
             set_utc_offset,

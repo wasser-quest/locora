@@ -14,7 +14,8 @@ Stand: 16.10.2026 (abends)
 - [x] „Weiter“-Zeile mit fälligen Loci; Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik (⚙ auf dem Startbildschirm)
 - [x] Import/Export von `.locora` in der App (Dateidialoge, mit Wiederholungsstand)
 - [x] `locora.toml`-Import in der App: relative Medien, neue Kopien bei Namenskonflikten, Validierung vor dem Bauen
-- [ ] TOML-Import im nativen Dialog prüfen (Auswahl, Abbruch, Medien, Fehler); TOML-Export (`dump`) in der App
+- [x] TOML-Export (`dump`) in der App: nativer Ordnerdialog, Quelle mit Medien, kein Überschreiben, Roundtrip-Test
+- [ ] TOML-Import/-Export im nativen Dialog prüfen (Auswahl, Abbruch, Medien, Fehler)
 - [x] Plugin-Kacheln (`ui.tile`) auf dem Startbildschirm; letzte Kachel je Plugin bleibt im Profil gespeichert
 - [x] Befehlspalette (Strg/⌘+K): Paläste öffnen/üben, Weiter, Übersicht, Einstellungen; blockiert bei ungespeicherten Editor-Änderungen
 - [x] Kachel des Plugins `review`: Loci im Plan und Datum der nächsten Fälligkeit (veraltet nicht)

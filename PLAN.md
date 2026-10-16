@@ -752,7 +752,10 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    `locora-source` und löst Medien relativ zur Quelldatei auf. Import erzeugt neue Kopien mit freien
    Namen statt bestehende Paläste zu ersetzen; TOML enthält keinen Wiederholungsstand.
    Backend-Tests für Medien, Namenskonflikte, Neustart und ungültige Quellen; nativer Dialog-Smoke-Test offen.
-   TOML-Export (`dump`) in der App bleibt offen.
+   **TOML-Export umgesetzt:** „TOML exportieren…“ wählt einen lokalen Zielordner und schreibt
+   Quelle und Medien mit `locora-source::dump`, ohne bestehende Dateien zu überschreiben.
+   Kein Wiederholungsstand im TOML; Roundtrip und Überschreibschutz sind backend-getestet.
+   Nativer Ordnerdialog und Abbruch bleiben manuell zu prüfen.
 5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): umgesetzt sind Kachel-Icons (core, review, notify, tutorial,
    gamification, andere Plugins) und Journey-Feedback (richtig/nochmal/geschafft) aus `assets/ui/src/ui.py` sowie der
    Willkommensbildschirm mit Simo (`assets/mascot/src/simo.py`). Ebenfalls umgesetzt: Raum-Arten (Tabs), „nichts fällig“

@@ -103,6 +103,15 @@ fn import_source(profile: &mut Profile, path: &Path) -> Result<ImportResult> {
     })
 }
 
+/// Export editable TOML and media without replacing existing files.
+pub fn dump_path(profile: &Profile, palace_id: &str, directory: &Path) -> Result<String> {
+    let file = locora_source::dump(&profile.store, palace_id, directory)?;
+    Ok(format!(
+        "Gespeichert: {} (TOML und Medien, ohne Wiederholungsstand)",
+        file.display()
+    ))
+}
+
 /// The file name the save dialog suggests.
 pub fn suggested_name(profile: &Profile, palace_id: &str) -> Result<String> {
     Ok(file_name(&profile.store.palace(palace_id)?.palace.name))
@@ -168,6 +177,29 @@ mod tests {
         let tree = profile.store.palace(&first.palaces[0].id).unwrap();
         assert_eq!(tree.route().count(), 2);
         assert!(tree.rooms[0].room.media.is_some());
+    }
+
+    #[test]
+    fn toml_export_roundtrips_and_does_not_overwrite() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(&dir.path().join("profile"))).unwrap();
+        let (tree, _) = locora_runtime::tutorial::install(&mut profile).unwrap();
+        let output = dir.path().join("export");
+        let message = dump_path(&profile, &tree.palace.id, &output).unwrap();
+        assert!(message.contains("ohne Wiederholungsstand"));
+        let file = std::fs::read_dir(&output)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .find(|p| p.extension().is_some_and(|e| e == "toml"))
+            .unwrap();
+        let before = std::fs::read(&file).unwrap();
+        assert!(dump_path(&profile, &tree.palace.id, &output).is_err());
+        assert_eq!(std::fs::read(&file).unwrap(), before);
+        let imported = import_path(&mut profile, &file).unwrap();
+        let copy = profile.store.palace(&imported.palaces[0].id).unwrap();
+        assert_eq!(copy.route().count(), tree.route().count());
+        assert_eq!(copy.rooms.len(), tree.rooms.len());
+        assert_ne!(copy.palace.id, tree.palace.id);
     }
 
     #[test]
