@@ -742,7 +742,7 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
 3. **Workbook in der App — umgesetzt:** Eingaben (`Inputs`) werden vor der Journey abgefragt (vorbelegt mit dem
    Standardwert, gesetzt vor der Planung, damit `active`-Formeln sie sehen); Aktionen (`Actions`) erscheinen als Knöpfe
    unter der Frage, `reveal`-Aktionen decken auf (Guess/Quiz zählen dann als aufgegeben). Formelfehler erscheinen als
-   Text im Feld. Eingabefelder passen zum Typ (Zahlenfeld, Ja/Nein-Kästchen). Noch offen: Aktionen nach dem Bewerten.
+   Text im Feld. Eingabefelder passen zum Typ (Zahlenfeld, Ja/Nein-Kästchen). Aktionen gehen auch nach dem Bewerten (ändern nur die angezeigte Antwort, nicht die Bewertung).
 4. **Startbildschirm vollständig:** Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik sind umgesetzt
    (⚙, gleiche Berechnung wie `locora settings`/`stats` über `locora_runtime::settings`). Import/Export von
    `.locora` (Dateidialoge, mit Wiederholungsstand; Logik in `locora_runtime::transfer`, gemeinsam mit der CLI) ist

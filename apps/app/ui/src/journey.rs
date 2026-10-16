@@ -30,6 +30,8 @@ struct ReplyArgs {
 struct ActionArgs {
     key: String,
     revealed: bool,
+    /// On the question just answered (its feedback is showing).
+    after: bool,
 }
 
 /// Where the current question stands.
@@ -140,9 +142,29 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             return;
         }
         let revealed = matches!(phase.get_untracked(), Phase::Revealed(_));
+        let after = matches!(phase.get_untracked(), Phase::Judged(_));
         busy.set(true);
         spawn_local(async move {
-            match call::<ActionDone>(CMD_JOURNEY_ACTION, ActionArgs { key, revealed }).await {
+            let args = ActionArgs {
+                key,
+                revealed,
+                after,
+            };
+            match call::<ActionDone>(CMD_JOURNEY_ACTION, args).await {
+                // After grading only the shown answer changes; grades stay.
+                Ok(done) if after => {
+                    if let Phase::Judged(mut f) = phase.get_untracked() {
+                        if let Some(r) = done.revealed {
+                            f.revealed = r;
+                        }
+                        // The next question as the action left it.
+                        if let (Some(q), Step::Question(_)) = (done.next, &f.next) {
+                            f.next = Step::Question(q);
+                        }
+                        phase.set(Phase::Judged(f));
+                    }
+                    busy.set(false);
+                }
                 Ok(done) => {
                     let kind = done.question.kind;
                     question.set(Some(done.question));
@@ -163,6 +185,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         });
     };
     let next = move || {
+        // Not while an action on the answered question is still running.
+        if busy.get_untracked() {
+            return;
+        }
         let Phase::Judged(feedback) = phase.get_untracked() else {
             return;
         };
@@ -256,9 +282,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                         .then(|| {
                             let actions = q.actions.clone();
                             view! {
-                                <Show when=move || {
-                                    !matches!(phase.get(), Phase::Judged(_))
-                                }>
+                                <Show when=move || summary.get().is_none()>
                                     <div class="actions">
                                         {actions
                                             .iter()
@@ -292,7 +316,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                                 .into_any()
                         }
                         Phase::Judged(f) => {
-                            view! { <Judged feedback=*f question=q.clone() next=next /> }.into_any()
+                            view! { <Judged feedback=*f question=q.clone() next=next busy=busy /> }.into_any()
                         }
                     }}
                 </section>
@@ -434,7 +458,12 @@ fn Grades(reply: impl Fn(Reply) + Copy + 'static, busy: RwSignal<bool>) -> impl 
 }
 
 #[component]
-fn Judged(feedback: Feedback, question: Question, next: impl Fn() + 'static) -> impl IntoView {
+fn Judged(
+    feedback: Feedback,
+    question: Question,
+    next: impl Fn() + 'static,
+    busy: RwSignal<bool>,
+) -> impl IntoView {
     let r = feedback.revealed;
     let automatic = question.kind != AnswerKind::Recall;
     let right: Vec<String> = r
@@ -456,7 +485,7 @@ fn Judged(feedback: Feedback, question: Question, next: impl Fn() + 'static) -> 
             .then(|| {
                 view! { <div class="progress">{format!("Richtig: {}", right.join(", "))}</div> }
             })}
-        <button class="primary" on:click=move |_| next()>
+        <button class="primary" disabled=move || busy.get() on:click=move |_| next()>
             "Weiter (Leertaste)"
         </button>
     }

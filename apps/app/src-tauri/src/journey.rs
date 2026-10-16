@@ -27,6 +27,10 @@ pub struct Journey {
     at: usize,
     /// Quiz options shown for the current question (indices into `options`).
     shown: Vec<u32>,
+    /// The same for the question answered last (actions after grading).
+    answered_shown: Vec<u32>,
+    /// `finish` ran: completed palaces are reported only once.
+    finished: Option<Summary>,
     asked: Instant,
     results: Vec<(String, bool)>,
     points: u64,
@@ -125,6 +129,8 @@ impl Journey {
             seed,
             at: 0,
             shown: Vec::new(),
+            answered_shown: Vec::new(),
+            finished: None,
             asked: Instant::now(),
             results: Vec::new(),
             points: 0,
@@ -133,6 +139,11 @@ impl Journey {
         };
         journey.enter();
         Ok(Some(journey))
+    }
+
+    /// Every question is answered.
+    pub fn done(&self) -> bool {
+        self.at >= self.stops.len()
     }
 
     fn stop(&self) -> Stop {
@@ -248,7 +259,33 @@ impl Journey {
             reveal,
             question: self.question(profile, default_marker),
             revealed: (reveal || revealed).then(|| self.reveal(profile)),
+            next: None,
         })
+    }
+
+    /// Run an action on the question answered last (its answer is visible),
+    /// like `locora practice` after automatic feedback. Grades stay as they are.
+    pub fn action_after(
+        &mut self,
+        profile: &Profile,
+        key: &str,
+        default_marker: &str,
+    ) -> Result<ActionDone> {
+        let previous = self
+            .at
+            .checked_sub(1)
+            .context("Noch keine Frage beantwortet")?;
+        let (at, shown) = (self.at, std::mem::take(&mut self.shown));
+        self.at = previous;
+        self.shown = self.answered_shown.clone();
+        let result = self.action(profile, key, true, default_marker);
+        self.at = at;
+        self.shown = shown;
+        // Actions write run values that later stops read: the next question
+        // is shown – and graded – with them.
+        let mut done = result?;
+        done.next = (!self.done()).then(|| self.question(profile, default_marker));
+        Ok(done)
     }
 
     /// The answer side of the current question.
@@ -371,6 +408,7 @@ impl Journey {
             }
             None => (false, 0),
         };
+        self.answered_shown = std::mem::take(&mut self.shown);
         self.at += 1;
         let next = if self.at < self.stops.len() {
             self.enter();
@@ -388,6 +426,12 @@ impl Journey {
 
     /// End early or at the end: report completed palaces, sum up.
     pub fn finish(&mut self, profile: &mut Profile) -> Result<Summary> {
+        if let Some(summary) = &self.finished {
+            return Ok(Summary {
+                notes: Vec::new(),
+                ..summary.clone()
+            });
+        }
         for tree in &self.trees {
             let mine: Vec<bool> = self
                 .results
@@ -414,12 +458,14 @@ impl Journey {
             })?;
             self.notes.extend(notes);
         }
-        Ok(Summary {
+        let summary = Summary {
             asked: self.results.len() as u32,
             correct: self.results.iter().filter(|(_, ok)| *ok).count() as u32,
             points: self.points,
             notes: std::mem::take(&mut self.notes),
-        })
+        };
+        self.finished = Some(summary.clone());
+        Ok(summary)
     }
 }
 
@@ -559,7 +605,94 @@ mod tests {
         assert_eq!(done.revealed.unwrap().solution, "7");
         assert!(journey.action(&profile, "fehlt", false, "marker").is_err());
 
+        // Actions on the answered question, also after the last one.
+        let feedback = journey
+            .answer(&mut profile, Reply::Recall(3), "marker")
+            .unwrap();
+        assert!(matches!(feedback.next, Step::Done(_)));
+        assert!(journey.done());
+        let after = journey.action_after(&profile, "zeigen", "marker").unwrap();
+        assert_eq!(after.revealed.unwrap().solution, "7");
+        let again = journey.finish(&mut profile).unwrap();
+        assert_eq!((again.asked, again.notes.len()), (1, 0), "reported once");
+
         start.inputs[0].palace_id = "anderer".into();
         assert!(Journey::start(&mut profile, start).is_err());
+    }
+
+    #[test]
+    fn actions_after_grading_update_the_next_question() {
+        use locora_formula::workbook::{Binding, BindingField};
+        use locora_formula::{Cell, CellType, Row};
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let p = profile.store.create_palace("P").unwrap();
+        let r = profile
+            .store
+            .add_room(&p.id, "R", RoomKind::Blank, None)
+            .unwrap();
+        for item in ["a", "b"] {
+            let locus = profile
+                .store
+                .add_locus(
+                    &r.id,
+                    NewLocus {
+                        place: "?".into(),
+                        item: item.into(),
+                        x: 0.5,
+                        y: 0.5,
+                        time: None,
+                        answer: Answer::default(),
+                        image: None,
+                        note: String::new(),
+                        image_size: 0.25,
+                    },
+                )
+                .unwrap();
+            let binding = Binding {
+                field: BindingField::Place,
+                expression: "RAM.x".into(),
+            };
+            profile.store.set_binding(&locus.id, &binding).unwrap();
+        }
+        let cell = |column: &str, value: &str| Cell {
+            column: column.into(),
+            kind: CellType::Text,
+            value: value.into(),
+        };
+        let rows = [
+            Row::typed("RAM", "x", CellType::Number, "1"),
+            Row {
+                table: "Actions".into(),
+                key: "plus".into(),
+                cells: vec![
+                    cell("kind", "set"),
+                    cell("target", "RAM.x"),
+                    cell("expression", "RAM.x + 1"),
+                ],
+            },
+        ];
+        for row in &rows {
+            profile.store.set_row(Some(&p.id), row).unwrap();
+        }
+        let start = JourneyStart {
+            palace_id: Some(p.id.clone()),
+            ..Default::default()
+        };
+        let mut journey = Journey::start(&mut profile, start).unwrap().unwrap();
+        let feedback = journey
+            .answer(&mut profile, Reply::Recall(3), "marker")
+            .unwrap();
+        let Step::Question(before) = feedback.next else {
+            panic!("a second question")
+        };
+        assert_eq!(before.prompt, "1");
+        let done = journey.action_after(&profile, "plus", "marker").unwrap();
+        assert_eq!(
+            done.next.unwrap().prompt,
+            "2",
+            "the next stop sees the new value"
+        );
+        assert_eq!(journey.question(&profile, "marker").prompt, "2");
     }
 }
