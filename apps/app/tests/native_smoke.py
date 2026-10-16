@@ -128,6 +128,17 @@ class Scenario:
         finally:
             source.destroy()
 
+    def shot(self, name, settle=1.0):
+        """Screenshot evidence; the WebView keeps rendering while we wait."""
+        end = time.monotonic() + settle
+        while time.monotonic() < end:
+            GLib.MainContext.default().iteration(False)
+            time.sleep(.02)
+        root = Gdk.get_default_root_window()
+        shot = Gdk.pixbuf_get_from_window(root, 0, 0, root.get_width(), root.get_height())
+        if shot:
+            shot.savev(str(self.artifacts / f"{name}.png"), "png", [], [])
+
     def sql(self, query, args=()):
         with sqlite3.connect(self.profile / "locora.db") as db:
             return db.execute(query, args).fetchall()
@@ -182,6 +193,8 @@ class Scenario:
         assert len(positions) == len(set(positions)) == 10
         assert all(0 <= x <= 1 and 0 <= y <= 1 for x,y in positions)
         self.record("list-route-native-paste-budget", mouse_clicks=0, paste_shortcuts=1, loci=10)
+        assert stage.grab_focus()
+        self.shot("tutorial-room-markers", settle=2)
 
         self.click("←")
         self.until(lambda: self.find("Bild/Video wählen…", "button"))
@@ -197,7 +210,11 @@ class Scenario:
         rect = stage.get_extents(Atspi.CoordType.SCREEN)
         count = self.sql("SELECT count(*) FROM loci")[0][0]
         self.x("windowfocus", "--sync", self.window)
-        self.x("mousemove", str(rect.x + rect.width//2), str(rect.y + rect.height//2), "click", "1")
+        # The click budget only counts if the stage is visible without scrolling.
+        window = frame.get_extents(Atspi.CoordType.SCREEN)
+        top, bottom = max(rect.y, window.y), min(rect.y + rect.height, window.y + window.height)
+        assert bottom - top >= 120, f"stage mostly below the fold: {top}..{bottom}"
+        self.x("mousemove", str(rect.x + rect.width//2), str((top + bottom)//2), "click", "1")
         self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == count + 1)
         self.until(lambda: self.find("Ort ", "entry", True))
         self.x("type", "--clearmodifiers", "--delay", "1", "--", "Nativer Ort")
@@ -206,6 +223,7 @@ class Scenario:
         self.until(lambda: not self.find("Ort ", "entry", True))
         assert self.find("Ort setzen (Bühne anklicken)", "check box").get_state_set().contains(Atspi.StateType.CHECKED)
         self.record("place-name-enter-budget", mouse_clicks=1, enter_keys=1, ready_for_next=True)
+        self.shot("dropped-palace-first-locus")
 
         # Persistence is checked from SQLite, not merely optimistic UI text.
         self.record("no-runtime-start-error", checked_views="welcome, tutorial room, first recall")
@@ -237,6 +255,10 @@ def main():
     except Exception as error:
         if scenario and hasattr(scenario, "steps"):
             scenario.steps.append({"status": "failed", "error": str(error)})
+        root = Gdk.get_default_root_window()
+        shot = Gdk.pixbuf_get_from_window(root, 0, 0, root.get_width(), root.get_height())
+        if shot:
+            shot.savev(str(artifacts / "failure.png"), "png", [], [])
         raise
     finally:
         if scenario and hasattr(scenario, "process") and not scenario.log.closed:
