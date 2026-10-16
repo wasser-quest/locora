@@ -577,11 +577,37 @@ fn Inputs(
                     } else {
                         f.key.clone()
                     };
-                    view! {
-                        <label class="input">
-                            <span>{label}<small>{format!(" ({})", f.kind)}</small></span>
-                            <input type="text" bind:value=value />
-                        </label>
+                    // Fields fit the input's type; values travel as the text
+                    // the workbook parses (`true`/`false` for Ja/Nein).
+                    match f.kind.as_str() {
+                        "boolean" => view! {
+                            <label class="input check">
+                                <input
+                                    type="checkbox"
+                                    prop:checked=move || value.get() == "true"
+                                    on:change=move |e| {
+                                        value.set(event_target_checked(&e).to_string())
+                                    }
+                                />
+                                <span>{label}</span>
+                            </label>
+                        }
+                        .into_any(),
+                        kind => {
+                            let number = kind == "number";
+                            view! {
+                                <label class="input">
+                                    <span>{label}</span>
+                                    <input
+                                        type=if number { "number" } else { "text" }
+                                        step=number.then_some("any")
+                                        inputmode=number.then_some("decimal")
+                                        bind:value=value
+                                    />
+                                </label>
+                            }
+                            .into_any()
+                        }
                     }
                 })
                 .collect_view()}

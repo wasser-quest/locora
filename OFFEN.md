@@ -16,7 +16,8 @@ Stand: 16.10.2026
 - [x] Journey in der App: Recall (Leertaste, 1–4), Quiz, Guess; gleiche Bewertung über das Core-Plugin
 - [x] Aufdecken zeigt das `.sply` (es gehört zur Antwort), vorher nur Hintergrund und Marker
 - [x] Workbook in der App: Eingaben vor der Journey abfragen, Aktionen als Knöpfe
-- [ ] Workbook-Eingaben passend zum Typ (Zahl, Ja/Nein) und Aktionen auch nach dem Bewerten
+- [x] Workbook-Eingaben passend zum Typ (Zahlenfeld, Ja/Nein-Kästchen)
+- [ ] Workbook-Aktionen auch nach dem Bewerten (wie `locora practice`)
 - [x] Liste = Route: Strg/⌘+V auf der fokussierten Bühne oder Textfeld/Knopf im Editor, 1–100 Begriffe, Schlangenroute, atomarer Batch mit Validierung und Op-Log (keine Video-Räume)
 - [ ] Liste = Route: WebView-/E2E-Prüfung und Klickbudget nachweisen
 - [x] Locus-Mediendatei-Auswahl: nativer Dialog, Bild wählen/entfernen, Raster-MIME-/`.sply`-Validierung, Scope-Prüfung und Fehleranzeige ohne freie Pfad-IPC (64 MiB)
