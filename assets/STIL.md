@@ -8,10 +8,19 @@ Alle Grafiken entstehen mit `splinely-cli` als `.sply`-Dateien und werden in der
 
 ## 1. Grundidee
 
-- **Kindchenschema:** großer Kopf, große Augen, kleiner Mund, kleine Nase. Der Kopf nimmt etwa die Hälfte der Bildhöhe ein (Brustbild).
+- **Kindchenschema:** großer Kopf, große Augen, kleiner Mund, kleine Nase. Im Brustbild nimmt der Kopf etwa die Hälfte der Bildhöhe ein; in der Ganzkörperfigur ist die Figur etwa **2,5 Köpfe** hoch (Kopf inklusive Haar ≈ 40 % der Höhe).
 - **Ruhig und freundlich:** Figuren lächeln leicht und wirken neugierig, nie streng. Brauen sind dünn und leicht gewölbt; der innere Brauenpunkt liegt nie tiefer als der äußere.
 - **Wenige, klare Formen:** lieber eine gut gesetzte Fläche als viele kleine Details. Jede Form muss bei 64 px noch lesbar sein.
 - **Leuchten als Erinnerung:** Licht steht in Locora für *Erinnern*. Leuchtende Punkte (Loci), das Glühwürmchen und die Brosche tragen die Markenfarbe Limettengrün.
+
+### Figuren
+
+| Figur | Ansicht | Merkmale |
+| --- | --- | --- |
+| **Mnemo** | Brustbild 512 × 512 | brauner Hautton, großer Afro, Loci-Haarspange, violette Augen, Glühwürmchen als Begleiter |
+| **Simo** | Ganzkörper 512 × 768 | hellbrauner Hautton, Afro, bernsteinfarbene Augen, Jacke mit Loci-Anstecker, Laterne mit Glühwürmchen-Licht |
+
+Männliche Figuren: kräftigere, flächige Brauen (Keilform), eine schlanke Lidlinie mit kleinem Schwung statt dichter Wimpern, Rouge nur angedeutet (Deckkraft 0,25, ohne Striche), Mund als einfacher Bogen.
 
 ## 2. Linien
 
@@ -35,6 +44,14 @@ Alle Grafiken entstehen mit `splinely-cli` als `.sply`-Dateien und werden in der
 | Grundton | `#9A5B32` |
 | Schatten (Cel) | `#7A4322` |
 
+### Haut (Beispiel Simo, hellbraun)
+
+| Rolle | Farbe |
+| --- | --- |
+| Licht | `#DDA67C` |
+| Grundton | `#C68A5E` |
+| Schatten (Cel) | `#A66C42` |
+
 ### Haare (Afro)
 
 | Rolle | Farbe |
@@ -56,6 +73,18 @@ Alle Grafiken entstehen mit `splinely-cli` als `.sply`-Dateien und werden in der
 | Unterer Iris-Schimmer | `#F3D2FF` (Deckkraft 0,85) |
 | Augenweiß | `#FFF8F2` (warmes Weiß, nie `#FFFFFF`) |
 | Wimpern | `#1A0E0A` |
+
+### Augen (Simo, Bernstein)
+
+| Rolle | Farbe |
+| --- | --- |
+| Iris oben | `#4A1E06` |
+| Iris Mitte | `#B0651A` |
+| Iris unten | `#F2CF7A` |
+| Pupille | `#2A1004` |
+| Unterer Iris-Schimmer | `#FFE9B8` |
+
+Jede Figur bekommt eine eigene Augenfarbe; der Aufbau (dunkel oben → hell unten, Schimmer, drei Glanzlichter) bleibt immer gleich.
 
 ### Marke
 
@@ -103,9 +132,16 @@ Blinzeln: Alle Augenteile werden ausgeblendet, ein geschlossener Lidbogen (nach 
 - Indigo-Oberteil mit hohem Kragen; die Kragenspitzen schwingen nach außen und haben eine Kante in Limettengrün.
 - In der Mitte sitzt eine **rautenförmige Leucht-Brosche** – ein Locus.
 
+## 7a. Ganzkörper
+
+- **Arme** sind abgerundete Kapseln mit limettengrünem Bündchen; Hände sind schlichte Kreise in Hautfarbe mit Kontur.
+- **Beine** sind etwas breitere Kapseln in dunklem Indigo; **Schuhe** cremeweiß mit limettengrünem Streifen.
+- **Rig:** ein Rumpf-Bone (Atmen), je ein Arm-Bone an der Schulter; Dinge in der Hand (z. B. die Laterne) hängen an einem eigenen Bone, der die Armdrehung ausgleicht und beim Schwingen leicht nachpendelt.
+
 ## 8. Locora-Motive
 
-- **Loci-Haarspange:** drei leuchtende Punkte in einer schrägen Reihe, die in der Animation **nacheinander** (1 → 2 → 3) aufleuchten – die Loci-Methode in einem Bild.
+- **Laterne:** Glaskörper mit Leuchtverlauf, indigo Kappe und Boden; das Licht pulsiert wie das Glühwürmchen.
+- **Loci-Haarspange / Loci-Anstecker:** drei leuchtende Punkte in einer schrägen Reihe, die in der Animation **nacheinander** (1 → 2 → 3) aufleuchten – die Loci-Methode in einem Bild.
 - **Glühwürmchen:** Begleiter mit indigo Kopf, großen weißen Augen, transparenten Flügeln und leuchtendem Hinterleib.
 - Leuchten nutzt immer denselben Aufbau: radialer Hof (`rgba(230,255,120,0.8)` → transparent) und darauf ein Kern mit Verlauf `#FFFFF0` → `#DDF76A` → `#A8CF2E` und dunkler Kontur.
 
@@ -118,12 +154,13 @@ Blinzeln: Alle Augenteile werden ausgeblendet, ein geschlossener Lidbogen (nach 
 | Blick | Iris, Pupille und Glanzlichter folgen dem Zeiger um höchstens 3,5 px |
 | Glühwürmchen | schwebt 10 px auf und ab (2,6 s), Flügelschlag 0,2 s, Leuchten pulsiert (2,4 s) |
 | Loci | leuchten nacheinander auf (Abstand 0,5 s), halten, verblassen gemeinsam (Zyklus 3 s) |
+| Laterne | Arm schwingt um 4°, die Laterne pendelt um 8° nach (2,4 s) |
 
 Bewegungen sind **klein und ruhig**. Nichts blinkt hektisch; nichts bewegt sich schneller als der Flügelschlag.
 
 ## 10. Arbeitsweise mit Splinely
 
-- Figuren werden **per Skript** gebaut (`assets/mascot/src/build.py` erzeugt die Befehle, `make.sh` führt sie mit `splinely-cli batch` aus). So bleibt jede Grafik reproduzierbar und überprüfbar.
+- Figuren werden **per Skript** gebaut (`assets/mascot/src/build.py` bzw. `build_simo.py` erzeugen die Befehle, `make.sh` bzw. `make_simo.sh` führen sie mit `splinely-cli batch` aus). So bleibt jede Grafik reproduzierbar und überprüfbar.
 - Ganze Figuren werden als **Gruppe** animiert (Atmen, Schweben), Einzelteile direkt.
 - Nach jeder Änderung: `splinely-cli check`, dann `splinely-cli render … --width 1024` und das Bild ansehen, Gesicht zusätzlich vergrößert prüfen.
 - Exporte (`.svg`, `.gif`, `.png`) werden immer aus der `.sply`-Quelle erzeugt, nie von Hand bearbeitet.

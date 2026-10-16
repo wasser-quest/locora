@@ -53,7 +53,8 @@ als `.sply`-Dateien erstellt und in der App über die Splinely-Runtime abgespiel
 **Maskottchen: Mnemo**, benannt nach der *Mnemo*technik (und Mnemosyne, der Göttin der Erinnerung): eine Figur mit braunem
 Hautton, großem Afro, einer Loci-Haarspange, deren drei Lichter nacheinander aufleuchten (die Loci-Methode in einem Bild),
 und einem Glühwürmchen als Begleiter. Mnemo begleitet Tutorial, leere Zustände, Erfolge (Gamification) und Benachrichtigungen.
-Stil-Leitfaden: [`assets/STIL.md`](assets/STIL.md). App-Icon: Palast-Torbogen mit leuchtenden Loci und Mnemos Licht.
+Dazu kommt **Simo** (nach Simonides, dem Erfinder der Loci-Methode) als Ganzkörperfigur mit hellbraunem Hautton, Afro und
+einer Laterne voller Glühwürmchen-Licht, z. B. für Onboarding und Erfolge. Stil-Leitfaden: [`assets/STIL.md`](assets/STIL.md). App-Icon: Palast-Torbogen mit leuchtenden Loci und Mnemos Licht.
 
 ---
 

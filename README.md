@@ -1,6 +1,6 @@
 # locora
 
-<p align="center"><img src="assets/mascot/mnemo.gif" width="300" alt="Mnemo, the Locora mascot: a character with brown skin and a big afro, a glowing loci hairpin and a firefly companion"></p>
+<p align="center"><img src="assets/mascot/mnemo.gif" width="300" alt="Mnemo, the Locora mascot: a character with brown skin and a big afro, a glowing loci hairpin and a firefly companion"> <img src="assets/mascot/simo.gif" width="200" alt="Simo: a full-body character with light brown skin and an afro, holding a glowing lantern"></p>
 
 **Offline-first memory palaces, written in pure Rust.** Build palaces from images or videos, place loci in a few clicks, and practice recall on desktop, Android, iOS and the command line.
 
@@ -41,7 +41,7 @@ plugins/                   plugins compiled to wasm32-wasip2 (example: lernzeit)
 
 ## Mnemo
 
-Mnemo is Locora's mascot, named after **mnemonics**. The three lights in Mnemo's hairpin glow one after another, like the places along a route through a memory palace, and a firefly companion lights the way. All graphics are made with [Splinely](assets/README.md); see the [style guide](assets/STIL.md).
+Mnemo is Locora's mascot, named after **mnemonics**. The three lights in Mnemo's hairpin glow one after another, like the places along a route through a memory palace, and a firefly companion lights the way. Mnemo is joined by **Simo**, named after Simonides, the inventor of the method of loci, who carries a lantern full of firefly light. All graphics are made with [Splinely](assets/README.md); see the [style guide](assets/STIL.md).
 
 ## Open core
 
