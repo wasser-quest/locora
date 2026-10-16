@@ -205,7 +205,7 @@ Ein zur Laufzeit geladenes Plugin kann keine Leptos-Komponenten in die fertig ko
 **Fremde Plugins auf dem Handy: Warnung, dann auf eigene Verantwortung**
 
 Die offiziellen Plugins (`core`, `review`, `notify`, `tutorial`, `gamification`) sind signiert und kommen mit der App.
-Für alle anderen Plugins gilt auf **Android und iOS**:
+Für alle anderen Plugins gilt auf **Android und iOS** (auf Desktop in Kurzform, siehe unten):
 
 ```text
 ┌──────────────────────────────────────────────────┐
@@ -222,7 +222,9 @@ Für alle anderen Plugins gilt auf **Android und iOS**:
 ```
 
 - Der Dialog erscheint bei jeder Installation und bei jedem Update, das neue Rechte verlangt. Abbrechen ist die Standard-Taste.
-- Auf Desktop erscheint derselbe Dialog, nur ohne den Hinweis auf App-Store-Regeln.
+- **Desktop** (Windows, macOS, Linux): Auch hier kommt vor jeder Installation eine kurze Warnung:
+  „⚠ Nicht von Locora geprüft – Installation auf eigene Verantwortung. Rechte: Paläste lesen. [Abbrechen] [Installieren]“.
+  Im Entwicklermodus (`locora plugin dev`) erscheint sie einmal pro Plugin und nicht bei jedem Hot-Reload.
 - Ein Plugin, das abstürzt oder zu lange rechnet, wird automatisch deaktiviert.
 - **Risiko App Store:** Die Warnung schützt den Nutzer, aber nicht vor einer Ablehnung durch Apple oder Google
   (Apple 2.5.2 und Google Play „Device and Network Abuse“). Vor dem ersten Store-Release prüfen.
@@ -556,5 +558,5 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 | Spaced Repetition | eigenes Plugin `review` (FSRS), kostenlos und MIT |
 | Benachrichtigungen | eigenes Plugin `notify`, kostenlos und MIT |
 | Plugin-Technik | **zur Laufzeit geladene Rust → WASM-Komponenten** (wasmtime), Hot-Reload ohne Neustart |
-| Fremde Plugins | erlaubt auf allen Plattformen; auf Android/iOS mit Warnung „gefährlich, auf eigene Verantwortung“ |
+| Fremde Plugins | erlaubt auf allen Plattformen; Android/iOS mit Warnung „gefährlich, auf eigene Verantwortung“, Desktop mit kurzer Warnung |
 | Eigene Plugins | Nutzer können selbst Plugins bauen: Vorlagen, `locora plugin dev`, Hot-Reload, Test-Harness |
