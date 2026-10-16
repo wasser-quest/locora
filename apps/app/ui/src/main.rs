@@ -14,7 +14,7 @@ use locora_app_api::{
 };
 use serde::Serialize;
 
-use crate::sply::Shown;
+use crate::sply::{Shown, Sply};
 use crate::tauri::call;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -172,6 +172,44 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
             Some(Ok(home)) => {
                 let waiting = home.due + home.fresh;
                 let tutorial = home.tutorial;
+                if let Some(simo) = home.welcome.clone() {
+                    return view! {
+                        <section class="card welcome">
+                            <div class="simo">
+                                <Sply media=simo />
+                            </div>
+                            <div class="text">
+                                <h2>"Willkommen bei Locora"</h2>
+                                <p>
+                                    "Mit der Loci-Methode legst du, was du behalten willst, an Orte, die du "
+                                    "gut kennst – und gehst die Route später im Kopf ab."
+                                </p>
+                                <p class="meta">
+                                    "Am schnellsten lernst du Locora mit Locora selbst: Das Tutorial ist ein "
+                                    "kleiner Gedächtnispalast mit 3 Räumen und 9 Orten."
+                                </p>
+                                <div class="row">
+                                    <button
+                                        class="primary"
+                                        disabled=move || busy.get()
+                                        on:click=start_tutorial
+                                    >
+                                        "Tutorial starten"
+                                    </button>
+                                    <button disabled=move || busy.get() on:click=pick_media>
+                                        "Eigener Palast aus Bild/Video…"
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+                        {home
+                            .notes
+                            .into_iter()
+                            .map(|n| view! { <p class="notes">{n}</p> })
+                            .collect_view()}
+                    }
+                        .into_any();
+                }
                 view! {
                     <section class="card weiter">
                         <div class="text">

@@ -18,6 +18,9 @@ pub const NAME: &str = "Locora lernen";
 /// The default locus marker (assets/STIL.md 8b).
 pub const DEFAULT_MARKER: &[u8] = include_bytes!("../../../assets/marker/locus.sply");
 
+/// Simo, the mascot (512 × 768, assets/STIL.md), for welcome and empty states.
+pub const SIMO: &[u8] = include_bytes!("../../../assets/mascot/simo.sply");
+
 /// (path relative to `assets/`, bytes)
 pub const FILES: &[(&str, &[u8])] = &[
     (
