@@ -170,7 +170,7 @@ async fn home_pick_media(
     }))
 }
 
-/// Pick a `.locora` file and import it; `None` when the dialog was cancelled.
+/// Pick a `.locora` archive or TOML source; `None` when the dialog was cancelled.
 #[tauri::command]
 async fn import_pick(
     app: tauri::AppHandle,
@@ -181,7 +181,7 @@ async fn import_pick(
         app.dialog()
             .file()
             .set_title("Paläste importieren")
-            .add_filter("Locora-Paläste", &["locora"])
+            .add_filter("Locora-Paläste", &["locora", "toml"])
             .blocking_pick_file()
     })
     .await

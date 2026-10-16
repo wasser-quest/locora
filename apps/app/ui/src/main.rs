@@ -258,7 +258,7 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl In
         <header class="bar">
             <h1>"Locora"</h1>
             <button disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
-            <button disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei">
+            <button disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei oder locora.toml">
                 "Importieren…"
             </button>
             <button title="Einstellungen & Statistik" on:click=move |_| screen.set(Screen::Settings)>

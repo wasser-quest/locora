@@ -747,7 +747,12 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    (⚙, gleiche Berechnung wie `locora settings`/`stats` über `locora_runtime::settings`). Import/Export von
    `.locora` (Dateidialoge, mit Wiederholungsstand; Logik in `locora_runtime::transfer`, gemeinsam mit der CLI) ist
    umgesetzt. Plugin-Kacheln (`ui.tile`) erscheinen auf dem Startbildschirm; die letzte Kachel je Plugin speichert das Profil
-   (`Profile::tiles`). Die Befehlspalette (Strg/⌘+K) findet Paläste und Befehle per Tastatur. Offen: `locora.toml` in der App.
+   (`Profile::tiles`). Die Befehlspalette (Strg/⌘+K) findet Paläste und Befehle per Tastatur.
+   **`locora.toml`-Import umgesetzt:** Der Importdialog nimmt auch TOML-Quellen an, prüft sie mit
+   `locora-source` und löst Medien relativ zur Quelldatei auf. Import erzeugt neue Kopien mit freien
+   Namen statt bestehende Paläste zu ersetzen; TOML enthält keinen Wiederholungsstand.
+   Backend-Tests für Medien, Namenskonflikte, Neustart und ungültige Quellen; nativer Dialog-Smoke-Test offen.
+   TOML-Export (`dump`) in der App bleibt offen.
 5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): umgesetzt sind Kachel-Icons (core, review, notify, tutorial,
    gamification, andere Plugins) und Journey-Feedback (richtig/nochmal/geschafft) aus `assets/ui/src/ui.py` sowie der
    Willkommensbildschirm mit Simo (`assets/mascot/src/simo.py`). Ebenfalls umgesetzt: Raum-Arten (Tabs), „nichts fällig“
