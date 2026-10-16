@@ -103,3 +103,6 @@ label.input { display: flex; flex-direction: column; gap: .25rem; }
 label.input.check { flex-direction: row; align-items: center; }
 input[type=number] { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); width: 100%; }
+dl.stats { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0; }
+dl.stats dt { color: var(--muted); }
+dl.stats dd { margin: 0; font-weight: 600; }

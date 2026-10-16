@@ -2,22 +2,17 @@
 //! for new loci. App settings live in the profile under the reserved id
 //! `host`; scheduler settings belong to the review plugin.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use clap::Subcommand;
 use locora_api::Service;
-use locora_api::core::Grade;
-use locora_api::review::{
-    Configure, ConfigureRequest, Log, LogEntry, Schedule, ScheduleRequest, Settings,
-};
+use locora_api::review::{Configure, ConfigureRequest, Log, LogEntry, Settings};
 use locora_fsrs::DEFAULT_WEIGHTS;
 use locora_fsrs::optimize::{History, MIN_REVIEWS, optimize, usable_reviews};
+use locora_runtime::settings::{introduced_today, parse_retention};
 
 use crate::app::{App, now};
-
-const DAY: u64 = 86_400;
-use locora_runtime::settings::{NEW_PER_DAY, day_start, introduced_today};
 
 #[derive(Subcommand)]
 pub enum SettingsCommand {
@@ -65,25 +60,11 @@ fn percent(v: f64) -> String {
 pub fn settings(app: &mut App, command: Option<SettingsCommand>) -> Result<()> {
     match command {
         Some(SettingsCommand::NewPerDay { count }) => {
-            if count > 1000 {
-                bail!("Höchstens 1000 neue Loci pro Tag");
-            }
-            app.store.kv_set(
-                "host",
-                NEW_PER_DAY,
-                serde_json::to_string(&count)?.as_bytes(),
-            )?;
+            app.set_new_per_day(count)?;
             println!("✓ Höchstens {count} neue Loci pro Tag");
         }
         Some(SettingsCommand::Retention { value }) => {
-            let v: f64 = value
-                .trim()
-                .replace(',', ".")
-                .trim_end_matches('%')
-                .trim()
-                .parse()
-                .context("Zahl erwartet, z. B. 0,9 oder 90 %")?;
-            let v = if v > 1.0 { v / 100.0 } else { v };
+            let v = parse_retention(&value)?;
             let s = configure(
                 app,
                 ConfigureRequest {
@@ -190,53 +171,31 @@ pub fn optimize_command(app: &mut App, dry_run: bool, reset: bool) -> Result<()>
 
 pub fn stats(app: &mut App) -> Result<()> {
     review_required(app)?;
-    let now = now();
-    let today = day_start(now);
-    let entries = log(app)?;
-    let schedule = app
-        .host
-        .call::<Schedule>(&ScheduleRequest { palace_id: None })?;
+    let stats = app.stats()?.unwrap_or_default();
     app.report();
-    let answered_today = entries.iter().filter(|e| e.answered_at >= today).count();
-    let recent: Vec<&LogEntry> = entries
-        .iter()
-        .filter(|e| e.answered_at + 30 * DAY >= now)
-        .collect();
-    let known = recent.iter().filter(|e| e.grade != Grade::Again).count();
-    let days: BTreeSet<u64> = entries.iter().map(|e| day_start(e.answered_at)).collect();
-    // A streak counts up to today, or up to yesterday if today is still open.
-    let mut day = if days.contains(&today) {
-        today
-    } else {
-        today.saturating_sub(DAY)
-    };
-    let mut streak = 0;
-    while days.contains(&day) {
-        streak += 1;
-        day = day.saturating_sub(DAY);
-    }
-    let due = schedule.iter().filter(|s| s.card.due <= now).count();
-    println!("Antworten insgesamt:   {}", entries.len());
+    println!("Antworten insgesamt:   {}", stats.answers);
     println!(
-        "Heute:                 {answered_today} Antworten, {} neue Loci",
-        introduced_today(&entries, now)
+        "Heute:                 {} Antworten, {} neue Loci",
+        stats.answered_today, stats.new_today
     );
-    if recent.is_empty() {
+    if stats.recent == 0 {
         println!("Trefferquote 30 Tage:  –");
     } else {
         println!(
-            "Trefferquote 30 Tage:  {} ({known} von {})",
-            percent(known as f64 / recent.len() as f64),
-            recent.len()
+            "Trefferquote 30 Tage:  {} ({} von {})",
+            percent(stats.recent_known as f64 / stats.recent as f64),
+            stats.recent_known,
+            stats.recent
         );
     }
     println!(
-        "Serie:                 {streak} {}",
-        if streak == 1 { "Tag" } else { "Tage" }
+        "Serie:                 {} {}",
+        stats.streak,
+        if stats.streak == 1 { "Tag" } else { "Tage" }
     );
     println!(
-        "Geplante Loci:         {} (davon {due} fällig)",
-        schedule.len()
+        "Geplante Loci:         {} (davon {} fällig)",
+        stats.scheduled, stats.due
     );
     Ok(())
 }
@@ -244,6 +203,8 @@ pub fn stats(app: &mut App) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use locora_api::core::Grade;
+    use locora_runtime::settings::day_start;
 
     fn entry(locus: &str, at: u64) -> LogEntry {
         LogEntry {

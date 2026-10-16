@@ -2,6 +2,7 @@
 
 mod editor;
 mod journey;
+mod settings;
 mod sply;
 mod tauri;
 
@@ -21,6 +22,7 @@ pub enum Screen {
     Palace(String),
     Imported(PalaceView),
     Journey(JourneyStart),
+    Settings,
 }
 
 fn main() {
@@ -40,6 +42,7 @@ fn App() -> impl IntoView {
                 Screen::Journey(start) => {
                     view! { <journey::JourneyView start=start screen=screen/> }.into_any()
                 }
+                Screen::Settings => view! { <settings::SettingsView screen=screen/> }.into_any(),
             }}
         </main>
     }
@@ -105,6 +108,9 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
         <header class="bar">
             <h1>"Locora"</h1>
             <button disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
+            <button title="Einstellungen & Statistik" on:click=move |_| screen.set(Screen::Settings)>
+                "⚙"
+            </button>
         </header>
         <p class="notes" role="status">{move || message.get()}</p>
         {move || match home.get() {
