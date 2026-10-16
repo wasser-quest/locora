@@ -77,7 +77,8 @@ Stand: 16.10.2026 (abends)
 - [ ] Zeitgebundene Animationsräume auch für GIF und `.sply`: GIF braucht steuerbare Wiedergabe statt `<img>`; Splinely-Zeitsteuerung an Editor/Journey anbinden, weiterhin ausschließlich Splinely-Runtime für `.sply`
 - [ ] Visuelle WebView-Prüfung der Stickfight-Animationen (Backend-Test beweist keine Wiedergabe)
 
-- [ ] Video-Räume: anhalten am Locus bis gelöst, Editor mit Taste L, Zeitleiste, Start-Vorschau aller Loci
+- [x] Video-Journey: gespeicherte Locus-Zeit im IPC, nach dem Laden dorthin springen und zunächst pausiert anzeigen; Fehler bei ungültiger Zeit
+- [ ] Video-Journey nativ prüfen; automatisches Abspielen zwischen Loci und Anhalten bis gelöst, maßstäbliche Zeitleiste, Start-Vorschau aller Loci
 - [ ] Plugin `notify`: lokale Benachrichtigungen, Ruhezeiten, Bündelung, Tipp öffnet die passende Stelle
 
 ## Phase 4 – Tutorial-Plugin

@@ -775,7 +775,10 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    **Erste Zeitleisten-Navigation umgesetzt:** chronologische, horizontal scrollbar angeordnete
    Ortsknöpfe mit Sekundenangabe und Routennummer; Klick pausiert, springt zum Zeitpunkt und
    wählt den Ort aus. Zeitwerte werden im gemeinsamen `LocusView` projiziert und getestet.
-   WebView-Smoke-Test, maßstäbliche Zeitleiste und Anhalten in der Journey bleiben offen.
+   **Erster Journey-Schnitt umgesetzt:** Video-Fragen erhalten die Locus-Zeit im gemeinsamen IPC-Vertrag;
+   das Video startet ohne Autoplay, springt nach dem Laden dorthin und bleibt zunächst pausiert.
+   Ungültige/außerhalb der Dauer liegende Zeiten und Ladefehler werden angezeigt; manuelles Replay bleibt möglich.
+   WebView-Smoke-Test, maßstäbliche Zeitleiste und automatisches Abspielen zwischen Loci bleiben offen.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
 9. **Später:** Ton beim Aufdecken über Audio im `.sply`.

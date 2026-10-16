@@ -218,6 +218,7 @@ impl Journey {
             total: self.stops.len() as u32,
             palace: tree.palace.name.clone(),
             room: room.name.clone(),
+            time: locus.time,
             backdrop: room.media.as_deref().and_then(|h| media(&profile.store, h)),
             marker: marker(&profile.store, tree, default_marker),
             x: locus.x,
@@ -474,6 +475,51 @@ impl Journey {
 mod tests {
     use super::*;
     use locora_store::{NewLocus, RoomKind};
+
+    #[test]
+    fn video_question_preserves_locus_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let palace = profile.store.create_palace("Video").unwrap();
+        let video = profile.store.put_media(b"video", "video/mp4").unwrap();
+        let room = profile
+            .store
+            .add_room(&palace.id, "Film", RoomKind::Video, Some(&video.hash))
+            .unwrap();
+        profile
+            .store
+            .add_locus(
+                &room.id,
+                NewLocus {
+                    place: "Szene".into(),
+                    item: "Antwort".into(),
+                    x: 0.5,
+                    y: 0.5,
+                    time: Some(6.25),
+                    answer: Answer::default(),
+                    image: None,
+                    note: String::new(),
+                    image_size: locora_store::default_image_size(),
+                    zoom: locora_store::default_zoom(),
+                },
+            )
+            .unwrap();
+        let journey = Journey::start(
+            &mut profile,
+            JourneyStart {
+                palace_id: Some(palace.id),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        let question = journey.question(&profile, "marker");
+        assert_eq!(question.time, Some(6.25));
+        assert_eq!(
+            question.backdrop.unwrap().kind,
+            locora_app_api::MediaKind::Video
+        );
+    }
 
     #[test]
     fn pictures_and_widths_travel_only_on_reveal_except_reverse_prompt() {

@@ -414,6 +414,8 @@ pub struct Question {
     pub total: u32,
     pub palace: String,
     pub room: String,
+    /// Video position for this locus, in seconds.
+    pub time: Option<f64>,
     pub backdrop: Option<Media>,
     pub marker: Media,
     pub x: f64,

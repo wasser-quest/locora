@@ -336,7 +336,13 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
         <div class="stage">
             // The whole room zooms in on the locus; the marker keeps its size.
             <div class="stage-view" style:transform=zoom_view(question.x, question.y, zoom)>
-                {question.backdrop.clone().map(|m| view! { <Shown media=m class="backdrop" /> })}
+                {question.backdrop.clone().map(|m| {
+                    if m.kind == locora_app_api::MediaKind::Video {
+                        view! { <VideoAtLocus media=m time=question.time /> }.into_any()
+                    } else {
+                        view! { <Shown media=m class="backdrop" /> }.into_any()
+                    }
+                })}
                 {move || {
                     phase.get().stage_answer().cloned().and_then(|r| r.picture.map(|m| view! {
                         <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
@@ -352,6 +358,35 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                 </div>
             </div>
         </div>
+    }
+}
+
+/// A question starts paused at its saved video timestamp. No autoplay while
+/// answering; replay controls remain available to the learner.
+#[component]
+fn VideoAtLocus(media: locora_app_api::Media, time: Option<f64>) -> impl IntoView {
+    let player = NodeRef::<leptos::html::Video>::new();
+    let error = RwSignal::new(false);
+    view! {
+        <video node_ref=player class="backdrop" src=crate::tauri::url(&media)
+            controls=true muted=true preload="auto"
+            on:loadedmetadata=move |_| {
+                if let Some(player) = player.get_untracked() {
+                    let duration = player.duration();
+                    match time.filter(|t| t.is_finite() && *t >= 0.0
+                        && (!duration.is_finite() || *t <= duration)) {
+                        Some(time) => {
+                            if player.pause().is_err() { error.set(true); return; }
+                            player.set_current_time(time);
+                        }
+                        None => error.set(true),
+                    }
+                }
+            }
+            on:error=move |_| error.set(true) />
+        <Show when=move || error.get()>
+            <p class="notes" role="alert">"Video oder gespeicherte Locus-Zeit konnte nicht geladen werden."</p>
+        </Show>
     }
 }
 
