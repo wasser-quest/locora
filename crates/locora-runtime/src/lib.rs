@@ -354,3 +354,56 @@ mod tile_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod review_tile_tests {
+    use super::*;
+    use locora_store::{NewLocus, RoomKind};
+
+    #[test]
+    fn answering_updates_the_review_tile() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let p = profile.store.create_palace("P").unwrap();
+        let r = profile
+            .store
+            .add_room(&p.id, "R", RoomKind::Blank, None)
+            .unwrap();
+        let locus = profile
+            .store
+            .add_locus(
+                &r.id,
+                NewLocus {
+                    place: "Tor".into(),
+                    item: "Sonne".into(),
+                    x: 0.5,
+                    y: 0.5,
+                    time: None,
+                    answer: Default::default(),
+                    image: None,
+                    note: String::new(),
+                    image_size: 0.25,
+                },
+            )
+            .unwrap();
+        profile
+            .answer(AnswerRequest {
+                palace_id: &p.id,
+                locus_id: &locus.id,
+                answer: &locus.answer,
+                expected: "",
+                submission: Submission::Recall(Grade::Good),
+                elapsed_ms: 1_000,
+            })
+            .unwrap();
+        let tiles = profile.tiles().unwrap();
+        let (plugin, tile) = &tiles[0];
+        assert_eq!(plugin, "review");
+        assert_eq!(tile.title, "Wiederholung");
+        assert!(
+            tile.text.starts_with("1 Locus · fällig ab "),
+            "{}",
+            tile.text
+        );
+    }
+}

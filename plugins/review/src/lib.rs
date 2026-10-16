@@ -101,6 +101,46 @@ fn read_log(ctx: &mut Ctx, palace: &str) -> Result<Vec<LogEntry>> {
     Ok(out)
 }
 
+/// Day and month (UTC) of a Unix time, e.g. `17.10.`.
+fn day_month(t: u64) -> String {
+    // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
+    let z = (t / 86_400) as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    format!("{day}.{month}.")
+}
+
+/// The home screen tile: loci in the plan and when the next one is due.
+/// Only absolute facts, so it does not go stale between updates.
+fn tile_text(cards: impl IntoIterator<Item = CardState>) -> String {
+    let (count, next) = cards
+        .into_iter()
+        .fold((0usize, None::<u64>), |(n, next), card| {
+            (n + 1, Some(next.map_or(card.due, |d| d.min(card.due))))
+        });
+    match next {
+        None => "Noch keine Loci im Plan".into(),
+        Some(due) => format!(
+            "{count} {} · fällig ab {}",
+            if count == 1 { "Locus" } else { "Loci" },
+            day_month(due)
+        ),
+    }
+}
+
+fn update_tile(ctx: &mut Ctx) -> Result {
+    let mut all = Vec::new();
+    for palace in palaces(ctx)? {
+        all.extend(load(ctx, &palace)?.into_values());
+    }
+    ctx.tile("Wiederholung", tile_text(all))
+}
+
 fn clear_log(ctx: &mut Ctx, palace: &str) -> Result {
     let count: u32 = ctx
         .store()
@@ -132,18 +172,21 @@ impl Plugin for Review {
                 ctx,
                 &ev.palace_id,
                 (ev.locus_id, ev.grade, ev.answered_at, ev.elapsed_ms),
-            )
+            )?;
+            update_tile(ctx)
         })?;
         ctx.on::<LocusDeleted>(|ctx, ev| {
             let mut cards = load(ctx, &ev.palace_id)?;
             if cards.remove(&ev.locus_id).is_some() {
                 save(ctx, &ev.palace_id, &cards)?;
+                update_tile(ctx)?;
             }
             Ok(())
         })?;
         ctx.on::<PalaceDeleted>(|ctx, ev| {
             save(ctx, &ev.palace_id, &Cards::new())?;
-            clear_log(ctx, &ev.palace_id)
+            clear_log(ctx, &ev.palace_id)?;
+            update_tile(ctx)
         })?;
         ctx.provide::<Log>(|ctx, request| {
             let ids = match request.palace_id {
@@ -187,6 +230,7 @@ impl Plugin for Review {
             let count = request.cards.len() as u32;
             cards.extend(request.cards);
             save(ctx, &request.palace_id, &cards)?;
+            update_tile(ctx)?;
             Ok(count)
         })?;
         ctx.provide::<Schedule>(|ctx, request| {
@@ -206,5 +250,37 @@ impl Plugin for Review {
             }
             Ok(scheduled)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn card(due: u64) -> CardState {
+        CardState {
+            stability: 1.0,
+            difficulty: 5.0,
+            last_review: 0,
+            due,
+            reps: 1,
+            lapses: 0,
+        }
+    }
+
+    #[test]
+    fn tile_names_count_and_next_due_day() {
+        assert_eq!(day_month(0), "1.1.");
+        assert_eq!(day_month(1_792_195_200), "17.10.");
+        assert_eq!(day_month(951_782_400), "29.2.");
+        assert_eq!(tile_text([]), "Noch keine Loci im Plan");
+        assert_eq!(
+            tile_text([card(1_792_195_200)]),
+            "1 Locus · fällig ab 17.10."
+        );
+        assert_eq!(
+            tile_text([card(1_792_281_600), card(1_792_195_200)]),
+            "2 Loci · fällig ab 17.10."
+        );
     }
 }
