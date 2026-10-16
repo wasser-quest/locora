@@ -87,20 +87,37 @@ impl DayClock {
     /// at that boundary itself (an offset change after the day began does
     /// not move its start).
     pub fn day_start(&self, t: u64) -> u64 {
-        let mut offsets: Vec<i32> = self.offsets.iter().map(|(_, m)| *m).collect();
-        if offsets.is_empty() {
-            offsets.push(0);
+        if self.offsets.is_empty() {
+            return self.boundary(t, 0);
         }
-        offsets.sort_unstable();
-        offsets.dedup();
-        let candidates = offsets.iter().map(|o| (self.boundary(t, *o), *o));
-        candidates
-            .clone()
-            .filter(|(b, o)| self.offset_at(*b) == *o)
-            .map(|(b, _)| b)
-            .max()
-            // A start hour skipped by a switch: take the latest candidate.
-            .unwrap_or_else(|| candidates.map(|(b, _)| b).max().unwrap_or(0))
+        let mut latest = 0;
+        for (i, &(since, offset)) in self.offsets.iter().enumerate() {
+            let begin = if i == 0 { 0 } else { since };
+            if begin > t {
+                break;
+            }
+            let end = self
+                .offsets
+                .get(i + 1)
+                .map_or(t, |(next, _)| t.min(next.saturating_sub(1)));
+            let candidate = self.boundary(end, offset);
+            if candidate >= begin {
+                latest = latest.max(candidate);
+            }
+            // A forward jump across the start hour creates one boundary at
+            // the switch itself, not at either hypothetical local start.
+            if i > 0 && since > 0 {
+                let previous_offset = self.offsets[i - 1].1;
+                let local_day = |at: u64, minutes: i32| {
+                    (at as i64 + i64::from(minutes) * 60 - i64::from(self.start_hour) * 3600)
+                        .div_euclid(DAY as i64)
+                };
+                if local_day(since, offset) > local_day(since - 1, previous_offset) {
+                    latest = latest.max(since);
+                }
+            }
+        }
+        latest
     }
 
     /// Start of the learning day before the one starting at `day_start`.
@@ -565,6 +582,29 @@ mod tests {
             clock.previous_day(midnight + DAY + 2 * 3600),
             midnight + 3 * 3600
         );
+    }
+
+    #[test]
+    fn skipped_day_start_occurs_once_at_the_switch() {
+        let midnight = 1_800_000_000 - 1_800_000_000 % DAY;
+        let switch = midnight + 2 * 3600 + 30 * 60;
+        let clock = DayClock {
+            start_hour: 4,
+            offsets: vec![(0, 60), (switch, 120)],
+        };
+        let previous = midnight - DAY + 3 * 3600;
+        assert_eq!(clock.day_start(switch - 1), previous);
+        assert_eq!(clock.day_start(switch), switch);
+        let entries = vec![entry("x", switch + 60, Grade::Good)];
+        for now in [midnight + 3 * 3600 - 1, midnight + 3 * 3600 + 1] {
+            assert_eq!(clock.day_start(now), switch);
+            let s = stats(&entries, &[], now, &clock);
+            assert_eq!((s.answered_today, s.new_today, s.streak), (1, 1, 1));
+        }
+        let next = midnight + DAY + 2 * 3600;
+        assert_eq!(clock.day_start(next), next);
+        assert_eq!(clock.previous_day(next), switch);
+        assert_eq!(clock.previous_day(switch), previous);
     }
 
     #[test]
