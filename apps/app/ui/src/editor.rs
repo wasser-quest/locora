@@ -300,6 +300,7 @@ pub fn Rooms(
                     view! {
                         <button class:on=move || tabs.room.get() == i disabled=move || busy.get() || dirty.get() || dragging.get()
                             on:click=move |_| { tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
+                            <crate::RoomIcon backdrop=room.backdrop.clone() />
                             {room.name.clone()}
                         </button>
                     }

@@ -34,6 +34,13 @@ pub struct UiAssets {
     pub right: Media,
     pub again: Media,
     pub done: Media,
+    /// Room kinds (tabs): no picture, picture, video.
+    pub room_blank: Media,
+    pub room_image: Media,
+    pub room_video: Media,
+    /// The Locora logo (loading) and Simo (resting, nothing due).
+    pub logo: Media,
+    pub simo: Media,
 }
 pub const CMD_EXPORT_PICK: &str = "export_pick";
 

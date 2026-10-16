@@ -35,7 +35,7 @@ Stand: 16.10.2026 (abends)
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
 - [ ] Viele Marker: in einem SVG pro Raum zusammenfassen statt je ein Frame
 - [x] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons, Journey-Feedback (richtig/nochmal/geschafft), Willkommen mit Simo – `assets/ui/src/ui.py`, Simo aus `assets/mascot/src/simo.py`
-- [ ] Weitere Grafiken: Raum-Arten (ohne Bild, Bild, Video), „nichts fällig“ (Simo mit Laterne), Splash/Ladezustand
+- [x] Weitere Grafiken: Raum-Arten in den Tabs, „nichts fällig“ mit Simo, Ladezustand mit dem Locora-Logo
 - [ ] Android- und iOS-Builds in CI; Klick-Budgets (PLAN 6.3) als E2E-Tests
 - [x] Systemvoraussetzungen für Linux-Builds dokumentiert (`apps/app/README.md`)
 

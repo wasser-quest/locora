@@ -33,7 +33,7 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
             <h1>"Einstellungen & Statistik"</h1>
         </header>
         {move || match data.get() {
-            None => view! { <p class="loading">"Lädt …"</p> }.into_any(),
+            None => view! { <crate::Loading /> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
             Some(Ok(v)) => view! { <Form view=v data=data message=message /> }.into_any(),
         }}

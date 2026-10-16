@@ -10,7 +10,8 @@ mod tauri;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_HOME, CMD_PALACE, CMD_TUTORIAL, Home, JourneyStart, Media, PalaceCard, PalaceView,
+    CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, PalaceCard,
+    PalaceView, UiAssets,
 };
 use serde::Serialize;
 
@@ -36,6 +37,14 @@ fn App() -> impl IntoView {
     let screen = RwSignal::new(Screen::Home);
     let editing = palette::Editing(RwSignal::new(false));
     provide_context(editing);
+    // The app's own animations (assets/ui), loaded once for every screen.
+    let art = Art(RwSignal::new(None));
+    provide_context(art);
+    spawn_local(async move {
+        if let Ok(a) = call::<UiAssets>(CMD_UI_ASSETS, tauri::NoArgs {}).await {
+            art.0.set(Some(a));
+        }
+    });
     // Learning days follow local time: tell the backend the system's offset
     // (JavaScript reports minutes *west* of UTC).
     // Sent at start, when the window comes back and every 15 minutes, but
@@ -88,6 +97,44 @@ fn App() -> impl IntoView {
                 Screen::Settings => view! { <settings::SettingsView screen=screen/> }.into_any(),
             }}
         </main>
+    }
+}
+
+/// The app's own graphics (`UiAssets`), `None` until loaded.
+#[derive(Clone, Copy)]
+pub struct Art(pub RwSignal<Option<UiAssets>>);
+
+/// The graphics signal from the context (empty outside `App`).
+pub fn art() -> RwSignal<Option<UiAssets>> {
+    use_context::<Art>().map_or_else(|| RwSignal::new(None), |a| a.0)
+}
+
+/// Loading: the animated Locora logo.
+#[component]
+pub fn Loading() -> impl IntoView {
+    let art = art();
+    view! {
+        <div class="loading" role="status">
+            {move || art.get().map(|a| view! { <div class="logo"><Sply media=a.logo /></div> })}
+            <p>"Lädt …"</p>
+        </div>
+    }
+}
+
+/// The icon of a room kind: no picture, picture or `.sply`, video.
+#[component]
+pub fn RoomIcon(backdrop: Option<Media>) -> impl IntoView {
+    let art = art();
+    let kind = backdrop.map(|m| m.kind);
+    move || {
+        art.get().map(|a| {
+            let media = match kind {
+                None => a.room_blank,
+                Some(locora_app_api::MediaKind::Video) => a.room_video,
+                Some(_) => a.room_image,
+            };
+            view! { <span class="room-icon"><Sply media=media /></span> }
+        })
     }
 }
 
@@ -206,7 +253,7 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
         <p class="notes" role="status">{move || message.get()}</p>
         <p class="status" role="status">{move || info.get()}</p>
         {move || match home.get() {
-            None => view! { <p class="loading">"Lädt …"</p> }.into_any(),
+            None => view! { <Loading /> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
             Some(Ok(home)) => {
                 let waiting = home.due + home.fresh;
@@ -261,9 +308,21 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
                                 }}
                             </div>
                             <div class="meta">
-                                "Wiederholen, was dein Gedächtnis gerade braucht."
+                                {if waiting == 0 {
+                                    "Simo hält die Laterne – morgen geht es weiter."
+                                } else {
+                                    "Wiederholen, was dein Gedächtnis gerade braucht."
+                                }}
                             </div>
                         </div>
+                        {(waiting == 0)
+                            .then(|| {
+                                let art = art();
+                                move || {
+                                    art.get()
+                                        .map(|a| view! { <div class="resting"><Sply media=a.simo /></div> })
+                                }
+                            })}
                         <button
                             class="primary"
                             disabled=move || waiting == 0 || busy.get()
@@ -505,7 +564,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
             </label>
         </div>
         {move || match palace.get() {
-            None => view! { <p class="loading">"Lädt …"</p> }.into_any(),
+            None => view! { <Loading /> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
             Some(Ok(p)) => view! { <editor::Rooms palace=p blocked=blocked /> }.into_any(),
         }}

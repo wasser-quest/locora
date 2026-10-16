@@ -23,6 +23,15 @@ const FILES: &[(&str, &[u8])] = ui![
     "richtig",
     "nochmal",
     "geschafft",
+    "raum-leer",
+    "raum-bild",
+    "raum-video",
+];
+
+/// Graphics from elsewhere in `assets/`.
+const MORE: &[(&str, &[u8])] = &[
+    ("logo", include_bytes!("../../../../assets/brand/icon.sply")),
+    ("simo", locora_runtime::tutorial::SIMO),
 ];
 
 /// Name → hash of every UI graphic.
@@ -31,7 +40,7 @@ pub struct Assets(HashMap<&'static str, String>);
 impl Assets {
     pub fn register(store: &Store) -> Result<Self> {
         let mut map = HashMap::new();
-        for (name, bytes) in FILES {
+        for (name, bytes) in FILES.iter().chain(MORE) {
             map.insert(*name, store.put_media(bytes, SPLINELY)?.hash);
         }
         Ok(Self(map))
@@ -62,6 +71,11 @@ impl Assets {
             right: self.media("richtig"),
             again: self.media("nochmal"),
             done: self.media("geschafft"),
+            room_blank: self.media("raum-leer"),
+            room_image: self.media("raum-bild"),
+            room_video: self.media("raum-video"),
+            logo: self.media("logo"),
+            simo: self.media("simo"),
         }
     }
 }
@@ -70,7 +84,7 @@ impl Assets {
 mod tests {
     #[test]
     fn every_graphic_converts_to_svg() {
-        for (name, bytes) in super::FILES {
+        for (name, bytes) in super::FILES.iter().chain(super::MORE) {
             assert!(crate::sply::to_svg(bytes).is_ok(), "{name}");
         }
     }

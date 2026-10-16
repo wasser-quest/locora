@@ -8,6 +8,7 @@ lime glow for remembering). Every file moves a little, never hectically.
 - Tile icons, 96 x 96, transparent: kachel-core, kachel-review, kachel-notify,
   kachel-tutorial, kachel-gamification, kachel-plugin (any other plugin).
 - Journey feedback, 192 x 192, transparent: richtig, nochmal, geschafft.
+- Room kinds, 48 x 48, transparent: raum-leer, raum-bild, raum-video.
 """
 import math, os, sys
 
@@ -183,8 +184,46 @@ def geschafft():
     s.finish("Ein Stern über drei Loci, die nacheinander aufleuchten: Route geschafft.")
 
 
+# ---------------------------------------------------------------- room kinds (48 x 48)
+
+def raum_leer():
+    s = Scene("raum-leer", 48, 48, "Raum ohne Bild")
+    frame = s.add("path", "frame", d=rounded(36, 30, 6), tx=6, ty=9, fill=INDIGO)
+    s.crescent(frame, -3, -3, INDIGO_SH)
+    s.add("path", "inside", d=rounded(26, 20, 3), tx=11, ty=14, fill=t.INDIGO_DEEP)
+    s.glow("g", 24, 24, 8)
+    s.light("l", 24, 24, 3.5)
+    s.pulse("l", ["g"], low=0.4, period=2.6)
+    s.finish("Ein leerer Rahmen mit einem Locus: Raum ohne Bild.")
+
+
+def raum_bild():
+    s = Scene("raum-bild", 48, 48, "Raum mit Bild")
+    frame = s.add("path", "frame", d=rounded(36, 30, 6), tx=6, ty=9, fill=INDIGO)
+    s.crescent(frame, -3, -3, INDIGO_SH)
+    s.add("path", "sky", d=rounded(26, 20, 3), tx=11, ty=14, fill=INDIGO_HI)
+    s.add("path", "hill", d="M0 20 L0 12 C 6 6 12 8 16 12 C 19 9 23 9 26 12 L26 20 Z", tx=11, ty=14, fill=t.GREEN)
+    s.add("circle", "sun", x=31, y=19, radius=3.5, fill=AMBER)
+    s.glow("g", 18, 27, 7)
+    s.light("l", 18, 27, 3)
+    s.pulse("l", ["g"], low=0.4, period=2.6)
+    s.finish("Ein Bild mit Hügel und Sonne und einem Locus: Raum mit Bild.")
+
+
+def raum_video():
+    s = Scene("raum-video", 48, 48, "Raum mit Video")
+    frame = s.add("path", "frame", d=rounded(36, 30, 6), tx=6, ty=9, fill=INDIGO)
+    s.crescent(frame, -3, -3, INDIGO_SH)
+    s.add("path", "screen", d=rounded(26, 20, 3), tx=11, ty=14, fill=t.INDIGO_DEEP)
+    s.add("path", "play", d="M0 -6 L10 0 L0 6 Z", tx=21, ty=24, fill=CREAM, pivot="center")
+    s.glow("g", 34, 33, 6)
+    s.light("l", 34, 33, 2.5)
+    breathe(s, "play_anim", "play", scale=1.12, period=2.4)
+    s.finish("Ein Bildschirm mit Abspielzeichen: Raum mit Video.")
+
+
 if __name__ == "__main__":
     os.makedirs(t.OUT, exist_ok=True)
     for build in (kachel_core, kachel_review, kachel_notify, kachel_tutorial, kachel_gamification,
-                  kachel_plugin, richtig, nochmal, geschafft):
+                  kachel_plugin, richtig, nochmal, geschafft, raum_leer, raum_bild, raum_video):
         build()

@@ -7,8 +7,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     ActionDone, AnswerKind, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS,
-    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, CMD_UI_ASSETS, Feedback, InputField, InputValue,
-    JourneyStart, Question, Reply, Revealed, Step, Summary, UiAssets,
+    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, InputField, InputValue, JourneyStart,
+    Question, Reply, Revealed, Step, Summary, UiAssets,
 };
 use serde::Serialize;
 
@@ -63,12 +63,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let error = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
     // Feedback animations (assets/ui); the journey works without them.
-    let art = RwSignal::new(None::<UiAssets>);
-    spawn_local(async move {
-        if let Ok(a) = call::<UiAssets>(CMD_UI_ASSETS, NoArgs {}).await {
-            art.set(Some(a));
-        }
-    });
+    let art = crate::art();
 
     // Workbook inputs are asked first; without any, the journey starts at once.
     let fields = RwSignal::new(None::<Vec<InputField>>);
@@ -268,7 +263,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 return view! { <Inputs fields=list begin=begin /> }.into_any();
             }
             let Some(q) = question.get() else {
-                return view! { <p class="loading">"Lädt …"</p> }.into_any();
+                return view! { <crate::Loading /> }.into_any();
             };
             view! {
                 <Stage question=q.clone() phase=phase />
