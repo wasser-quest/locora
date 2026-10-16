@@ -28,6 +28,8 @@ pub struct Backend {
     journey: Option<Journey>,
     /// Hash of the built-in locus marker in the store.
     default_marker: String,
+    /// Hash of Simo (welcome and empty states) in the store.
+    simo: String,
     /// `.sply` hash → SVG, converted once per run.
     svg: HashMap<String, String>,
 }
@@ -56,7 +58,15 @@ fn lock<'a>(state: &'a State<'_, Shared>) -> Result<std::sync::MutexGuard<'a, Ba
 #[tauri::command]
 async fn home(state: State<'_, Shared>) -> Result<Home, String> {
     let mut b = lock(&state)?;
-    views::home(&mut b.profile).map_err(err)
+    let b = &mut *b;
+    let mut home = views::home(&mut b.profile).map_err(err)?;
+    if home.palaces.is_empty() {
+        home.welcome = Some(locora_app_api::Media {
+            hash: b.simo.clone(),
+            kind: locora_app_api::MediaKind::Sply,
+        });
+    }
+    Ok(home)
 }
 
 #[tauri::command]
@@ -399,10 +409,15 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
         .store
         .put_media(locora_runtime::tutorial::DEFAULT_MARKER, SPLINELY)?
         .hash;
+    let simo = profile
+        .store
+        .put_media(locora_runtime::tutorial::SIMO, SPLINELY)?
+        .hash;
     Ok(Backend {
         profile,
         journey: None,
         default_marker,
+        simo,
         svg: HashMap::new(),
     })
 }

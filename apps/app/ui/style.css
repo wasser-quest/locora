@@ -119,3 +119,9 @@ dl.stats dd { margin: 0; font-weight: 600; }
   cursor: pointer; }
 .palette li.on { background: var(--indigo); color: #fff; }
 .palette li small { color: inherit; opacity: .7; }
+.welcome { display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; }
+.welcome .simo { width: min(220px, 40vw); aspect-ratio: 2 / 3; flex: none; }
+.welcome .text { flex: 1 1 260px; display: flex; flex-direction: column; gap: .5rem; }
+.welcome h2 { margin: 0; }
+.welcome p { margin: 0; }
+.welcome .row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }

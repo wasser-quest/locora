@@ -102,6 +102,9 @@ pub struct Home {
     /// The latest tile of every loaded plugin (`ui.tile`).
     #[serde(default)]
     pub tiles: Vec<TileView>,
+    /// No palaces yet: Simo welcomes and points to the tutorial.
+    #[serde(default)]
+    pub welcome: Option<Media>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
