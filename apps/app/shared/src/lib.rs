@@ -60,6 +60,13 @@ pub const CMD_SETTINGS_OPTIMIZE: &str = "settings_optimize";
 /// The system's offset from UTC in minutes, sent by the UI at every start.
 pub const CMD_SET_UTC_OFFSET: &str = "set_utc_offset";
 
+/// Argument of `CMD_SET_UTC_OFFSET` (sent as `{ "offset": … }`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UtcOffset {
+    /// Minutes east of UTC, e.g. 120 for summer time in Germany.
+    pub minutes: i32,
+}
+
 /// Settings and learning statistics.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingsView {

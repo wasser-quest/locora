@@ -75,11 +75,32 @@ impl DayClock {
         self.offsets.last().map_or(0, |(_, m)| *m)
     }
 
-    /// Start of the learning day containing `t` (seconds since the epoch).
-    pub fn day_start(&self, t: u64) -> u64 {
-        let shift = i64::from(self.offset_at(t)) * 60 - i64::from(self.start_hour) * 3600;
+    /// The latest day start at or before `t` if `offset` applied throughout.
+    fn boundary(&self, t: u64, offset: i32) -> u64 {
+        let shift = i64::from(offset) * 60 - i64::from(self.start_hour) * 3600;
         let local = t as i64 + shift;
         (local.div_euclid(DAY as i64) * DAY as i64 - shift).max(0) as u64
+    }
+
+    /// Start of the learning day containing `t` (seconds since the epoch):
+    /// the latest start hour at or before `t` under the offset that applied
+    /// at that boundary itself (an offset change after the day began does
+    /// not move its start).
+    pub fn day_start(&self, t: u64) -> u64 {
+        let mut offsets: Vec<i32> = self.offsets.iter().map(|(_, m)| *m).collect();
+        if offsets.is_empty() {
+            offsets.push(0);
+        }
+        offsets.sort_unstable();
+        offsets.dedup();
+        let candidates = offsets.iter().map(|o| (self.boundary(t, *o), *o));
+        candidates
+            .clone()
+            .filter(|(b, o)| self.offset_at(*b) == *o)
+            .map(|(b, _)| b)
+            .max()
+            // A start hour skipped by a switch: take the latest candidate.
+            .unwrap_or_else(|| candidates.map(|(b, _)| b).max().unwrap_or(0))
     }
 
     /// Start of the learning day before the one starting at `day_start`.
@@ -512,6 +533,32 @@ mod tests {
         assert!(parse_utc_offset("zwei").is_err());
         assert!(parse_utc_offset("+71582789").is_err(), "no overflow");
         assert!(parse_utc_offset("-99999999999999999").is_err());
+    }
+
+    #[test]
+    fn a_day_that_began_before_a_switch_keeps_its_start() {
+        // UTC+1 until `switch` (06:00 UTC), then UTC+2. The day began at
+        // 04:00 local under UTC+1 = 03:00 UTC, before the switch.
+        let midnight = 1_800_000_000 - 1_800_000_000 % DAY;
+        let switch = midnight + 6 * 3600;
+        let clock = DayClock {
+            start_hour: 4,
+            offsets: vec![(0, 60), (switch, 120)],
+        };
+        assert_eq!(clock.day_start(switch + 3600), midnight + 3 * 3600);
+        // An answer at 03:30 UTC belongs to today, also seen after the switch.
+        let entries = vec![entry("x", midnight + 3 * 3600 + 1800, Grade::Good)];
+        let s = stats(&entries, &[], switch + 3600, &clock);
+        assert_eq!((s.answered_today, s.streak), (1, 1));
+        // The next day starts at 04:00 under UTC+2 = 02:00 UTC.
+        assert_eq!(
+            clock.day_start(midnight + DAY + 2 * 3600),
+            midnight + DAY + 2 * 3600
+        );
+        assert_eq!(
+            clock.previous_day(midnight + DAY + 2 * 3600),
+            midnight + 3 * 3600
+        );
     }
 
     #[test]

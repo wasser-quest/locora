@@ -270,9 +270,12 @@ async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
 
 /// The UI sends the system's UTC offset at every start (summer time included).
 #[tauri::command]
-async fn set_utc_offset(state: State<'_, Shared>, minutes: i32) -> Result<(), String> {
+async fn set_utc_offset(
+    state: State<'_, Shared>,
+    offset: locora_app_api::UtcOffset,
+) -> Result<(), String> {
     let b = lock(&state)?;
-    b.profile.set_utc_offset(minutes).map_err(err)
+    b.profile.set_utc_offset(offset.minutes).map_err(err)
 }
 
 #[tauri::command]

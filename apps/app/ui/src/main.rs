@@ -40,20 +40,30 @@ fn App() -> impl IntoView {
     // (JavaScript reports minutes *west* of UTC).
     // Sent at start, when the window comes back and every 15 minutes, but
     // only when it changed (summer time can switch while the app is open).
-    let last_offset = StoredValue::new(None::<i32>);
+    // One request at a time; when it returns, the latest sample wins, so an
+    // older answer can never overwrite a newer offset.
+    let sent = StoredValue::new(None::<i32>);
+    let wanted = StoredValue::new(None::<i32>);
+    let sending = StoredValue::new(false);
     let sync_offset = move || {
         let minutes = -(js_sys::Date::new_0().get_timezone_offset() as i32);
-        if last_offset.get_value() == Some(minutes) {
+        wanted.set_value(Some(minutes));
+        if sending.get_value() || sent.get_value() == Some(minutes) {
             return;
         }
-        last_offset.set_value(Some(minutes));
+        sending.set_value(true);
         spawn_local(async move {
-            if call::<()>(locora_app_api::CMD_SET_UTC_OFFSET, UtcOffset { minutes })
-                .await
-                .is_err()
-            {
-                last_offset.set_value(None);
+            while let Some(minutes) = wanted.get_value().filter(|m| sent.get_value() != Some(*m)) {
+                let offset = locora_app_api::UtcOffset { minutes };
+                if call::<()>(locora_app_api::CMD_SET_UTC_OFFSET, OffsetArgs { offset })
+                    .await
+                    .is_err()
+                {
+                    break; // tried again at the next focus or interval
+                }
+                sent.set_value(Some(minutes));
             }
+            sending.set_value(false);
         });
     };
     sync_offset();
@@ -408,8 +418,8 @@ fn guard_palette(blocked: RwSignal<bool>) {
 }
 
 #[derive(Serialize)]
-struct UtcOffset {
-    minutes: i32,
+struct OffsetArgs {
+    offset: locora_app_api::UtcOffset,
 }
 
 #[derive(Serialize)]
