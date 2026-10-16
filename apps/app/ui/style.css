@@ -53,6 +53,7 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .notes { color: var(--again); font-size: .9rem; }
 .empty { text-align: center; color: var(--muted); padding: 2rem 1rem; }
 .tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.room-tab { display: inline-flex; align-items: center; }
 .tabs button.on { background: var(--indigo); color: #fff; }
 .stage { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
   background: linear-gradient(160deg, var(--indigo-deep), var(--indigo)); }

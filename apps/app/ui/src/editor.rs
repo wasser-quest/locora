@@ -310,11 +310,13 @@ pub fn Rooms(
                 tabs.data.get().rooms.iter().enumerate().map(|(i, room)| {
                     let tabs = tabs.clone();
                     view! {
-                        <button class:on=move || tabs.room.get() == i disabled=move || busy.get() || dirty.get() || dragging.get()
-                            on:click=move |_| { tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
+                        <span class="room-tab">
                             <crate::RoomIcon backdrop=room.backdrop.clone() />
-                            {room.name.clone()}
-                        </button>
+                            <button class:on=move || tabs.room.get() == i disabled=move || busy.get() || dirty.get() || dragging.get()
+                                on:click=move |_| { tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
+                                {room.name.clone()}
+                            </button>
+                        </span>
                     }
                 }).collect_view()
             }}

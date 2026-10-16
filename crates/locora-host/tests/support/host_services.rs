@@ -245,6 +245,65 @@ fn native_service_is_reserved_and_missing_backends_are_explicit() {
 }
 
 #[test]
+fn locus_pictures_and_zoom_roundtrip_through_the_proxy() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(locora_store::Store::open(dir.path()).unwrap());
+    let first = store.put_media(b"first picture", "image/png").unwrap().hash;
+    let second = store
+        .put_media(b"second picture", "image/png")
+        .unwrap()
+        .hash;
+    let palace = store.create_palace("Pictures").unwrap();
+    let room = store
+        .add_room(&palace.id, "Room", locora_store::RoomKind::Blank, None)
+        .unwrap();
+    let mut host = palace_host(store.clone());
+    load(&mut host, "palace_writer");
+    let mut new = new_locus();
+    new.image = Some(first.clone());
+    new.image_size = 0.4;
+    new.zoom = 2.0;
+    let R::Locus(locus) = proxy(
+        &mut host,
+        Q::AddLocus {
+            room_id: room.id,
+            locus: new,
+        },
+    )
+    .unwrap() else {
+        panic!("expected locus")
+    };
+    assert_eq!(
+        (locus.image, locus.image_size, locus.zoom),
+        (Some(first), 0.4, 2.0)
+    );
+    for (image, size, zoom) in [(Some(second), 0.6, 3.0), (None, 0.5, 1.5)] {
+        assert_eq!(
+            proxy(
+                &mut host,
+                Q::UpdateLocus {
+                    id: locus.id.clone(),
+                    patch: p::LocusPatch {
+                        image: Some(image.clone()),
+                        image_size: Some(size),
+                        zoom: Some(zoom),
+                        ..Default::default()
+                    },
+                }
+            )
+            .unwrap(),
+            R::Done
+        );
+        let stored = store.palace(&palace.id).unwrap();
+        let updated = stored.route().next().unwrap();
+        assert_eq!(
+            (updated.image.clone(), updated.image_size, updated.zoom),
+            (image, size, zoom)
+        );
+    }
+}
+
+#[test]
 fn palace_crud_roundtrips_validation_persistence_and_self_notifications() {
     let dir = tempfile::tempdir().unwrap();
     let store = Arc::new(locora_store::Store::open(dir.path()).unwrap());
