@@ -6,16 +6,19 @@ Stand: 16.10.2026
 
 ## Jetzt: Phase 2 – die App (Tauri 2 + Leptos)
 
-- [ ] Gerüst `apps/app/`: `src-tauri/` (Rust, nutzt Store/Host/Format/Formula direkt) und `ui/` (Leptos → WASM mit `trunk`)
-- [ ] Splinely einbinden: `.sply` → interaktives SVG über `splinely_document` (Git-Tag `v0.5.2`), in der UI sicher abgespielt (`<Sply>`-Komponente)
+- [x] Gerüst `apps/app/` (Start: `cd apps/app && cargo tauri dev`)
+- [x] Splinely einbinden: `.sply` → interaktives SVG über `splinely_document` v0.5.2, sandboxed `<Sply>`-Komponente
+- [ ] Aufdecken: Bild zusätzlich direkt am Locus auf der Bühne zeigen, Größe pro Locus einstellbar (neues Feld `image_size`)
 - [ ] Startbildschirm: Plugin-Kacheln (`ui.tile`), „Weiter“-Zeile mit fälligen Loci, Befehlspalette (Strg/⌘+K)
 - [ ] Core-Ansicht: Palastliste mit ▶ auf der Karte, Raum mit Hintergrund und Locus-Markern, Bild am Ort
-- [ ] Journey in der App: Recall (Leertaste, 1–4), Quiz, Guess, Aktionen; gleiche Bewertung über das Core-Plugin
-- [ ] Aufdecken zeigt das `.sply` am Ort (es gehört zur Antwort), vorher nur Hintergrund und Marker
+- [x] Journey in der App: Recall (Leertaste, 1–4), Quiz, Guess; gleiche Bewertung über das Core-Plugin
+- [x] Aufdecken zeigt das `.sply` (es gehört zur Antwort), vorher nur Hintergrund und Marker
+- [ ] Workbook in der App: Eingaben abfragen, Aktionen als Knöpfe
 - [ ] Editor: Bild/Video ins Fenster ziehen = neuer Palast, Klick = Locus, eingefügte Liste = Loci als Route
 - [ ] Tutorial in der App: `locora tutorial`-Palast mit abgespielten Animationen; Erststart-Hinweis
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
-- [ ] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
+- [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
+- [ ] Viele Marker: in einem SVG pro Raum zusammenfassen statt je ein Frame
 - [ ] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons für core/review/notify/tutorial/gamification, Raum-Arten, leere Zustände (Simo mit Laterne), Journey-Feedback, Splash
 - [ ] Android- und iOS-Builds in CI; Klick-Budgets (PLAN 6.3) als E2E-Tests
 - [ ] Systemvoraussetzungen für Linux-Builds dokumentieren (webkit2gtk-4.1, gtk3, libsoup3 Entwicklerpakete)
@@ -26,7 +29,7 @@ Stand: 16.10.2026
 - [x] Guess: weitere gültige Antworten (`accept`) und tolerantere Prüfung
 - [x] Merkhilfe `note` pro Locus, beim Aufdecken gezeigt
 - [x] Abfragerichtungen: `--reverse`, `--numbers`, `--shuffle`
-- [ ] Dieselben Übungsarten und die Merkhilfe in der App (Schalter am Journey-Start)
+- [x] Dieselben Übungsarten und die Merkhilfe in der App (Schalter in der Palastansicht)
 - [ ] Später: Ton beim Aufdecken (in mnemodim `soundPath`), über Audio in Splinely (`audioAssets`/`playAudio` im `.sply`)
 - [ ] Zoom/Schwenk pro Locus in der App (mnemodim `zoom/panX/panY`)
 

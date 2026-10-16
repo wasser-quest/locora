@@ -1,0 +1,11 @@
+[package]
+name = "locora-app-api"
+description = "Data exchanged between the Locora app UI and its Tauri backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true

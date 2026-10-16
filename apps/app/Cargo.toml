@@ -1,0 +1,24 @@
+# The desktop/mobile app: Tauri 2 backend (`src-tauri`) and Leptos UI (`ui`,
+# compiled to wasm32-unknown-unknown with trunk). A workspace of its own so the
+# main workspace builds without WebKit/GTK development packages.
+[workspace]
+resolver = "3"
+members = ["shared", "src-tauri", "ui"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/wasser-quest/locora"
+rust-version = "1.90"
+
+[workspace.dependencies]
+locora-app-api = { path = "shared" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = true

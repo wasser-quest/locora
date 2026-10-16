@@ -37,6 +37,14 @@ The `.locora` format is documented in [`format/README.md`](format/README.md).
 
 Data lives in your platform data directory (`--data DIR` or `$LOCORA_DATA` to change it).
 
+## Try the app
+
+```sh
+cd apps/app && cargo tauri dev     # desktop app (Tauri 2 + Leptos); release: cargo tauri build
+```
+
+Needs `trunk`, `tauri-cli` and the WebKit/GTK development packages, see [`apps/app/README.md`](apps/app/README.md).
+
 ## Try the plugin system
 
 ```bash

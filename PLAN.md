@@ -685,6 +685,35 @@ Testeingabe endete (Broken Pipe); die Test-Helfer behandeln das jetzt als normal
   später Trophäen und Streak-Flamme für Gamification.
 - Android- und iOS-Builds ab Tag 1 in CI; Klick-Budgets (6.3) als E2E-Tests.
 
+**Stand 16.10.2026 – erstes Gerüst läuft** (`apps/app/`, Start: `cd apps/app && cargo tauri dev`, siehe
+`apps/app/README.md`): Startbildschirm mit „Weiter“-Zeile, Palastkarten mit ▶ und Tutorial-Knopf; Palastansicht mit
+Räumen als Tabs, Hintergrund und `.sply`-Markern (Zustand neu/fällig/gewusst über die Runtime), Klick auf einen Marker
+zeigt den Ort, Aufdecken zeigt Inhalt, `.sply`-Bild und Merkhilfe; Journey mit Recall (Leertaste, 1–4), Guess, Quiz und
+den Übungsarten rückwärts/Ortsnummern/gemischt. Gemeinsam mit der CLI: `locora-runtime` (Plan, Fälligkeit,
+Tageslimit, Tutorial, Bewertung über das Core-Plugin).
+
+**Was in der App noch fehlt** (Reihenfolge = Empfehlung):
+
+1. **Bild beim Aufdecken auch am Ort:** Das `.sply`/Bild erscheint nicht nur unten im Antwortbereich, sondern auch
+   direkt am Locus auf der Bühne (unter/neben dem Marker), in einer pro Locus wählbaren Größe. Dafür ein neues Feld
+   pro Locus (z. B. `image_size` als Anteil der Raumbreite, Standard 0,25; Store-Migration, `.locora`, `locora.toml`,
+   `--image-size`) und im Editor ein Ziehgriff zum Vergrößern/Verkleinern. Vor dem Aufdecken bleibt nur der Marker
+   sichtbar (das Bild gehört zur Antwort).
+2. **Editor:** Bild/Video ins Fenster ziehen = neuer Palast, Klick = Locus setzen, Marker verschieben, Inhalt,
+   Antwortart (Recall/Guess mit `accept`/Quiz), Merkhilfe und Bild am Ort bearbeiten, eingefügte Liste = Loci als Route.
+3. **Workbook in der App:** Eingaben (`Inputs`) vor der Journey abfragen (bisher Standardwerte) und Aktionen (`!name`)
+   als Knöpfe; Formelfehler sichtbar machen.
+4. **Startbildschirm vollständig:** Plugin-Kacheln (`ui.tile`), Befehlspalette (Strg/⌘+K), Einstellungen (neue Loci
+   pro Tag, Behaltensrate), Statistik, Import/Export (`.locora`, `locora.toml`).
+5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): Kachel-Icons, Raum-Arten, leere Zustände (Simo mit Laterne),
+   Journey-Feedback (richtig/nochmal/geschafft), Splash; bisher nur Text.
+6. **Leistung:** Jeder Marker ist ein eigener Frame mit eigener Runtime – bei vielen Loci alle Marker eines Raums in
+   einem gemeinsamen SVG zusammenfassen; Medien mit Range-Anfragen ausliefern (Video-Spulen).
+7. **Video-Räume** (Phase 3): am Locus anhalten, Zeitleiste.
+8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
+   Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
+9. **Später:** Ton beim Aufdecken über Audio im `.sply`.
+
 ### 13.5 Danach (Phasen 3–7)
 
 - **Phase 3:** Video-Räume in der App (anhalten am Locus bis gelöst, Editor mit Taste L, Zeitleiste), Plugin `notify`

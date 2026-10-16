@@ -1,0 +1,19 @@
+[package]
+name = "locora-ui"
+description = "Locora app UI (Leptos, client-side rendered, built with trunk)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+console_error_panic_hook = "0.1"
+js-sys = "0.3"
+leptos = { version = "0.8.22", features = ["csr"] }
+locora-app-api.workspace = true
+serde.workspace = true
+serde-wasm-bindgen = "0.6"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["HtmlIFrameElement", "Window", "KeyboardEvent"] }
