@@ -503,6 +503,44 @@ mod tests {
         assert_eq!(store.palace(&palace.id).unwrap(), before);
     }
 
+    /// Optional real-artifact smoke test; fixtures are never copied into the repo.
+    #[test]
+    #[ignore = "set LOCORA_TEST_GIF, LOCORA_TEST_SPLY and LOCORA_TEST_VIDEO to local fixtures"]
+    fn real_animation_media_import_smoke() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        for (variable, kind, mime) in [
+            ("LOCORA_TEST_GIF", RoomKind::Image, "image/gif"),
+            ("LOCORA_TEST_SPLY", RoomKind::Image, locora_store::SPLINELY),
+            ("LOCORA_TEST_VIDEO", RoomKind::Video, "video/mp4"),
+        ] {
+            let path = std::path::PathBuf::from(std::env::var_os(variable).expect(variable));
+            let tree = import_palace(&store, Some(&path)).unwrap().unwrap();
+            assert_eq!(tree.rooms[0].room.kind, kind);
+            let hash = tree.rooms[0].room.media.as_ref().unwrap();
+            assert_eq!(store.media(hash).unwrap().unwrap().mime, mime);
+            let bytes = std::fs::read(store.media_file(hash).unwrap()).unwrap();
+            assert_eq!(bytes, std::fs::read(&path).unwrap());
+            if mime == locora_store::SPLINELY {
+                let svg = crate::sply::to_svg(&bytes).unwrap();
+                assert!(svg.contains("splinely-project"));
+                assert!(svg.contains("svg.splinely"));
+            }
+            if kind == RoomKind::Video {
+                let (_, selected) = apply(
+                    &store,
+                    &EditorChange {
+                        palace_id: tree.palace.id,
+                        room_id: tree.rooms[0].room.id.clone(),
+                        action: EditorAction::CreateVideo { time: 6.0 },
+                    },
+                )
+                .unwrap();
+                assert!(selected.is_some());
+            }
+        }
+    }
+
     #[test]
     fn video_loci_require_valid_time_and_video_room() {
         let dir = tempfile::tempdir().unwrap();

@@ -68,6 +68,10 @@ Stand: 16.10.2026 (abends)
 
 ## Phase 3 – Video-Räume in der App und Benachrichtigungen
 
+- [x] Echte Animationsdateien backend-geprüft: `~/tester/cyber-stickfight/cyber-fight.gif` (252 Frames, 12,6 s), `~/tester/stickfight/fight.sply` und testweise MP4-Konvertierung; optionaler Fixture-Test ohne Dateien im Repo
+- [ ] Zeitgebundene Animationsräume auch für GIF und `.sply`: GIF braucht steuerbare Wiedergabe statt `<img>`; Splinely-Zeitsteuerung an Editor/Journey anbinden, weiterhin ausschließlich Splinely-Runtime für `.sply`
+- [ ] Visuelle WebView-Prüfung der Stickfight-Animationen (Backend-Test beweist keine Wiedergabe)
+
 - [ ] Video-Räume: anhalten am Locus bis gelöst, Editor mit Taste L, Zeitleiste, Start-Vorschau aller Loci
 - [ ] Plugin `notify`: lokale Benachrichtigungen, Ruhezeiten, Bündelung, Tipp öffnet die passende Stelle
 
