@@ -41,11 +41,14 @@ class Scenario:
         self.profile = artifacts / "profile"
         self.profile.mkdir()
         self.log = open(artifacts / "app.log", "w")
+        started = time.monotonic()
         self.process = subprocess.Popen([str(binary)], env={**os.environ, "LOCORA_DATA": str(self.profile)}, stdout=self.log, stderr=self.log)
         self.steps = []
         self.clicks = 0
         self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
         self.until(lambda: self.find("Tutorial starten", "button"))
+        # Upper bound: includes AT-SPI discovery and polling of the whole tree.
+        self.startup_ms = round((time.monotonic() - started) * 1000)
         windows = subprocess.check_output(["xdotool", "search", "--all", "--onlyvisible", "--pid", str(self.process.pid), "--name", "^Locora$"]).decode().split()
         if len(windows) != 1:
             self.process.terminate()
@@ -148,6 +151,9 @@ class Scenario:
         print(json.dumps(self.steps[-1], ensure_ascii=False), flush=True)
 
     def run(self):
+        self.record("startup-to-interactive", ms=self.startup_ms, budget_ms=self.startup_budget, enforced=self.startup_budget is not None)
+        if self.startup_budget is not None:
+            assert self.startup_ms <= self.startup_budget, f"startup {self.startup_ms} ms > {self.startup_budget} ms"
         self.click("Tutorial starten")
         self.until(lambda: self.find("▶ Route ablaufen", "button"))
         assert self.sql("SELECT count(*) FROM loci")[0][0] == 9
@@ -193,6 +199,14 @@ class Scenario:
         assert len(positions) == len(set(positions)) == 10
         assert all(0 <= x <= 1 and 0 <= y <= 1 for x,y in positions)
         self.record("list-route-native-paste-budget", mouse_clicks=0, paste_shortcuts=1, loci=10)
+        # Touch-friendly undo: the toast undoes the whole list via a backend receipt.
+        # Toolbar and toast both offer it; the toast comes later in document order.
+        toast = self.until(lambda: ([n for n in walk(self.app) if n.get_name() == "Rückgängig" and n.get_role_name() == "button"] + [None, None])[1])
+        assert toast.do_action(0)
+        self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before)
+        self.click("Wiederholen")
+        self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before + 10)
+        self.record("undo-toast-and-redo-list", toast_clicks=1)
         assert stage.grab_focus()
         self.shot("tutorial-room-markers", settle=2)
 
@@ -244,12 +258,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, default=Path("apps/app/target/debug/locora-app"))
     parser.add_argument("--artifacts", type=Path)
+    # PLAN target is 300 ms for a release build on real hardware; CI runs a
+    # debug build under Xvfb, so the budget is opt-in.
+    parser.add_argument("--startup-budget-ms", type=int)
     args = parser.parse_args()
     artifacts = args.artifacts or Path(tempfile.mkdtemp(prefix="locora-native-e2e-"))
     artifacts.mkdir(parents=True, exist_ok=True)
     scenario = None
     try:
         scenario = Scenario.__new__(Scenario)
+        scenario.startup_budget = args.startup_budget_ms
         scenario.__init__(args.binary.resolve(), artifacts)
         scenario.run()
     except Exception as error:
