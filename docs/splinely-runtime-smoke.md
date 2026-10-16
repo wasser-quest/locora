@@ -24,6 +24,26 @@ LOCORA_DATA=/tmp/locora-native-runtime-profile apps/app/target/debug/locora-app
 - No runtime-start failure alert was visible in those checked views.
 - An isolated WebKit probe of the generated Simo document also returned `playing: true`, advancing autoplay clips (`breathe`, `sway`, `hover`, `flap`, `glow`, `loci`) and no runtime diagnostics.
 
+## Pointer-follow regression
+
+Runtime playback and cursor following are separate. App frames intentionally use
+`pointer-events: none` so animations cannot steal clicks/focus. Without a bridge,
+Splinely's pointer followers therefore receive no cursor input.
+
+The app now forwards mouse coordinates into the sandboxed frame, accounting for
+frame position and CSS scale. The bridge accepts parent-window messages only and
+dispatches pointer movement to the existing Splinely runtime; it does not replace
+its follower logic. Window blur clears the pointer. Native frame pointer events
+remain disabled.
+
+REA-controlled WebKit probe of the generated Simo document:
+`ev_4934eb32c87ef65819a58cfafc186dd9699a48fc7964ea9025743fadbbfd41e0`.
+It paused the timeline, sent left/right pointer messages and ticked the runtime.
+`pupil_l` moved from x `212.01996397312564` to `217.9934669308472`;
+`runtimeReady` was true and the probe exited with code 0. This verifies the bridge
+and actual follower response in isolated WebKit, not every app placement or every
+asset. Full native-app pointer mapping still needs visual checks.
+
 ## Limits
 
 The reported static Simo/tutorial behavior was not reproduced in this build. This does not establish that every installed build or every tutorial locus animates correctly. An outdated frontend is a possible explanation, not a confirmed cause. The generated SVG is a document containing the original embedded `.sply` project and Splinely JavaScript runtime, not a raster conversion or evidence of static rendering by itself.

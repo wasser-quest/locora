@@ -53,7 +53,48 @@ pub fn Sply(
             failed.set(!value);
         }
     });
-    on_cleanup(move || messages.remove());
+    let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
+        if !ready.get_untracked() || event.pointer_type() != "mouse" {
+            return;
+        }
+        let Some(frame) = frame.get_untracked() else {
+            return;
+        };
+        let Some(window) = frame.content_window() else {
+            return;
+        };
+        let rect = frame.get_bounding_client_rect();
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return;
+        }
+        // Convert parent viewport coordinates into the iframe viewport, also
+        // accounting for CSS-scaled locus pictures. Coordinates may be outside
+        // the frame so followers can look toward a cursor elsewhere in the app.
+        let x = (f64::from(event.client_x()) - rect.left()) * f64::from(frame.client_width())
+            / rect.width();
+        let y = (f64::from(event.client_y()) - rect.top()) * f64::from(frame.client_height())
+            / rect.height();
+        let message = js_sys::Object::new();
+        let point = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&point, &"x".into(), &x.into());
+        let _ = js_sys::Reflect::set(&point, &"y".into(), &y.into());
+        let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+        let _ = js_sys::Reflect::set(&message, &"pointer".into(), &point);
+        let _ = window.post_message(&message, "*");
+    });
+    let blur = window_event_listener(leptos::ev::blur, move |_| {
+        if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+            let message = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+            let _ = js_sys::Reflect::set(&message, &"pointerLeave".into(), &true.into());
+            let _ = window.post_message(&message, "*");
+        }
+    });
+    on_cleanup(move || {
+        messages.remove();
+        pointer.remove();
+        blur.remove();
+    });
     let push = move || {
         if let (Some(state), Some(el)) = (state, frame.get_untracked()) {
             send(&el, machine, state.get_untracked());

@@ -20,12 +20,23 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
   window.parent.postMessage({ locora: 1, runtimeReady: !!svg.splinely }, '*');
   window.addEventListener('message', function (e) {
     var d = e.data;
-    if (!d || d.locora !== 1) return;
+    if (e.source !== window.parent || !d || d.locora !== 1) return;
     if (d.checkRuntime) {
       window.parent.postMessage({ locora: 1, runtimeReady: !!svg.splinely }, '*');
       return;
     }
     if (!svg.splinely) return;
+    if (d.pointer && Number.isFinite(d.pointer.x) && Number.isFinite(d.pointer.y)) {
+      svg.dispatchEvent(new PointerEvent('pointermove', {
+        clientX: d.pointer.x, clientY: d.pointer.y, bubbles: true,
+        pointerType: 'mouse', isPrimary: true
+      }));
+      return;
+    }
+    if (d.pointerLeave) {
+      svg.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+      return;
+    }
     try {
       if (typeof d.machine === 'string' && typeof d.send === 'string') {
         svg.splinely.machine(d.machine).send(d.send);
