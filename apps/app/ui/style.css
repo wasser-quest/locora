@@ -43,7 +43,7 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .weiter { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .weiter .text { flex: 1; }
 .weiter .count { font-size: 1.3rem; font-weight: 600; }
-.palaces { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.palaces { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; }
 .palace { display: flex; flex-direction: column; gap: .4rem; cursor: pointer; }
 .palace .name { font-weight: 600; }
 .palace .meta { color: var(--muted); font-size: .9rem; }
@@ -110,7 +110,7 @@ dl.stats dt { color: var(--muted); }
 dl.stats dd { margin: 0; font-weight: 600; }
 .status { color: var(--ok); font-size: .9rem; }
 .status:empty, .notes:empty { display: none; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 1rem; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-bottom: 1rem; }
 .tile { display: flex; align-items: center; gap: .6rem; }
 .tile .icon { width: 48px; height: 48px; flex: none; }
 .tile .text { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
