@@ -198,8 +198,10 @@ impl Profile {
     }
 
     /// The latest tile of every loaded plugin, in plugin order (`ui.tile`).
+    /// Call [`Profile::report`] first so tiles published by earlier calls are
+    /// stored. Unreadable saved tiles show as none (and are kept, see `keep_tile`).
     pub fn tiles(&self) -> Result<Vec<(String, Tile)>> {
-        let mut saved = self.saved_tiles()?;
+        let mut saved = self.saved_tiles().unwrap_or_default();
         Ok(self
             .host
             .plugins()
@@ -209,7 +211,10 @@ impl Profile {
 
     fn saved_tiles(&self) -> Result<BTreeMap<String, Tile>> {
         Ok(match self.store.kv_get("host", TILES)? {
-            Some(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
+            // An error, not an empty map: the next write would drop every tile.
+            Some(bytes) => {
+                serde_json::from_slice(&bytes).context("Gespeicherte Kacheln sind unlesbar")?
+            }
             None => BTreeMap::new(),
         })
     }
@@ -338,5 +343,14 @@ mod tile_tests {
         drop(profile);
         let again = Profile::open(Some(dir.path())).unwrap();
         assert_eq!(again.tiles().unwrap().len(), 1, "kept across restarts");
+
+        again.store.kv_set("host", TILES, b"kaputt").unwrap();
+        assert!(again.tiles().unwrap().is_empty());
+        assert!(again.keep_tile("review", tile("neu")).is_err());
+        assert_eq!(
+            again.store.kv_get("host", TILES).unwrap().unwrap(),
+            b"kaputt",
+            "not overwritten"
+        );
     }
 }

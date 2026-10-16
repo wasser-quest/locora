@@ -50,9 +50,11 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
     let cards = profile.schedule(None)?;
     let budget = profile.new_budget()?;
     let now = now();
+    // Tiles published while scheduling are stored before they are read.
+    let reported = profile.report();
     let mut home = Home {
         tutorial: locora_runtime::tutorial::find(profile)?.is_some(),
-        notes: profile.notes.clone(),
+        notes: profile.notes.iter().cloned().chain(reported).collect(),
         tiles: profile
             .tiles()?
             .into_iter()
