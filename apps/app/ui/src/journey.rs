@@ -394,20 +394,19 @@ fn VideoAtLocus(
     let progress = expect_context::<VideoProgress>().0;
     let key = StoredValue::new(media.hash.clone());
     let stop_at_locus = move || {
-        if let (Some(player), Some(target)) = (player.get_untracked(), time) {
-            if player.ready_state() >= 1
-                && target.is_finite()
-                && target >= 0.0
-                && !matches!(phase.get_untracked(), Phase::Judged(_))
-                && player.current_time() >= target
-            {
-                let _ = player.pause();
-                if player.current_time() != target {
-                    player.set_current_time(target);
-                }
-                progress.set_value(Some((key.get_value(), target)));
-                ready.set(true);
+        if let (Some(player), Some(target)) = (player.get_untracked(), time)
+            && player.ready_state() >= 1
+            && target.is_finite()
+            && target >= 0.0
+            && !matches!(phase.get_untracked(), Phase::Judged(_))
+            && player.current_time() >= target
+        {
+            let _ = player.pause();
+            if player.current_time() != target {
+                player.set_current_time(target);
             }
+            progress.set_value(Some((key.get_value(), target)));
+            ready.set(true);
         }
     };
     // timeupdate alone can lag by hundreds of milliseconds. Poll near frame

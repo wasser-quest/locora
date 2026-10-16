@@ -509,6 +509,17 @@ pub fn Rooms(
     let video_time = RwSignal::new(String::from("0"));
     let create_video = StoredValue::new(editor.clone());
     let shortcuts = editor.clone();
+    let layer = editor.clone();
+    let marker_data = editor.data;
+    let tab_rooms = Memo::new(move |_| {
+        marker_data.with(|p| {
+            p.rooms
+                .iter()
+                .map(|r| (r.name.clone(), r.backdrop.clone()))
+                .collect::<Vec<_>>()
+        })
+    });
+    let marker_media = Memo::new(move |_| marker_data.with(|p| p.marker.clone()));
     let drop_message = editor.message;
     let drop_selection = editor.selected;
     crate::tauri::on_file_drop(move |_| {
@@ -588,20 +599,22 @@ pub fn Rooms(
         <div class="tabs" style:margin-top="1rem">
             {move || {
                 let tabs = tabs.clone();
-                tabs.data.get().rooms.iter().enumerate().map(|(i, room)| {
+                // Rebuild (and reload icon frames) only when names/backdrops change.
+                tab_rooms.get().into_iter().enumerate().map(|(i, (name, backdrop))| {
                     let tabs = tabs.clone();
                     view! {
                         <span class="room-tab">
-                            <crate::RoomIcon backdrop=room.backdrop.clone() />
+                            <crate::RoomIcon backdrop=backdrop />
                             <button class:on=move || tabs.room.get() == i disabled=move || busy.get() || dirty.get() || dragging.get()
                                 on:click=move |_| { tabs.history.set(History::default()); tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
-                                {room.name.clone()}
+                                {name}
                             </button>
                         </span>
                     }
                 }).collect_view()
             }}
         </div>
+        <div class="stage-wrap">
         {move || {
             // Only rebuild the stage on room changes / committed mutations, never on pointer moves.
             let stage = stage.clone();
@@ -609,8 +622,27 @@ pub fn Rooms(
             let Some(room) = data.rooms.get(stage.room.get()).cloned() else {
                 return view! { <p class="empty">"Dieser Palast hat noch keine Räume."</p> }.into_any();
             };
-            view! { <RoomStage editor=stage room=room marker=data.marker editing=editing adding=adding revealed=revealed /> }.into_any()
+            view! { <RoomStage editor=stage room=room editing=editing adding=adding revealed=revealed /> }.into_any()
         }}
+        // Outside the rebuilt stage: autosave rebuilds it per keystroke, and
+        // churning a frame per rebuild left new marker frames unloaded.
+        {move || {
+            let layer = layer.clone();
+            let marker = marker_media.get();
+            let loci = Signal::derive(move || {
+                let preview = layer.gesture.get();
+                layer.data.with(|p| {
+                    p.rooms.get(layer.room.get()).map(|room| {
+                        room.loci.iter().map(|locus| {
+                            let (x, y) = preview_position(locus, preview.as_ref());
+                            crate::sply::MarkerLocus { id: locus.id.clone(), x, y, status: locus.status.event() }
+                        }).collect::<Vec<_>>()
+                    }).unwrap_or_default()
+                })
+            });
+            view! { <crate::sply::MarkerLayer media=marker loci=loci /> }
+        }}
+        </div>
         <p role="status" class="notes">{move || message.get()}</p>
         {move || {
             let panel = panel.clone();
@@ -655,8 +687,11 @@ fn ListPaste(editor: Editor) -> impl IntoView {
             .with(|p| p.rooms.get(check.room.get()).is_none_or(|room| room.video))
     });
     view! {
-        <section class="card panel editor-form">
-            <label>"Liste einfügen (Strg+V hier): ein Begriff pro Zeile"
+        // Collapsed by default so the stage stays above the fold; Ctrl/⌘+V on
+        // the focused stage works without opening it.
+        <details class="card panel editor-form list-paste">
+            <summary>"Liste als Route einfügen (oder Strg/⌘+V auf der Bühne)"</summary>
+            <label>"Ein Begriff pro Zeile"
                 <textarea rows="4" bind:value=text maxlength="65536"
                     disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some()) || unavailable.get() />
             </label>
@@ -668,7 +703,7 @@ fn ListPaste(editor: Editor) -> impl IntoView {
                         Err(error) => editor.message.set(error),
                     }
                 }>"Liste als Route hinzufügen"</button>
-        </section>
+        </details>
     }
 }
 
@@ -676,29 +711,11 @@ fn ListPaste(editor: Editor) -> impl IntoView {
 fn RoomStage(
     editor: Editor,
     room: locora_app_api::RoomView,
-    marker: locora_app_api::Media,
     editing: RwSignal<bool>,
     adding: RwSignal<bool>,
     revealed: RwSignal<bool>,
 ) -> impl IntoView {
     let node = NodeRef::<html::Div>::new();
-    let layer_loci = room.loci.clone();
-    let layer_gesture = editor.gesture;
-    let marker_loci = Signal::derive(move || {
-        let preview = layer_gesture.get();
-        layer_loci
-            .iter()
-            .map(|locus| {
-                let (x, y) = preview_position(locus, preview.as_ref());
-                crate::sply::MarkerLocus {
-                    id: locus.id.clone(),
-                    x,
-                    y,
-                    status: locus.status.event(),
-                }
-            })
-            .collect::<Vec<_>>()
-    });
     let busy = editor.busy;
     let dirty = editor.dirty;
     let gesture = editor.gesture;
@@ -951,7 +968,6 @@ fn RoomStage(
                     </div>
                 })
             }}
-            <crate::sply::MarkerLayer media=marker loci=marker_loci />
             {room.loci.into_iter().map(|locus| {
                 let editor = pick_editor.clone();
                 let keyboard_editor = editor.clone();
@@ -1027,16 +1043,19 @@ fn ContentForm(
     adding: RwSignal<bool>,
 ) -> impl IntoView {
     let name_field = NodeRef::<html::Input>::new();
+    let place = RwSignal::new(locus.place.clone());
     Effect::new(move |_| {
         if let Some(input) = name_field.get()
             && adding.get_untracked()
         {
+            // The bound value may not be applied yet; set it first so typing
+            // replaces the default name instead of appending to it.
+            input.set_value(&place.get_untracked());
             let _ = input.focus();
             input.select();
         }
     });
     let finish_requested = RwSignal::new(false);
-    let place = RwSignal::new(locus.place.clone());
     let item = RwSignal::new(locus.item.clone());
     let note = RwSignal::new(locus.note.clone());
     let image = RwSignal::new(locus.image.clone().unwrap_or_default());

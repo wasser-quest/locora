@@ -147,3 +147,6 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .resting { width: 48px; height: 72px; flex: none; }
 .stage-view { position: absolute; inset: 0; transform-origin: 0 0; transition: transform .45s ease; }
 @media (prefers-reduced-motion: reduce) { .stage-view { transition: none; } }
+.list-paste summary { cursor: pointer; font-weight: 600; }
+.list-paste[open] summary { margin-bottom: .6rem; }
+.stage-wrap { position: relative; }
