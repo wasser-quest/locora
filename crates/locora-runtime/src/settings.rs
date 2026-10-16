@@ -1,7 +1,7 @@
 //! App settings stored in the profile under the reserved plugin id `host`,
 //! and the daily limit for new loci.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use anyhow::{Context, Result, bail};
 use locora_api::Service;
@@ -10,12 +10,20 @@ use locora_api::review::{
     Configure, ConfigureRequest, Log, LogEntry, LogRequest, ScheduledLocus, Settings,
 };
 
+use locora_fsrs::DEFAULT_WEIGHTS;
+pub use locora_fsrs::optimize::MIN_REVIEWS;
+use locora_fsrs::optimize::{Fitted, History, optimize, usable_reviews};
+
 use crate::{Profile, now};
 
 pub const DAY: u64 = 86_400;
 /// Upper bound for new loci per day.
 pub const MAX_NEW_PER_DAY: usize = 1000;
 pub const NEW_PER_DAY: &str = "settings.new_per_day";
+/// Usable reviews when personal weights were last fitted (for the hint).
+const OPTIMIZED_AT: &str = "settings.optimized_at_reviews";
+/// Suggest fitting again after this many new usable reviews.
+pub const OPTIMIZE_AGAIN_AFTER: usize = 1000;
 pub const DEFAULT_NEW_PER_DAY: usize = 10;
 
 /// Start of the (UTC) day containing `t`.
@@ -79,6 +87,66 @@ pub fn stats(entries: &[LogEntry], schedule: &[ScheduledLocus], now: u64) -> Sta
     }
 }
 
+/// Answers per locus in time order.
+pub fn histories(entries: &[LogEntry]) -> Vec<History> {
+    let mut by_locus: BTreeMap<(&str, &str), History> = BTreeMap::new();
+    for e in entries {
+        by_locus
+            .entry((&e.palace_id, &e.locus_id))
+            .or_default()
+            .push((e.answered_at, e.grade));
+    }
+    by_locus
+        .into_values()
+        .map(|mut h| {
+            h.sort_by_key(|(t, _)| *t);
+            h
+        })
+        .collect()
+}
+
+/// What fitting personal FSRS weights found.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Optimized {
+    /// Not enough reviews at least a day apart yet.
+    TooFew { usable: usize, needed: usize },
+    /// Fitted; `saved` tells whether the weights were stored (they are not
+    /// when nothing improved or on a dry run).
+    Fitted { fitted: Fitted, saved: bool },
+}
+
+impl Optimized {
+    /// For people, e.g. „Aus 412 Wiederholungen: Vorhersagefehler … (3,1 % besser)“.
+    pub fn message(&self) -> String {
+        match self {
+            Optimized::TooFew { usable, needed } => format!(
+                "Noch zu wenig Daten: {usable} von {needed} Wiederholungen mit mindestens einem Tag Abstand."
+            ),
+            Optimized::Fitted { fitted, saved } => {
+                let gain = if fitted.loss_before > 0.0 {
+                    1.0 - fitted.loss_after / fitted.loss_before
+                } else {
+                    0.0
+                };
+                let what = if *saved {
+                    "Persönliche Gewichte gespeichert; sie gelten ab der nächsten Antwort."
+                } else if fitted.loss_after >= fitted.loss_before {
+                    "Die bisherigen Gewichte passen schon am besten; nichts geändert."
+                } else {
+                    "Nur berechnet, nichts geändert."
+                };
+                format!(
+                    "Aus {} Wiederholungen: Vorhersagefehler {:.4} → {:.4} ({:.1} % besser). {what}",
+                    fitted.reviews,
+                    fitted.loss_before,
+                    fitted.loss_after,
+                    gain * 100.0
+                )
+            }
+        }
+    }
+}
+
 /// A target retention as people type it: `0,9`, `0.85`, `90 %`.
 pub fn parse_retention(text: &str) -> Result<f64> {
     let text = text.trim().replace(',', ".");
@@ -122,6 +190,68 @@ impl Profile {
             bail!("Dafür braucht es das Plugin `review` (Wiederholung)");
         }
         self.host.call::<Configure>(&request)
+    }
+
+    /// Fit personal FSRS weights to the review log; with `save`, store them
+    /// when they predict better than the current ones.
+    pub fn optimize(&mut self, save: bool) -> Result<Optimized> {
+        let entries = self.review_log()?;
+        let histories = histories(&entries);
+        let usable = usable_reviews(&histories);
+        let current = self.configure(ConfigureRequest::default())?;
+        let start: [f64; 19] = match &current.weights {
+            Some(w) => w.as_slice().try_into().unwrap_or(DEFAULT_WEIGHTS),
+            None => DEFAULT_WEIGHTS,
+        };
+        let Some(fitted) = optimize(&histories, &start) else {
+            return Ok(Optimized::TooFew {
+                usable,
+                needed: MIN_REVIEWS,
+            });
+        };
+        let saved = save && fitted.weights != start;
+        if saved {
+            self.configure(ConfigureRequest {
+                weights: Some(Some(fitted.weights.to_vec())),
+                ..Default::default()
+            })?;
+        }
+        if save {
+            self.store.kv_set(
+                "host",
+                OPTIMIZED_AT,
+                serde_json::to_string(&usable)?.as_bytes(),
+            )?;
+        }
+        Ok(Optimized::Fitted { fitted, saved })
+    }
+
+    /// Back to the default FSRS weights.
+    pub fn reset_weights(&mut self) -> Result<()> {
+        self.configure(ConfigureRequest {
+            weights: Some(None),
+            ..Default::default()
+        })?;
+        Ok(())
+    }
+
+    /// Usable reviews in the log (at least a day apart per locus) and whether
+    /// fitting weights is worth suggesting: never fitted and enough data, or
+    /// `OPTIMIZE_AGAIN_AFTER` new usable reviews since the last fit.
+    pub fn optimize_hint(&mut self) -> Result<(usize, bool)> {
+        if !self.has_review() {
+            return Ok((0, false));
+        }
+        let usable = usable_reviews(&histories(&self.review_log()?));
+        let last: Option<usize> = match self.store.kv_get("host", OPTIMIZED_AT)? {
+            Some(bytes) => serde_json::from_slice(&bytes).ok(),
+            None => None,
+        };
+        let worth = match last {
+            None => usable >= MIN_REVIEWS,
+            Some(at) => usable >= at + OPTIMIZE_AGAIN_AFTER,
+        };
+        Ok((usable, worth))
     }
 
     /// Statistics; `None` without the review plugin.

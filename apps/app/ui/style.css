@@ -132,3 +132,5 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .verdict { display: flex; align-items: center; gap: .5rem; }
 .feedback-art { width: 56px; height: 56px; flex: none; }
 .done-art { width: 160px; height: 160px; margin: 0 auto; }
+.optimize { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.optimize .progress { flex: 1 1 220px; }

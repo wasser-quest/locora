@@ -53,7 +53,8 @@ Stand: 16.10.2026 (abends)
 
 - [ ] Bilder an Orten im Palast-Dienst `core.palaces@1` (bisher nur Store, Format, `locora.toml`, CLI)
 - [ ] Sammlungen: mehrere Paläste mit gemeinsamer Navigation und `navigate`-Aktion (erst wenn gebraucht)
-- [ ] Automatische FSRS-Optimierung (z. B. Hinweis nach je 1 000 neuen Wiederholungen); Tageswechsel derzeit UTC – lokale Zeitzone/Tagesbeginn einstellbar machen
+- [x] FSRS-Optimierung in der App (Einstellungen) mit Hinweis beim ersten Mal ab 100 und dann je 1 000 neuen Wiederholungen; Tipp auch in `locora stats`
+- [ ] Tageswechsel derzeit UTC – lokale Zeitzone/Tagesbeginn einstellbar machen
 - [ ] Plugin-Signaturen (Ed25519), Update-Befehl für Plugins
 
 ## Phase 3 – Video-Räume in der App und Benachrichtigungen

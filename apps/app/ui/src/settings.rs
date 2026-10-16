@@ -2,7 +2,10 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use locora_app_api::{CMD_SETTINGS, CMD_SETTINGS_SET, SettingsChange, SettingsView, StatsView};
+use locora_app_api::{
+    CMD_SETTINGS, CMD_SETTINGS_OPTIMIZE, CMD_SETTINGS_SET, OptimizeDone, SettingsChange,
+    SettingsView, StatsView,
+};
 use serde::Serialize;
 
 use crate::tauri::{NoArgs, call};
@@ -51,6 +54,24 @@ fn Form(
     let busy = RwSignal::new(false);
     let has_review = view.retention.is_some();
     let max = view.max_new_per_day;
+    let enough = view.usable_reviews >= view.needed_reviews;
+    // Fitting can take a moment; the answer replaces the whole view.
+    let optimize = move || {
+        busy.set(true);
+        message.set(None);
+        spawn_local(async move {
+            match call::<OptimizeDone>(CMD_SETTINGS_OPTIMIZE, NoArgs {}).await {
+                Ok(done) => {
+                    message.set(Some(Ok(done.message)));
+                    data.set(Some(Ok(done.view)));
+                }
+                Err(e) => {
+                    message.set(Some(Err(e)));
+                    busy.set(false);
+                }
+            }
+        });
+    };
     let save = move || {
         let count = new_per_day.get_untracked();
         let Ok(count) = count.trim().parse::<u32>() else {
@@ -103,8 +124,32 @@ fn Form(
                             {if view.personal_weights {
                                 "FSRS-Gewichte: persönlich (aus deinem Verlauf)"
                             } else {
-                                "FSRS-Gewichte: Standard – persönliche mit „locora optimize“"
+                                "FSRS-Gewichte: Standard"
                             }}
+                        </div>
+                        <div class="optimize">
+                            <span class="progress">
+                                {if view.optimize_hint {
+                                    format!(
+                                        "Aus {} Wiederholungen kann Locora deine Gewichte neu berechnen.",
+                                        view.usable_reviews,
+                                    )
+                                } else {
+                                    format!(
+                                        "{} von mindestens {} Wiederholungen mit einem Tag Abstand",
+                                        view.usable_reviews,
+                                        view.needed_reviews,
+                                    )
+                                }}
+                            </span>
+                            <button
+                                type="button"
+                                class:primary=view.optimize_hint
+                                disabled=move || busy.get() || !enough
+                                on:click=move |_| optimize()
+                            >
+                                "Persönliche Gewichte berechnen"
+                            </button>
                         </div>
                     }
                 })}

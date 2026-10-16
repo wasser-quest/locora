@@ -2776,6 +2776,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "locora-fsrs"
+version = "0.1.0"
+dependencies = [
+ "locora-api",
+]
+
+[[package]]
 name = "locora-host"
 version = "0.1.0"
 dependencies = [
@@ -2797,6 +2804,7 @@ dependencies = [
  "locora-api",
  "locora-format",
  "locora-formula",
+ "locora-fsrs",
  "locora-host",
  "locora-source",
  "locora-store",

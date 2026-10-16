@@ -2,7 +2,7 @@
 
 use anyhow::{Result, bail};
 use locora_api::review::ConfigureRequest;
-use locora_app_api::{SettingsChange, SettingsView, StatsView};
+use locora_app_api::{OptimizeDone, SettingsChange, SettingsView, StatsView};
 use locora_runtime::Profile;
 use locora_runtime::settings::{MAX_NEW_PER_DAY, parse_retention};
 
@@ -26,12 +26,26 @@ pub fn view(profile: &mut Profile) -> Result<SettingsView> {
         scheduled: count(s.scheduled),
         due: count(s.due),
     });
+    let (usable, hint) = profile.optimize_hint()?;
     Ok(SettingsView {
+        usable_reviews: count(usable),
+        needed_reviews: count(locora_runtime::settings::MIN_REVIEWS),
+        optimize_hint: hint,
         new_per_day: count(profile.new_per_day()?),
         max_new_per_day: count(MAX_NEW_PER_DAY),
         retention: review.as_ref().map(|s| s.desired_retention),
         personal_weights: review.is_some_and(|s| s.weights.is_some()),
         stats,
+    })
+}
+
+/// Fit personal FSRS weights from the review log and store them when they
+/// predict better.
+pub fn optimize(profile: &mut Profile) -> Result<OptimizeDone> {
+    let result = profile.optimize(true)?;
+    Ok(OptimizeDone {
+        message: result.message(),
+        view: view(profile)?,
     })
 }
 
@@ -70,6 +84,14 @@ mod tests {
         let mut profile = Profile::open(Some(dir.path())).unwrap();
         let before = view(&mut profile).unwrap();
         assert_eq!(before.new_per_day, 10);
+        assert_eq!((before.usable_reviews, before.optimize_hint), (0, false));
+        let fitted = optimize(&mut profile).unwrap();
+        assert!(
+            fitted.message.starts_with("Noch zu wenig Daten: 0 von 100"),
+            "{}",
+            fitted.message
+        );
+        assert!(!fitted.view.personal_weights);
         assert!(before.stats.is_some(), "review plugin is built in");
         let after = change(
             &mut profile,

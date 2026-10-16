@@ -56,6 +56,7 @@ pub struct ImportedPalace {
 
 pub const CMD_SETTINGS: &str = "settings";
 pub const CMD_SETTINGS_SET: &str = "settings_set";
+pub const CMD_SETTINGS_OPTIMIZE: &str = "settings_optimize";
 
 /// Settings and learning statistics.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -67,6 +68,22 @@ pub struct SettingsView {
     /// Personal FSRS weights (from `locora optimize`) are in use.
     pub personal_weights: bool,
     pub stats: Option<StatsView>,
+    /// Reviews at least a day apart (what fitting weights learns from) and
+    /// how many it needs at least.
+    #[serde(default)]
+    pub usable_reviews: u32,
+    #[serde(default)]
+    pub needed_reviews: u32,
+    /// Fitting (again) is worth it now.
+    #[serde(default)]
+    pub optimize_hint: bool,
+}
+
+/// After fitting personal FSRS weights in the app.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OptimizeDone {
+    pub message: String,
+    pub view: SettingsView,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
