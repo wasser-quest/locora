@@ -12,7 +12,7 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// Plugin API version implemented by this crate.
-pub const API_VERSION: &str = "0.5";
+pub const API_VERSION: &str = "0.6";
 
 /// A typed event with a stable topic name.
 pub trait Event: Serialize + DeserializeOwned {

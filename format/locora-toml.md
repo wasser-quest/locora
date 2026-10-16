@@ -78,6 +78,7 @@ cells = [{ column = "name", type = "text", value = "Ada" }, { column = "age", ty
 | | `note` | memory aid (the vivid image in words), shown after the answer |
 | | `image` | picture that belongs to the answer, shown when the locus is revealed: png, jpg, webp, gif, avif or a `.sply` animation (no video) |
 | | `image_size` | picture width as a fraction of room width: finite value from 0.05 to 1 inclusive, default 0.25; e.g. `image_size = 0.4` |
+| | `zoom` | how far the room zooms in on the locus while asking: 1 (whole room, default) to 4; the view is centred on the locus and kept inside the picture |
 | | `bindings` | formulas for `place`, `item`, `x`, `y`, `visible`, `active` |
 | `[[table]]` | `table`, `key` | the row address `Table.key` |
 | | `value` (+ `type`) | short form for a single `value` cell, type default `text` |

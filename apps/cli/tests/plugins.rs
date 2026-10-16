@@ -165,11 +165,11 @@ fn rejects_unsafe_ids_unsupported_permissions_api_and_builtins_before_writing() 
         refused(&data, &["plugin", "install", &bad, "--yes"])
             .contains("Nicht unterstützte Berechtigung")
     );
-    let bad = patched(dir.path(), b"0.5.123", b"0.5.bad");
+    let bad = patched(dir.path(), b"0.6.123", b"0.6.bad");
     assert!(
         refused(&data, &["plugin", "install", &bad, "--yes"]).contains("diese App spricht API")
     );
-    let bad = patched(dir.path(), b"0.5.123", b"0.4.123");
+    let bad = patched(dir.path(), b"0.6.123", b"0.5.123");
     assert!(
         refused(&data, &["plugin", "install", &bad, "--yes"]).contains("diese App spricht API")
     );

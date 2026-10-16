@@ -155,6 +155,12 @@ pub struct LocusDoc {
         skip_serializing_if = "default_size"
     )]
     pub image_size: f64,
+    /// Zoom on the locus while asking, 1 (whole room) to 4 (other than 1 requires format 3).
+    #[serde(
+        default = "locora_store::default_zoom",
+        skip_serializing_if = "default_zoom"
+    )]
+    pub zoom: f64,
     pub id: String,
     /// The place in the room (Ort), e.g. "Herd".
     pub place: String,
@@ -180,6 +186,10 @@ pub struct LocusDoc {
 
 fn default_size(size: &f64) -> bool {
     *size == locora_store::default_image_size()
+}
+
+fn default_zoom(zoom: &f64) -> bool {
+    *zoom == locora_store::default_zoom()
 }
 
 /// Formulas computing locus fields, one per field.
@@ -269,6 +279,7 @@ impl From<&PalaceTree> for PalaceDoc {
                             answer: l.answer.clone(),
                             image: l.image.clone(),
                             image_size: l.image_size,
+                            zoom: l.zoom,
                             note: l.note.clone(),
                         })
                         .collect(),
@@ -452,6 +463,7 @@ pub fn export_with<W: Write + Seek>(
                     && l.image.is_none()
                     && l.note.is_empty()
                     && default_size(&l.image_size)
+                    && default_zoom(&l.zoom)
             })
             && docs.iter().all(|d| d.marker.is_none())
         {
@@ -461,7 +473,7 @@ pub fn export_with<W: Write + Seek>(
                 .iter()
                 .flat_map(|p| &p.rooms)
                 .flat_map(|r| &r.loci)
-                .any(|l| !default_size(&l.image_size))
+                .any(|l| !default_size(&l.image_size) || !default_zoom(&l.zoom))
             {
                 3
             } else {
@@ -754,6 +766,10 @@ impl<R: Read + Seek> Package<R> {
                     if manifest.version < 3 && !default_size(&locus.image_size) {
                         return Err(invalid("Eigene Locus-Bildgrößen benötigen Format 3"));
                     }
+                    locora_store::check_zoom(locus.zoom).map_err(|e| invalid(e.to_string()))?;
+                    if manifest.version < 3 && !default_zoom(&locus.zoom) {
+                        return Err(invalid("Zoom auf einen Locus benötigt Format 3"));
+                    }
                     check_text("Ort", &locus.place)?;
                     check_text("Inhalt", &locus.item)?;
                     locus.answer.validate().map_err(invalid)?;
@@ -946,6 +962,7 @@ impl<R: Read + Seek> Package<R> {
                             answer: locus.answer.clone(),
                             image: locus.image.clone(),
                             image_size: locus.image_size,
+                            zoom: locus.zoom,
                             note: locus.note.clone(),
                         },
                     )?;

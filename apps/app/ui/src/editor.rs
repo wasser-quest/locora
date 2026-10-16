@@ -100,6 +100,7 @@ struct Draft {
     note: String,
     image: String,
     size: String,
+    zoom: String,
     kind: String,
     accept: String,
     quiz: String,
@@ -113,6 +114,7 @@ impl Draft {
             note: l.note.clone(),
             image: l.image.clone().unwrap_or_default(),
             size: l.image_size.to_string(),
+            zoom: l.zoom.to_string(),
             kind: match l.answer.kind {
                 EditorAnswerKind::Recall => "recall",
                 EditorAnswerKind::Guess => "guess",
@@ -141,6 +143,15 @@ impl Draft {
         if !image_size.is_finite() || !(0.05..=1.0).contains(&image_size) {
             return Err("Bildgröße muss zwischen 0.05 und 1 liegen".into());
         }
+        let zoom = self
+            .zoom
+            .trim()
+            .replace(',', ".")
+            .parse::<f64>()
+            .map_err(|_| "Zoom muss eine Zahl sein")?;
+        if !zoom.is_finite() || !(1.0..=4.0).contains(&zoom) {
+            return Err("Zoom muss zwischen 1 (ganzer Raum) und 4 liegen".into());
+        }
         let answer = parse_answer(&self.kind, &self.accept, &self.quiz)?;
         answer.validate().map_err(str::to_owned)?;
         Ok(LocusContent {
@@ -149,6 +160,7 @@ impl Draft {
             note: self.note.clone(),
             image: (!self.image.trim().is_empty()).then(|| self.image.trim().to_owned()),
             image_size,
+            zoom,
             answer,
         })
     }
@@ -300,6 +312,7 @@ pub fn Rooms(
                     view! {
                         <button class:on=move || tabs.room.get() == i disabled=move || busy.get() || dirty.get() || dragging.get()
                             on:click=move |_| { tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
+                            <crate::RoomIcon backdrop=room.backdrop.clone() />
                             {room.name.clone()}
                         </button>
                     }
@@ -617,6 +630,7 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
     let note = RwSignal::new(locus.note.clone());
     let image = RwSignal::new(locus.image.clone().unwrap_or_default());
     let size = RwSignal::new(locus.image_size.to_string());
+    let zoom = RwSignal::new(locus.zoom.to_string());
     let initial_kind = match locus.answer.kind {
         EditorAnswerKind::Recall => "recall",
         EditorAnswerKind::Guess => "guess",
@@ -667,6 +681,7 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
             note: note.get(),
             image: image.get(),
             size: size.get(),
+            zoom: zoom.get(),
             kind: kind.get(),
             accept: accept.get(),
             quiz: quiz.get(),
@@ -762,6 +777,7 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
                         on:click=move |_| image.set(String::new())>"Bild entfernen"</button>
                 </div>
                 <label>"Bildgröße (Anteil der Raumbreite, 0.05–1)"<input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
+                <label>"Zoom beim Abfragen (1 = ganzer Raum bis 4)"<input type="text" inputmode="decimal" bind:value=zoom /></label>
                 <label>"Antwortart"<select bind:value=kind>
                     <option value="recall">"Recall (Selbstbewertung)"</option><option value="guess">"Guess (Eingabe)"</option><option value="quiz">"Quiz"</option>
                 </select></label>
@@ -773,7 +789,7 @@ fn ContentForm(locus: LocusView, editor: Editor, revealed: RwSignal<bool>) -> im
                     let Some(l) = cancel.selected_locus() else { return; };
                     let draft = Draft::from_locus(&l);
                     last_attempted.set_value(draft.clone());
-                    place.set(draft.place); item.set(draft.item); note.set(draft.note); image.set(draft.image); size.set(draft.size);
+                    place.set(draft.place); item.set(draft.item); note.set(draft.note); image.set(draft.image); size.set(draft.size); zoom.set(draft.zoom);
                     kind.set(draft.kind); accept.set(draft.accept); quiz.set(draft.quiz);
                     dirty.set(false); confirm_delete.set(false); cancel.message.set(String::new());
                 }>"Änderungen verwerfen"</button>
@@ -839,6 +855,7 @@ mod tests {
             note: String::new(),
             image: String::new(),
             size: "0.25".into(),
+            zoom: "1".into(),
             kind: "recall".into(),
             accept: String::new(),
             quiz: String::new(),
@@ -849,6 +866,12 @@ mod tests {
             assert!(draft.content().is_err());
         }
         draft.size = "0.4".into();
+        for value in ["0.5", "4.5", "nah"] {
+            draft.zoom = value.into();
+            assert!(draft.content().is_err(), "{value}");
+        }
+        draft.zoom = "2,5".into();
+        assert_eq!(draft.content().unwrap().zoom, 2.5);
         draft.kind = "quiz".into();
         draft.quiz = "+ Merkur".into();
         assert!(draft.content().is_err());

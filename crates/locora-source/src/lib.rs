@@ -88,6 +88,12 @@ pub struct LocusSource {
     /// Picture width as a fraction of the room width (0.05..=1.0).
     #[serde(default = "locora_store::default_image_size")]
     pub image_size: f64,
+    /// Zoom on the locus while asking, 1 (whole room, default) to 4.
+    #[serde(
+        default = "locora_store::default_zoom",
+        skip_serializing_if = "whole_room"
+    )]
+    pub zoom: f64,
     /// The place in the room (default „Ort N“).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place: Option<String>,
@@ -111,10 +117,15 @@ pub struct LocusSource {
     pub bindings: BTreeMap<String, String>,
 }
 
+fn whole_room(zoom: &f64) -> bool {
+    *zoom == locora_store::default_zoom()
+}
+
 impl Default for LocusSource {
     fn default() -> Self {
         Self {
             image_size: locora_store::default_image_size(),
+            zoom: locora_store::default_zoom(),
             place: None,
             item: String::new(),
             at: None,
@@ -594,6 +605,7 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
             }
             locora_store::check_image_size(locus.image_size)
                 .map_err(|e| invalid(format!("{where_}: {e}")))?;
+            locora_store::check_zoom(locus.zoom).map_err(|e| invalid(format!("{where_}: {e}")))?;
             let picture = match &locus.image {
                 Some(file) => Some(check_picture(base, file, &where_)?),
                 None => None,
@@ -612,6 +624,7 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                     answer,
                     image: None,
                     image_size: locus.image_size,
+                    zoom: locus.zoom,
                     note: locus.note.clone().unwrap_or_default(),
                 },
                 bindings,
@@ -775,6 +788,7 @@ pub fn to_source(tree: &PalaceTree, media_names: &HashMap<String, String>) -> So
                             answer: AnswerSource::from_answer(&l.answer),
                             image: l.image.as_ref().map(|h| media_names[h].clone()),
                             image_size: l.image_size,
+                            zoom: l.zoom,
                             note: (!l.note.is_empty()).then(|| l.note.clone()),
                             bindings: l
                                 .bindings

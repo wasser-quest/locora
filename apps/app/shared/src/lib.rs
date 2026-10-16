@@ -34,6 +34,13 @@ pub struct UiAssets {
     pub right: Media,
     pub again: Media,
     pub done: Media,
+    /// Room kinds (tabs): no picture, picture, video.
+    pub room_blank: Media,
+    pub room_image: Media,
+    pub room_video: Media,
+    /// The Locora logo (loading) and Simo (resting, nothing due).
+    pub logo: Media,
+    pub simo: Media,
 }
 pub const CMD_EXPORT_PICK: &str = "export_pick";
 
@@ -225,6 +232,9 @@ pub struct LocusView {
     pub bound: bool,
     /// Picture width as a fraction of the room width.
     pub image_size: f64,
+    /// Zoom on the locus while asking, 1 (whole room) to 4.
+    #[serde(default = "whole_room")]
+    pub zoom: f64,
     pub id: String,
     /// Route number across the palace, from 1.
     pub number: u32,
@@ -247,7 +257,14 @@ pub struct LocusContent {
     pub note: String,
     pub image: Option<String>,
     pub image_size: f64,
+    #[serde(default = "whole_room")]
+    pub zoom: f64,
     pub answer: EditorAnswer,
+}
+
+/// Zoom when none is given: the whole room.
+pub fn whole_room() -> f64 {
+    1.0
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -397,6 +414,9 @@ pub struct Question {
     pub marker: Media,
     pub x: f64,
     pub y: f64,
+    /// The stage zooms in on the locus by this factor (1 = whole room).
+    #[serde(default = "whole_room")]
+    pub zoom: f64,
     pub prompt: String,
     pub kind: AnswerKind,
     /// Quiz: the options shown, in order; answer with their positions.

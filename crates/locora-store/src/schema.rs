@@ -69,6 +69,8 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE loci ADD COLUMN note TEXT NOT NULL DEFAULT '';",
     // 8: picture width as a fraction of the room width
     "ALTER TABLE loci ADD COLUMN image_size REAL NOT NULL DEFAULT 0.25 CHECK(image_size >= 0.05 AND image_size <= 1.0);",
+    // 9: how far the room zooms in on the locus while asking (1 = whole room)
+    "ALTER TABLE loci ADD COLUMN zoom REAL NOT NULL DEFAULT 1 CHECK(zoom >= 1.0 AND zoom <= 4.0);",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -139,6 +141,11 @@ mod tests {
             .unwrap();
         assert_eq!(size, 0.25, "existing loci use the default picture width");
         assert!(conn.execute("UPDATE loci SET image_size = 0", []).is_err());
+        let zoom: f64 = conn
+            .query_row("SELECT zoom FROM loci", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(zoom, 1.0, "existing loci show the whole room");
+        assert!(conn.execute("UPDATE loci SET zoom = 5", []).is_err());
         let note: String = conn
             .query_row("SELECT note FROM loci", [], |r| r.get(0))
             .unwrap();

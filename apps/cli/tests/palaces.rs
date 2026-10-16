@@ -240,3 +240,26 @@ fn locus_image_sizes_add_edit_and_invalid_values_are_atomic() {
         "Bild"
     );
 }
+
+#[test]
+fn zoom_on_add_and_edit() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    ok(d, T0, &["new", "Zoom", "--", "Erster"], "");
+    ok(d, T0, &["add", "Zoom", "Nah", "--zoom", "2,5"], "");
+    ok(d, T0, &["edit", "Zoom", "1", "--zoom", "3"], "");
+    let zooms = || {
+        locora_store::Store::open(d)
+            .unwrap()
+            .palace("Zoom")
+            .unwrap()
+            .route()
+            .map(|l| l.zoom)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(zooms(), [3.0, 2.5]);
+    let out = run(d, T0, &["edit", "Zoom", "2", "--zoom", "5"], "");
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("Zoom"));
+    assert_eq!(zooms(), [3.0, 2.5]);
+}
