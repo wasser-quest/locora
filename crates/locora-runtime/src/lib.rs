@@ -2,6 +2,7 @@
 //! built-in and approved installed plugins) and answering a locus (Core
 //! evaluation, score hook, events for review and other plugins).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -10,8 +11,11 @@ use std::{env, fs};
 use anyhow::{Context, Result, bail};
 use locora_api::core::{Grade, JourneyScore, LocusAnswered, Score};
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
+use locora_api::review::{CardState, Schedule, ScheduleRequest};
 use locora_host::{HostEvent, KvStore, Level, Manifest, PluginHost};
-use locora_store::Store;
+use locora_store::{PalaceTree, Store};
+
+pub mod journey;
 
 pub mod embedded {
     //! Official plugins compiled into this crate by `build.rs`.
@@ -172,6 +176,24 @@ impl Profile {
     /// Grade one answer: Core evaluates it, plugins may adjust the points
     /// (`core.journey.score`), and review and others hear about it.
     /// `expected` is the resolved item (needed for typed answers).
+    /// Review cards by locus id, for one palace or all; empty without the
+    /// review plugin.
+    pub fn schedule(&mut self, palace: Option<&str>) -> Result<HashMap<String, CardState>> {
+        if !self.host.provides(<Schedule as locora_api::Service>::NAME) {
+            return Ok(HashMap::new());
+        }
+        let request = ScheduleRequest {
+            palace_id: palace.map(str::to_owned),
+        };
+        Ok(self
+            .host
+            .call::<Schedule>(&request)
+            .context("Wiederholungsplan nicht verfügbar")?
+            .into_iter()
+            .map(|s| (s.locus_id, s.card))
+            .collect())
+    }
+
     pub fn answer(&mut self, request: AnswerRequest<'_>) -> Result<Answered> {
         let evaluation = self.host.call_plugin::<Evaluate>(
             "core",
@@ -230,4 +252,18 @@ pub struct Answered {
     pub points: u64,
     /// Plugin problems that came up.
     pub notes: Vec<String>,
+}
+
+/// Due and new (never answered) loci of a palace at `now`.
+pub fn count_due(
+    tree: &PalaceTree,
+    cards: &HashMap<String, CardState>,
+    now: u64,
+) -> (usize, usize) {
+    tree.route()
+        .fold((0, 0), |(due, fresh), l| match cards.get(&l.id) {
+            Some(card) if card.due <= now => (due + 1, fresh),
+            Some(_) => (due, fresh),
+            None => (due, fresh + 1),
+        })
 }

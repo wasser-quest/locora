@@ -8,7 +8,7 @@ use anyhow::{Result, bail};
 use locora_api::Service;
 use locora_api::core::{Grade, JourneyCompleted};
 use locora_api::journey::{AnswerKind, Evaluate, Submission};
-use locora_formula::workbook::{ActionOutcome, BindingField, LocusInput, Run};
+use locora_formula::workbook::{ActionOutcome, Run};
 use locora_store::{Locus, PalaceTree};
 
 use crate::app::{App, now};
@@ -105,39 +105,7 @@ fn read_line(input: &mut impl BufRead) -> Result<Option<String>> {
     Ok(Some(line.trim().to_owned()))
 }
 
-fn resolve_text(run: &Run, locus: &Locus, reveal: bool) -> Result<String, String> {
-    // Resolve only the displayed field: a hidden answer must not leak or fail early.
-    let field = if reveal {
-        BindingField::Item
-    } else {
-        BindingField::Place
-    };
-    let bindings: Vec<_> = locus
-        .bindings
-        .iter()
-        .filter(|b| b.field == field)
-        .cloned()
-        .collect();
-    match run.resolve(
-        &LocusInput {
-            place: &locus.place,
-            item: &locus.item,
-            x: locus.x,
-            y: locus.y,
-            bindings: &bindings,
-        },
-        reveal,
-    ) {
-        Ok(resolved) => {
-            if reveal {
-                Ok(resolved.item)
-            } else {
-                Ok(resolved.place)
-            }
-        }
-        Err(err) => Err(format!("⚠ Formel für {} fehlerhaft: {err}", field.name())),
-    }
-}
+use locora_runtime::journey::resolve_text;
 
 fn display(run: &Run, locus: &Locus, reveal: bool) -> String {
     resolve_text(run, locus, reveal).unwrap_or_else(|error| error)
@@ -369,46 +337,33 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .map(|t| t.palace.id.as_str()),
     );
     let now_at_start = now();
-    let mut plan: Vec<Entry> = Vec::new();
-    let mut new_left = options.new;
-    for (index, tree) in trees.iter().enumerate() {
-        let route = tree.rooms.iter().flat_map(|room| {
-            room.loci
-                .iter()
-                .map(move |locus| (room.room.name.as_str(), locus))
-        });
-        for (number, (room, locus)) in route.enumerate() {
-            match runs[index].active(&locus.bindings) {
-                Ok(false) => continue,
-                Ok(true) => {}
-                Err(err) => println!(
-                    "⚠ {} · {}: active-Formel fehlerhaft: {err}",
-                    tree.palace.name, locus.place
-                ),
-            }
-            let include = if !options.due_only {
-                true
-            } else {
-                match cards.get(&locus.id) {
-                    Some(card) => card.due <= now_at_start,
-                    None if new_left > 0 => {
-                        new_left -= 1;
-                        true
-                    }
-                    None => false,
-                }
-            };
-            if include {
-                plan.push(Entry {
-                    index,
-                    tree,
-                    locus,
-                    number: number + 1,
-                    room,
-                });
-            }
-        }
+    let seed = locora_runtime::now();
+    let planned = locora_runtime::journey::plan(
+        &trees,
+        &runs,
+        &cards,
+        now_at_start,
+        &locora_runtime::journey::PlanOptions {
+            due_only: options.due_only,
+            new: options.new,
+            shuffle: options.modes.shuffle,
+            seed,
+        },
+    );
+    for warning in &planned.warnings {
+        println!("{warning}");
     }
+    let plan: Vec<Entry> = planned
+        .stops
+        .iter()
+        .map(|stop| Entry {
+            index: stop.palace,
+            tree: stop.tree(&trees),
+            locus: stop.locus(&trees),
+            number: stop.number,
+            room: stop.room_name(&trees),
+        })
+        .collect();
     if plan.is_empty() {
         if trees.iter().all(|t| t.route().next().is_none()) {
             bail!("Keine Loci zum Üben. Hinzufügen: locora add <Palast> <Inhalt>");
@@ -449,11 +404,7 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
     let mut results: Vec<(String, bool)> = Vec::new();
     let mut points = 0u64;
     let total = plan.len();
-    let seed = locora_runtime::now();
     let recall = locora_api::journey::Answer::default();
-    if options.modes.shuffle {
-        locora_api::journey::shuffle(&mut plan, seed);
-    }
     for (i, entry) in plan.iter().enumerate() {
         let Entry {
             index,

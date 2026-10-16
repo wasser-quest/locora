@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use locora_api::core::{LocusDeleted, PalaceCreated, PalaceDeleted};
-use locora_api::review::{CardState, Schedule, ScheduleRequest};
-use locora_store::{Locus, LocusPatch, NewLocus, PalaceTree, RoomKind};
+use locora_api::review::{CardState, Schedule};
+use locora_store::{Locus, LocusPatch, NewLocus, RoomKind};
 
 use crate::app::{App, now};
 
@@ -265,19 +265,10 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
 
 /// Cards of the review plugin by locus id (empty without the plugin).
 pub fn schedule(app: &mut App, palace: Option<&str>) -> HashMap<String, CardState> {
-    if !app.host.provides(<Schedule as locora_api::Service>::NAME) {
-        return HashMap::new();
-    }
-    let request = ScheduleRequest {
-        palace_id: palace.map(str::to_owned),
-    };
-    match app.host.call::<Schedule>(&request) {
-        Ok(list) => list.into_iter().map(|s| (s.locus_id, s.card)).collect(),
-        Err(err) => {
-            eprintln!("⚠ Wiederholungsplan nicht verfügbar: {err:#}");
-            HashMap::new()
-        }
-    }
+    app.schedule(palace).unwrap_or_else(|err| {
+        eprintln!("⚠ {err:#}");
+        HashMap::new()
+    })
 }
 
 /// Human-readable relative time ("jetzt", "in 3 Tagen", "seit 2 Std.").
@@ -342,18 +333,7 @@ fn truncate(text: &str, max: usize) -> String {
 }
 
 /// (due now, never answered) loci of a palace.
-pub fn count_due(
-    tree: &PalaceTree,
-    cards: &HashMap<String, CardState>,
-    now: u64,
-) -> (usize, usize) {
-    tree.route()
-        .fold((0, 0), |(due, fresh), l| match cards.get(&l.id) {
-            Some(card) if card.due <= now => (due + 1, fresh),
-            Some(_) => (due, fresh),
-            None => (due, fresh + 1),
-        })
-}
+pub use locora_runtime::count_due;
 
 pub fn show(app: &mut App, query: &str) -> Result<()> {
     let tree = app.store.palace(query)?;
