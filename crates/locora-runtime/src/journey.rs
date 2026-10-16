@@ -145,6 +145,7 @@ mod tests {
                     .add_locus(
                         &room.id,
                         NewLocus {
+                            image_size: locora_store::default_image_size(),
                             place: format!("bei {item}"),
                             item: (*item).into(),
                             x: 0.5,

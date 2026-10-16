@@ -163,6 +163,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
                 time: item.time,
                 answer: Default::default(),
                 image: None,
+                image_size: locora_store::default_image_size(),
                 note: String::new(),
             },
         )?;
@@ -197,7 +198,17 @@ pub struct AddArgs {
     pub at: Option<String>,
     pub time: Option<String>,
     pub image: Option<PathBuf>,
+    pub image_size: Option<f64>,
     pub note: Option<String>,
+}
+
+/// Parse and validate a picture width before opening the profile.
+pub fn parse_image_size(text: &str) -> std::result::Result<f64, String> {
+    let size = text
+        .parse::<f64>()
+        .map_err(|_| "Die Bildgröße muss eine Zahl sein".to_owned())?;
+    locora_store::check_image_size(size).map_err(|e| e.to_string())?;
+    Ok(size)
 }
 
 /// Store a picture file (image or `.sply` animation) for a locus.
@@ -251,6 +262,9 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
                 .map(|path| store_picture(app, path))
                 .transpose()?,
             note: args.note.unwrap_or_default(),
+            image_size: args
+                .image_size
+                .unwrap_or_else(locora_store::default_image_size),
         },
     )?;
     println!(

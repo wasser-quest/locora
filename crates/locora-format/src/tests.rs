@@ -15,6 +15,7 @@ fn sample(dir: &std::path::Path) -> Store {
             .add_locus(
                 &r.id,
                 NewLocus {
+                    image_size: locora_store::default_image_size(),
                     place: format!("Ort {i}"),
                     item: item.to_string(),
                     x: 0.2 + 0.3 * i as f64,
@@ -35,6 +36,7 @@ fn sample(dir: &std::path::Path) -> Store {
         .add_locus(
             &vr.id,
             NewLocus {
+                image_size: locora_store::default_image_size(),
                 place: "Tür".into(),
                 item: "These".into(),
                 x: 0.5,
@@ -317,6 +319,7 @@ fn tables_and_bindings_travel_and_clashes_stay_local() {
         .add_locus(
             &r.id,
             NewLocus {
+                image_size: locora_store::default_image_size(),
                 place: "Tür".into(),
                 item: "?".into(),
                 x: 0.5,
@@ -548,6 +551,7 @@ fn splinely_animations_as_backdrops_and_locus_pictures() {
         .add_locus(
             &r.id,
             NewLocus {
+                image_size: locora_store::default_image_size(),
                 place: "Tor".into(),
                 item: "Ein Palast ist eine Route".into(),
                 x: 0.5,
@@ -632,4 +636,60 @@ fn custom_markers_travel_and_must_be_splinely() {
             .collect()
     }));
     assert!(err.contains("muss eine .sply-Animation sein"), "{err}");
+}
+
+#[test]
+fn image_size_roundtrip_and_version_compatibility() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = sample(dir.path());
+    let tree = store.palace("Planeten").unwrap();
+    let id = tree.route().next().unwrap().id.clone();
+    let legacy = exported(&store, &["Planeten"]);
+    let legacy_package = Package::open(Cursor::new(&legacy)).unwrap();
+    assert_eq!(legacy_package.manifest.version, 1);
+    assert_eq!(legacy_package.palaces[0].rooms[0].loci[0].image_size, 0.25);
+    store
+        .update_locus(
+            &id,
+            &locora_store::LocusPatch {
+                image_size: Some(0.4),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let bytes = exported(&store, &["Planeten"]);
+    let package = Package::open(Cursor::new(&bytes)).unwrap();
+    assert_eq!(package.manifest.version, 3);
+    assert_eq!(package.palaces[0].rooms[0].loci[0].image_size, 0.4);
+    let copy_dir = tempfile::tempdir().unwrap();
+    let copy = Store::open(copy_dir.path()).unwrap();
+    package.import(&copy).unwrap();
+    assert_eq!(
+        copy.palace("Planeten")
+            .unwrap()
+            .route()
+            .next()
+            .unwrap()
+            .image_size,
+        0.4
+    );
+    for version in [1, 2] {
+        let err = open_err(rewrite(&bytes, |mut entries| {
+            edit_json(&mut entries, "manifest.json", |m| {
+                m["version"] = version.into()
+            });
+            entries
+        }));
+        assert!(err.contains("benötigen Format 3"), "{err}");
+    }
+    let palace_file = format!("palaces/{}.json", tree.palace.id);
+    for size in [0.0, 0.049, 1.01, -0.1] {
+        let err = open_err(rewrite(&bytes, |mut entries| {
+            edit_json(&mut entries, &palace_file, |p| {
+                p["rooms"][0]["loci"][0]["imageSize"] = size.into();
+            });
+            entries
+        }));
+        assert!(err.contains("Bildgröße"), "{err}");
+    }
 }

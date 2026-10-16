@@ -29,7 +29,7 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipArchive, ZipWriter};
 
 pub const FORMAT: &str = "locora";
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 pub const EXTENSION: &str = "locora";
 /// Content of the first entry, `mimetype`.
 pub const MEDIA_TYPE: &str = "application/vnd.locora+zip";
@@ -149,6 +149,12 @@ pub struct RoomDoc {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocusDoc {
+    /// Picture width as a fraction of the room width (custom widths require format 3).
+    #[serde(
+        default = "locora_store::default_image_size",
+        skip_serializing_if = "default_size"
+    )]
+    pub image_size: f64,
     pub id: String,
     /// The place in the room (Ort), e.g. "Herd".
     pub place: String,
@@ -170,6 +176,10 @@ pub struct LocusDoc {
     /// Memory aid shown after the answer (format 2).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
+}
+
+fn default_size(size: &f64) -> bool {
+    *size == locora_store::default_image_size()
 }
 
 /// Formulas computing locus fields, one per field.
@@ -258,6 +268,7 @@ impl From<&PalaceTree> for PalaceDoc {
                             bindings: Bindings::from_list(&l.bindings),
                             answer: l.answer.clone(),
                             image: l.image.clone(),
+                            image_size: l.image_size,
                             note: l.note.clone(),
                         })
                         .collect(),
@@ -436,12 +447,26 @@ pub fn export_with<W: Write + Seek>(
             .iter()
             .flat_map(|p| &p.rooms)
             .flat_map(|r| &r.loci)
-            .all(|l| l.answer.is_recall() && l.image.is_none() && l.note.is_empty())
+            .all(|l| {
+                l.answer.is_recall()
+                    && l.image.is_none()
+                    && l.note.is_empty()
+                    && default_size(&l.image_size)
+            })
             && docs.iter().all(|d| d.marker.is_none())
         {
             1
         } else {
-            VERSION
+            if docs
+                .iter()
+                .flat_map(|p| &p.rooms)
+                .flat_map(|r| &r.loci)
+                .any(|l| !default_size(&l.image_size))
+            {
+                3
+            } else {
+                2
+            }
         },
         created_by: concat!("locora ", env!("CARGO_PKG_VERSION")).into(),
         palaces: docs
@@ -724,6 +749,11 @@ impl<R: Read + Seek> Package<R> {
                         .starts_with("video/"),
                 };
                 for locus in &room.loci {
+                    locora_store::check_image_size(locus.image_size)
+                        .map_err(|e| invalid(e.to_string()))?;
+                    if manifest.version < 3 && !default_size(&locus.image_size) {
+                        return Err(invalid("Eigene Locus-Bildgrößen benötigen Format 3"));
+                    }
                     check_text("Ort", &locus.place)?;
                     check_text("Inhalt", &locus.item)?;
                     locus.answer.validate().map_err(invalid)?;
@@ -915,6 +945,7 @@ impl<R: Read + Seek> Package<R> {
                             time: locus.time,
                             answer: locus.answer.clone(),
                             image: locus.image.clone(),
+                            image_size: locus.image_size,
                             note: locus.note.clone(),
                         },
                     )?;

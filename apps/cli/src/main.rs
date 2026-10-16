@@ -67,6 +67,9 @@ enum Command {
         /// Bild für den Ort (png, jpg, webp, gif, avif oder eine .sply-Animation)
         #[arg(long, value_name = "DATEI")]
         image: Option<PathBuf>,
+        /// Picture width as a fraction of the room width.
+        #[arg(long, value_parser = palace::parse_image_size, help = "Bildbreite als Anteil der Raumbreite (0.05 bis 1, Standard: 0.25)")]
+        image_size: Option<f64>,
         /// Merkhilfe: das lebhafte Bild in Worten, gezeigt nach dem Aufdecken
         #[arg(long)]
         note: Option<String>,
@@ -98,6 +101,9 @@ enum Command {
         /// Bild des Orts entfernen
         #[arg(long)]
         no_image: bool,
+        /// Picture width as a fraction of the room width.
+        #[arg(long, value_parser = palace::parse_image_size, help = "Bildbreite als Anteil der Raumbreite (0.05 bis 1)")]
+        image_size: Option<f64>,
     },
     /// Alle Paläste mit fälligen und neuen Loci
     #[command(alias = "list")]
@@ -289,6 +295,7 @@ fn main() -> Result<()> {
             at,
             time,
             image,
+            image_size,
             note,
         } => palace::add(
             &mut app::App::open(data)?,
@@ -299,6 +306,7 @@ fn main() -> Result<()> {
                 at,
                 time,
                 image,
+                image_size,
                 note,
             },
         ),
@@ -313,6 +321,7 @@ fn main() -> Result<()> {
             at,
             image,
             no_image,
+            image_size,
         } => {
             let mut app = app::App::open(data)?;
             let image = match (image, no_image) {
@@ -353,6 +362,7 @@ fn main() -> Result<()> {
                         })
                     },
                     image,
+                    image_size,
                     note,
                 },
             )

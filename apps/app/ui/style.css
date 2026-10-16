@@ -57,13 +57,17 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .stage { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
   background: linear-gradient(160deg, var(--indigo-deep), var(--indigo)); }
 .stage > .backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; }
-.marker { position: absolute; width: 56px; height: 56px; transform: translate(-50%, -50%); }
+.locus-picture { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
+.locus-picture > img { display: block; width: 100%; height: auto; }
+.locus-picture > iframe.sply { display: block; width: 100%; aspect-ratio: 1; height: auto; }
+.marker { z-index: 1; position: absolute; width: 56px; height: 56px; transform: translate(-50%, -50%); }
 .marker iframe { width: 100%; height: 100%; border: 0; pointer-events: none; background: transparent; }
 .marker button { position: absolute; inset: 0; border: 0; background: transparent; border-radius: 50%; padding: 0; }
 .marker .num { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); font-size: .75rem;
   color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; pointer-events: none; }
 iframe.sply { border: 0; width: 100%; height: 100%; background: transparent; }
-.picture { width: min(320px, 80vw); aspect-ratio: 1; margin: .5rem auto 0; }
+.picture { width: min(320px, 80vw); max-width: 100%; aspect-ratio: 1; margin: .5rem auto 0; }
+.picture > img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .panel { margin-top: 1rem; display: flex; flex-direction: column; gap: .7rem; }
 .prompt { font-size: 1.3rem; font-weight: 600; }
 .progress { color: var(--muted); font-size: .9rem; }
@@ -80,3 +84,16 @@ iframe.sply { border: 0; width: 100%; height: 100%; background: transparent; }
 .modes { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-top: .75rem; }
 .modes label { display: flex; gap: .35rem; align-items: center; }
 .loading { color: var(--muted); padding: 2rem; text-align: center; }
+/* Capture gestures on the stage; media frames must not intercept pointer input. */
+.stage.editing { touch-action: none; }
+.stage.editing > .backdrop { pointer-events: none; }
+.stage.editing .marker button { touch-action: none; cursor: grab; }
+.stage.editing .marker button:active { cursor: grabbing; }
+.resize-handle { position: absolute; right: 0; bottom: 0; pointer-events: auto;
+  touch-action: none; cursor: ew-resize; padding: .2rem .5rem; z-index: 2; }
+.editor-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: .7rem; min-width: 0; }
+.editor-form label { display: grid; gap: .25rem; }
+.editor-form textarea, .editor-form select, .editor-form input[type=number] {
+  font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); width: 100%; }
+.editor-form textarea { min-height: 5rem; resize: vertical; }

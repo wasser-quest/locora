@@ -18,6 +18,7 @@ locora new "Planeten" -- Merkur Venus Erde Mars Jupiter Saturn Uranus Neptun
 locora practice Planeten       # walk the route: Enter reveals, 1–4 grades
 locora edit Planeten 1 --answer '{"type":"guess"}'  # typed answer, checked by Core
 locora edit Planeten 1 --accept Hermes --note "Ein Thermometer am Herd"  # more right answers, memory aid
+locora edit Planeten 1 --image merkur.png --image-size 0.4  # reveal picture at 40% of room width in the app
 locora practice Planeten --reverse  # item → place; --numbers asks „Ort 7“, --shuffle mixes the order
 locora due                     # what is due today (FSRS via the review plugin)
 locora review                  # only what is due (plus new loci up to the daily limit)

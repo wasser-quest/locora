@@ -102,6 +102,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
             Response::Locus(locus(store.add_locus(
                 &room_id,
                 db::NewLocus {
+                    image_size: db::default_image_size(),
                     place: new.place,
                     item: new.item,
                     x: new.x,
@@ -121,6 +122,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
             store.update_locus(
                 &id,
                 &db::LocusPatch {
+                    image_size: None,
                     place: patch.place,
                     item: patch.item,
                     x: patch.x,

@@ -8,13 +8,21 @@ Stand: 16.10.2026
 
 - [x] Gerüst `apps/app/` (Start: `cd apps/app && cargo tauri dev`)
 - [x] Splinely einbinden: `.sply` → interaktives SVG über `splinely_document` v0.5.2, sandboxed `<Sply>`-Komponente
-- [ ] Aufdecken: Bild zusätzlich direkt am Locus auf der Bühne zeigen, Größe pro Locus einstellbar (neues Feld `image_size`)
+- [x] Aufdecken: Bild zusätzlich direkt am Locus auf der Bühne zeigen; `image_size` über CLI/Quelldatei einstellbar (Standard 0,25)
+- [x] Editor-Grundschnitt: Loci setzen, ziehen/Pfeiltasten, Inhalte und Antworten inline mit Autosave, Bildgröße per Ziehgriff/Zahlenfeld, Löschen
+- [ ] Visuelle WebView-/E2E-Prüfung von Ortsbildern, Pointer-Gesten und Autosave-Fokus (`docs/app-editor-testplan.md`)
 - [ ] Startbildschirm: Plugin-Kacheln (`ui.tile`), „Weiter“-Zeile mit fälligen Loci, Befehlspalette (Strg/⌘+K)
 - [ ] Core-Ansicht: Palastliste mit ▶ auf der Karte, Raum mit Hintergrund und Locus-Markern, Bild am Ort
 - [x] Journey in der App: Recall (Leertaste, 1–4), Quiz, Guess; gleiche Bewertung über das Core-Plugin
 - [x] Aufdecken zeigt das `.sply` (es gehört zur Antwort), vorher nur Hintergrund und Marker
 - [ ] Workbook in der App: Eingaben abfragen, Aktionen als Knöpfe
-- [ ] Editor: Bild/Video ins Fenster ziehen = neuer Palast, Klick = Locus, eingefügte Liste = Loci als Route
+- [x] Liste = Route: Strg/⌘+V auf der fokussierten Bühne oder Textfeld/Knopf im Editor, 1–100 Begriffe, Schlangenroute, atomarer Batch mit Validierung und Op-Log (keine Video-Räume)
+- [ ] Liste = Route: WebView-/E2E-Prüfung und Klickbudget nachweisen
+- [x] Locus-Mediendatei-Auswahl: nativer Dialog, Bild wählen/entfernen, Raster-MIME-/`.sply`-Validierung, Scope-Prüfung und Fehleranzeige ohne freie Pfad-IPC (64 MiB)
+- [ ] Nativen Locus-Dateipicker im WebView manuell prüfen (Auswahl, Abbruch, Fehler, Entfernen, Neustart); mobile URI-Auswahl noch nicht unterstützt
+- [x] Startknopf „Bild/Video wählen…“: nativer Dialog, gemeinsame Signaturprüfung (64 MiB), atomarer neuer Palast + passender Raum + Medienmetadaten/Op-Log, Dateiname mit Kollisionssuffix, direkt Editor öffnen; Zurück aktualisiert Home
+- [ ] Start-Dateipicker im WebView manuell prüfen (Bild/Video, Abbruch, Fehler, Editor, Zurück, Neustart); lokale Dateien, keine mobilen Content-URIs
+- [ ] Editor-Ausbau: Bild/Video hineinziehen, Video-Loci mit Zeit, Undo/Redo und Entwurfswiederherstellung
 - [ ] Tutorial in der App: `locora tutorial`-Palast mit abgespielten Animationen; Erststart-Hinweis
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten

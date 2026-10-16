@@ -350,3 +350,27 @@ fn guess_tables_only_take_accept() {
         assert!(err_of(&text, dir.path()).contains(error), "{answer}");
     }
 }
+
+#[test]
+fn image_size_validates_before_build_and_survives_dump() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    let text = "name = \"P\"\n[[room]]\nname = \"R\"\n[[room.locus]]\nitem = \"X\"\n";
+    let store = Store::open(&d.join("profil")).unwrap();
+    let tree = build(&store, &plan_of(text, d).unwrap()).unwrap();
+    assert_eq!(tree.route().next().unwrap().image_size, 0.25);
+    for value in ["0.0", "-0.1", "0.049", "1.01", "nan", "inf", "-inf"] {
+        let err = err_of(&format!("{text}image_size = {value}\n"), d);
+        assert!(err.contains("Bildgröße"), "{err}");
+    }
+    store.delete_palace(&tree.palace.id).unwrap();
+    let custom = format!("{text}image_size = 0.4\n");
+    let tree = build(&store, &plan_of(&custom, d).unwrap()).unwrap();
+    assert_eq!(tree.route().next().unwrap().image_size, 0.4);
+    let file = dump(&store, "P", &d.join("out")).unwrap();
+    let dumped = fs::read_to_string(&file).unwrap();
+    assert!(dumped.contains("image_size = 0.4"), "{dumped}");
+    store.delete_palace(&tree.palace.id).unwrap();
+    let tree = build(&store, &plan_of(&dumped, file.parent().unwrap()).unwrap()).unwrap();
+    assert_eq!(tree.route().next().unwrap().image_size, 0.4);
+}

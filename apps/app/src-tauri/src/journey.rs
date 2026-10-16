@@ -204,6 +204,7 @@ impl Journey {
         };
         let locus = self.locus();
         Revealed {
+            image_size: locus.image_size,
             solution,
             note: locus.note.clone(),
             picture: if self.options.reverse {
@@ -362,5 +363,66 @@ impl Journey {
             points: self.points,
             notes: std::mem::take(&mut self.notes),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use locora_store::{NewLocus, RoomKind};
+
+    #[test]
+    fn pictures_and_widths_travel_only_on_reveal_except_reverse_prompt() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let p = profile.store.create_palace("P").unwrap();
+        let r = profile
+            .store
+            .add_room(&p.id, "R", RoomKind::Blank, None)
+            .unwrap();
+        let image = profile.store.put_media(b"png", "image/png").unwrap();
+        profile
+            .store
+            .add_locus(
+                &r.id,
+                NewLocus {
+                    place: "Tor".into(),
+                    item: "Sonne".into(),
+                    x: 0.4,
+                    y: 0.6,
+                    time: None,
+                    answer: Answer::default(),
+                    image: Some(image.hash.clone()),
+                    note: String::new(),
+                    image_size: 0.4,
+                },
+            )
+            .unwrap();
+        for reverse in [false, true] {
+            let journey = Journey::start(
+                &mut profile,
+                JourneyStart {
+                    palace_id: Some(p.id.clone()),
+                    reverse,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .unwrap();
+            let q = journey.question(&profile, "marker");
+            assert_eq!(q.picture.is_some(), reverse);
+            let answer = journey.reveal(&profile);
+            assert_eq!(answer.image_size, 0.4);
+            assert_eq!(answer.picture.is_some(), !reverse);
+            if !reverse {
+                assert_eq!(answer.picture.unwrap().hash, image.hash);
+            }
+        }
+        let view = crate::views::palace(&mut profile, &p.id, "marker").unwrap();
+        assert_eq!(view.rooms[0].loci[0].image_size, 0.4);
+        assert_eq!(
+            view.rooms[0].loci[0].picture.as_ref().unwrap().hash,
+            image.hash
+        );
     }
 }

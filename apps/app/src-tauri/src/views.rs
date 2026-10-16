@@ -80,13 +80,23 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
 pub fn palace(profile: &mut Profile, id: &str, default_marker: &str) -> Result<PalaceView> {
     let tree = profile.store.palace(id)?;
     let cards = profile.schedule(Some(&tree.palace.id))?;
+    Ok(palace_view(&profile.store, &tree, &cards, default_marker))
+}
+
+/// Projection is infallible, including immediately after an editor mutation.
+pub fn palace_view(
+    store: &Store,
+    tree: &PalaceTree,
+    cards: &HashMap<String, CardState>,
+    default_marker: &str,
+) -> PalaceView {
     let now = now();
-    let store = &profile.store;
     let mut number = 0;
     let rooms = tree
         .rooms
         .iter()
         .map(|room| RoomView {
+            video: room.room.kind == locora_store::RoomKind::Video,
             id: room.room.id.clone(),
             name: room.room.name.clone(),
             backdrop: room.room.media.as_deref().and_then(|h| media(store, h)),
@@ -96,24 +106,28 @@ pub fn palace(profile: &mut Profile, id: &str, default_marker: &str) -> Result<P
                 .map(|l| {
                     number += 1;
                     LocusView {
+                        answer: l.answer.clone(),
+                        image: l.image.clone(),
+                        bound: !l.bindings.is_empty(),
                         id: l.id.clone(),
                         number,
                         place: l.place.clone(),
                         item: l.item.clone(),
                         x: l.x,
                         y: l.y,
-                        status: status(&cards, &l.id, now),
+                        status: status(cards, &l.id, now),
                         picture: l.image.as_deref().and_then(|h| media(store, h)),
+                        image_size: l.image_size,
                         note: l.note.clone(),
                     }
                 })
                 .collect(),
         })
         .collect();
-    Ok(PalaceView {
+    PalaceView {
         id: tree.palace.id.clone(),
         name: tree.palace.name.clone(),
-        marker: marker(store, &tree, default_marker),
+        marker: marker(store, tree, default_marker),
         rooms,
-    })
+    }
 }

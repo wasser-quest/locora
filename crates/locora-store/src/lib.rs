@@ -35,6 +35,22 @@ pub enum StoreError {
 
 pub type Result<T, E = StoreError> = std::result::Result<T, E>;
 
+/// Default locus picture width as a fraction of the room width.
+pub const fn default_image_size() -> f64 {
+    0.25
+}
+
+/// Picture widths must be finite and between 5% and 100% of the room width.
+pub fn check_image_size(size: f64) -> Result<()> {
+    if (0.05..=1.0).contains(&size) {
+        Ok(())
+    } else {
+        Err(StoreError::Invalid(
+            "Die Bildgröße muss zwischen 0,05 und 1 liegen (Anteil der Raumbreite)".into(),
+        ))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Palace {
     pub id: String,
@@ -90,6 +106,9 @@ pub struct Room {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Locus {
+    /// Picture width as a fraction of the room width.
+    #[serde(default = "default_image_size")]
+    pub image_size: f64,
     pub id: String,
     pub room_id: String,
     pub position: u32,
@@ -148,6 +167,9 @@ pub struct PalaceSummary {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NewLocus {
+    /// Picture width as a fraction of the room width.
+    #[serde(default = "default_image_size")]
+    pub image_size: f64,
     pub place: String,
     pub item: String,
     pub x: f64,
@@ -164,6 +186,7 @@ pub struct NewLocus {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LocusPatch {
+    pub image_size: Option<f64>,
     pub place: Option<String>,
     pub item: Option<String>,
     pub x: Option<f64>,
@@ -356,6 +379,114 @@ impl Store {
         Ok(palace)
     }
 
+    /// Import validated media as a new palace and its first room. All database
+    /// changes (including media metadata and ops) commit together. Immutable
+    /// content files may remain unreferenced after a database failure.
+    pub fn create_media_palace(
+        &self,
+        name: &str,
+        kind: RoomKind,
+        bytes: &[u8],
+        mime: &str,
+    ) -> Result<PalaceTree> {
+        let base = name.trim();
+        if base.is_empty()
+            || bytes.is_empty()
+            || !match kind {
+                RoomKind::Image => is_picture(mime),
+                RoomKind::Video => matches!(mime, "video/mp4" | "video/webm" | "video/quicktime"),
+                RoomKind::Blank => false,
+            }
+        {
+            return Err(StoreError::Invalid("Ungültiger Name oder Medientyp".into()));
+        }
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        let mut name = base.to_owned();
+        let mut suffix = 2;
+        while tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM palaces WHERE name = ?1 COLLATE NOCASE)",
+            [&name],
+            |r| r.get::<_, bool>(0),
+        )? {
+            name = format!("{base} ({suffix})");
+            suffix += 1;
+        }
+        let hash: String = Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let existing: Option<String> = tx
+            .query_row("SELECT mime FROM media WHERE hash = ?1", [&hash], |r| {
+                r.get(0)
+            })
+            .optional()?;
+        if existing.is_some_and(|m| m != mime) {
+            return Err(StoreError::Invalid(
+                "Gespeicherter Medientyp passt nicht zum Dateiformat".into(),
+            ));
+        }
+        let dir = self.media_dir.as_ref().ok_or_else(|| {
+            StoreError::Invalid("Dieser Speicher kann keine Medien ablegen".into())
+        })?;
+        let path = media_path(dir, &hash);
+        if !path.exists() {
+            fs::create_dir_all(path.parent().expect("media path has a parent"))?;
+            let tmp = path.with_extension(new_id());
+            fs::write(&tmp, bytes)?;
+            if let Err(error) = fs::rename(&tmp, &path) {
+                let _ = fs::remove_file(&tmp);
+                return Err(error.into());
+            }
+        }
+        tx.execute(
+            "INSERT OR IGNORE INTO media(hash, mime, size) VALUES (?1, ?2, ?3)",
+            params![hash, mime, bytes.len() as u64],
+        )?;
+        let now = now_secs();
+        let palace = Palace {
+            id: new_id(),
+            name,
+            created_at: now,
+            updated_at: now,
+            marker: None,
+        };
+        let room = Room {
+            id: new_id(),
+            palace_id: palace.id.clone(),
+            position: 0,
+            name: base.to_owned(),
+            kind,
+            media: Some(hash),
+        };
+        tx.execute(
+            "INSERT INTO palaces(id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
+            params![palace.id, palace.name, now],
+        )?;
+        tx.execute("INSERT INTO rooms(id, palace_id, position, name, kind, media) VALUES (?1, ?2, 0, ?3, ?4, ?5)",
+            params![room.id, room.palace_id, room.name, kind.as_str(), room.media])?;
+        self.log(
+            &tx,
+            "palace",
+            &palace.id,
+            "create",
+            Some(serde_json::json!({"name": palace.name})),
+        )?;
+        self.log(
+            &tx,
+            "room",
+            &room.id,
+            "create",
+            Some(serde_json::to_value(&room).expect("serializable")),
+        )?;
+        tx.commit()?;
+        Ok(PalaceTree {
+            palace,
+            rooms: vec![RoomTree { room, loci: vec![] }],
+            tables: vec![],
+        })
+    }
+
     /// Find a palace by id, by name (case-insensitive) or by a unique id prefix.
     pub fn find_palace(&self, query: &str) -> Result<Option<Palace>> {
         let conn = self.conn();
@@ -421,7 +552,7 @@ impl Store {
             });
         }
         let mut loci_stmt = conn.prepare(
-            "SELECT id, room_id, position, place, item, x, y, time, answer, image, note FROM loci WHERE room_id = ?1 ORDER BY position",
+            "SELECT id, room_id, position, place, item, x, y, time, answer, image, note, image_size FROM loci WHERE room_id = ?1 ORDER BY position",
         )?;
         let mut tree = Vec::new();
         for room in rooms {
@@ -439,6 +570,7 @@ impl Store {
                         answer: read_answer(r, 8)?,
                         image: r.get(9)?,
                         note: r.get(10)?,
+                        image_size: r.get(11)?,
                         bindings: Vec::new(),
                     })
                 })?
@@ -613,14 +745,30 @@ impl Store {
     // ------------------------------------------------------------ loci
 
     pub fn add_locus(&self, room_id: &str, locus: NewLocus) -> Result<Locus> {
+        Ok(self.add_loci(room_id, vec![locus])?.remove(0))
+    }
+
+    /// Append a batch, including palace timestamp and operation log, atomically.
+    pub fn add_loci(&self, room_id: &str, loci: Vec<NewLocus>) -> Result<Vec<Locus>> {
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        let mut added = Vec::with_capacity(loci.len());
+        for locus in loci {
+            added.push(self.insert_locus(&tx, room_id, locus)?);
+        }
+        tx.commit()?;
+        Ok(added)
+    }
+
+    fn insert_locus(&self, conn: &Connection, room_id: &str, locus: NewLocus) -> Result<Locus> {
+        check_image_size(locus.image_size)?;
         check_position(locus.x, locus.y)?;
         locus
             .answer
             .validate()
             .map_err(|e| StoreError::Invalid(e.into()))?;
-        let conn = self.conn();
         if let Some(hash) = &locus.image {
-            check_picture(&conn, hash)?;
+            check_picture(conn, hash)?;
         }
         let palace_id: String = conn
             .query_row(
@@ -646,16 +794,17 @@ impl Store {
             time: locus.time,
             answer: locus.answer,
             image: locus.image,
+            image_size: locus.image_size,
             note: locus.note.trim().to_owned(),
             bindings: Vec::new(),
         };
         conn.execute(
-            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note],
+            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note, image_size) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size],
         )?;
-        self.touch(&conn, &palace_id)?;
+        self.touch(conn, &palace_id)?;
         self.log(
-            &conn,
+            conn,
             "locus",
             &locus.id,
             "create",
@@ -668,7 +817,7 @@ impl Store {
         let conn = self.conn();
         let (palace_id, mut locus) = conn
             .query_row(
-                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image, l.note
+                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image, l.note, l.image_size
                  FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
                 [id],
                 |r| {
@@ -686,6 +835,7 @@ impl Store {
                             answer: read_answer(r, 9)?,
                             image: r.get(10)?,
                             note: r.get(11)?,
+                            image_size: r.get(12)?,
                             bindings: Vec::new(),
                         },
                     ))
@@ -698,6 +848,10 @@ impl Store {
         }
         if let Some(item) = &patch.item {
             locus.item = item.trim().to_owned();
+        }
+        if let Some(size) = patch.image_size {
+            check_image_size(size)?;
+            locus.image_size = size;
         }
         if let Some(note) = &patch.note {
             locus.note = note.trim().to_owned();
@@ -721,8 +875,8 @@ impl Store {
         }
         check_position(locus.x, locus.y)?;
         conn.execute(
-            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7, note = ?8 WHERE id = ?9",
-            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, id],
+            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7, note = ?8, image_size = ?9 WHERE id = ?10",
+            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, id],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(

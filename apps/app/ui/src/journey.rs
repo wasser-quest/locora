@@ -32,7 +32,18 @@ enum Phase {
     /// Recall: answer visible, waiting for the self-rating.
     Revealed(Revealed),
     /// Guess/Quiz (or after rating): verdict and answer, then on to `next`.
-    Judged(Feedback),
+    Judged(Box<Feedback>),
+}
+
+impl Phase {
+    /// Only revealed answers may supply a picture for the room stage.
+    fn stage_answer(&self) -> Option<&Revealed> {
+        match self {
+            Self::Asking => None,
+            Self::Revealed(r) => Some(r),
+            Self::Judged(f) => Some(&f.revealed),
+        }
+    }
 }
 
 #[component]
@@ -71,7 +82,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         busy.set(true);
         spawn_local(async move {
             match call::<Feedback>(CMD_JOURNEY_ANSWER, ReplyArgs { reply }).await {
-                Ok(f) => phase.set(Phase::Judged(f)),
+                Ok(f) => phase.set(Phase::Judged(Box::new(f))),
                 Err(e) => error.set(Some(e)),
             }
             busy.set(false);
@@ -150,7 +161,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 return view! { <p class="loading">"Lädt …"</p> }.into_any();
             };
             view! {
-                <Stage question=q.clone() />
+                <Stage question=q.clone() phase=phase />
                 <section class="card panel">
                     <div class="progress">{q.room.clone()}</div>
                     <div class="prompt">{q.prompt.clone()}</div>
@@ -177,7 +188,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                                 .into_any()
                         }
                         Phase::Judged(f) => {
-                            view! { <Judged feedback=f question=q.clone() next=next /> }.into_any()
+                            view! { <Judged feedback=*f question=q.clone() next=next /> }.into_any()
                         }
                     }}
                 </section>
@@ -189,10 +200,15 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 
 /// The room with the asked place marked (state „fällig“).
 #[component]
-fn Stage(question: Question) -> impl IntoView {
+fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
     view! {
         <div class="stage">
             {question.backdrop.clone().map(|m| view! { <Shown media=m class="backdrop" /> })}
+            {move || {
+                phase.get().stage_answer().cloned().and_then(|r| r.picture.map(|m| view! {
+                    <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
+                }))
+            }}
             <div
                 class="marker"
                 style:left=format!("{}%", question.x * 100.0)
@@ -370,5 +386,42 @@ fn Done(summary: Summary, screen: RwSignal<Screen>) -> impl IntoView {
                 "Zur Übersicht"
             </button>
         </section>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use locora_app_api::{Media, MediaKind};
+
+    #[test]
+    fn stage_answer_stays_hidden_until_revealed_and_resets_for_next_question() {
+        let answer = Revealed {
+            image_size: 0.4,
+            solution: "Sonne".into(),
+            note: String::new(),
+            picture: Some(Media {
+                hash: "bild".into(),
+                kind: MediaKind::Image,
+            }),
+            right: Vec::new(),
+        };
+        assert!(Phase::Asking.stage_answer().is_none());
+        let revealed = Phase::Revealed(answer.clone());
+        assert_eq!(revealed.stage_answer(), Some(&answer));
+        let judged = Phase::Judged(Box::new(Feedback {
+            correct: true,
+            points: 1,
+            revealed: answer.clone(),
+            next: Step::Done(Summary::default()),
+        }));
+        assert_eq!(judged.stage_answer(), Some(&answer));
+        let next = Phase::Asking;
+        assert!(next.stage_answer().is_none());
+        let reverse = Phase::Revealed(Revealed {
+            picture: None,
+            ..answer
+        });
+        assert!(reverse.stage_answer().unwrap().picture.is_none());
     }
 }

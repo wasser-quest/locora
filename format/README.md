@@ -42,11 +42,12 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 ```
 
 - `version` above the reader's version → rejected with "needs a newer Locora".
-- Current readers accept versions 1 and 2. Recall-only exports still write version
-  1 and omit `answer`, remaining readable by existing version 1 implementations.
-  Any Quiz/Guess locus makes the entire archive version 2. Version 1 with a
-  non-Recall answer is rejected; older readers reject version 2 rather than
-  silently converting automatic questions into Recall.
+- Current readers accept versions 1, 2 and 3. Exports without custom picture widths
+  keep version 1 for plain Recall palaces or version 2 for Quiz/Guess, pictures,
+  notes or custom markers. A non-default `imageSize` requires version 3, so older
+  readers reject the archive rather than silently losing the size. Missing sizes
+  default to 0.25. Version 1 with a non-Recall answer and versions 1/2 with a
+  non-default picture width are rejected.
 - File names are derived, never stored: `palaces/<id>.json`, `media/<sha256>.<ext>`.
 - Media types and extensions: `image/png` png, `image/jpeg` jpg, `image/webp` webp, `image/gif` gif, `image/avif` avif, `video/mp4` mp4, `video/webm` webm, `video/quicktime` mov, and **`application/vnd.splinely` sply** (binary Splinely animations; the app plays them with the Splinely runtime).
 - `plugins`: plugins the file uses. A missing `required` plugin blocks the import.
@@ -81,6 +82,7 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 - `time`: seconds into the video; required in video rooms and not allowed elsewhere.
 - `image` (format 2): SHA-256 of a picture that belongs to the answer — an image or a `.sply` animation, never a video. Clients show it only when the locus is revealed (in reverse practice it is part of the question). Files with locus pictures are written as version 2; version 1 readers reject them instead of dropping the pictures.
 - `note` (format 2): memory aid, the vivid image in words; shown after the answer. Omitted when empty.
+- `imageSize` (format 3 for custom widths): finite picture width as a fraction of room width, from 0.05 to 1 inclusive; default 0.25, omitted at the default. Raster images keep their aspect ratio; `.sply` frames use a square viewport. The picture is centered at the locus only after reveal, not before (reverse practice keeps it in the question).
 - `bindings`: formulas for `place`, `item`, `x`, `y`, `visible`, `active` (each at most once).
 - `tables`: rows `{ table, key, cells: [{ column, type, value }] }`; `type` is `text`, `number`, `boolean`, `json`, `formula`, `asset`, `palace` or `room`.
 - Array order is route order.

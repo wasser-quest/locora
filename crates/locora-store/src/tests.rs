@@ -2,6 +2,7 @@ use super::*;
 
 fn locus(place: &str, item: &str, x: f64) -> NewLocus {
     NewLocus {
+        image_size: default_image_size(),
         place: place.into(),
         item: item.into(),
         x,
@@ -11,6 +12,97 @@ fn locus(place: &str, item: &str, x: f64) -> NewLocus {
         image: None,
         note: String::new(),
     }
+}
+
+#[test]
+fn media_palace_is_atomic_including_metadata_and_ops() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let before = store.ops_since(0).unwrap();
+    store.conn().execute_batch("CREATE TRIGGER reject_import BEFORE INSERT ON rooms BEGIN SELECT RAISE(ABORT, 'test import failure'); END;").unwrap();
+    assert!(
+        store
+            .create_media_palace("Test", RoomKind::Image, b"picture", "image/png")
+            .is_err()
+    );
+    assert!(store.palaces().unwrap().is_empty());
+    assert_eq!(store.ops_since(0).unwrap(), before);
+    let count: u64 = store
+        .conn()
+        .query_row("SELECT COUNT(*) FROM media", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+    store
+        .conn()
+        .execute_batch("DROP TRIGGER reject_import")
+        .unwrap();
+    store.put_media(b"picture", "video/mp4").unwrap();
+    assert!(
+        store
+            .create_media_palace("Test", RoomKind::Image, b"picture", "image/png")
+            .is_err()
+    );
+    assert!(store.palaces().unwrap().is_empty());
+    assert_eq!(store.ops_since(0).unwrap(), before);
+    assert!(
+        store
+            .create_media_palace(" ", RoomKind::Image, b"x", "image/png")
+            .is_err()
+    );
+    assert!(
+        store
+            .create_media_palace("Test", RoomKind::Video, b"x", "image/png")
+            .is_err()
+    );
+}
+
+#[test]
+fn locus_batch_rolls_back_validation_and_database_failures() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let palace = store.create_palace("Batch").unwrap();
+    let room = store
+        .add_room(&palace.id, "Raum", RoomKind::Blank, None)
+        .unwrap();
+    store
+        .add_locus(&room.id, locus("Bestehend", "alt", 0.5))
+        .unwrap();
+    let before = store.palace(&palace.id).unwrap();
+    let ops = store.ops_since(0).unwrap();
+    assert!(
+        store
+            .add_loci(
+                &room.id,
+                vec![locus("Gut", "gut", 0.1), locus("Ungültig", "x", f64::NAN)]
+            )
+            .is_err()
+    );
+    assert_eq!(store.palace(&palace.id).unwrap(), before);
+    assert_eq!(store.ops_since(0).unwrap(), ops);
+    store.conn().execute_batch("CREATE TRIGGER reject_batch BEFORE INSERT ON loci WHEN NEW.item = 'fail' BEGIN SELECT RAISE(ABORT, 'test batch failure'); END;").unwrap();
+    assert!(
+        store
+            .add_loci(
+                &room.id,
+                vec![locus("Gut", "gut", 0.1), locus("Fehler", "fail", 0.2)]
+            )
+            .is_err()
+    );
+    assert_eq!(store.palace(&palace.id).unwrap(), before);
+    assert_eq!(store.ops_since(0).unwrap(), ops);
+    let added = store
+        .add_loci(
+            &room.id,
+            vec![locus("Zwei", "neu", 0.1), locus("Drei", "auch neu", 0.2)],
+        )
+        .unwrap();
+    assert_eq!((added[0].position, added[1].position), (1, 2));
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    let tree = store.palace(&palace.id).unwrap();
+    assert_eq!(tree.rooms[0].loci.len(), 3);
+    assert_eq!(tree.rooms[0].loci[2].item, "auch neu");
+    assert_eq!(store.ops_since(0).unwrap().len(), ops.len() + 2);
 }
 
 #[test]
@@ -483,4 +575,66 @@ fn palaces_can_have_a_custom_marker() {
         store.find_palace("Mit Marker").unwrap().unwrap().marker,
         None
     );
+}
+
+#[test]
+fn image_size_defaults_persists_and_rejects_invalid_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let p = store.create_palace("Größen").unwrap();
+    let r = store
+        .add_room(&p.id, "Raum", RoomKind::Blank, None)
+        .unwrap();
+    let old = serde_json::to_value(locus("Tor", "Inhalt", 0.5)).unwrap();
+    let mut old = old.as_object().unwrap().clone();
+    old.remove("image_size");
+    let new: NewLocus = serde_json::from_value(old.into()).unwrap();
+    assert_eq!(new.image_size, 0.25);
+    let l = store.add_locus(&r.id, new).unwrap();
+    assert_eq!(l.image_size, 0.25);
+    for size in [0.05, 0.4, 1.0] {
+        let changed = store
+            .update_locus(
+                &l.id,
+                &LocusPatch {
+                    image_size: Some(size),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(changed.image_size, size);
+    }
+    let before = store.ops_since(0).unwrap().len();
+    for size in [
+        0.0,
+        -0.1,
+        0.049,
+        1.01,
+        f64::NAN,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    ] {
+        let mut new = locus("Tor", "Inhalt", 0.5);
+        new.image_size = size;
+        assert!(store.add_locus(&r.id, new).is_err());
+        assert!(
+            store
+                .update_locus(
+                    &l.id,
+                    &LocusPatch {
+                        image_size: Some(size),
+                        item: Some("Nicht speichern".into()),
+                        ..Default::default()
+                    }
+                )
+                .is_err()
+        );
+    }
+    assert_eq!(store.ops_since(0).unwrap().len(), before);
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    let tree = store.palace(&p.id).unwrap();
+    let copy = tree.route().next().unwrap();
+    assert_eq!(copy.image_size, 1.0);
+    assert_eq!(copy.item, "Inhalt");
 }

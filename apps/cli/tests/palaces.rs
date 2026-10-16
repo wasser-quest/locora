@@ -195,3 +195,48 @@ fn feed(mut stdin: std::process::ChildStdin, input: &[u8]) {
         assert_eq!(err.kind(), std::io::ErrorKind::BrokenPipe, "{err}");
     }
 }
+
+#[test]
+fn locus_image_sizes_add_edit_and_invalid_values_are_atomic() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    ok(d, T0, &["new", "Größen", "--", "Standard"], "");
+    ok(d, T0, &["add", "Größen", "Bild", "--image-size", "0.4"], "");
+    let sizes = || {
+        locora_store::Store::open(d)
+            .unwrap()
+            .palace("Größen")
+            .unwrap()
+            .route()
+            .map(|l| l.image_size)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(sizes(), [0.25, 0.4]);
+    ok(d, T0, &["edit", "Größen", "2", "--image-size", "0.05"], "");
+    ok(d, T0, &["edit", "Größen", "1", "--note", "Merkhilfe"], "");
+    assert_eq!(sizes(), [0.25, 0.05]);
+    for value in ["0", "0.049", "1.01", "NaN", "inf"] {
+        for args in [
+            vec!["add", "Größen", "Ungültig", "--image-size", value],
+            vec![
+                "edit",
+                "Größen",
+                "2",
+                "--item",
+                "Nicht speichern",
+                "--image-size",
+                value,
+            ],
+        ] {
+            let out = run(d, T0, &args, "");
+            assert!(!out.status.success(), "{args:?}");
+            assert!(String::from_utf8_lossy(&out.stderr).contains("Bildgröße"));
+            assert_eq!(sizes(), [0.25, 0.05]);
+        }
+    }
+    let store = locora_store::Store::open(d).unwrap();
+    assert_eq!(
+        store.palace("Größen").unwrap().route().nth(1).unwrap().item,
+        "Bild"
+    );
+}

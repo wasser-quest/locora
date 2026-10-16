@@ -694,13 +694,51 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
 
 **Was in der App noch fehlt** (Reihenfolge = Empfehlung):
 
-1. **Bild beim Aufdecken auch am Ort:** Das `.sply`/Bild erscheint nicht nur unten im Antwortbereich, sondern auch
-   direkt am Locus auf der Bühne (unter/neben dem Marker), in einer pro Locus wählbaren Größe. Dafür ein neues Feld
-   pro Locus (z. B. `image_size` als Anteil der Raumbreite, Standard 0,25; Store-Migration, `.locora`, `locora.toml`,
-   `--image-size`) und im Editor ein Ziehgriff zum Vergrößern/Verkleinern. Vor dem Aufdecken bleibt nur der Marker
-   sichtbar (das Bild gehört zur Antwort).
-2. **Editor:** Bild/Video ins Fenster ziehen = neuer Palast, Klick = Locus setzen, Marker verschieben, Inhalt,
-   Antwortart (Recall/Guess mit `accept`/Quiz), Merkhilfe und Bild am Ort bearbeiten, eingefügte Liste = Loci als Route.
+1. **Bild beim Aufdecken auch am Ort — umgesetzt:** `.sply`/Bild erscheint nach dem
+   Aufdecken zusätzlich direkt am Locus auf der Bühne, in Palastansicht und Journey; vorher nur der Marker.
+   `image_size` ist der Anteil der Raumbreite (Standard 0,25, endlicher Wert von 0,05 bis 1 einschließlich).
+   Store-Migration 8, `.locora` (`imageSize`, Format 3 bei eigener Größe, sonst weiterhin Format 1/2),
+   `locora.toml` und CLI `add`/`edit --image-size` sind umgesetzt. Bestehende Daten erhalten 0,25.
+   Rückwärts bleibt das Bild Teil der Frage, nicht des aufgedeckten Ortsbilds. Regressionstests decken Migration,
+   Validierung, Roundtrips, Formatkompatibilität, CLI und Aufdeckzustände ab; Workspace-/App-Tests, Clippy,
+   Formatprüfung und Wasm-Check bestanden. Visuelle WebView-/E2E-Prüfung steht noch aus.
+   Ziehgriff und Zahlenfeld für die Bildgröße sind jetzt im Editor vorhanden (Punkt 2).
+2. **Editor — erster schreibender Schnitt umgesetzt:** „Bearbeiten“ in der Raumansicht: Klick auf die Bühne
+   setzt einen Locus, Marker lassen sich ziehen oder mit Pfeiltasten verschieben. Ort, Inhalt, Merkhilfe,
+   Recall/Guess (`accept`)/Quiz, gespeicherte Bildreferenz und Bildgröße sind inline bearbeitbar; gültige
+   Inhalte speichern automatisch, ohne Speichern-Knopf. Ungültige Zwischenstände bleiben als Entwurf sichtbar;
+   Raumwechsel/Journey sind bis zur Speicherung oder zum Verwerfen gesperrt. Löschen mit Bestätigung.
+   Tauri prüft Palast-/Raumzugehörigkeit, Store validiert alle Mutationen; getrennte Geometrie-Patches
+   erhalten Antworten und Workbook-Bindings. Nach einem erfolgreichen Write ist die Rückgabe unabhängig
+   von einem weiteren Plugin-Aufruf. Tests für CRUD, Validierung, Persistenz, Geometrie und Eingabeprüfung.
+   **Nächster Schnitt umgesetzt (6.3):** Liste auf der fokussierten Bühne mit Strg/⌘+V oder im expliziten
+   Textfeld mit Knopf als Route hinzufügen:
+   je nichtleerer Zeile ein Recall-Locus, 1–100 Begriffe, maximal 500 UTF-8-Bytes pro Begriff und 64 KiB
+   Eingabetext. Neue Orte werden in Listenreihenfolge als Schlangenroute angehängt; bestehende bleiben
+   unverändert. Tauri validiert Zugehörigkeit und sämtliche Begriffe, der Store speichert Loci und Op-Log
+   in einer Transaktion (vollständiger Rollback bei Fehlern). Video-Räume bleiben ausgeschlossen.
+   Tests decken Parsing, Routengeometrie, Grenzen, Scope, Persistenz und Rollback bei SQL-Fehlern ab.
+   WebView-/E2E-Prüfung und das Bühnen-Strg+V-Klickbudget sind noch nicht nachgewiesen;
+   normales Einfügen in anderen Eingabefeldern wird nicht abgefangen.
+   **Mediendatei-Auswahl umgesetzt:** „Bild wählen…“ öffnet den nativen Tauri-Dialog für den ausgewählten
+   Locus; „Bild entfernen“ löscht die Zuordnung. PNG/JPEG/WebP/GIF/AVIF werden nach Endung und
+   MIME-Signatur geprüft, `.sply` zusätzlich durch den vorhandenen SVG-Konverter (maximal 64 MiB).
+   Exakte Palast-/Raum-/Ort-Zugehörigkeit wird vor Auswahl und Import geprüft; Abbruch schreibt nichts,
+   Fehler ändern die Bildzuordnung nicht. Keine Pfad-IPC, keine neuen WebView-Dateirechte; CSP unverändert.
+   Backend-Tests für Import, Persistenz, MIME-/Formatfehler und Scope; native WebView-Prüfung noch offen.
+   **Startknopf umgesetzt:** „Bild/Video wählen…“ öffnet einen nativen Dialog ohne Pfad-IPC oder
+   zusätzliche WebView-Dateirechte. Gemeinsame Prüfung für Rasterbilder, binäre `.sply` und
+   MP4/M4V/WebM/MOV-Signaturen; nur reguläre lokale Dateien, maximal 64 MiB.
+   Dateiname wird Palast-/Raumname (Fallback „Neuer Palast“); belegte Palastnamen erhalten
+   „ (2)“, „ (3)“ usw. (NOCASE wie im Store). Palast, passender Bild-/Video-Raum,
+   Medienmetadaten und Op-Log werden atomar gespeichert. Abbruch schreibt nichts; Fehler hinterlassen
+   keine leeren Paläste oder partiellen DB-Änderungen (unreferenzierte Hash-Dateien können bleiben).
+   Erfolg öffnet direkt den Editor; Zurück lädt die Startseite neu. Tests für Signaturen, Grenzen,
+   Abbruch, Persistenz, Namen und DB-Rollback; nativer WebView-Smoke-Test noch offen.
+   **Noch offen:** Bild/Video-Datei hineinziehen,
+   Video-Loci mit Zeit, einzelne ungebundene Felder an Workbook-Orten bearbeiten,
+   Undo/Redo und dauerhaft wiederherstellbare ungültige Entwürfe. Browser-/WebView-Gesten, Fokus bei
+   Autosave und Klick-Budgets manuell/E2E prüfen (`docs/app-editor-testplan.md`).
 3. **Workbook in der App:** Eingaben (`Inputs`) vor der Journey abfragen (bisher Standardwerte) und Aktionen (`!name`)
    als Knöpfe; Formelfehler sichtbar machen.
 4. **Startbildschirm vollständig:** Plugin-Kacheln (`ui.tile`), Befehlspalette (Strg/⌘+K), Einstellungen (neue Loci

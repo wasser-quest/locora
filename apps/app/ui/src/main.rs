@@ -1,5 +1,6 @@
 //! Locora app UI: start screen, palace with rooms and markers, journeys.
 
+mod editor;
 mod journey;
 mod sply;
 mod tauri;
@@ -7,18 +8,18 @@ mod tauri;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_HOME, CMD_PALACE, CMD_TUTORIAL, Home, JourneyStart, LocusView, Media, PalaceCard,
-    PalaceView,
+    CMD_HOME, CMD_PALACE, CMD_TUTORIAL, Home, JourneyStart, Media, PalaceCard, PalaceView,
 };
 use serde::Serialize;
 
-use crate::sply::{Shown, Sply};
+use crate::sply::Shown;
 use crate::tauri::call;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Screen {
     Home,
     Palace(String),
+    Imported(PalaceView),
     Journey(JourneyStart),
 }
 
@@ -34,6 +35,7 @@ fn App() -> impl IntoView {
         <main>
             {move || match screen.get() {
                 Screen::Home => view! { <HomeView screen=screen/> }.into_any(),
+                Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
                 Screen::Palace(id) => view! { <PalaceScreen id=id screen=screen/> }.into_any(),
                 Screen::Journey(start) => {
                     view! { <journey::JourneyView start=start screen=screen/> }.into_any()
@@ -66,7 +68,28 @@ fn loci_text(n: u32) -> String {
 fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
     let home = load(call::<Home>(CMD_HOME, tauri::NoArgs {}));
     let busy = RwSignal::new(false);
+    let message = RwSignal::new(String::new());
+    let pick_media = move |_| {
+        if busy.get_untracked() {
+            return;
+        }
+        busy.set(true);
+        message.set(String::new());
+        spawn_local(async move {
+            match call::<Option<PalaceView>>(locora_app_api::CMD_HOME_PICK_MEDIA, tauri::NoArgs {})
+                .await
+            {
+                Ok(Some(palace)) => screen.set(Screen::Imported(palace)),
+                Ok(None) => {}
+                Err(error) => message.set(error),
+            }
+            busy.set(false);
+        });
+    };
     let start_tutorial = move |_| {
+        if busy.get_untracked() {
+            return;
+        }
         busy.set(true);
         spawn_local(async move {
             match call::<String>(CMD_TUTORIAL, tauri::NoArgs {}).await {
@@ -81,7 +104,9 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
     view! {
         <header class="bar">
             <h1>"Locora"</h1>
+            <button disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
         </header>
+        <p class="notes" role="status">{move || message.get()}</p>
         {move || match home.get() {
             None => view! { <p class="loading">"Lädt …"</p> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
@@ -104,8 +129,9 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
                         </div>
                         <button
                             class="primary"
-                            disabled=waiting == 0
+                            disabled=move || waiting == 0 || busy.get()
                             on:click=move |_| {
+                                if busy.get_untracked() { return; }
                                 screen
                                     .set(
                                         Screen::Journey(JourneyStart {
@@ -137,7 +163,7 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
                     {if home.palaces.is_empty() {
                         view! {
                             <p class="empty">
-                                "Noch keine Paläste. Leg einen mit der CLI an: "
+                                "Noch keine Paläste. Wähle oben ein Bild oder Video, oder nutze die CLI: "
                                 <code>"locora new Planeten -- Merkur Venus Erde"</code>
                             </p>
                         }
@@ -148,7 +174,7 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
                                 {home
                                     .palaces
                                     .into_iter()
-                                    .map(|p| view! { <PalaceTile palace=p screen=screen/> })
+                                    .map(|p| view! { <PalaceTile palace=p screen=screen busy=busy/> })
                                     .collect_view()}
                             </section>
                         }
@@ -167,7 +193,7 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
 }
 
 #[component]
-fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>) -> impl IntoView {
+fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>) -> impl IntoView {
     let id = palace.id.clone();
     let play_id = palace.id.clone();
     let status = match (palace.due, palace.fresh) {
@@ -177,15 +203,18 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>) -> impl IntoView {
         (due, fresh) => format!("{due} fällig · {fresh} neu"),
     };
     view! {
-        <article class="card palace" on:click=move |_| screen.set(Screen::Palace(id.clone()))>
+        <article class="card palace" aria-disabled=move || busy.get()
+            on:click=move |_| { if !busy.get_untracked() { screen.set(Screen::Palace(id.clone())); } }>
             <span class="name">{palace.name.clone()}</span>
             <div class="row">
                 <span class="meta">{format!("{} · {}", loci_text(palace.loci), status)}</span>
                 <button
                     class="primary play"
                     title="Route ablaufen"
+                    disabled=move || busy.get()
                     on:click=move |ev| {
                         ev.stop_propagation();
+                        if busy.get_untracked() { return; }
                         screen
                             .set(
                                 Screen::Journey(JourneyStart {
@@ -202,6 +231,20 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>) -> impl IntoView {
     }
 }
 
+/// The import response is already a complete snapshot: open directly in edit mode.
+#[component]
+fn ImportedPalace(palace: PalaceView, screen: RwSignal<Screen>) -> impl IntoView {
+    let blocked = RwSignal::new(false);
+    view! {
+        <header class="bar">
+            <button class="back" disabled=move || blocked.get()
+                on:click=move |_| screen.set(Screen::Home)>"←"</button>
+            <h1>{palace.name.clone()}</h1>
+        </header>
+        <editor::Rooms palace=palace blocked=blocked initial_editing=true />
+    }
+}
+
 #[derive(Serialize)]
 struct IdArgs {
     id: String,
@@ -210,6 +253,7 @@ struct IdArgs {
 #[component]
 fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     let palace = load(call::<PalaceView>(CMD_PALACE, IdArgs { id: id.clone() }));
+    let blocked = RwSignal::new(false);
     let reverse = RwSignal::new(false);
     let numbers = RwSignal::new(false);
     let shuffle = RwSignal::new(false);
@@ -225,14 +269,14 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     };
     view! {
         <header class="bar">
-            <button class="back" title="Zurück" on:click=move |_| screen.set(Screen::Home)>
+            <button class="back" title="Zurück" disabled=move || blocked.get() on:click=move |_| screen.set(Screen::Home)>
                 "←"
             </button>
             <h1>
                 {move || palace.get().and_then(|p| p.ok()).map(|p| p.name).unwrap_or_default()}
             </h1>
-            <button on:click=move |_| start(true)>"Fällige"</button>
-            <button class="primary" on:click=move |_| start(false)>
+            <button disabled=move || blocked.get() on:click=move |_| start(true)>"Fällige"</button>
+            <button class="primary" disabled=move || blocked.get() on:click=move |_| start(false)>
                 "▶ Route ablaufen"
             </button>
         </header>
@@ -253,106 +297,22 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
         {move || match palace.get() {
             None => view! { <p class="loading">"Lädt …"</p> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
-            Some(Ok(p)) => view! { <Rooms palace=p /> }.into_any(),
+            Some(Ok(p)) => view! { <editor::Rooms palace=p blocked=blocked /> }.into_any(),
         }}
     }
 }
 
-/// Rooms as tabs; the room shows its backdrop with a marker at every locus.
-/// Clicking a marker shows the place; revealing shows item, picture and note.
+/// A revealed picture, sized relative to the stage rather than the marker.
 #[component]
-fn Rooms(palace: PalaceView) -> impl IntoView {
-    let room = RwSignal::new(0usize);
-    let selected = RwSignal::new(None::<LocusView>);
-    let revealed = RwSignal::new(false);
-    let rooms = StoredValue::new(palace.rooms.clone());
-    let marker = StoredValue::new(palace.marker.clone());
+pub fn LocusPicture(media: Media, x: f64, y: f64, size: f64) -> impl IntoView {
     view! {
-        <div class="tabs" style:margin-top="1rem">
-            {palace
-                .rooms
-                .iter()
-                .enumerate()
-                .map(|(i, r)| {
-                    view! {
-                        <button
-                            class:on=move || room.get() == i
-                            on:click=move |_| {
-                                room.set(i);
-                                selected.set(None);
-                            }
-                        >
-                            {r.name.clone()}
-                        </button>
-                    }
-                })
-                .collect_view()}
+        <div class="locus-picture"
+            style:left=format!("{}%", x * 100.0)
+            style:top=format!("{}%", y * 100.0)
+            style:width=format!("{}%", size * 100.0)
+        >
+            <Shown media=media />
         </div>
-        {move || {
-            let Some(current) = rooms.with_value(|r| r.get(room.get()).cloned()) else {
-                return view! { <p class="empty">"Dieser Palast hat noch keine Räume."</p> }
-                    .into_any();
-            };
-            view! {
-                <div class="stage">
-                    {current.backdrop.clone().map(|m| view! { <Shown media=m class="backdrop" /> })}
-                    {current
-                        .loci
-                        .into_iter()
-                        .map(|locus| {
-                            let state = locus.status.event();
-                            let pick = locus.clone();
-                            view! {
-                                <div
-                                    class="marker"
-                                    style:left=format!("{}%", locus.x * 100.0)
-                                    style:top=format!("{}%", locus.y * 100.0)
-                                >
-                                    <Sply media=marker.get_value() state=Signal::stored(state) />
-                                    <button
-                                        title=format!("Ort {}: {}", locus.number, locus.place)
-                                        on:click=move |_| {
-                                            selected.set(Some(pick.clone()));
-                                            revealed.set(false);
-                                        }
-                                    ></button>
-                                    <span class="num">{locus.number}</span>
-                                </div>
-                            }
-                        })
-                        .collect_view()}
-                </div>
-            }
-                .into_any()
-        }}
-        {move || {
-            selected
-                .get()
-                .map(|locus| {
-                    let answer = StoredValue::new(locus.clone());
-                    view! {
-                        <section class="card panel">
-                            <div class="progress">{format!("Ort {}", locus.number)}</div>
-                            <div class="prompt">{locus.place.clone()}</div>
-                            <Show
-                                when=move || revealed.get()
-                                fallback=move || {
-                                    view! {
-                                        <button class="primary" on:click=move |_| revealed.set(true)>
-                                            "Aufdecken"
-                                        </button>
-                                    }
-                                }
-                            >
-                                {move || {
-                                    let l = answer.get_value();
-                                    view! { <Answer solution=l.item note=l.note picture=l.picture /> }
-                                }}
-                            </Show>
-                        </section>
-                    }
-                })
-        }}
     }
 }
 

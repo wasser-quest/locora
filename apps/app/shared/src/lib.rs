@@ -4,7 +4,20 @@
 
 use serde::{Deserialize, Serialize};
 
+pub use locora_api::journey::{Answer as EditorAnswer, AnswerKind as EditorAnswerKind, QuizOption};
+
+pub const CMD_EDITOR_CHANGE: &str = "editor_change";
+pub const CMD_EDITOR_PICK_PICTURE: &str = "editor_pick_picture";
+
+/// Exact scope only; file paths never come from the WebView.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PictureTarget {
+    pub palace_id: String,
+    pub room_id: String,
+    pub locus_id: String,
+}
 pub const CMD_HOME: &str = "home";
+pub const CMD_HOME_PICK_MEDIA: &str = "home_pick_media";
 pub const CMD_PALACE: &str = "palace";
 pub const CMD_TUTORIAL: &str = "tutorial";
 pub const CMD_JOURNEY_START: &str = "journey_start";
@@ -81,6 +94,7 @@ pub struct PalaceView {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoomView {
+    pub video: bool,
     pub id: String,
     pub name: String,
     pub backdrop: Option<Media>,
@@ -89,6 +103,12 @@ pub struct RoomView {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocusView {
+    pub answer: EditorAnswer,
+    /// Keep the raw reference even if media cannot currently be displayed.
+    pub image: Option<String>,
+    pub bound: bool,
+    /// Picture width as a fraction of the room width.
+    pub image_size: f64,
     pub id: String,
     /// Route number across the palace, from 1.
     pub number: u32,
@@ -101,6 +121,78 @@ pub struct LocusView {
     /// Belongs to the answer: shown only once the locus is revealed.
     pub picture: Option<Media>,
     pub note: String,
+}
+
+/// Full content replacement; geometry is deliberately patched separately.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocusContent {
+    pub place: String,
+    pub item: String,
+    pub note: String,
+    pub image: Option<String>,
+    pub image_size: f64,
+    pub answer: EditorAnswer,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EditorChange {
+    pub palace_id: String,
+    pub room_id: String,
+    pub action: EditorAction,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum EditorAction {
+    Create { x: f64, y: f64 },
+    Paste { items: Vec<String> },
+    Save { id: String, content: LocusContent },
+    Move { id: String, x: f64, y: f64 },
+    Resize { id: String, image_size: f64 },
+    Delete { id: String },
+}
+
+pub const MAX_PASTE_ITEMS: usize = 100;
+pub const MAX_PASTE_ITEM_BYTES: usize = 500;
+pub const MAX_PASTE_BYTES: usize = 64 * 1024;
+
+/// Validate again at the IPC boundary; the UI is not trusted.
+pub fn validate_paste_items(items: &[String]) -> Result<(), &'static str> {
+    if items.is_empty() || items.len() > MAX_PASTE_ITEMS {
+        return Err("Bitte 1 bis 100 Begriffe einfügen");
+    }
+    if items.iter().any(|item| {
+        item.trim().is_empty() || item.len() > MAX_PASTE_ITEM_BYTES || item.contains(['\n', '\r'])
+    }) {
+        return Err("Jeder Begriff braucht eine nichtleere Zeile mit höchstens 500 Bytes");
+    }
+    Ok(())
+}
+
+/// Serpentine route, inset from the edges. Call with index < count, count > 0.
+pub fn paste_route_position(index: usize, count: usize) -> (f64, f64) {
+    let columns = (count as f64).sqrt().ceil() as usize;
+    let rows = count.div_ceil(columns);
+    let row = index / columns;
+    let column = if row.is_multiple_of(2) {
+        index % columns
+    } else {
+        columns - 1 - index % columns
+    };
+    let axis = |n: usize, total: usize| {
+        if total == 1 {
+            0.5
+        } else {
+            0.1 + 0.8 * n as f64 / (total - 1) as f64
+        }
+    };
+    (axis(column, columns), axis(row, rows))
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EditorUpdated {
+    pub palace: PalaceView,
+    pub selected: Option<String>,
 }
 
 /// Marker states; the names are the marker's state machine events.
@@ -176,6 +268,8 @@ pub enum Reply {
 /// The answer side of a question: shown on reveal and after answering.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Revealed {
+    /// Picture width as a fraction of the room width.
+    pub image_size: f64,
     pub solution: String,
     pub note: String,
     /// The locus picture; part of the answer (assets/STIL.md 8a).

@@ -67,6 +67,8 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE palaces ADD COLUMN marker TEXT REFERENCES media(hash);",
     // 7: a memory aid per locus (the vivid image in words)
     "ALTER TABLE loci ADD COLUMN note TEXT NOT NULL DEFAULT '';",
+    // 8: picture width as a fraction of the room width
+    "ALTER TABLE loci ADD COLUMN image_size REAL NOT NULL DEFAULT 0.25 CHECK(image_size >= 0.05 AND image_size <= 1.0);",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -132,6 +134,11 @@ mod tests {
             .query_row("SELECT image FROM loci", [], |r| r.get(0))
             .unwrap();
         assert_eq!(image, None, "existing loci have no picture");
+        let size: f64 = conn
+            .query_row("SELECT image_size FROM loci", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(size, 0.25, "existing loci use the default picture width");
+        assert!(conn.execute("UPDATE loci SET image_size = 0", []).is_err());
         let note: String = conn
             .query_row("SELECT note FROM loci", [], |r| r.get(0))
             .unwrap();

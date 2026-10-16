@@ -1,6 +1,7 @@
 //! Locora app backend: opens the same profile as the CLI, answers the UI's
 //! commands and serves media and `.sply` animations over `locora://`.
 
+mod editor;
 mod journey;
 mod sply;
 mod views;
@@ -51,6 +52,94 @@ async fn palace(state: State<'_, Shared>, id: String) -> Result<PalaceView, Stri
     let mut b = lock(&state)?;
     let marker = b.default_marker.clone();
     views::palace(&mut b.profile, &id, &marker).map_err(err)
+}
+
+#[tauri::command]
+async fn editor_change(
+    state: State<'_, Shared>,
+    change: locora_app_api::EditorChange,
+) -> Result<locora_app_api::EditorUpdated, String> {
+    let mut b = lock(&state)?;
+    // Do all fallible plugin reads before the write. A successful write must not
+    // look like a failed command just because a subsequent schedule read failed.
+    let cards = b.profile.schedule(Some(&change.palace_id)).map_err(err)?;
+    let (tree, selected) = editor::apply(&b.profile.store, &change).map_err(err)?;
+    let palace = views::palace_view(&b.profile.store, &tree, &cards, &b.default_marker);
+    Ok(locora_app_api::EditorUpdated { palace, selected })
+}
+
+/// The WebView supplies only scope; the native picker is the sole path authority.
+#[tauri::command]
+async fn editor_pick_picture(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+    target: locora_app_api::PictureTarget,
+) -> Result<Option<locora_app_api::EditorUpdated>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    {
+        let b = lock(&state)?;
+        editor::picture_target(&b.profile.store, &target).map_err(err)?;
+    }
+    // Blocking native dialog off the main thread, without holding the profile lock.
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Bild am Ort wählen")
+            .add_filter(
+                "Bilder und Animationen",
+                &["png", "jpg", "jpeg", "webp", "gif", "avif", "sply"],
+            )
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let path = selected
+        .into_path()
+        .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())?;
+    let mut b = lock(&state)?;
+    let cards = b.profile.schedule(Some(&target.palace_id)).map_err(err)?;
+    let (tree, selected) = editor::import_picture(&b.profile.store, &target, &path).map_err(err)?;
+    let palace = views::palace_view(&b.profile.store, &tree, &cards, &b.default_marker);
+    Ok(Some(locora_app_api::EditorUpdated { palace, selected }))
+}
+
+/// Only the native dialog can authorize a local path; the WebView sends no path.
+#[tauri::command]
+async fn home_pick_media(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+) -> Result<Option<PalaceView>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Neuen Palast aus Bild oder Video anlegen")
+            .add_filter(
+                "Bilder, Animationen und Videos",
+                &[
+                    "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "webm",
+                    "mov",
+                ],
+            )
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| format!("Dateiauswahl fehlgeschlagen: {e}"))?;
+    let path = selected
+        .map(|s| {
+            s.into_path()
+                .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())
+        })
+        .transpose()?;
+    let b = lock(&state)?;
+    let tree = editor::import_palace(&b.profile.store, path.as_deref()).map_err(err)?;
+    // New rooms contain no loci: no fallible plugin call after committing.
+    Ok(tree.map(|tree| {
+        views::palace_view(&b.profile.store, &tree, &HashMap::new(), &b.default_marker)
+    }))
 }
 
 /// Build (or rebuild) the tutorial palace; returns its id.
@@ -203,6 +292,7 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let backend = open(app).map_err(|e| format!("Profil öffnen: {e:#}"))?;
             app.manage::<Shared>(Mutex::new(backend));
@@ -218,6 +308,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             home,
             palace,
+            editor_change,
+            editor_pick_picture,
+            home_pick_media,
             tutorial,
             journey_start,
             journey_reveal,

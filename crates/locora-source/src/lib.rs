@@ -82,9 +82,12 @@ pub struct RoomSource {
     pub loci: Vec<LocusSource>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LocusSource {
+    /// Picture width as a fraction of the room width (0.05..=1.0).
+    #[serde(default = "locora_store::default_image_size")]
+    pub image_size: f64,
     /// The place in the room (default „Ort N“).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place: Option<String>,
@@ -106,6 +109,22 @@ pub struct LocusSource {
     /// Formulas per field: place, item, x, y, visible, active.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub bindings: BTreeMap<String, String>,
+}
+
+impl Default for LocusSource {
+    fn default() -> Self {
+        Self {
+            image_size: locora_store::default_image_size(),
+            place: None,
+            item: String::new(),
+            at: None,
+            time: None,
+            answer: None,
+            image: None,
+            note: None,
+            bindings: BTreeMap::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -573,6 +592,8 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                 })?;
                 bindings.push(binding);
             }
+            locora_store::check_image_size(locus.image_size)
+                .map_err(|e| invalid(format!("{where_}: {e}")))?;
             let picture = match &locus.image {
                 Some(file) => Some(check_picture(base, file, &where_)?),
                 None => None,
@@ -590,6 +611,7 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                     time,
                     answer,
                     image: None,
+                    image_size: locus.image_size,
                     note: locus.note.clone().unwrap_or_default(),
                 },
                 bindings,
@@ -752,6 +774,7 @@ pub fn to_source(tree: &PalaceTree, media_names: &HashMap<String, String>) -> So
                             time: l.time.map(clock),
                             answer: AnswerSource::from_answer(&l.answer),
                             image: l.image.as_ref().map(|h| media_names[h].clone()),
+                            image_size: l.image_size,
                             note: (!l.note.is_empty()).then(|| l.note.clone()),
                             bindings: l
                                 .bindings
