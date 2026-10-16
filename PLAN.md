@@ -739,8 +739,10 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Video-Loci mit Zeit, einzelne ungebundene Felder an Workbook-Orten bearbeiten,
    Undo/Redo und dauerhaft wiederherstellbare ungültige Entwürfe. Browser-/WebView-Gesten, Fokus bei
    Autosave und Klick-Budgets manuell/E2E prüfen (`docs/app-editor-testplan.md`).
-3. **Workbook in der App:** Eingaben (`Inputs`) vor der Journey abfragen (bisher Standardwerte) und Aktionen (`!name`)
-   als Knöpfe; Formelfehler sichtbar machen.
+3. **Workbook in der App — umgesetzt:** Eingaben (`Inputs`) werden vor der Journey abgefragt (vorbelegt mit dem
+   Standardwert, gesetzt vor der Planung, damit `active`-Formeln sie sehen); Aktionen (`Actions`) erscheinen als Knöpfe
+   unter der Frage, `reveal`-Aktionen decken auf (Guess/Quiz zählen dann als aufgegeben). Formelfehler erscheinen als
+   Text im Feld. Noch offen: Eingaben passend zum Typ (Zahl-/Ja-Nein-Feld) und Aktionen nach dem Bewerten.
 4. **Startbildschirm vollständig:** Plugin-Kacheln (`ui.tile`), Befehlspalette (Strg/⌘+K), Einstellungen (neue Loci
    pro Tag, Behaltensrate), Statistik, Import/Export (`.locora`, `locora.toml`).
 5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): Kachel-Icons, Raum-Arten, leere Zustände (Simo mit Laterne),

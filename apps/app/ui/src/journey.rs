@@ -6,7 +6,8 @@ use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    AnswerKind, CMD_JOURNEY_ANSWER, CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, JourneyStart,
+    ActionDone, AnswerKind, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS,
+    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, InputField, InputValue, JourneyStart,
     Question, Reply, Revealed, Step, Summary,
 };
 use serde::Serialize;
@@ -23,6 +24,12 @@ struct StartArgs {
 #[derive(Serialize)]
 struct ReplyArgs {
     reply: Reply,
+}
+
+#[derive(Serialize)]
+struct ActionArgs {
+    key: String,
+    revealed: bool,
 }
 
 /// Where the current question stands.
@@ -54,10 +61,31 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let error = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
 
+    // Workbook inputs are asked first; without any, the journey starts at once.
+    let fields = RwSignal::new(None::<Vec<InputField>>);
+    let start = StoredValue::new(start);
+    let begin = move |inputs: Vec<InputValue>| {
+        let start = JourneyStart {
+            inputs,
+            ..start.get_value()
+        };
+        fields.set(None);
+        error.set(None);
+        spawn_local(async move {
+            match call::<Step>(CMD_JOURNEY_START, StartArgs { start }).await {
+                Ok(Step::Question(q)) => question.set(Some(q)),
+                Ok(Step::Done(s)) => summary.set(Some(s)),
+                Err(e) => error.set(Some(e)),
+            }
+        });
+    };
     spawn_local(async move {
-        match call::<Step>(CMD_JOURNEY_START, StartArgs { start }).await {
-            Ok(Step::Question(q)) => question.set(Some(q)),
-            Ok(Step::Done(s)) => summary.set(Some(s)),
+        let args = StartArgs {
+            start: start.get_value(),
+        };
+        match call::<Vec<InputField>>(CMD_JOURNEY_INPUTS, args).await {
+            Ok(list) if list.is_empty() => begin(Vec::new()),
+            Ok(list) => fields.set(Some(list)),
             Err(e) => error.set(Some(e)),
         }
     });
@@ -86,6 +114,34 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 Err(e) => error.set(Some(e)),
             }
             busy.set(false);
+        });
+    };
+    // A workbook action on the current question; „reveal“ actions show the answer.
+    let act = move |key: String| {
+        if busy.get_untracked() {
+            return;
+        }
+        let revealed = matches!(phase.get_untracked(), Phase::Revealed(_));
+        busy.set(true);
+        spawn_local(async move {
+            match call::<ActionDone>(CMD_JOURNEY_ACTION, ActionArgs { key, revealed }).await {
+                Ok(done) => {
+                    let kind = done.question.kind;
+                    question.set(Some(done.question));
+                    busy.set(false);
+                    match (done.revealed, done.reveal || revealed) {
+                        (Some(r), true) if kind == AnswerKind::Recall => {
+                            phase.set(Phase::Revealed(r))
+                        }
+                        (_, true) => reply(Reply::Forfeit),
+                        _ => {}
+                    }
+                }
+                Err(e) => {
+                    error.set(Some(e));
+                    busy.set(false);
+                }
+            }
         });
     };
     let next = move || {
@@ -157,6 +213,9 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             if let Some(s) = summary.get() {
                 return view! { <Done summary=s screen=screen /> }.into_any();
             }
+            if let Some(list) = fields.get() {
+                return view! { <Inputs fields=list begin=begin /> }.into_any();
+            }
             let Some(q) = question.get() else {
                 return view! { <p class="loading">"Lädt …"</p> }.into_any();
             };
@@ -173,6 +232,33 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                                 <div class="picture">
                                     <Shown media=m />
                                 </div>
+                            }
+                        })}
+                    {(!q.actions.is_empty())
+                        .then(|| {
+                            let actions = q.actions.clone();
+                            view! {
+                                <Show when=move || {
+                                    !matches!(phase.get(), Phase::Judged(_))
+                                }>
+                                    <div class="actions">
+                                        {actions
+                                            .iter()
+                                            .cloned()
+                                            .map(|key| {
+                                                let label = key.clone();
+                                                view! {
+                                                    <button
+                                                        disabled=move || busy.get()
+                                                        on:click=move |_| act(key.clone())
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                }
+                                            })
+                                            .collect_view()}
+                                    </div>
+                                </Show>
                             }
                         })}
                     {move || match phase.get() {
@@ -423,5 +509,65 @@ mod tests {
             ..answer
         });
         assert!(reverse.stage_answer().unwrap().picture.is_none());
+    }
+}
+
+/// The palace's workbook inputs, prefilled with their defaults.
+#[component]
+fn Inputs(
+    fields: Vec<InputField>,
+    begin: impl Fn(Vec<InputValue>) + Copy + Send + Sync + 'static,
+) -> impl IntoView {
+    let values: Vec<RwSignal<String>> = fields
+        .iter()
+        .map(|f| RwSignal::new(f.default.clone()))
+        .collect();
+    let several = fields.iter().any(|f| f.palace_id != fields[0].palace_id);
+    let collected = StoredValue::new(
+        fields
+            .iter()
+            .cloned()
+            .zip(values.clone())
+            .collect::<Vec<_>>(),
+    );
+    let submit = move || {
+        begin(collected.with_value(|list| {
+            list.iter()
+                .map(|(f, v)| InputValue {
+                    palace_id: f.palace_id.clone(),
+                    key: f.key.clone(),
+                    value: v.get_untracked(),
+                })
+                .collect()
+        }))
+    };
+    view! {
+        <form
+            class="card panel"
+            on:submit=move |e| {
+                e.prevent_default();
+                submit();
+            }
+        >
+            <div class="prompt">"Eingaben für diese Journey"</div>
+            {fields
+                .into_iter()
+                .zip(values)
+                .map(|(f, value)| {
+                    let label = if several {
+                        format!("{} · {}", f.palace, f.key)
+                    } else {
+                        f.key.clone()
+                    };
+                    view! {
+                        <label class="input">
+                            <span>{label}<small>{format!(" ({})", f.kind)}</small></span>
+                            <input type="text" bind:value=value />
+                        </label>
+                    }
+                })
+                .collect_view()}
+            <button class="primary" type="submit">"Los ▶"</button>
+        </form>
     }
 }

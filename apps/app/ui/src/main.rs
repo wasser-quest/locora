@@ -265,6 +265,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
             reverse: reverse.get_untracked(),
             numbers: numbers.get_untracked(),
             shuffle: shuffle.get_untracked(),
+            inputs: Vec::new(),
         }))
     };
     view! {

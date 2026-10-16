@@ -23,6 +23,8 @@ pub const CMD_TUTORIAL: &str = "tutorial";
 pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
+pub const CMD_JOURNEY_INPUTS: &str = "journey_inputs";
+pub const CMD_JOURNEY_ACTION: &str = "journey_action";
 
 /// Custom URI scheme for media: `<scheme>://localhost/<kind>/<sha256>`
 /// (`http://<scheme>.localhost/…` on Windows and Android; the UI asks Tauri's
@@ -222,6 +224,39 @@ pub struct JourneyStart {
     pub reverse: bool,
     pub numbers: bool,
     pub shuffle: bool,
+    /// Values for workbook inputs (`Inputs` table), asked before the start.
+    #[serde(default)]
+    pub inputs: Vec<InputValue>,
+}
+
+/// A workbook input a journey asks for before it starts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InputField {
+    pub palace_id: String,
+    pub palace: String,
+    pub key: String,
+    /// `text`, `number`, `boolean`, …
+    pub kind: String,
+    /// The default as text.
+    pub default: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InputValue {
+    pub palace_id: String,
+    pub key: String,
+    pub value: String,
+}
+
+/// After running a workbook action (`!name`) on the current question.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActionDone {
+    /// The action asks to show the answer.
+    pub reveal: bool,
+    /// The question again, with fields recomputed.
+    pub question: Question,
+    /// The answer side, when it is (or becomes) visible.
+    pub revealed: Option<Revealed>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -250,6 +285,9 @@ pub struct Question {
     pub options: Vec<String>,
     /// Reverse journeys ask with the picture, which then is the question.
     pub picture: Option<Media>,
+    /// Workbook actions of this palace, run with `journey_action`.
+    #[serde(default)]
+    pub actions: Vec<String>,
 }
 
 /// What the learner did.
@@ -289,6 +327,8 @@ pub struct Feedback {
 /// What follows an answer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
+// Sent once per question as JSON; boxing would only complicate the UI code.
+#[allow(clippy::large_enum_variant)]
 pub enum Step {
     Question(Question),
     Done(Summary),

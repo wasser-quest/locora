@@ -8,9 +8,10 @@ use anyhow::{Context, Result, bail};
 use locora_api::core::{Grade, JourneyCompleted};
 use locora_api::journey::{Answer, AnswerKind as Kind, Submission};
 use locora_app_api::{
-    AnswerKind, Feedback, JourneyStart, Media, Question, Reply, Revealed, Step, Summary,
+    ActionDone, AnswerKind, Feedback, InputField, JourneyStart, Media, Question, Reply, Revealed,
+    Step, Summary,
 };
-use locora_formula::workbook::Run;
+use locora_formula::workbook::{ActionOutcome, Run};
 use locora_runtime::journey::{PlanOptions, Stop, plan, resolve_text};
 use locora_runtime::{AnswerRequest, Profile, now};
 use locora_store::{Locus, PalaceTree};
@@ -34,6 +35,46 @@ pub struct Journey {
     notes: Vec<String>,
 }
 
+/// The palaces of a journey and one workbook run per palace.
+fn load(profile: &Profile, options: &JourneyStart) -> Result<(Vec<PalaceTree>, Vec<Run>)> {
+    let trees: Vec<PalaceTree> = match &options.palace_id {
+        Some(id) => vec![profile.store.palace(id)?],
+        None => profile
+            .store
+            .palaces()?
+            .into_iter()
+            .map(|p| profile.store.palace(&p.id))
+            .collect::<Result<_, _>>()?,
+    };
+    let runs = trees
+        .iter()
+        .map(|t| {
+            Run::new(profile.store.effective_rows(&t.palace.id)?)
+                .with_context(|| format!("Tabellen von „{}“", t.palace.name))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok((trees, runs))
+}
+
+/// Workbook inputs the journey asks for before it starts.
+pub fn inputs(profile: &Profile, options: &JourneyStart) -> Result<Vec<InputField>> {
+    let (trees, runs) = load(profile, options)?;
+    let mut fields = Vec::new();
+    for (tree, run) in trees.iter().zip(&runs) {
+        let specs = run
+            .inputs()
+            .with_context(|| format!("Eingaben von „{}“", tree.palace.name))?;
+        fields.extend(specs.into_iter().map(|spec| InputField {
+            palace_id: tree.palace.id.clone(),
+            palace: tree.palace.name.clone(),
+            key: spec.key,
+            kind: format!("{:?}", spec.kind).to_lowercase(),
+            default: spec.default.to_string(),
+        }));
+    }
+    Ok(fields)
+}
+
 impl Journey {
     /// Plan a journey; `None` when there is nothing to ask.
     pub fn start(profile: &mut Profile, options: JourneyStart) -> Result<Option<Self>> {
@@ -43,23 +84,17 @@ impl Journey {
         {
             bail!("Das Core-Plugin fehlt – ohne es kann Locora keine Antworten prüfen.");
         }
-        let trees: Vec<PalaceTree> = match &options.palace_id {
-            Some(id) => vec![profile.store.palace(id)?],
-            None => profile
-                .store
-                .palaces()?
-                .into_iter()
-                .map(|p| profile.store.palace(&p.id))
-                .collect::<Result<_, _>>()?,
-        };
-        // Workbook inputs keep their defaults in the app for now.
-        let runs = trees
-            .iter()
-            .map(|t| {
-                Run::new(profile.store.effective_rows(&t.palace.id)?)
-                    .with_context(|| format!("Tabellen von „{}“", t.palace.name))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let (trees, mut runs) = load(profile, &options)?;
+        // Inputs come first: `active` formulas may depend on them.
+        for input in &options.inputs {
+            let index = trees
+                .iter()
+                .position(|t| t.palace.id == input.palace_id)
+                .context("Eingabe für einen Palast außerhalb dieser Journey")?;
+            runs[index]
+                .set_input(&input.key, &input.value)
+                .with_context(|| format!("Eingabe {}", input.key))?;
+        }
         let cards = profile.schedule(options.palace_id.as_deref())?;
         let new = if options.due_only {
             profile.new_budget()?
@@ -191,7 +226,29 @@ impl Journey {
             } else {
                 None
             },
+            actions: self.run().actions(),
         }
+    }
+
+    /// Run a workbook action on the current question. `revealed` says
+    /// whether the answer is already visible (`View.reveal` for formulas).
+    pub fn action(
+        &mut self,
+        profile: &Profile,
+        key: &str,
+        revealed: bool,
+        default_marker: &str,
+    ) -> Result<ActionDone> {
+        let palace = self.stop().palace;
+        let outcome = self.runs[palace]
+            .execute(key, revealed)
+            .map_err(|e| anyhow::anyhow!("Aktion fehlgeschlagen: {e}"))?;
+        let reveal = matches!(outcome, ActionOutcome::Reveal);
+        Ok(ActionDone {
+            reveal,
+            question: self.question(profile, default_marker),
+            revealed: (reveal || revealed).then(|| self.reveal(profile)),
+        })
     }
 
     /// The answer side of the current question.
@@ -424,5 +481,85 @@ mod tests {
             view.rooms[0].loci[0].picture.as_ref().unwrap().hash,
             image.hash
         );
+    }
+
+    #[test]
+    fn inputs_are_asked_and_set_and_actions_reveal() {
+        use locora_formula::workbook::{Binding, BindingField};
+        use locora_formula::{Cell, CellType, Row};
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let p = profile.store.create_palace("P").unwrap();
+        let r = profile
+            .store
+            .add_room(&p.id, "R", RoomKind::Blank, None)
+            .unwrap();
+        let locus = profile
+            .store
+            .add_locus(
+                &r.id,
+                NewLocus {
+                    place: "Tor".into(),
+                    item: "?".into(),
+                    x: 0.5,
+                    y: 0.5,
+                    time: None,
+                    answer: Answer::default(),
+                    image: None,
+                    note: String::new(),
+                    image_size: 0.25,
+                },
+            )
+            .unwrap();
+        let binding = Binding {
+            field: BindingField::Item,
+            expression: "$n".into(),
+        };
+        profile.store.set_binding(&locus.id, &binding).unwrap();
+        let rows = [
+            Row::typed("Inputs", "n", CellType::Text, "3"),
+            Row {
+                table: "Actions".into(),
+                key: "zeigen".into(),
+                cells: vec![Cell {
+                    column: "kind".into(),
+                    kind: CellType::Text,
+                    value: "reveal".into(),
+                }],
+            },
+        ];
+        for row in &rows {
+            profile.store.set_row(Some(&p.id), row).unwrap();
+        }
+        let mut start = JourneyStart {
+            palace_id: Some(p.id.clone()),
+            ..Default::default()
+        };
+        let fields = inputs(&profile, &start).unwrap();
+        assert_eq!(fields.len(), 1);
+        assert_eq!(
+            (fields[0].key.as_str(), fields[0].default.as_str()),
+            ("n", "3")
+        );
+
+        start.inputs = vec![locora_app_api::InputValue {
+            palace_id: p.id.clone(),
+            key: "n".into(),
+            value: "7".into(),
+        }];
+        let mut journey = Journey::start(&mut profile, start.clone())
+            .unwrap()
+            .unwrap();
+        let q = journey.question(&profile, "marker");
+        assert_eq!(q.actions, ["zeigen"]);
+        assert_eq!(journey.reveal(&profile).solution, "7");
+
+        let done = journey.action(&profile, "zeigen", false, "marker").unwrap();
+        assert!(done.reveal);
+        assert_eq!(done.revealed.unwrap().solution, "7");
+        assert!(journey.action(&profile, "fehlt", false, "marker").is_err());
+
+        start.inputs[0].palace_id = "anderer".into();
+        assert!(Journey::start(&mut profile, start).is_err());
     }
 }
