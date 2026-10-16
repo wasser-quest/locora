@@ -169,6 +169,23 @@ class Scenario:
         self.x("key", "--clearmodifiers", "3")
         self.until(lambda: self.find("Weiter", "button", True))
         self.record("recall-keyboard-reveal-and-grade", clicks=0)
+        # Loci 2–6 are recall, 7 is the tutorial's quiz (multiple choice).
+        for _ in range(5):
+            self.x("key", "--clearmodifiers", "space")
+            self.until(lambda: self.find("Aufdecken", "button", True))
+            self.x("key", "--clearmodifiers", "space")
+            self.until(lambda: self.find("Gut", "button", True) or self.find("Leicht", "button", True))
+            self.x("key", "--clearmodifiers", "3")
+            self.until(lambda: self.find("Weiter", "button", True))
+        clicks = self.clicks
+        self.x("key", "--clearmodifiers", "space")
+        options = self.until(lambda: [n for n in walk(self.app) if n.get_role_name() == "check box" and n.get_name() != "Bearbeiten"] or None)
+        self.x("key", "--clearmodifiers", "1")
+        self.until(lambda: options[0].get_state_set().contains(Atspi.StateType.CHECKED))
+        self.x("key", "--clearmodifiers", "Return")
+        self.until(lambda: self.find("Weiter", "button", True))
+        assert self.clicks == clicks
+        self.record("quiz-keys-1-9-and-enter", clicks=0, options=len(options))
         self.click("←")
         # Open the tutorial card without triggering its separate journey button.
         self.click("Locora lernen", prefix=True)
