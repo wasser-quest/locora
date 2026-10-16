@@ -20,12 +20,7 @@ fn run(data: &Path, args: &[&str], input: &str) -> Output {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(input.as_bytes())
-        .unwrap();
+    feed(child.stdin.take().unwrap(), input.as_bytes());
     child.wait_with_output().unwrap()
 }
 
@@ -209,4 +204,11 @@ fn broken_or_empty_guess_expected_values_do_not_abort_or_schedule() {
     let out = ok(d, &["practice", "P"], "\n\nq\n");
     assert!(out.contains("2 von 3 geübt, 0 gewusst."));
     assert_eq!(cards(d).len(), 3);
+}
+
+/// Write test input; a process that exits before reading it is fine.
+fn feed(mut stdin: std::process::ChildStdin, input: &[u8]) {
+    if let Err(err) = stdin.write_all(input) {
+        assert_eq!(err.kind(), std::io::ErrorKind::BrokenPipe, "{err}");
+    }
 }

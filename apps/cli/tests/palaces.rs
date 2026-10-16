@@ -18,12 +18,7 @@ fn run(data: &Path, now: u64, args: &[&str], stdin: &str) -> Output {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(stdin.as_bytes())
-        .unwrap();
+    feed(child.stdin.take().unwrap(), stdin.as_bytes());
     child.wait_with_output().unwrap()
 }
 
@@ -192,4 +187,11 @@ fn export_and_import_between_profiles() {
     assert!(out.contains("als „Küche (2)“"), "{out}");
     let shown = ok(b.path(), T0, &["show", "Küche"], "");
     assert!(shown.contains("🖼") && shown.contains("Spüle"), "{shown}");
+}
+
+/// Write test input; a process that exits before reading it is fine.
+fn feed(mut stdin: std::process::ChildStdin, input: &[u8]) {
+    if let Err(err) = stdin.write_all(input) {
+        assert_eq!(err.kind(), std::io::ErrorKind::BrokenPipe, "{err}");
+    }
 }

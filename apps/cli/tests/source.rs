@@ -17,12 +17,7 @@ fn run(data: &Path, args: &[&str], stdin: &str) -> Output {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(stdin.as_bytes())
-        .unwrap();
+    feed(child.stdin.take().unwrap(), stdin.as_bytes());
     child.wait_with_output().unwrap()
 }
 
@@ -116,4 +111,11 @@ fn build_check_replace_and_dump() {
 
     let err = fail(&profile, &["build", d.join("fehlt.toml").to_str().unwrap()]);
     assert!(err.contains("fehlt.toml"), "{err}");
+}
+
+/// Write test input; a process that exits before reading it is fine.
+fn feed(mut stdin: std::process::ChildStdin, input: &[u8]) {
+    if let Err(err) = stdin.write_all(input) {
+        assert_eq!(err.kind(), std::io::ErrorKind::BrokenPipe, "{err}");
+    }
 }
