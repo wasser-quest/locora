@@ -34,7 +34,8 @@ Stand: 16.10.2026 (abends)
 - [ ] Start-Dateipicker im WebView manuell prüfen (Bild/Video, Abbruch, Fehler, Editor, Zurück, Neustart); lokale Dateien, keine mobilen Content-URIs
 - [x] Video-Loci im App-Editor über Sekundenangabe anlegen; validiert und persistent
 - [x] Videozeit aus Wiedergabe übernehmen: Knopf und Taste L auf der fokussierten Bühne, pausiert vor dem Anlegen
-- [ ] Video-Editor im WebView prüfen: Playhead, ungeladenes Video, Taste L/Fokus, wiederholte Eingabe und Persistenz
+- [x] Video-Ortsnavigation im Editor: chronologische Zeitknöpfe, pausieren/spulen/auswählen, aktive Auswahl
+- [ ] Video-Editor im WebView prüfen: Playhead, Ortsnavigation, ungeladenes Video, Taste L/Fokus, wiederholte Eingabe und Persistenz
 - [ ] Editor-Ausbau: Bild/Video hineinziehen, Undo/Redo und Entwurfswiederherstellung
 - [x] Tutorial in der App: Erststart mit Simo, „Tutorial starten“ legt den Palast an und öffnet ihn (Animationen über die Runtime)
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci

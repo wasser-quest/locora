@@ -125,6 +125,7 @@ pub fn palace_view(
                         bound: !l.bindings.is_empty(),
                         id: l.id.clone(),
                         number,
+                        time: l.time,
                         place: l.place.clone(),
                         item: l.item.clone(),
                         x: l.x,

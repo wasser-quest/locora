@@ -535,6 +535,22 @@ mod tests {
             );
         }
         let before = store.palace(&palace.id).unwrap();
+        let marker = store
+            .put_media(
+                locora_runtime::tutorial::DEFAULT_MARKER,
+                locora_store::SPLINELY,
+            )
+            .unwrap();
+        let view = crate::views::palace_view(&store, &before, &Default::default(), &marker.hash);
+        assert!(view.rooms[0].video);
+        assert_eq!(
+            view.rooms[0]
+                .loci
+                .iter()
+                .map(|l| l.time)
+                .collect::<Vec<_>>(),
+            vec![Some(0.0), Some(12.5)]
+        );
         for (room_id, time) in [
             (&room.id, -1.0),
             (&room.id, f64::NAN),

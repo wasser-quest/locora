@@ -772,7 +772,10 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    in Video-Räumen deaktiviert. **Wiedergabezeit übernehmen umgesetzt:** „Ort an aktueller Videozeit“
    pausiert das geladene Video und legt einen Ort am Playhead an. Taste L wirkt nur auf der
    fokussierten Bühne (keine Texteingaben, Videosteuerung oder Marker; kein Key-Repeat).
-   WebView-Smoke-Test und Zeitleiste bleiben offen.
+   **Erste Zeitleisten-Navigation umgesetzt:** chronologische, horizontal scrollbar angeordnete
+   Ortsknöpfe mit Sekundenangabe und Routennummer; Klick pausiert, springt zum Zeitpunkt und
+   wählt den Ort aus. Zeitwerte werden im gemeinsamen `LocusView` projiziert und getestet.
+   WebView-Smoke-Test, maßstäbliche Zeitleiste und Anhalten in der Journey bleiben offen.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
 9. **Später:** Ton beim Aufdecken über Audio im `.sply`.

@@ -237,6 +237,8 @@ pub struct LocusView {
     #[serde(default = "whole_room")]
     pub zoom: f64,
     pub id: String,
+    /// Video position in seconds; absent in non-video rooms.
+    pub time: Option<f64>,
     /// Route number across the palace, from 1.
     pub number: u32,
     pub place: String,

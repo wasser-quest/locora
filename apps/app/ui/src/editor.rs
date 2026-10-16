@@ -503,6 +503,17 @@ fn RoomStage(
     let paste_editor = editor.clone();
     let video = room.video;
     let player = NodeRef::<html::Video>::new();
+    let mut timeline: Vec<_> = room
+        .loci
+        .iter()
+        .filter_map(|l| {
+            l.time
+                .filter(|t| t.is_finite() && *t >= 0.0)
+                .map(|time| (time, l.id.clone(), l.number, l.place.clone()))
+        })
+        .collect();
+    timeline.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.cmp(&b.2)));
+    let timeline_editor = StoredValue::new(editor.clone());
     let timed_editor = editor.clone();
     let create_at_playhead = StoredValue::new_local(move || {
         if !editing.get_untracked()
@@ -542,6 +553,37 @@ fn RoomStage(
                 "Ort an aktueller Videozeit"
             </button>
         </Show>
+        {if video {
+            Some(view! {
+                <nav class="video-timeline" aria-label="Video-Orte nach Zeit">
+                    {timeline.into_iter().map(|(time, id, number, place)| {
+                        let selected_id = id.clone();
+                        view! {
+                            <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
+                                class:on=move || timeline_editor.with_value(|e| e.selected.get().as_ref() == Some(&selected_id))
+                                on:click=move |_| {
+                                    let editor = timeline_editor.get_value();
+                                    if busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) { return; }
+                                    let Some(player) = player.get() else { return; };
+                                    if player.ready_state() == 0 {
+                                        editor.message.set("Das Video ist noch nicht geladen".into());
+                                        return;
+                                    }
+                                    if player.pause().is_err() {
+                                        editor.message.set("Video konnte nicht angehalten werden".into());
+                                        return;
+                                    }
+                                    player.set_current_time(time);
+                                    revealed.set(false);
+                                    editor.selected.set(Some(id.clone()));
+                                }>
+                                {format!("{time:.2} s · {number}. {place}")}
+                            </button>
+                        }
+                    }).collect_view()}
+                </nav>
+            })
+        } else { None }}
         <div class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
             aria-label=if video { "Videoraum – Bühne fokussieren und L für einen Ort an der aktuellen Zeit drücken" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
             on:keydown=move |ev: web_sys::KeyboardEvent| {
