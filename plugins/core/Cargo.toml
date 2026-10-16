@@ -1,0 +1,12 @@
+[package]
+name = "core"
+description = "Core journey evaluation for Locora"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+locora-sdk = { path = "../../crates/locora-sdk" }

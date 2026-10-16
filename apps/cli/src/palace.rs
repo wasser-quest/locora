@@ -186,6 +186,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
                 x,
                 y,
                 time: item.time,
+                answer: Default::default(),
             },
         )?;
     }
@@ -249,6 +250,7 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
             x,
             y,
             time,
+            answer: Default::default(),
         },
     )?;
     println!(

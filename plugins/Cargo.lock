@@ -24,6 +24,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "core"
+version = "0.1.0"
+dependencies = [
+ "locora-sdk",
+]
+
+[[package]]
 name = "embedded-io"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -88,6 +95,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "install-probe"
+version = "0.1.0"
+dependencies = [
+ "locora-sdk",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -101,6 +115,13 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "lernzeit"
+version = "0.1.0"
+dependencies = [
+ "locora-sdk",
+]
+
+[[package]]
+name = "lifecycle"
 version = "0.1.0"
 dependencies = [
  "locora-sdk",
@@ -158,10 +179,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "malformed"
+version = "0.1.0"
+dependencies = [
+ "locora-sdk",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+
+[[package]]
+name = "palace-reader"
+version = "0.1.0"
+dependencies = [
+ "locora-sdk",
+]
+
+[[package]]
+name = "palace-writer"
+version = "0.1.0"
+dependencies = [
+ "locora-sdk",
+]
 
 [[package]]
 name = "postcard"

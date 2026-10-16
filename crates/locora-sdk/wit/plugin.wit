@@ -1,4 +1,4 @@
-package locora:plugin@0.2.0;
+package locora:plugin@0.4.0;
 
 /// Shared types between the Locora host and plugins.
 interface types {
@@ -30,6 +30,10 @@ interface host {
     publish: func(topic: string, payload: list<u8>);
     /// Answer calls to `service` via `on-call`.
     provide: func(service: string);
+    /// Register one filter per hook and plugin; lower priorities run first.
+    register-filter: func(hook: string, priority: s32) -> result<_, string>;
+    /// Call a reserved native host service, with permissions checked per request.
+    call-host: func(service: string, request: list<u8>) -> result<list<u8>, string>;
     /// Plugin-private key-value storage. Requires the `storage` permission.
     kv-get: func(key: string) -> result<option<list<u8>>, string>;
     kv-set: func(key: string, value: list<u8>) -> result<_, string>;
@@ -44,4 +48,5 @@ world plugin {
     export deactivate: func();
     export on-event: func(topic: string, payload: list<u8>) -> result<_, string>;
     export on-call: func(service: string, request: list<u8>) -> result<list<u8>, string>;
+    export on-filter: func(hook: string, value: list<u8>) -> result<list<u8>, string>;
 }

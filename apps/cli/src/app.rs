@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use locora_host::{HostEvent, KvStore, Level, PluginHost};
 use locora_store::Store;
 
-mod embedded {
+pub(crate) mod embedded {
     include!(concat!(env!("OUT_DIR"), "/embedded_plugins.rs"));
 }
 
@@ -45,6 +45,24 @@ pub fn data_dir(explicit: Option<&Path>) -> Result<PathBuf> {
         .join("locora"))
 }
 
+/// Installed components must live in a real directory beneath the chosen profile.
+/// The profile itself may be a user-selected symlink; its plugin directory may not.
+pub(crate) fn plugin_dir(data: &Path) -> Result<PathBuf> {
+    let dir = data.join("plugins");
+    match fs::symlink_metadata(&dir) {
+        Ok(metadata) if !metadata.file_type().is_dir() => {
+            anyhow::bail!(
+                "Plugin-Ordner {} muss ein Verzeichnis ohne symbolischen Link sein",
+                dir.display()
+            );
+        }
+        Ok(_) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err).context("Plugin-Ordner prüfen"),
+    }
+    Ok(dir)
+}
+
 /// Current time in seconds; `LOCORA_NOW` overrides it (tests, demos).
 pub fn now() -> u64 {
     env::var("LOCORA_NOW")
@@ -60,18 +78,19 @@ pub fn now() -> u64 {
 impl App {
     pub fn open(data: Option<&Path>) -> Result<Self> {
         let data_dir = data_dir(data)?;
+        let installed = plugin_dir(&data_dir)?;
         let store = Arc::new(
             Store::open(&data_dir)
                 .with_context(|| format!("Datenbank in {} öffnen", data_dir.display()))?,
         );
         let cache = dirs::cache_dir().map(|d| d.join("locora").join("plugins"));
-        let mut host = PluginHost::with_kv(cache, Arc::new(StoreKv(store.clone())))?;
+        let mut host =
+            PluginHost::with_palaces(cache, Arc::new(StoreKv(store.clone())), store.clone())?;
         for (name, bytes) in embedded::EMBEDDED {
             if let Err(err) = host.load_bytes(bytes) {
                 eprintln!("⚠ Eingebautes Plugin `{name}` konnte nicht laden: {err:#}");
             }
         }
-        let installed = data_dir.join("plugins");
         if let Ok(entries) = fs::read_dir(&installed) {
             let mut files: Vec<PathBuf> = entries
                 .filter_map(|e| e.ok().map(|e| e.path()))
@@ -79,7 +98,15 @@ impl App {
                 .collect();
             files.sort();
             for file in files {
-                if let Err(err) = host.load_file(&file) {
+                let load = (|| -> Result<locora_host::Manifest> {
+                    let approval = crate::plugin::read_regular(&file.with_extension("wasm.json"))
+                        .context(
+                        "Keine Installationszustimmung; bitte `locora plugin install` verwenden",
+                    )?;
+                    let approved = serde_json::from_slice(&approval)?;
+                    host.load_approved_file(&file, &approved)
+                })();
+                if let Err(err) = load {
                     eprintln!("⚠ Plugin {} konnte nicht laden: {err:#}", file.display());
                 }
             }

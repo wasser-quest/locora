@@ -1091,7 +1091,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "locora-api",
+ "locora-store",
+ "serde",
  "sha2",
+ "tempfile",
  "wasmtime",
  "wasmtime-wasi",
 ]
@@ -1119,6 +1122,7 @@ dependencies = [
 name = "locora-store"
 version = "0.1.0"
 dependencies = [
+ "locora-api",
  "locora-formula",
  "rusqlite",
  "serde",

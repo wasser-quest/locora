@@ -24,6 +24,8 @@ mod bindings {
     });
 }
 
+mod palaces;
+
 pub use bindings::locora::plugin::types::Level;
 use bindings::locora::plugin::{host, types};
 
@@ -34,7 +36,7 @@ const FUEL_PER_CALL: u64 = 2_000_000_000;
 const MAX_EVENTS_PER_DISPATCH: usize = 10_000;
 
 /// Metadata a plugin declares about itself.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Manifest {
     pub id: String,
     pub name: String,
@@ -115,20 +117,24 @@ struct PluginState {
     id: String,
     permissions: Vec<String>,
     kv: Arc<dyn KvStore>,
+    palaces: Option<Arc<locora_store::Store>>,
+    filters: BTreeMap<String, i32>,
     subscriptions: Vec<String>,
     provided: Vec<String>,
-    outbox: Vec<(String, Vec<u8>)>,
+    outbox: Vec<(String, String, Vec<u8>)>,
     logs: Vec<(Level, String)>,
     wasi: WasiCtx,
     table: ResourceTable,
 }
 
 impl PluginState {
-    fn new(kv: Arc<dyn KvStore>) -> Self {
+    fn new(kv: Arc<dyn KvStore>, palaces: Option<Arc<locora_store::Store>>) -> Self {
         Self {
             id: String::new(),
             permissions: Vec::new(),
             kv,
+            palaces,
+            filters: BTreeMap::new(),
             subscriptions: Vec::new(),
             provided: Vec::new(),
             outbox: Vec::new(),
@@ -174,13 +180,49 @@ impl host::Host for PluginState {
     }
 
     fn publish(&mut self, topic: String, payload: Vec<u8>) {
-        self.outbox.push((topic, payload));
+        self.outbox.push((self.id.clone(), topic, payload));
     }
 
     fn provide(&mut self, service: String) {
+        if service == <locora_api::palaces::Palaces as locora_api::Service>::NAME {
+            self.logs.push((
+                Level::Warn,
+                format!("Dienst `{service}` ist für den Host reserviert"),
+            ));
+            return;
+        }
         if !self.provided.contains(&service) {
             self.provided.push(service);
         }
+    }
+
+    fn register_filter(&mut self, hook: String, priority: i32) -> Result<(), String> {
+        if self.filters.contains_key(&hook) {
+            return Err(format!("Filter `{hook}` ist bereits registriert"));
+        }
+        self.filters.insert(hook, priority);
+        Ok(())
+    }
+
+    fn call_host(&mut self, service: String, request: Vec<u8>) -> Result<Vec<u8>, String> {
+        if service != <locora_api::palaces::Palaces as locora_api::Service>::NAME {
+            return Err(format!("Unbekannter Host-Dienst `{service}`"));
+        }
+        let request: locora_api::palaces::Request =
+            locora_api::decode(&request).map_err(|e| format!("Ungültige Palastanfrage: {e}"))?;
+        self.require(request.permission())?;
+        let store = self
+            .palaces
+            .as_ref()
+            .ok_or("Kein Palastspeicher angebunden")?;
+        let outcome = palaces::call(store, request)?;
+        self.outbox.extend(
+            outcome
+                .events
+                .into_iter()
+                .map(|(topic, payload)| (String::from("host"), topic, payload)),
+        );
+        locora_api::encode(&outcome.response).map_err(|e| e.to_string())
     }
 
     fn kv_get(&mut self, key: String) -> Result<Option<Vec<u8>>, String> {
@@ -208,6 +250,7 @@ pub struct PluginHost {
     cache_dir: Option<PathBuf>,
     plugins: BTreeMap<String, LoadedPlugin>,
     kv: Arc<dyn KvStore>,
+    palaces: Option<Arc<locora_store::Store>>,
     events: Vec<HostEvent>,
 }
 
@@ -220,6 +263,23 @@ impl PluginHost {
 
     /// Create a host whose plugins keep their storage in `kv`.
     pub fn with_kv(cache_dir: Option<PathBuf>, kv: Arc<dyn KvStore>) -> Result<Self> {
+        Self::with_backends(cache_dir, kv, None)
+    }
+
+    /// Bind the profile's palace store before any plugin is instantiated.
+    pub fn with_palaces(
+        cache_dir: Option<PathBuf>,
+        kv: Arc<dyn KvStore>,
+        palaces: Arc<locora_store::Store>,
+    ) -> Result<Self> {
+        Self::with_backends(cache_dir, kv, Some(palaces))
+    }
+
+    fn with_backends(
+        cache_dir: Option<PathBuf>,
+        kv: Arc<dyn KvStore>,
+        palaces: Option<Arc<locora_store::Store>>,
+    ) -> Result<Self> {
         let mut config = Config::new();
         config.wasm_component_model(true);
         config.consume_fuel(true);
@@ -235,6 +295,7 @@ impl PluginHost {
             cache_dir,
             plugins: BTreeMap::new(),
             kv,
+            palaces,
             events: Vec::new(),
         })
     }
@@ -242,8 +303,36 @@ impl PluginHost {
     /// Load a plugin from a `.wasm` component file. Loading an id that is
     /// already active hot-reloads it and keeps its storage.
     pub fn load_file(&mut self, path: &Path) -> Result<Manifest> {
+        self.load_file_with_policy(path, true)
+    }
+
+    /// Load an additional plugin without replacing an existing identity.
+    /// Profile loading uses this; explicit development reloads use `load_file`.
+    pub fn load_additional_file(&mut self, path: &Path) -> Result<Manifest> {
+        self.load_file_with_policy(path, false)
+    }
+
+    /// Load a profile component only if its manifest still matches the user's
+    /// approval. The comparison and activation use the same manifest probe.
+    pub fn load_approved_file(&mut self, path: &Path, approved: &Manifest) -> Result<Manifest> {
+        self.load_file_with_approval(path, false, Some(approved))
+    }
+
+    fn load_file_with_policy(&mut self, path: &Path, allow_reload: bool) -> Result<Manifest> {
+        self.load_file_with_approval(path, allow_reload, None)
+    }
+
+    fn load_file_with_approval(
+        &mut self,
+        path: &Path,
+        allow_reload: bool,
+        approved: Option<&Manifest>,
+    ) -> Result<Manifest> {
+        if !fs::symlink_metadata(path)?.file_type().is_file() {
+            bail!("Keine reguläre Plugin-Datei: {}", path.display());
+        }
         let bytes = fs::read(path).with_context(|| format!("cannot read {}", path.display()))?;
-        let manifest = self.load_bytes(&bytes)?;
+        let manifest = self.load_bytes_with_approval(&bytes, allow_reload, approved)?;
         if let Some(plugin) = self.plugins.get_mut(&manifest.id) {
             plugin.source = Some(path.to_owned());
         }
@@ -252,35 +341,45 @@ impl PluginHost {
 
     /// Load a plugin from component bytes. See [`PluginHost::load_file`].
     pub fn load_bytes(&mut self, bytes: &[u8]) -> Result<Manifest> {
-        let component = self.compile(bytes)?;
+        self.load_bytes_with_policy(bytes, true)
+    }
 
-        // Peek at the manifest in a throwaway instance to learn the id.
-        let manifest = {
-            let mut store = self.new_store(Arc::new(MemoryKv::default()));
-            let instance = bindings::Plugin::instantiate(&mut store, &component, &self.linker)?;
-            Manifest::from(instance.call_manifest(&mut store)?)
-        };
-        if manifest.id.is_empty() {
-            bail!("plugin has an empty id");
+    fn load_bytes_with_policy(&mut self, bytes: &[u8], allow_reload: bool) -> Result<Manifest> {
+        self.load_bytes_with_approval(bytes, allow_reload, None)
+    }
+
+    fn load_bytes_with_approval(
+        &mut self,
+        bytes: &[u8],
+        allow_reload: bool,
+        approved: Option<&Manifest>,
+    ) -> Result<Manifest> {
+        let component = self.compile(bytes)?;
+        let manifest = self.inspect_component(&component)?;
+        if !allow_reload && matches!(manifest.id.as_str(), "core" | "review") {
+            bail!("Eingebaute Plugin-ID `{}` ist geschützt", manifest.id);
         }
-        if !api_compatible(&manifest.api) {
-            bail!(
-                "Plugin `{}` wurde für API {} gebaut, diese App spricht API {}",
-                manifest.id,
-                manifest.api,
-                locora_api::API_VERSION
-            );
+        if approved.is_some_and(|approved| approved != &manifest) {
+            bail!("Plugin-Manifest stimmt nicht mit der bestätigten Installation überein");
         }
 
         let reloading = self.plugins.contains_key(&manifest.id);
+        if reloading && !allow_reload {
+            bail!(
+                "Plugin-ID `{}` ist bereits geladen; kein Überschreiben durch Profil-Plugins",
+                manifest.id
+            );
+        }
         if let Some(old) = self.plugins.remove(&manifest.id) {
             self.shutdown(old);
         }
 
         let mut store = self.new_store(self.kv.clone());
+        // Start functions run without capabilities, just like the manifest probe.
+        // Grant access only once instantiation succeeds, before activation.
+        let instance = bindings::Plugin::instantiate(&mut store, &component, &self.linker)?;
         store.data_mut().id = manifest.id.clone();
         store.data_mut().permissions = manifest.permissions.clone();
-        let instance = bindings::Plugin::instantiate(&mut store, &component, &self.linker)?;
         let mut plugin = LoadedPlugin {
             manifest: manifest.clone(),
             source: None,
@@ -294,9 +393,13 @@ impl PluginHost {
         match activated {
             Ok(Ok(())) => {}
             Ok(Err(message)) => {
+                outbox.retain(|(sender, _, _)| sender == "host");
+                self.deliver(&mut outbox);
                 bail!("Plugin `{}` konnte nicht starten: {message}", manifest.id);
             }
             Err(trap) => {
+                outbox.retain(|(sender, _, _)| sender == "host");
+                self.deliver(&mut outbox);
                 bail!(
                     "Plugin `{}` ist beim Start abgestürzt: {trap:#}",
                     manifest.id
@@ -311,6 +414,37 @@ impl PluginHost {
             HostEvent::Loaded(manifest.clone())
         });
         self.deliver(&mut outbox);
+        Ok(manifest)
+    }
+
+    /// Inspect metadata and API compatibility without activation or cache writes.
+    /// Component start/manifest code runs with fuel, no permissions, no profile
+    /// backends and no inherited WASI resources. Its events/logs are discarded.
+    pub fn inspect_bytes(&self, bytes: &[u8]) -> Result<Manifest> {
+        let component = Component::new(&self.engine, bytes)?;
+        self.inspect_component(&component)
+    }
+
+    fn inspect_component(&self, component: &Component) -> Result<Manifest> {
+        let mut store = Store::new(
+            &self.engine,
+            PluginState::new(Arc::new(MemoryKv::default()), None),
+        );
+        store.set_fuel(FUEL_PER_CALL)?;
+        let instance = bindings::Plugin::instantiate(&mut store, component, &self.linker)?;
+        let manifest = Manifest::from(instance.call_manifest(&mut store)?);
+        if manifest.id.is_empty() || manifest.id == "host" {
+            bail!("Die Plugin-ID darf weder leer noch `host` sein");
+        }
+        if !api_compatible(&manifest.api) {
+            bail!(
+                "Plugin `{}` wurde für API {} gebaut, diese App spricht API {}",
+                manifest.id,
+                manifest.api,
+                locora_api::API_VERSION
+            );
+        }
+
         Ok(manifest)
     }
 
@@ -342,15 +476,52 @@ impl PluginHost {
         Ok(locora_api::decode(&bytes)?)
     }
 
+    /// Call a particular provider, never falling back to a competing plugin.
+    pub fn call_plugin<S: locora_api::Service>(
+        &mut self,
+        plugin: &str,
+        request: &S::Request,
+    ) -> Result<S::Response> {
+        let bytes = self.call_plugin_raw(plugin, S::NAME, &locora_api::encode(request)?)?;
+        Ok(locora_api::decode(&bytes)?)
+    }
+
+    /// Whether this specific active plugin provides `service`.
+    pub fn plugin_provides(&self, plugin: &str, service: &str) -> bool {
+        self.plugins
+            .get(plugin)
+            .is_some_and(|p| p.store.data().provided.iter().any(|s| s == service))
+    }
+
     /// Whether some active plugin provides `service`.
     pub fn provides(&self, service: &str) -> bool {
-        self.plugins
-            .values()
-            .any(|p| p.store.data().provided.iter().any(|s| s == service))
+        (service == <locora_api::palaces::Palaces as locora_api::Service>::NAME
+            && self.palaces.is_some())
+            || self
+                .plugins
+                .values()
+                .any(|p| p.store.data().provided.iter().any(|s| s == service))
     }
 
     /// Call an already encoded service request.
     pub fn call_raw(&mut self, service: &str, request: &[u8]) -> Result<Vec<u8>> {
+        // Native callers are trusted. Guest calls always go through PluginState::call_host.
+        if service == <locora_api::palaces::Palaces as locora_api::Service>::NAME {
+            let store = self
+                .palaces
+                .as_ref()
+                .context("Kein Palastspeicher angebunden")?;
+            let outcome =
+                palaces::call(store, locora_api::decode(request)?).map_err(anyhow::Error::msg)?;
+            let bytes = locora_api::encode(&outcome.response)?;
+            let mut queue = outcome
+                .events
+                .into_iter()
+                .map(|(topic, payload)| (String::from("host"), topic, payload))
+                .collect();
+            self.deliver(&mut queue);
+            return Ok(bytes);
+        }
         let Some(id) = self
             .plugins
             .iter()
@@ -359,7 +530,15 @@ impl PluginHost {
         else {
             bail!("Kein aktives Plugin bietet den Dienst `{service}` an");
         };
-        let mut plugin = self.plugins.remove(&id).expect("found above");
+        self.call_plugin_raw(&id, service, request)
+    }
+
+    fn call_plugin_raw(&mut self, id: &str, service: &str, request: &[u8]) -> Result<Vec<u8>> {
+        if !self.plugin_provides(id, service) {
+            bail!("Plugin `{id}` bietet den Dienst `{service}` nicht an");
+        }
+        let id = id.to_owned();
+        let mut plugin = self.plugins.remove(&id).expect("checked above");
         let _ = plugin.store.set_fuel(FUEL_PER_CALL);
         let result = plugin
             .instance
@@ -388,6 +567,64 @@ impl PluginHost {
         response
     }
 
+    /// Apply a typed chain in ascending (priority, plugin id) order.
+    /// Errors or invalid responses preserve the preceding value; traps disable only
+    /// the failing plugin. Events are delivered after the entire chain completes.
+    pub fn filter<H: locora_api::Hook>(&mut self, mut value: H::Value) -> Result<H::Value> {
+        let mut filters: Vec<_> = self
+            .plugins
+            .iter()
+            .filter_map(|(id, plugin)| {
+                plugin
+                    .store
+                    .data()
+                    .filters
+                    .get(H::NAME)
+                    .map(|priority| (*priority, id.clone()))
+            })
+            .collect();
+        filters.sort();
+        let mut queue = VecDeque::new();
+        let mut input = locora_api::encode(&value)?;
+        for (_, id) in filters {
+            let Some(mut plugin) = self.plugins.remove(&id) else {
+                continue;
+            };
+            let _ = plugin.store.set_fuel(FUEL_PER_CALL);
+            let result = plugin
+                .instance
+                .call_on_filter(&mut plugin.store, H::NAME, &input);
+            queue.extend(self.collect(&mut plugin));
+            match result {
+                Ok(response) => {
+                    let response = response.and_then(|bytes| {
+                        locora_api::decode::<H::Value>(&bytes)
+                            .map(|next| (next, bytes))
+                            .map_err(|e| format!("Ungültiger Filterwert: {e}"))
+                    });
+                    match response {
+                        Ok((next, bytes)) => {
+                            value = next;
+                            input = bytes;
+                        }
+                        Err(message) => self.events.push(HostEvent::HandlerError {
+                            plugin: id.clone(),
+                            topic: H::NAME.into(),
+                            message,
+                        }),
+                    }
+                    self.plugins.insert(id, plugin);
+                }
+                Err(trap) => self.events.push(HostEvent::Disabled {
+                    plugin: id,
+                    reason: format!("{trap:#}"),
+                }),
+            }
+        }
+        self.deliver(&mut queue);
+        Ok(value)
+    }
+
     /// Manifests of all active plugins, ordered by id.
     pub fn plugins(&self) -> impl Iterator<Item = &Manifest> {
         self.plugins.values().map(|p| &p.manifest)
@@ -404,7 +641,7 @@ impl PluginHost {
     }
 
     fn new_store(&self, kv: Arc<dyn KvStore>) -> Store<PluginState> {
-        let mut store = Store::new(&self.engine, PluginState::new(kv));
+        let mut store = Store::new(&self.engine, PluginState::new(kv, self.palaces.clone()));
         // Instantiation runs the component's start code, which also costs fuel.
         store
             .set_fuel(FUEL_PER_CALL)
@@ -451,7 +688,9 @@ impl PluginHost {
     fn shutdown(&mut self, mut plugin: LoadedPlugin) {
         let _ = plugin.store.set_fuel(FUEL_PER_CALL);
         let _ = plugin.instance.call_deactivate(&mut plugin.store);
-        let _ = self.collect(&mut plugin);
+        let mut outbox = self.collect(&mut plugin);
+        outbox.retain(|(sender, _, _)| sender == "host");
+        self.deliver(&mut outbox);
     }
 
     /// Move logs into host events and return the plugin's published events.
@@ -464,11 +703,7 @@ impl PluginHost {
                 message,
             });
         }
-        state
-            .outbox
-            .drain(..)
-            .map(|(topic, payload)| (state.id.clone(), topic, payload))
-            .collect()
+        state.outbox.drain(..).collect()
     }
 
     fn deliver(&mut self, queue: &mut VecDeque<(String, String, Vec<u8>)>) {
@@ -541,16 +776,26 @@ impl PluginHost {
 /// Plugins built against API `major.minor` run on any host with the same
 /// major version (or the same `0.minor` before 1.0).
 fn api_compatible(plugin_api: &str) -> bool {
-    let key = |v: &str| {
-        let mut parts = v.split('.');
-        let major = parts.next().unwrap_or_default().to_owned();
-        if major == "0" {
-            format!("0.{}", parts.next().unwrap_or_default())
-        } else {
-            major
+    let parse = |version: &str| {
+        let parts: Vec<_> = version.split('.').collect();
+        if !(2..=3).contains(&parts.len())
+            || parts.iter().any(|part| {
+                part.is_empty()
+                    || !part.bytes().all(|c| c.is_ascii_digit())
+                    || (part.len() > 1 && part.starts_with('0'))
+                    || part.parse::<u64>().is_err()
+            })
+        {
+            return None;
         }
+        Some((parts[0].parse::<u64>().ok()?, parts[1].parse::<u64>().ok()?))
     };
-    key(plugin_api) == key(locora_api::API_VERSION)
+    match (parse(plugin_api), parse(locora_api::API_VERSION)) {
+        (Some((major, minor)), Some((host_major, host_minor))) => {
+            major == host_major && (major != 0 || minor == host_minor)
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -559,7 +804,22 @@ mod tests {
 
     #[test]
     fn api_versions() {
-        assert!(api_compatible("0.2"));
+        assert!(api_compatible("0.4"));
+        assert!(api_compatible("0.4.123"));
+        for malformed in [
+            "",
+            "0",
+            "0.4.",
+            "0.4.bad",
+            "0.4.1.extra",
+            "0.04",
+            "0.4.01",
+            "0.4.-1",
+        ] {
+            assert!(!api_compatible(malformed), "{malformed}");
+        }
+        assert!(!api_compatible("0.3"));
+        assert!(!api_compatible("0.2"));
         assert!(!api_compatible("0.1"));
         assert!(!api_compatible("1.0"));
     }

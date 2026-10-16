@@ -14,6 +14,7 @@ alias locora=./target/release/locora
 
 locora new "Planeten" -- Merkur Venus Erde Mars Jupiter Saturn Uranus Neptun
 locora practice Planeten       # walk the route: Enter reveals, 1–4 grades
+locora edit Planeten 1 --answer '{"type":"guess"}'  # typed answer, checked by Core
 locora due                     # what is due today (FSRS via the review plugin)
 locora review                  # only what is due
 locora show Planeten
@@ -36,6 +37,37 @@ cd mein-plugin
 ../target/release/locora plugin dev --demo   # builds to WebAssembly, loads it, hot-reloads on every save
 ```
 
+Host-driven filter chains and capability-checked palace services are documented
+in the [SDK guide](crates/locora-sdk/README.md), including API 0.4 migration,
+Core journey evaluation, answer authoring, scoring hooks, limitations and
+integration-test commands. `plugin dev/run` use isolated in-memory storage;
+`plugin check` inspects metadata without activation or profile access.
+
+Install local components into the selected profile (no registry or signatures yet):
+
+```bash
+locora plugin check ./mein_plugin.wasm
+locora plugin install ./mein_plugin.wasm   # warning, permissions, default = cancel
+locora plugin ls                           # metadata only; also shows broken files
+locora plugin remove mein-plugin           # or the .wasm filename shown by ls
+# Scripts must explicitly accept the warning and all displayed rights:
+locora --data ./test-profile plugin install ./mein_plugin.wasm --yes
+```
+
+Installation never calls `activate`; activation happens on the next normal profile
+command. Only `storage`, `palaces:read` and `palaces:write` are supported; all other
+permissions (including `notify`/`network`) are refused. Components must match the
+host API (currently 0.4). Files live in `<data>/plugins/<id>.wasm`, alongside the
+approved manifest in `<id>.wasm.json`. Keep both files: manually copied components
+without approval are not activated. Changed manifests are rejected before activation.
+Existing destinations and duplicate IDs (even under another filename) are refused;
+there is no update command. Remove first to reinstall; plugin KV/palaces are retained.
+Removal by ID resolves renamed components and refuses ambiguous IDs; an explicit
+`.wasm` filename removes broken files without probing them. The `plugins` directory
+itself must not be a symlink.
+Embedded `core`/`review` cannot be replaced or removed; broken profile copies can be
+removed without loading them. See the SDK guide for trust and sandbox limitations.
+
 ## Repository layout
 
 ```text
@@ -48,7 +80,8 @@ crates/locora-fsrs         FSRS-5 spaced-repetition scheduling
 crates/locora-format       the .locora file format (export, strict import)
 crates/locora-formula      safe, bounded formula language for workbook tables (Major system, functions)
 apps/cli                   the `locora` command (palaces, practice, review, plugin development)
-plugins/review             official spaced-repetition plugin (built into the CLI)
+plugins/core               answer evaluation and base scoring (WASM, built into the CLI)
+plugins/review             official spaced-repetition plugin (WASM, built into the CLI)
 plugins/                   other plugins compiled to wasm32-wasip2 (example: lernzeit)
 ```
 

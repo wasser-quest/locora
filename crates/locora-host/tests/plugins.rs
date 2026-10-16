@@ -1,5 +1,10 @@
 //! End-to-end tests with real plugins compiled to WebAssembly components.
 
+#[path = "support/host_services.rs"]
+mod host_services;
+#[path = "support/journey.rs"]
+mod journey_tests;
+
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::OnceLock;
@@ -26,6 +31,53 @@ fn wasm_dir() -> &'static PathBuf {
 fn load(host: &mut PluginHost, name: &str) {
     host.load_file(&wasm_dir().join(format!("{name}.wasm")))
         .unwrap_or_else(|e| panic!("load {name}: {e:#}"));
+}
+
+#[test]
+fn metadata_inspection_and_approval_mismatch_never_activate_or_touch_backends() {
+    use locora_host::{KvStore, MemoryKv};
+    use std::sync::Arc;
+    let store = Arc::new(locora_store::Store::in_memory().unwrap());
+    let kv = Arc::new(MemoryKv::default());
+    let cache = tempfile::tempdir().unwrap();
+    let mut host =
+        PluginHost::with_palaces(Some(cache.path().into()), kv.clone(), store.clone()).unwrap();
+    let path = wasm_dir().join("install_probe.wasm");
+    let mut manifest = host.inspect_bytes(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(manifest.id, "install-probe");
+    assert_eq!(host.plugins().count(), 0);
+    assert!(host.drain_events().is_empty());
+    assert_eq!(std::fs::read_dir(cache.path()).unwrap().count(), 0);
+    assert!(store.palaces().unwrap().is_empty());
+    assert!(kv.get("install-probe", "activated").unwrap().is_none());
+    manifest.permissions.clear();
+    let err = host.load_approved_file(&path, &manifest).unwrap_err();
+    assert!(err.to_string().contains("bestätigten Installation"));
+    assert!(kv.get("install-probe", "activated").unwrap().is_none());
+    assert!(store.palaces().unwrap().is_empty());
+}
+
+#[test]
+fn approved_profile_loading_rejects_duplicates_and_reserved_ids_before_activation() {
+    let mut host = PluginHost::new(None).unwrap();
+    load(&mut host, "fixture");
+    let path = wasm_dir().join("fixture.wasm");
+    let manifest = host.inspect_bytes(&std::fs::read(&path).unwrap()).unwrap();
+    let err = host.load_approved_file(&path, &manifest).unwrap_err();
+    assert!(err.to_string().contains("bereits geladen"));
+    assert_eq!(host.plugins().count(), 1);
+    for name in ["core", "review"] {
+        let path = wasm_dir().join(format!("{name}.wasm"));
+        let manifest = host.inspect_bytes(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(
+            host.load_approved_file(&path, &manifest)
+                .unwrap_err()
+                .to_string()
+                .contains("geschützt")
+        );
+        assert!(host.load_additional_file(&path).is_err());
+    }
+    assert_eq!(host.plugins().count(), 1);
 }
 
 fn journey(secs: u64) -> JourneyCompleted {

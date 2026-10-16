@@ -25,7 +25,7 @@ use std::fmt;
 use std::rc::Rc;
 
 pub use locora_api as api;
-pub use locora_api::{Event, Service};
+pub use locora_api::{Event, Hook, Service};
 pub use locora_sdk_macros::locora_plugin;
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -47,8 +47,13 @@ pub mod prelude {
     pub use crate::api::core::{
         Grade, JourneyCompleted, LocusAnswered, LocusDeleted, PalaceCreated, PalaceDeleted,
     };
+    pub use crate::api::core::{JourneyScore, Score};
     pub use crate::api::host::Started;
-    pub use crate::{Ctx, Error, Event, Plugin, Result, Service, Store, locora_plugin};
+    pub use crate::api::journey::{
+        Answer, AnswerKind, Evaluate, EvaluateRequest, Evaluation, QuizOption, Scored, Submission,
+    };
+    pub use crate::api::palaces;
+    pub use crate::{Ctx, Error, Event, Hook, Plugin, Result, Service, Store, locora_plugin};
 }
 
 /// Error returned by plugin code. Any standard error converts into it with `?`.
@@ -97,6 +102,7 @@ type ServiceHandler = Rc<RefCell<dyn FnMut(&mut Ctx, &[u8]) -> Result<Vec<u8>>>>
 thread_local! {
     static HANDLERS: RefCell<HashMap<String, Vec<Handler>>> = RefCell::new(HashMap::new());
     static SERVICES: RefCell<HashMap<String, ServiceHandler>> = RefCell::new(HashMap::new());
+    static FILTERS: RefCell<HashMap<String, ServiceHandler>> = RefCell::new(HashMap::new());
 }
 
 /// Access to the host: events, storage, logging and UI.
@@ -139,6 +145,33 @@ impl Ctx {
         SERVICES.with_borrow_mut(|services| services.insert(S::NAME.to_owned(), erased));
         host::provide(S::NAME);
         Ok(())
+    }
+
+    /// Register one filter for `H`. Lower priorities run first, ties use plugin id.
+    /// The native host drives chains; plugins are never synchronously re-entered.
+    pub fn filter<H: Hook + 'static>(
+        &mut self,
+        priority: i32,
+        mut handler: impl FnMut(&mut Ctx, H::Value) -> Result<H::Value> + 'static,
+    ) -> Result {
+        host::register_filter(H::NAME, priority).map_err(Error::msg)?;
+        let erased: ServiceHandler = Rc::new(RefCell::new(move |ctx: &mut Ctx, bytes: &[u8]| {
+            let value = api::decode::<H::Value>(bytes)?;
+            Ok(api::encode(&handler(ctx, value)?)?)
+        }));
+        FILTERS.with_borrow_mut(|filters| filters.insert(H::NAME.to_owned(), erased));
+        Ok(())
+    }
+
+    /// Call a native host service. This does not route calls to other plugins.
+    pub fn call_host<S: Service>(&mut self, request: &S::Request) -> Result<S::Response> {
+        let bytes = host::call_host(S::NAME, &api::encode(request)?).map_err(Error::msg)?;
+        Ok(api::decode(&bytes)?)
+    }
+
+    /// Access the palace service; the host checks read/write rights per operation.
+    pub fn palaces(&mut self, request: &api::palaces::Request) -> Result<api::palaces::Response> {
+        self.call_host::<api::palaces::Palaces>(request)
     }
 
     /// Publish an event to all subscribed plugins.
@@ -226,6 +259,7 @@ pub mod __rt {
         P::deactivate(&mut Ctx { _private: () });
         HANDLERS.with_borrow_mut(HashMap::clear);
         SERVICES.with_borrow_mut(HashMap::clear);
+        FILTERS.with_borrow_mut(HashMap::clear);
     }
 
     pub fn call(service: &str, request: &[u8]) -> std::result::Result<Vec<u8>, String> {
@@ -234,6 +268,14 @@ pub mod __rt {
             .ok_or_else(|| format!("service `{service}` is not provided by this plugin"))?;
         let mut ctx = Ctx { _private: () };
         (handler.borrow_mut())(&mut ctx, request).map_err(|e| e.0)
+    }
+
+    pub fn filter(hook: &str, value: &[u8]) -> std::result::Result<Vec<u8>, String> {
+        let handler = FILTERS
+            .with_borrow(|filters| filters.get(hook).cloned())
+            .ok_or_else(|| format!("Filter `{hook}` ist nicht registriert"))?;
+        let mut ctx = Ctx { _private: () };
+        (handler.borrow_mut())(&mut ctx, value).map_err(|e| e.0)
     }
 
     pub fn dispatch(topic: &str, payload: &[u8]) -> std::result::Result<(), String> {

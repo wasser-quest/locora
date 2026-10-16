@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
 
-const OFFICIAL: &[&str] = &["review"];
+const OFFICIAL: &[&str] = &["core", "review"];
 
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());

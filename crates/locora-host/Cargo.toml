@@ -10,6 +10,11 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 locora-api.workspace = true
+locora-store = { path = "../locora-store" }
 sha2.workspace = true
+serde.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

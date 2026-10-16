@@ -17,6 +17,8 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+pub use locora_api::journey::{Answer, AnswerKind, QuizOption};
+
 mod schema;
 
 #[derive(Debug, thiserror::Error)]
@@ -97,6 +99,8 @@ pub struct Locus {
     pub y: f64,
     /// For video rooms: seconds into the video.
     pub time: Option<f64>,
+    #[serde(default)]
+    pub answer: Answer,
     /// Formulas that compute fields of this locus from the palace's tables.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<Binding>,
@@ -140,6 +144,8 @@ pub struct NewLocus {
     pub x: f64,
     pub y: f64,
     pub time: Option<f64>,
+    #[serde(default)]
+    pub answer: Answer,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -149,6 +155,7 @@ pub struct LocusPatch {
     pub x: Option<f64>,
     pub y: Option<f64>,
     pub time: Option<Option<f64>>,
+    pub answer: Option<Answer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -385,7 +392,7 @@ impl Store {
             });
         }
         let mut loci_stmt = conn.prepare(
-            "SELECT id, room_id, position, place, item, x, y, time FROM loci WHERE room_id = ?1 ORDER BY position",
+            "SELECT id, room_id, position, place, item, x, y, time, answer FROM loci WHERE room_id = ?1 ORDER BY position",
         )?;
         let mut tree = Vec::new();
         for room in rooms {
@@ -400,6 +407,7 @@ impl Store {
                         x: r.get(5)?,
                         y: r.get(6)?,
                         time: r.get(7)?,
+                        answer: read_answer(r, 8)?,
                         bindings: Vec::new(),
                     })
                 })?
@@ -540,6 +548,10 @@ impl Store {
 
     pub fn add_locus(&self, room_id: &str, locus: NewLocus) -> Result<Locus> {
         check_position(locus.x, locus.y)?;
+        locus
+            .answer
+            .validate()
+            .map_err(|e| StoreError::Invalid(e.into()))?;
         let conn = self.conn();
         let palace_id: String = conn
             .query_row(
@@ -563,11 +575,12 @@ impl Store {
             x: locus.x,
             y: locus.y,
             time: locus.time,
+            answer: locus.answer,
             bindings: Vec::new(),
         };
         conn.execute(
-            "INSERT INTO loci(id, room_id, position, place, item, x, y, time) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time],
+            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable")],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(
@@ -584,7 +597,7 @@ impl Store {
         let conn = self.conn();
         let (palace_id, mut locus) = conn
             .query_row(
-                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time
+                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer
                  FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
                 [id],
                 |r| {
@@ -599,6 +612,7 @@ impl Store {
                             x: r.get(6)?,
                             y: r.get(7)?,
                             time: r.get(8)?,
+                            answer: read_answer(r, 9)?,
                             bindings: Vec::new(),
                         },
                     ))
@@ -612,6 +626,12 @@ impl Store {
         if let Some(item) = &patch.item {
             locus.item = item.trim().to_owned();
         }
+        if let Some(answer) = &patch.answer {
+            answer
+                .validate()
+                .map_err(|e| StoreError::Invalid(e.into()))?;
+            locus.answer = answer.clone();
+        }
         locus.x = patch.x.unwrap_or(locus.x);
         locus.y = patch.y.unwrap_or(locus.y);
         if let Some(time) = patch.time {
@@ -619,8 +639,8 @@ impl Store {
         }
         check_position(locus.x, locus.y)?;
         conn.execute(
-            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5 WHERE id = ?6",
-            params![locus.place, locus.item, locus.x, locus.y, locus.time, id],
+            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6 WHERE id = ?7",
+            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), id],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(
@@ -907,3 +927,18 @@ fn media_path(dir: &Path, hash: &str) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+fn read_answer(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<Answer> {
+    let text: String = row.get(index)?;
+    let answer: Answer = serde_json::from_str(&text).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(index, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    answer.validate().map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            index,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::other(e)),
+        )
+    })?;
+    Ok(answer)
+}

@@ -1,6 +1,6 @@
 //! `locora plugin …`: scaffold, build, hot-reload and inspect plugins.
 
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -11,7 +11,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Subcommand, ValueEnum};
 use locora_api::core::JourneyCompleted;
 use locora_api::host::Started;
-use locora_host::{HostEvent, Level, PluginHost};
+use locora_host::{HostEvent, Level, Manifest, PluginHost};
 use notify::{RecursiveMode, Watcher};
 
 const WASM_TARGET: &str = "wasm32-wasip2";
@@ -42,8 +42,22 @@ pub enum PluginCommand {
         #[arg(required = true)]
         files: Vec<PathBuf>,
     },
-    /// Plugin-Datei prüfen und Manifest anzeigen
+    /// Plugin-Datei ohne Aktivierung prüfen und Manifest anzeigen
     Check { file: PathBuf },
+    /// Lokale WASM-Komponente nach Rechteprüfung installieren (kein Update)
+    Install {
+        file: PathBuf,
+        /// Warnung und alle angezeigten Rechte ausdrücklich akzeptieren
+        #[arg(long, short)]
+        yes: bool,
+    },
+    /// Installierte Datei entfernen; Plugin-Daten bleiben erhalten
+    Remove {
+        /// Plugin-ID oder Dateiname aus `plugin ls` (auch defekte Dateien)
+        plugin: String,
+    },
+    /// Eingebaute und installierte Plugins ohne Aktivierung auflisten
+    Ls,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -54,17 +68,25 @@ pub enum Template {
     Kachel,
 }
 
-pub fn run(cmd: PluginCommand) -> Result<()> {
+pub fn run(cmd: PluginCommand, data: Option<&Path>) -> Result<()> {
     match cmd {
         PluginCommand::New { name, template } => new(&name, template),
         PluginCommand::Dev { dir, demo, once } => dev(&dir, demo, once),
         PluginCommand::Run { files } => run_files(&files),
         PluginCommand::Check { file } => check(&file),
+        PluginCommand::Install { file, yes } => install(&file, &crate::app::data_dir(data)?, yes),
+        PluginCommand::Remove { plugin } => remove(&plugin, &crate::app::data_dir(data)?),
+        PluginCommand::Ls => list(&crate::app::data_dir(data)?),
     }
 }
 
 fn host() -> Result<PluginHost> {
-    PluginHost::new(dirs::cache_dir().map(|d| d.join("locora").join("plugins")))
+    // Development and check commands must never mutate the user's profile.
+    PluginHost::with_palaces(
+        dirs::cache_dir().map(|d| d.join("locora").join("plugins")),
+        std::sync::Arc::new(locora_host::MemoryKv::default()),
+        std::sync::Arc::new(locora_store::Store::in_memory()?),
+    )
 }
 
 fn demo_journey() -> JourneyCompleted {
@@ -320,8 +342,9 @@ fn run_files(files: &[PathBuf]) -> Result<()> {
 }
 
 fn check(file: &Path) -> Result<()> {
-    let mut host = host()?;
-    let manifest = host.load_file(file)?;
+    let host = PluginHost::new(None)?;
+    let manifest = host.inspect_bytes(&read_regular(file)?)?;
+    validate_install(&manifest)?;
     println!("✓ {} ({})", manifest.name, manifest.id);
     println!("  Version:       {}", manifest.version);
     println!("  API:           {}", manifest.api);
@@ -331,6 +354,245 @@ fn check(file: &Path) -> Result<()> {
         manifest.permissions.join(", ")
     };
     println!("  Berechtigungen: {permissions}");
+    Ok(())
+}
+
+// These identities remain reserved even in builds without embedded components.
+const BUILT_INS: &[&str] = &["core", "review"];
+
+fn validate_install(manifest: &Manifest) -> Result<()> {
+    let id = &manifest.id;
+    let device_name = matches!(id.as_str(), "con" | "prn" | "aux" | "nul")
+        || (id.len() == 4
+            && (id.starts_with("com") || id.starts_with("lpt"))
+            && matches!(id.as_bytes()[3], b'1'..=b'9'));
+    if device_name
+        || id.is_empty()
+        || id.len() > 128
+        || !id.as_bytes()[0].is_ascii_alphanumeric()
+        || !id
+            .bytes()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-' || c == b'_')
+    {
+        bail!(
+            "Unsichere Plugin-ID {id:?}: erwartet 1–128 Zeichen a-z, 0-9, - oder _, beginnend mit a-z/0-9"
+        );
+    }
+    for permission in &manifest.permissions {
+        if !matches!(
+            permission.as_str(),
+            "storage" | "palaces:read" | "palaces:write"
+        ) {
+            bail!(
+                "Nicht unterstützte Berechtigung {permission:?}; unterstützt: storage, palaces:read, palaces:write"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn installed_files(dir: &Path) -> Result<Vec<PathBuf>> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(e) => return Err(e).with_context(|| format!("Plugin-Ordner {} lesen", dir.display())),
+    };
+    let mut files = Vec::new();
+    for entry in entries {
+        let path = entry?.path();
+        if path.extension().is_some_and(|x| x == "wasm") {
+            files.push(path);
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+pub(crate) fn read_regular(file: &Path) -> Result<Vec<u8>> {
+    if !fs::symlink_metadata(file)?.file_type().is_file() {
+        bail!("Keine reguläre Plugin-Datei: {}", file.display());
+    }
+    Ok(fs::read(file)?)
+}
+
+fn inspect_file(host: &PluginHost, file: &Path) -> Result<Manifest> {
+    host.inspect_bytes(&read_regular(file)?)
+}
+
+fn install(file: &Path, data: &Path, yes: bool) -> Result<()> {
+    // Read once: the exact reviewed bytes are persisted, not a later source copy.
+    let bytes = read_regular(file).with_context(|| format!("Plugin {} lesen", file.display()))?;
+    let host = PluginHost::new(None)?;
+    let manifest = host.inspect_bytes(&bytes)?;
+    validate_install(&manifest)?;
+    if BUILT_INS.contains(&manifest.id.as_str()) {
+        bail!("Eingebautes Plugin {:?} ist geschützt", manifest.id);
+    }
+    let dir = crate::app::plugin_dir(data)?;
+    let destination = dir.join(format!("{}.wasm", manifest.id));
+    let approval = destination.with_extension("wasm.json");
+    for path in [&destination, &approval] {
+        if fs::symlink_metadata(path).is_ok() {
+            bail!(
+                "Zieldatei {} existiert bereits; kein Überschreiben (ggf. zuerst plugin remove)",
+                path.display()
+            );
+        }
+    }
+    for installed in installed_files(&dir)? {
+        if let Ok(other) = inspect_file(&host, &installed)
+            && other.id == manifest.id
+        {
+            bail!(
+                "Plugin-ID {:?} ist bereits installiert ({})",
+                manifest.id,
+                installed.display()
+            );
+        }
+    }
+    eprintln!("⚠ Nicht von Locora geprüft – Installation auf eigene Verantwortung.");
+    eprintln!(
+        "  Plugin: {:?} ({:?}), Version {:?}, API {:?}",
+        manifest.name, manifest.id, manifest.version, manifest.api
+    );
+    eprintln!(
+        "  Rechte: {}",
+        if manifest.permissions.is_empty() {
+            "keine".into()
+        } else {
+            manifest.permissions.join(", ")
+        }
+    );
+    if !yes {
+        if !io::stdin().is_terminal() {
+            bail!("Keine interaktive Zustimmung möglich; nach Prüfung ausdrücklich --yes angeben");
+        }
+        eprint!("Trotzdem installieren? [j/N] ");
+        io::stderr().flush()?;
+        let mut answer = String::new();
+        io::stdin().read_line(&mut answer)?;
+        if !matches!(answer.trim().to_lowercase().as_str(), "j" | "ja") {
+            bail!("Installation abgebrochen");
+        }
+    }
+    fs::create_dir_all(&dir)?;
+    // Publish approval first and the component last. A crash can leave an
+    // orphan approval, but never a loadable component without consent.
+    persist_new(&approval, &serde_json::to_vec(&manifest)?)?;
+    if let Err(err) = persist_new(&destination, &bytes) {
+        let _ = fs::remove_file(&approval);
+        return Err(err);
+    }
+    println!(
+        "✓ {:?} installiert; wird beim nächsten Profilbefehl aktiviert.",
+        manifest.id
+    );
+    Ok(())
+}
+
+fn persist_new(path: &Path, bytes: &[u8]) -> Result<()> {
+    let mut temp = tempfile::NamedTempFile::new_in(path.parent().context("Kein Plugin-Ordner")?)?;
+    temp.write_all(bytes)?;
+    temp.as_file().sync_all()?;
+    temp.persist_noclobber(path)
+        .map_err(|e| e.error)
+        .with_context(|| format!("{} ohne Überschreiben speichern", path.display()))?;
+    Ok(())
+}
+
+fn remove(plugin: &str, data: &Path) -> Result<()> {
+    // Explicit filenames require no guest execution. Bare IDs are resolved
+    // through isolated metadata probes, never activation or profile backends.
+    if plugin.is_empty() || plugin.contains(['/', '\\', ':']) || plugin == "." || plugin == ".." {
+        bail!("Erwartet Plugin-ID oder einzelnen .wasm-Dateinamen, keinen Pfad");
+    }
+    let id = plugin.strip_suffix(".wasm").unwrap_or(plugin);
+    let dir = crate::app::plugin_dir(data)?;
+    let path = if plugin.ends_with(".wasm") {
+        dir.join(plugin)
+    } else {
+        let host = PluginHost::new(None)?;
+        let mut matches = Vec::new();
+        let canonical = dir.join(format!("{plugin}.wasm"));
+        let mut canonical_has_other_id = false;
+        for file in installed_files(&dir)? {
+            if let Ok(manifest) = inspect_file(&host, &file) {
+                if manifest.id == plugin {
+                    matches.push(file);
+                } else if file == canonical {
+                    canonical_has_other_id = true;
+                }
+            }
+        }
+        match matches.len() {
+            0 if canonical_has_other_id => bail!(
+                "Dateiname {} gehört zu einer anderen Plugin-ID; zum Entfernen ausdrücklich den .wasm-Dateinamen angeben",
+                canonical.display()
+            ),
+            0 => canonical, // Broken components and orphan approvals remain removable.
+            1 => matches.pop().unwrap(),
+            _ => bail!(
+                "Mehrere Dateien haben Plugin-ID {plugin:?}; bitte genauen .wasm-Dateinamen angeben"
+            ),
+        }
+    };
+    let approval = path.with_extension("wasm.json");
+    let has_file = fs::symlink_metadata(&path).is_ok();
+    let has_approval = fs::symlink_metadata(&approval).is_ok();
+    if !has_file && !has_approval && BUILT_INS.contains(&id) {
+        bail!("Eingebautes Plugin {id:?} ist geschützt");
+    }
+    if has_file || !has_approval {
+        fs::remove_file(&path)
+            .with_context(|| format!("Plugin-Datei {} entfernen", path.display()))?;
+    }
+    if has_approval {
+        fs::remove_file(&approval).context("Installationszustimmung entfernen")?;
+    }
+    println!("✓ {plugin:?} entfernt; gespeicherte Plugin-Daten bleiben erhalten.");
+    Ok(())
+}
+
+fn list(data: &Path) -> Result<()> {
+    let dir = crate::app::plugin_dir(data)?;
+    let host = PluginHost::new(None)?;
+    for id in BUILT_INS {
+        println!(
+            "{id} [eingebaut, geschützt{}]",
+            if crate::app::embedded::EMBEDDED
+                .iter()
+                .any(|(name, _)| name == id)
+            {
+                ""
+            } else {
+                ", in diesem Build nicht enthalten"
+            }
+        );
+    }
+    for file in installed_files(&dir)? {
+        let name = file.file_name().unwrap_or_default();
+        match inspect_file(&host, &file) {
+            Ok(manifest) => {
+                println!(
+                    "{name:?}: {:?} {:?}, API {:?}, Rechte: {:?} [installiert, nicht aktiviert]",
+                    manifest.id, manifest.version, manifest.api, manifest.permissions
+                );
+                if let Err(err) = validate_install(&manifest) {
+                    println!("  ⚠ {err:#}");
+                }
+                let approved = read_regular(&file.with_extension("wasm.json"))
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice::<Manifest>(&bytes).ok());
+                if approved.as_ref() != Some(&manifest) {
+                    println!("  ⚠ Keine passende Installationszustimmung; wird nicht aktiviert");
+                }
+                if BUILT_INS.contains(&manifest.id.as_str()) {
+                    println!("  ⚠ Eingebaute ID geschützt; wird nicht ersetzt");
+                }
+            }
+            Err(err) => println!("{name:?}: [defekt/nicht lesbar] {err:#}"),
+        }
+    }
     Ok(())
 }
 
@@ -385,6 +647,64 @@ fn print_events(host: &mut PluginHost) {
 #[cfg(test)]
 mod tests {
     use super::plugin_id;
+
+    #[test]
+    fn development_hosts_have_separate_ephemeral_palaces() {
+        use locora_api::palaces::{Palaces, Request, Response};
+        let mut first = super::host().unwrap();
+        let mut second = super::host().unwrap();
+        first
+            .call::<Palaces>(&Request::Create {
+                name: "Test".into(),
+            })
+            .unwrap();
+        assert!(
+            matches!(first.call::<Palaces>(&Request::List).unwrap(), Response::List(v) if v.len() == 1)
+        );
+        assert_eq!(
+            second.call::<Palaces>(&Request::List).unwrap(),
+            Response::List(vec![])
+        );
+    }
+
+    #[test]
+    fn install_ids_and_permissions_are_strict() {
+        let mut manifest = locora_host::Manifest {
+            id: "mein-plugin_2".into(),
+            name: "Test".into(),
+            version: "0.1.0".into(),
+            api: locora_api::API_VERSION.into(),
+            permissions: vec![],
+        };
+        for permission in ["storage", "palaces:read", "palaces:write"] {
+            manifest.permissions = vec![permission.into()];
+            super::validate_install(&manifest).unwrap();
+        }
+        for permission in ["notify", "network", "palaces_read", "", "future:right"] {
+            manifest.permissions = vec![permission.into()];
+            assert!(super::validate_install(&manifest).is_err());
+        }
+        manifest.permissions.clear();
+        for id in [
+            "", ".", "..", "../bad", "a/b", "a\\b", "a:b", "Bad", "übel", "-bad", "con", "nul",
+            "prn", "aux", "com1", "com9", "lpt1", "lpt9",
+        ] {
+            manifest.id = id.into();
+            assert!(super::validate_install(&manifest).is_err(), "{id}");
+        }
+        manifest.id = "a".repeat(129);
+        assert!(super::validate_install(&manifest).is_err());
+    }
+
+    #[test]
+    fn atomic_publish_never_clobbers_and_cleans_temporary_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("plugin.wasm");
+        super::persist_new(&path, b"approved").unwrap();
+        assert!(super::persist_new(&path, b"replacement").is_err());
+        assert_eq!(std::fs::read(path).unwrap(), b"approved");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
 
     #[test]
     fn ids_from_display_names() {

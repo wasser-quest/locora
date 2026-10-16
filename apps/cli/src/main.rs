@@ -67,6 +67,9 @@ enum Command {
     Edit {
         palace: String,
         locus: usize,
+        /// Antwortkonfiguration als JSON: {"type":"guess"} oder Quiz mit options
+        #[arg(long)]
+        answer: Option<String>,
         /// Neuer Inhalt
         #[arg(long)]
         item: Option<String>,
@@ -159,7 +162,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let data = cli.data.as_deref();
     match cli.command {
-        Command::Plugin(cmd) => plugin::run(cmd),
+        Command::Plugin(cmd) => plugin::run(cmd, data),
         Command::Table(cmd) => workbook::table(&mut app::App::open(data)?, cmd),
         Command::Bind {
             palace,
@@ -215,6 +218,7 @@ fn main() -> Result<()> {
         Command::Edit {
             palace,
             locus,
+            answer,
             item,
             place,
             at,
@@ -239,6 +243,10 @@ fn main() -> Result<()> {
                     x: point.0,
                     y: point.1,
                     time: None,
+                    answer: answer
+                        .map(|text| serde_json::from_str(&text))
+                        .transpose()
+                        .context("Ungültige Antwortkonfiguration")?,
                 },
             )
         }

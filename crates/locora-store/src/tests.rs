@@ -7,6 +7,7 @@ fn locus(place: &str, item: &str, x: f64) -> NewLocus {
         x,
         y: 0.5,
         time: None,
+        answer: Default::default(),
     }
 }
 
@@ -284,4 +285,94 @@ fn bindings_belong_to_loci() {
         .query_row("SELECT COUNT(*) FROM bindings", [], |r| r.get(0))
         .unwrap();
     assert_eq!(left, 0);
+}
+
+#[test]
+fn answers_persist_patch_and_validate_before_writing() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let p = store.create_palace("P").unwrap();
+    let r = store.add_room(&p.id, "R", RoomKind::Blank, None).unwrap();
+    let l = store.add_locus(&r.id, locus("Tür", "Merkur", 0.5)).unwrap();
+    assert!(l.answer.is_recall());
+    let quiz = Answer {
+        kind: AnswerKind::Quiz,
+        options: vec![
+            QuizOption {
+                text: "Merkur".into(),
+                correct: true,
+            },
+            QuizOption {
+                text: "Venus".into(),
+                correct: false,
+            },
+        ],
+    };
+    store
+        .update_locus(
+            &l.id,
+            &LocusPatch {
+                answer: Some(quiz.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let before: i64 = store
+        .conn()
+        .query_row("SELECT COUNT(*) FROM ops", [], |r| r.get(0))
+        .unwrap();
+    let invalid = Answer {
+        kind: AnswerKind::Quiz,
+        options: vec![],
+    };
+    assert!(
+        store
+            .update_locus(
+                &l.id,
+                &LocusPatch {
+                    item: Some("bad".into()),
+                    answer: Some(invalid.clone()),
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    let mut new = locus("X", "Y", 0.2);
+    new.answer = invalid;
+    assert!(store.add_locus(&r.id, new).is_err());
+    assert_eq!(
+        before,
+        store
+            .conn()
+            .query_row("SELECT COUNT(*) FROM ops", [], |r| r.get::<_, i64>(0))
+            .unwrap()
+    );
+    store
+        .update_locus(
+            &l.id,
+            &LocusPatch {
+                place: Some("Tor".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    drop(store);
+    let store = Store::open(dir.path()).unwrap();
+    let tree = store.palace("P").unwrap();
+    assert_eq!(tree.rooms[0].loci[0].answer, quiz);
+    assert_eq!(tree.rooms[0].loci[0].item, "Merkur");
+    store
+        .update_locus(
+            &l.id,
+            &LocusPatch {
+                answer: Some(Answer::default()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert!(
+        store.palace("P").unwrap().rooms[0].loci[0]
+            .answer
+            .is_recall()
+    );
 }

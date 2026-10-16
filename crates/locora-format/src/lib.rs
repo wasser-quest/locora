@@ -1,4 +1,4 @@
-//! The `.locora` file format, version 1.
+//! The `.locora` file format: version 1 (Recall) and version 2 (Quiz/Guess).
 //!
 //! A `.locora` file is a ZIP archive:
 //!
@@ -29,7 +29,7 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipArchive, ZipWriter};
 
 pub const FORMAT: &str = "locora";
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 pub const EXTENSION: &str = "locora";
 /// Content of the first entry, `mimetype`.
 pub const MEDIA_TYPE: &str = "application/vnd.locora+zip";
@@ -159,6 +159,8 @@ pub struct LocusDoc {
     pub time: Option<f64>,
     #[serde(default, skip_serializing_if = "Bindings::is_empty")]
     pub bindings: Bindings,
+    #[serde(default, skip_serializing_if = "locora_store::Answer::is_recall")]
+    pub answer: locora_store::Answer,
 }
 
 /// Formulas computing locus fields, one per field.
@@ -244,6 +246,7 @@ impl From<&PalaceTree> for PalaceDoc {
                             y: l.y,
                             time: l.time,
                             bindings: Bindings::from_list(&l.bindings),
+                            answer: l.answer.clone(),
                         })
                         .collect(),
                 })
@@ -352,7 +355,16 @@ pub fn export<W: Write + Seek>(store: &Store, palaces: &[String], out: W) -> Res
     let shared = store.rows(None)?;
     let manifest = Manifest {
         format: FORMAT.into(),
-        version: VERSION,
+        version: if docs
+            .iter()
+            .flat_map(|p| &p.rooms)
+            .flat_map(|r| &r.loci)
+            .all(|l| l.answer.is_recall())
+        {
+            1
+        } else {
+            VERSION
+        },
         created_by: concat!("locora ", env!("CARGO_PKG_VERSION")).into(),
         palaces: docs
             .iter()
@@ -617,6 +629,13 @@ impl<R: Read + Seek> Package<R> {
                 for locus in &room.loci {
                     check_text("Ort", &locus.place)?;
                     check_text("Inhalt", &locus.item)?;
+                    locus.answer.validate().map_err(invalid)?;
+                    if manifest.version == 1 && !locus.answer.is_recall() {
+                        return Err(invalid("Antworttypen benötigen Format 2"));
+                    }
+                    for option in &locus.answer.options {
+                        check_text("Quizoption", &option.text)?;
+                    }
                     let inside = |v: f64| v.is_finite() && (0.0..=1.0).contains(&v);
                     if !inside(locus.x) || !inside(locus.y) {
                         return Err(invalid(format!(
@@ -758,6 +777,7 @@ impl<R: Read + Seek> Package<R> {
                             x: locus.x,
                             y: locus.y,
                             time: locus.time,
+                            answer: locus.answer.clone(),
                         },
                     )?;
                     for binding in locus.bindings.list() {

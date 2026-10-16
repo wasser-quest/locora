@@ -4,7 +4,9 @@ use std::io::{self, BufRead, Write};
 use std::time::Instant;
 
 use anyhow::{Result, bail};
-use locora_api::core::{Grade, JourneyCompleted, LocusAnswered};
+use locora_api::Service;
+use locora_api::core::{Grade, JourneyCompleted, JourneyScore, LocusAnswered, Score};
+use locora_api::journey::{AnswerKind, Evaluate, EvaluateRequest, Scored, Submission};
 use locora_formula::workbook::{ActionOutcome, BindingField, LocusInput, Run};
 use locora_store::{Locus, PalaceTree};
 
@@ -18,7 +20,7 @@ pub struct Options {
 }
 
 enum Step {
-    Graded(Grade),
+    Answered(Submission),
     Quit,
 }
 
@@ -30,7 +32,7 @@ fn read_line(input: &mut impl BufRead) -> Result<Option<String>> {
     Ok(Some(line.trim().to_owned()))
 }
 
-fn display(run: &Run, locus: &Locus, reveal: bool) -> String {
+fn resolve_text(run: &Run, locus: &Locus, reveal: bool) -> Result<String, String> {
     // Resolve only the displayed field: a hidden answer must not leak or fail early.
     let field = if reveal {
         BindingField::Item
@@ -55,13 +57,17 @@ fn display(run: &Run, locus: &Locus, reveal: bool) -> String {
     ) {
         Ok(resolved) => {
             if reveal {
-                resolved.item
+                Ok(resolved.item)
             } else {
-                resolved.place
+                Ok(resolved.place)
             }
         }
-        Err(err) => format!("⚠ Formel für {} fehlerhaft: {err}", field.name()),
+        Err(err) => Err(format!("⚠ Formel für {} fehlerhaft: {err}", field.name())),
     }
+}
+
+fn display(run: &Run, locus: &Locus, reveal: bool) -> String {
+    resolve_text(run, locus, reveal).unwrap_or_else(|error| error)
 }
 
 fn command(run: &mut Run, line: &str, reveal: bool) -> Option<bool> {
@@ -99,6 +105,9 @@ fn ask(
     locus: &Locus,
     run: &mut Run,
 ) -> Result<Step> {
+    if locus.answer.kind != AnswerKind::Recall {
+        return ask_automatic(input, n, total, locus, run);
+    }
     let mut revealed = false;
     loop {
         if revealed {
@@ -134,12 +143,103 @@ fn ask(
                 continue;
             }
         };
-        return Ok(Step::Graded(grade));
+        return Ok(Step::Answered(Submission::Recall(grade)));
+    }
+}
+
+fn ask_automatic(
+    input: &mut impl BufRead,
+    n: usize,
+    total: usize,
+    locus: &Locus,
+    run: &mut Run,
+) -> Result<Step> {
+    loop {
+        println!("\n[{n}/{total}] {}", display(run, locus, false));
+        if locus.answer.kind == AnswerKind::Quiz {
+            for (index, option) in locus.answer.options.iter().enumerate() {
+                println!("        {} {}", index + 1, option.text);
+            }
+            print!("Auswahl (z. B. 1,3; alle richtigen wählen)");
+        } else {
+            print!("Antwort");
+        }
+        if locus.answer.kind == AnswerKind::Guess {
+            print!(" (=Text für wörtliche Antworten wie q, ? oder !name)");
+        }
+        print!(" (Enter = aufdecken/Nochmal, q = beenden): ");
+        io::stdout().flush()?;
+        let Some(line) = read_line(input)? else {
+            return Ok(Step::Quit);
+        };
+        if locus.answer.kind == AnswerKind::Guess
+            && let Some(text) = line.strip_prefix('=')
+        {
+            if !text.trim().is_empty() {
+                return Ok(Step::Answered(Submission::Guess(text.to_owned())));
+            }
+            println!("⚠ Bitte eine nichtleere Antwort eingeben.");
+            continue;
+        }
+        if line.eq_ignore_ascii_case("q") {
+            return Ok(Step::Quit);
+        }
+        if line.is_empty() {
+            return Ok(Step::Answered(Submission::Forfeit));
+        }
+        if let Some(reveal) = command(run, &line, false) {
+            if reveal {
+                return Ok(Step::Answered(Submission::Forfeit));
+            }
+            continue;
+        }
+        if locus.answer.kind == AnswerKind::Guess {
+            return Ok(Step::Answered(Submission::Guess(line)));
+        }
+        let selected: Option<Vec<u32>> = line
+            .split(',')
+            .map(|part| {
+                let number: u32 = part.trim().parse().ok()?;
+                (number >= 1 && number as usize <= locus.answer.options.len()).then(|| number - 1)
+            })
+            .collect();
+        if let Some(selected) = selected {
+            let unique: std::collections::HashSet<_> = selected.iter().collect();
+            if unique.len() == selected.len() {
+                return Ok(Step::Answered(Submission::Quiz(selected)));
+            }
+        }
+        println!("⚠ Bitte gültige Optionsnummern ohne Duplikate eingeben.");
+    }
+}
+
+/// Keep workbook actions on the revealed locus; none of them evaluates it again.
+/// With no authored actions, automatic questions keep their single-submit flow.
+fn after_automatic(input: &mut impl BufRead, locus: &Locus, run: &mut Run) -> Result<bool> {
+    if run.actions().is_empty() {
+        return Ok(true);
+    }
+    loop {
+        print!("        Enter = weiter · ?/!name = Aktion · q = beenden: ");
+        io::stdout().flush()?;
+        match read_line(input)?.as_deref() {
+            None | Some("q" | "Q") => return Ok(false),
+            Some("") => return Ok(true),
+            Some(line) if command(run, line, true).is_some() => {
+                println!("        → {}", display(run, locus, true));
+            }
+            Some(_) => println!("        Bereits bewertet; Enter zum Weitergehen."),
+        }
     }
 }
 
 /// Practise one palace (`palace` = Some) or, in due mode, every palace.
 pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> {
+    if !app.host.plugin_provides("core", Evaluate::NAME) {
+        bail!(
+            "Das Core-Plugin fehlt. CLI mit wasm32-wasip2 und ohne LOCORA_SKIP_PLUGINS neu bauen oder ein passendes Core-Plugin in <Datenordner>/plugins ablegen."
+        );
+    }
     let trees: Vec<PalaceTree> = match palace {
         Some(query) => vec![app.store.palace(query)?],
         None => app
@@ -237,21 +337,88 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
     println!("? = Aktionen anzeigen · !name = Aktion ausführen · q = beenden");
     let started = Instant::now();
     let mut results: Vec<(String, bool)> = Vec::new();
+    let mut points = 0u64;
     let total = plan.len();
     for (i, (index, tree, locus)) in plan.iter().enumerate() {
         let asked = Instant::now();
         match ask(&mut input, i + 1, total, locus, &mut runs[*index])? {
             Step::Quit => break,
-            Step::Graded(grade) => {
-                results.push((tree.palace.id.clone(), grade != Grade::Again));
+            Step::Answered(submission) => {
+                let elapsed_ms = asked.elapsed().as_millis().min(u64::MAX as u128) as u64;
+                let expected = if locus.answer.kind == AnswerKind::Guess
+                    && submission != Submission::Forfeit
+                {
+                    match resolve_text(&runs[*index], locus, true) {
+                        Ok(text) if !text.trim().is_empty() => text,
+                        Ok(_) => {
+                            println!("⚠ Leere erwartete Antwort – nicht bewertet.");
+                            continue;
+                        }
+                        Err(error) => {
+                            println!("{error} – nicht bewertet.");
+                            continue;
+                        }
+                    }
+                } else {
+                    String::new()
+                };
+                let evaluation = app.host.call_plugin::<Evaluate>(
+                    "core",
+                    &EvaluateRequest {
+                        answer: locus.answer.clone(),
+                        expected,
+                        submission,
+                        elapsed_ms,
+                    },
+                )?;
+                app.report();
+                let score = app.host.filter::<JourneyScore>(Score {
+                    palace_id: tree.palace.id.clone(),
+                    locus_id: locus.id.clone(),
+                    points: evaluation.points,
+                })?;
+                app.report();
+                points = points.saturating_add(score.points);
+                results.push((tree.palace.id.clone(), evaluation.correct));
                 app.publish(&LocusAnswered {
                     palace_id: tree.palace.id.clone(),
                     locus_id: locus.id.clone(),
-                    correct: grade != Grade::Again,
-                    grade,
-                    elapsed_ms: asked.elapsed().as_millis() as u64,
+                    correct: evaluation.correct,
+                    grade: evaluation.grade,
+                    elapsed_ms,
                     answered_at: now(),
                 })?;
+                // Preserve trusted route identity even if a points filter changes ids.
+                app.publish(&Scored {
+                    palace_id: tree.palace.id.clone(),
+                    locus_id: locus.id.clone(),
+                    points: score.points,
+                })?;
+                if locus.answer.kind != AnswerKind::Recall {
+                    println!(
+                        "        {} → {}",
+                        if evaluation.correct {
+                            "Richtig"
+                        } else {
+                            "Nochmal"
+                        },
+                        display(&runs[*index], locus, true)
+                    );
+                    if locus.answer.kind == AnswerKind::Quiz {
+                        let correct: Vec<_> = locus
+                            .answer
+                            .options
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, option)| option.correct)
+                            .map(|(index, option)| format!("{} {}", index + 1, option.text))
+                            .collect();
+                        println!("        Richtige Auswahl: {}", correct.join(", "));
+                    }
+                    if !after_automatic(&mut input, locus, &mut runs[*index])? {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -261,7 +428,11 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .filter(|(id, _)| *id == tree.palace.id)
             .map(|(_, ok)| *ok)
             .collect();
-        if mine.is_empty() {
+        let planned = plan
+            .iter()
+            .filter(|(_, t, _)| t.palace.id == tree.palace.id)
+            .count();
+        if mine.is_empty() || mine.len() != planned {
             continue;
         }
         app.publish(&JourneyCompleted {
@@ -273,6 +444,28 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
     }
     let answered = results.len();
     let correct = results.iter().filter(|(_, ok)| *ok).count();
-    println!("\n✓ {answered} von {total} geübt, {correct} gewusst.");
+    println!("\n✓ {answered} von {total} geübt, {correct} gewusst. {points} Punkte.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn missing_core_is_reported_before_any_input() {
+        let mut app = App {
+            store: std::sync::Arc::new(locora_store::Store::in_memory().unwrap()),
+            host: locora_host::PluginHost::new(None).unwrap(),
+        };
+        let error = run(
+            &mut app,
+            None,
+            Options {
+                due_only: false,
+                new: 10,
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("Core-Plugin fehlt"));
+    }
 }

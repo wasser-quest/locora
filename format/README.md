@@ -1,4 +1,4 @@
-# The `.locora` file format, version 1
+# The `.locora` file format, versions 1 and 2
 
 A `.locora` file holds one or more memory palaces with their rooms, loci, workbook tables, images and videos. It is a ZIP archive:
 
@@ -8,7 +8,7 @@ manifest.json            what the file contains
 palaces/<id>.json        one palace: rooms, loci in route order, its own tables
 tables.json              tables shared by all palaces (only if manifest.sharedTables)
 media/<sha256>.<ext>     images and videos, named by the SHA-256 of their bytes
-plugins/<plugin-id>/…    reserved for plugin data; version 1 readers ignore it
+plugins/<plugin-id>/…    reserved for plugin data; readers ignore it
 ```
 
 - Like EPUB and ODF, the first entry `mimetype` is stored uncompressed, so tools can recognise the file from its first bytes. `manifest.json` follows directly, so readers can stream.
@@ -42,6 +42,11 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 ```
 
 - `version` above the reader's version → rejected with "needs a newer Locora".
+- Current readers accept versions 1 and 2. Recall-only exports still write version
+  1 and omit `answer`, remaining readable by existing version 1 implementations.
+  Any Quiz/Guess locus makes the entire archive version 2. Version 1 with a
+  non-Recall answer is rejected; older readers reject version 2 rather than
+  silently converting automatic questions into Recall.
 - File names are derived, never stored: `palaces/<id>.json`, `media/<sha256>.<ext>`.
 - Media types and extensions: `image/png` png, `image/jpeg` jpg, `image/webp` webp, `image/gif` gif, `image/avif` avif, `video/mp4` mp4, `video/webm` webm, `video/quicktime` mov.
 - `plugins`: plugins the file uses. A missing `required` plugin blocks the import.
@@ -76,6 +81,40 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 - `bindings`: formulas for `place`, `item`, `x`, `y`, `visible`, `active` (each at most once).
 - `tables`: rows `{ table, key, cells: [{ column, type, value }] }`; `type` is `text`, `number`, `boolean`, `json`, `formula`, `asset`, `palace` or `room`.
 - Array order is route order.
+
+## Locus answers (version 2)
+
+An absent `answer` defaults to Recall, including in version 1 files. Explicit
+Recall is `{"type":"recall"}`. Guess is `{"type":"guess"}` and checks the
+resolved `item`, not a second stored answer string. Quiz specifies authored
+options with one or more correct selections:
+
+```json
+{
+  "type": "quiz",
+  "options": [
+    { "text": "Merkur", "correct": true },
+    { "text": "Venus", "correct": false },
+    { "text": "Erde", "correct": true }
+  ]
+}
+```
+
+Quiz requires **2–9 total options**, at least one correct and one incorrect.
+Labels must be nonblank and unique after trimming and lowercasing, and respect
+text limits. Order is preserved; all correct options must be selected, with no
+partial credit. Recall/Guess cannot contain options (an empty list is allowed).
+Unknown types/fields and malformed configurations are rejected before import.
+These are explicit options, not legacy comma-separated correct answers or
+randomly generated distractors. For Quiz, `item` remains an explanation shown
+after answering; it need not contain the correct labels.
+
+Correct Guess matching trims and lowercases both whole strings. Core maps
+incorrect answers to Again and automatic correct answers to Easy at <=5,000 ms,
+otherwise Good. Recall stays self-rated. See the
+[SDK journey guide](../crates/locora-sdk/README.md#core-journeys) for runtime,
+forfeiture, hooks and limitations. Answer configuration travels with exports;
+Review state and earned points do not.
 
 ## `tables.json`
 

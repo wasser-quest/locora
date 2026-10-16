@@ -20,6 +20,7 @@ fn sample(dir: &std::path::Path) -> Store {
                     x: 0.2 + 0.3 * i as f64,
                     y: 0.5,
                     time: None,
+                    answer: Default::default(),
                 },
             )
             .unwrap();
@@ -37,6 +38,7 @@ fn sample(dir: &std::path::Path) -> Store {
                 x: 0.5,
                 y: 0.5,
                 time: Some(83.0),
+                answer: Default::default(),
             },
         )
         .unwrap();
@@ -191,7 +193,9 @@ fn broken_and_hostile_files_are_rejected() {
     let good = exported(&store, &["Planeten", "Vortrag"]);
 
     let err = open_err(rewrite(&good, |mut e| {
-        edit_json(&mut e, "manifest.json", |m| m["version"] = 2.into());
+        edit_json(&mut e, "manifest.json", |m| {
+            m["version"] = (VERSION + 1).into()
+        });
         e
     }));
     assert!(err.contains("neuere Locora-Version"), "{err}");
@@ -314,6 +318,7 @@ fn tables_and_bindings_travel_and_clashes_stay_local() {
                 x: 0.5,
                 y: 0.5,
                 time: None,
+                answer: Default::default(),
             },
         )
         .unwrap();
@@ -388,4 +393,77 @@ fn tables_and_bindings_travel_and_clashes_stay_local() {
         e
     }));
     assert!(err.contains("doppelt"), "{err}");
+}
+
+#[test]
+fn answer_versions_round_trip_and_fail_closed() {
+    use locora_store::{Answer, AnswerKind, LocusPatch, QuizOption};
+    let dir = tempfile::tempdir().unwrap();
+    let store = sample(dir.path());
+    let v1 = exported(&store, &["Planeten"]);
+    let legacy = Package::open(Cursor::new(v1)).unwrap();
+    assert_eq!(legacy.manifest.version, 1);
+    assert!(legacy.palaces[0].rooms[0].loci[0].answer.is_recall());
+    let tree = store.palace("Planeten").unwrap();
+    let answers = [
+        Answer {
+            kind: AnswerKind::Guess,
+            options: vec![],
+        },
+        Answer {
+            kind: AnswerKind::Quiz,
+            options: vec![
+                QuizOption {
+                    text: "a".into(),
+                    correct: true,
+                },
+                QuizOption {
+                    text: "b".into(),
+                    correct: false,
+                },
+                QuizOption {
+                    text: "c".into(),
+                    correct: true,
+                },
+            ],
+        },
+    ];
+    for (l, answer) in tree.route().zip(&answers) {
+        store
+            .update_locus(
+                &l.id,
+                &LocusPatch {
+                    answer: Some(answer.clone()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+    }
+    let bytes = exported(&store, &["Planeten"]);
+    assert_eq!(bytes, exported(&store, &["Planeten"]));
+    let package = Package::open(Cursor::new(&bytes)).unwrap();
+    assert_eq!(package.manifest.version, 2);
+    let target_dir = tempfile::tempdir().unwrap();
+    let target = Store::open(target_dir.path()).unwrap();
+    package.import(&target).unwrap();
+    let imported = target.palace("Planeten").unwrap();
+    assert_eq!(
+        imported
+            .route()
+            .map(|l| l.answer.clone())
+            .collect::<Vec<_>>(),
+        answers
+    );
+    let wrong_version = rewrite(&bytes, |mut entries| {
+        edit_json(&mut entries, "manifest.json", |m| m["version"] = 1.into());
+        entries
+    });
+    assert!(open_err(wrong_version).contains("Format 2"));
+    let invalid = rewrite(&bytes, |mut entries| {
+        edit_json(&mut entries, "palace", |p| {
+            p["rooms"][0]["loci"][1]["answer"]["options"][1]["text"] = " A ".into()
+        });
+        entries
+    });
+    assert!(open_err(invalid).contains("eindeutig"));
 }

@@ -59,6 +59,8 @@ const MIGRATIONS: &[&str] = &[
      ALTER TABLE table_rows RENAME COLUMN sheet TO table_name;
      UPDATE bindings SET field = 'place' WHERE field = 'label';
      UPDATE bindings SET field = 'item' WHERE field = 'memory';",
+    // 4: answer configuration; existing loci remain Recall.
+    "ALTER TABLE loci ADD COLUMN answer TEXT NOT NULL DEFAULT '{\"type\":\"recall\",\"options\":[]}';",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -73,4 +75,52 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
         tx.commit()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn upgrade_v3_preserves_route_and_defaults_to_recall() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in &MIGRATIONS[..3] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 3).unwrap();
+        conn.execute_batch(
+            "INSERT INTO palaces VALUES ('p','P',1,2);
+            INSERT INTO rooms VALUES ('r','p',0,'R','blank',NULL);
+            INSERT INTO loci VALUES ('l','r',0,'Tür','Merkur',0.4,0.5,NULL);
+            INSERT INTO kv VALUES ('review','cards/p',X'0102');",
+        )
+        .unwrap();
+        migrate(&conn).unwrap();
+        migrate(&conn).unwrap();
+        let locus = conn
+            .query_row("SELECT place,item,answer FROM loci WHERE id='l'", [], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })
+            .unwrap();
+        assert_eq!((locus.0.as_str(), locus.1.as_str()), ("Tür", "Merkur"));
+        assert!(
+            serde_json::from_str::<locora_api::journey::Answer>(&locus.2)
+                .unwrap()
+                .is_recall()
+        );
+        assert_eq!(
+            conn.query_row("SELECT value FROM kv WHERE plugin='review'", [], |r| r
+                .get::<_, Vec<u8>>(0))
+                .unwrap(),
+            [1, 2]
+        );
+        assert_eq!(
+            conn.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
+                .unwrap(),
+            4
+        );
+    }
 }

@@ -12,7 +12,7 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// Plugin API version implemented by this crate.
-pub const API_VERSION: &str = "0.2";
+pub const API_VERSION: &str = "0.4";
 
 /// A typed event with a stable topic name.
 pub trait Event: Serialize + DeserializeOwned {
@@ -30,6 +30,15 @@ pub trait Service {
     type Request: Serialize + DeserializeOwned;
     type Response: Serialize + DeserializeOwned;
 }
+
+/// A typed, synchronous filter chain driven by the native host.
+pub trait Hook {
+    const NAME: &'static str;
+    type Value: Serialize + DeserializeOwned;
+}
+
+pub mod journey;
+pub mod palaces;
 
 /// Encode an event payload.
 pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, postcard::Error> {
@@ -85,6 +94,21 @@ pub mod ui {
 /// Events published by the `core` plugin.
 pub mod core {
     use super::*;
+
+    /// Filter the points awarded for a journey answer. No scoring rules are implied.
+    pub struct JourneyScore;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct Score {
+        pub palace_id: String,
+        pub locus_id: String,
+        pub points: u64,
+    }
+
+    impl Hook for JourneyScore {
+        const NAME: &'static str = "core.journey.score";
+        type Value = Score;
+    }
 
     /// A new palace was created.
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

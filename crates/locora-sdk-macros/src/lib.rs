@@ -113,6 +113,13 @@ pub fn locora_plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
                 ::locora_sdk::__rt::dispatch(&topic, &payload)
             }
 
+            fn on_filter(
+                hook: ::std::string::String,
+                value: ::std::vec::Vec<u8>,
+            ) -> ::core::result::Result<::std::vec::Vec<u8>, ::std::string::String> {
+                ::locora_sdk::__rt::filter(&hook, &value)
+            }
+
             fn on_call(
                 service: ::std::string::String,
                 request: ::std::vec::Vec<u8>,
