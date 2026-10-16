@@ -2,14 +2,14 @@
 //! for new loci. App settings live in the profile under the reserved id
 //! `host`; scheduler settings belong to the review plugin.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 use locora_api::Service;
 use locora_api::core::Grade;
 use locora_api::review::{
-    Configure, ConfigureRequest, Log, LogEntry, LogRequest, Schedule, ScheduleRequest, Settings,
+    Configure, ConfigureRequest, Log, LogEntry, Schedule, ScheduleRequest, Settings,
 };
 use locora_fsrs::DEFAULT_WEIGHTS;
 use locora_fsrs::optimize::{History, MIN_REVIEWS, optimize, usable_reviews};
@@ -17,8 +17,7 @@ use locora_fsrs::optimize::{History, MIN_REVIEWS, optimize, usable_reviews};
 use crate::app::{App, now};
 
 const DAY: u64 = 86_400;
-const NEW_PER_DAY: &str = "settings.new_per_day";
-pub const DEFAULT_NEW_PER_DAY: usize = 10;
+use locora_runtime::settings::{NEW_PER_DAY, day_start, introduced_today};
 
 #[derive(Subcommand)]
 pub enum SettingsCommand {
@@ -36,37 +35,14 @@ fn review_required(app: &App) -> Result<()> {
 }
 
 pub fn new_per_day(app: &App) -> Result<usize> {
-    Ok(match app.store.kv_get("host", NEW_PER_DAY)? {
-        Some(bytes) => serde_json::from_slice(&bytes)
-            .context("Einstellung neue Loci pro Tag ist beschädigt")?,
-        None => DEFAULT_NEW_PER_DAY,
-    })
-}
-
-fn day_start(t: u64) -> u64 {
-    t - t % DAY
+    app.new_per_day()
 }
 
 /// The whole review log (empty without the review plugin).
 fn log(app: &mut App) -> Result<Vec<LogEntry>> {
-    if !app.host.provides(Log::NAME) {
-        return Ok(Vec::new());
-    }
-    let entries = app.host.call::<Log>(&LogRequest { palace_id: None })?;
+    let entries = app.review_log()?;
     app.report();
     Ok(entries)
-}
-
-/// Loci answered for the very first time today (UTC day).
-fn introduced_today(entries: &[LogEntry], now: u64) -> usize {
-    let mut first: HashMap<(&str, &str), u64> = HashMap::new();
-    for e in entries {
-        let slot = first
-            .entry((&e.palace_id, &e.locus_id))
-            .or_insert(e.answered_at);
-        *slot = (*slot).min(e.answered_at);
-    }
-    first.values().filter(|t| **t >= day_start(now)).count()
 }
 
 /// How many new loci may still start today.
