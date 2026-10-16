@@ -14,7 +14,6 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 locora-formula = { path = "../../crates/locora-formula" }
-locora-fsrs = { path = "../../crates/locora-fsrs" }
 locora-format = { path = "../../crates/locora-format" }
 locora-runtime = { path = "../../crates/locora-runtime" }
 locora-source = { path = "../../crates/locora-source" }

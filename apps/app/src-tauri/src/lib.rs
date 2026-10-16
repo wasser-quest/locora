@@ -269,6 +269,14 @@ async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
 }
 
 #[tauri::command]
+async fn settings_optimize(
+    state: State<'_, Shared>,
+) -> Result<locora_app_api::OptimizeDone, String> {
+    let mut b = lock(&state)?;
+    settings::optimize(&mut b.profile).map_err(err)
+}
+
+#[tauri::command]
 async fn settings_set(
     state: State<'_, Shared>,
     change: SettingsChange,
@@ -464,6 +472,7 @@ pub fn run() {
             import_pick,
             export_pick,
             settings_set,
+            settings_optimize,
             journey_start,
             journey_action,
             journey_reveal,

@@ -108,6 +108,8 @@ fn optimize_learns_from_enough_history() {
         let out = ok(d, T0 + round * 2 * DAY, &["practice", "Viel"], &answers);
         assert!(out.contains("25 von 25 geübt"), "{out}");
     }
+    let stats = ok(d, T0 + 10 * DAY, &["stats"], "");
+    assert!(stats.contains("Tipp: Aus 100 Wiederholungen"), "{stats}");
     let out = ok(d, T0 + 10 * DAY, &["optimize", "--dry-run"], "");
     assert!(
         out.contains("Aus 100 Wiederholungen") && out.contains("nichts geändert"),
@@ -122,6 +124,11 @@ fn optimize_learns_from_enough_history() {
     if out.contains("gespeichert") {
         assert!(ok(d, T0, &["settings"], "").contains("persönlich"));
     }
+    let stats = ok(d, T0 + 10 * DAY, &["stats"], "");
+    assert!(
+        !stats.contains("Tipp:"),
+        "no hint right after fitting: {stats}"
+    );
     assert!(ok(d, T0, &["optimize", "--reset"], "").contains("zurückgesetzt"));
     assert!(ok(d, T0, &["settings"], "").contains("FSRS-Gewichte:         Standard"));
 }

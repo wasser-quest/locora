@@ -13,6 +13,7 @@ dirs = "6"
 locora-api.workspace = true
 locora-host.workspace = true
 locora-format = { path = "../locora-format" }
+locora-fsrs = { path = "../locora-fsrs" }
 locora-formula = { path = "../locora-formula" }
 locora-source = { path = "../locora-source" }
 locora-store = { path = "../locora-store" }

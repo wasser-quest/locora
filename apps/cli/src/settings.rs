@@ -2,15 +2,11 @@
 //! for new loci. App settings live in the profile under the reserved id
 //! `host`; scheduler settings belong to the review plugin.
 
-use std::collections::BTreeMap;
-
 use anyhow::{Result, bail};
 use clap::Subcommand;
 use locora_api::Service;
 use locora_api::review::{Configure, ConfigureRequest, Log, LogEntry, Settings};
-use locora_fsrs::DEFAULT_WEIGHTS;
-use locora_fsrs::optimize::{History, MIN_REVIEWS, optimize, usable_reviews};
-use locora_runtime::settings::{introduced_today, parse_retention};
+use locora_runtime::settings::{Optimized, introduced_today, parse_retention};
 
 use crate::app::{App, now};
 
@@ -95,77 +91,18 @@ pub fn settings(app: &mut App, command: Option<SettingsCommand>) -> Result<()> {
     Ok(())
 }
 
-/// Answers per locus in time order.
-fn histories(entries: &[LogEntry]) -> Vec<History> {
-    let mut by_locus: BTreeMap<(&str, &str), History> = BTreeMap::new();
-    for e in entries {
-        by_locus
-            .entry((&e.palace_id, &e.locus_id))
-            .or_default()
-            .push((e.answered_at, e.grade));
-    }
-    by_locus
-        .into_values()
-        .map(|mut h| {
-            h.sort_by_key(|(t, _)| *t);
-            h
-        })
-        .collect()
-}
-
 pub fn optimize_command(app: &mut App, dry_run: bool, reset: bool) -> Result<()> {
     review_required(app)?;
     if reset {
-        configure(
-            app,
-            ConfigureRequest {
-                weights: Some(None),
-                ..Default::default()
-            },
-        )?;
+        app.reset_weights()?;
+        app.report();
         println!("✓ FSRS-Gewichte auf Standard zurückgesetzt");
         return Ok(());
     }
-    let entries = log(app)?;
-    let histories = histories(&entries);
-    let usable = usable_reviews(&histories);
-    let current = configure(app, ConfigureRequest::default())?;
-    let start: [f64; 19] = match &current.weights {
-        Some(w) => w.as_slice().try_into().unwrap_or(DEFAULT_WEIGHTS),
-        None => DEFAULT_WEIGHTS,
-    };
-    let Some(fitted) = optimize(&histories, &start) else {
-        println!(
-            "Noch zu wenig Daten: {usable} von {MIN_REVIEWS} Wiederholungen mit mindestens einem Tag Abstand."
-        );
-        return Ok(());
-    };
-    let gain = if fitted.loss_before > 0.0 {
-        1.0 - fitted.loss_after / fitted.loss_before
-    } else {
-        0.0
-    };
-    println!(
-        "Aus {} Wiederholungen: Vorhersagefehler {:.4} → {:.4} ({:.1} % besser)",
-        fitted.reviews,
-        fitted.loss_before,
-        fitted.loss_after,
-        gain * 100.0
-    );
-    if dry_run {
-        println!("(nur berechnet, nichts geändert)");
-    } else if fitted.weights == start {
-        println!("Die bisherigen Gewichte passen schon am besten; nichts geändert.");
-    } else {
-        configure(
-            app,
-            ConfigureRequest {
-                weights: Some(Some(fitted.weights.to_vec())),
-                ..Default::default()
-            },
-        )?;
-        println!("✓ Persönliche FSRS-Gewichte gespeichert. Sie gelten ab der nächsten Antwort.");
-    }
+    let result = app.optimize(!dry_run)?;
+    app.report();
+    let saved = matches!(result, Optimized::Fitted { saved: true, .. });
+    println!("{}{}", if saved { "✓ " } else { "" }, result.message());
     Ok(())
 }
 
@@ -197,6 +134,12 @@ pub fn stats(app: &mut App) -> Result<()> {
         "Geplante Loci:         {} (davon {} fällig)",
         stats.scheduled, stats.due
     );
+    let (usable, worth) = app.optimize_hint()?;
+    if worth {
+        println!(
+            "\nTipp: Aus {usable} Wiederholungen kann Locora persönliche Gewichte berechnen: locora optimize"
+        );
+    }
     Ok(())
 }
 
@@ -204,7 +147,7 @@ pub fn stats(app: &mut App) -> Result<()> {
 mod tests {
     use super::*;
     use locora_api::core::Grade;
-    use locora_runtime::settings::day_start;
+    use locora_runtime::settings::{day_start, histories};
 
     fn entry(locus: &str, at: u64) -> LogEntry {
         LogEntry {
