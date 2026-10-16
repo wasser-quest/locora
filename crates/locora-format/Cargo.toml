@@ -1,0 +1,19 @@
+[package]
+name = "locora-format"
+description = "The .locora file format: portable memory palaces with embedded media"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+locora-store = { path = "../locora-store" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2.workspace = true
+thiserror.workspace = true
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3"

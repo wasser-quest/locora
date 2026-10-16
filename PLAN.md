@@ -555,8 +555,8 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 
 **Stand (16.10.2026):** Phase 0 erledigt. Aus Phase 1 laufen: Plugin-Host (Laden zur Laufzeit, Hot-Reload, Services,
 dauerhafter Plugin-Speicher), `locora-store` (SQLite, Medien, Op-Log), `locora-fsrs`, Plugin `review` und die CLI
-(`new/add/edit/ls/show/rm/practice/review/due`, `plugin new/dev/run/check`). Offen in Phase 1: Formel-Sprache
-(`locora-formula`), Dateiformat `.locora` (Import/Export), `core` als eigenes Plugin, `locora.toml`-Quelltextformat.
+(`new/add/edit/ls/show/rm/practice/review/due`, `plugin new/dev/run/check`). Dateiformat `.locora` mit `locora export/import` (Spezifikation: `format/README.md`).
+Offen in Phase 1: Formel-Sprache (`locora-formula`), `core` als eigenes Plugin, `locora.toml`-Quelltextformat.
 
 ---
 

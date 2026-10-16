@@ -139,3 +139,57 @@ fn palaces_from_files_with_labels_positions_and_video_times() {
     let out = run(d, T0, &["show", "Gibtsnicht"], "");
     assert!(String::from_utf8_lossy(&out.stderr).contains("nicht gefunden"));
 }
+
+#[test]
+fn export_and_import_between_profiles() {
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    let image = a.path().join("kueche.png");
+    std::fs::write(&image, b"\x89PNG not really").unwrap();
+    ok(
+        a.path(),
+        T0,
+        &[
+            "new",
+            "Küche",
+            "--image",
+            image.to_str().unwrap(),
+            "--",
+            "Herd",
+            "Spüle",
+        ],
+        "",
+    );
+    let file = a.path().join("kueche.locora");
+    let out = ok(
+        a.path(),
+        T0,
+        &["export", "Küche", "-o", file.to_str().unwrap()],
+        "",
+    );
+    assert!(out.contains("1 Palast, 2 Loci, 1 Medium"), "{out}");
+    let again = run(
+        a.path(),
+        T0,
+        &["export", "Küche", "-o", file.to_str().unwrap()],
+        "",
+    );
+    assert!(String::from_utf8_lossy(&again.stderr).contains("gibt es schon"));
+
+    let preview = ok(
+        b.path(),
+        T0,
+        &["import", file.to_str().unwrap(), "--dry-run"],
+        "",
+    );
+    assert!(
+        preview.contains("Küche (2 Loci)") && preview.contains("nichts importiert"),
+        "{preview}"
+    );
+    assert!(ok(b.path(), T0, &["ls"], "").contains("Noch keine Paläste"));
+    ok(b.path(), T0, &["import", file.to_str().unwrap()], "");
+    let out = ok(b.path(), T0, &["import", file.to_str().unwrap()], "");
+    assert!(out.contains("als „Küche (2)“"), "{out}");
+    let shown = ok(b.path(), T0, &["show", "Küche"], "");
+    assert!(shown.contains("🖼") && shown.contains("Spüle"), "{shown}");
+}

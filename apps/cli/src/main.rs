@@ -5,6 +5,7 @@ mod palace;
 mod places;
 mod plugin;
 mod practice;
+mod transfer;
 
 use std::path::PathBuf;
 
@@ -104,6 +105,24 @@ enum Command {
     },
     /// Was ist heute fällig?
     Due,
+    /// Paläste als .locora-Datei speichern (mit Bildern und Videos)
+    Export {
+        /// Paläste (Name oder Id); leer mit --all
+        palaces: Vec<String>,
+        /// Alle Paläste
+        #[arg(long, conflicts_with = "palaces")]
+        all: bool,
+        /// Zieldatei (Standard: <Palast>.locora)
+        #[arg(long, short, value_name = "DATEI")]
+        output: Option<PathBuf>,
+    },
+    /// .locora-Datei importieren (immer als neue Kopie)
+    Import {
+        file: PathBuf,
+        /// Nur prüfen und anzeigen, nichts importieren
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Plugins erstellen, entwickeln und testen
     #[command(subcommand)]
     Plugin(plugin::PluginCommand),
@@ -194,5 +213,13 @@ fn main() -> Result<()> {
             },
         ),
         Command::Due => palace::due(&mut app::App::open(data)?),
+        Command::Export {
+            palaces,
+            all,
+            output,
+        } => transfer::export(&mut app::App::open(data)?, palaces, all, output),
+        Command::Import { file, dry_run } => {
+            transfer::import(&mut app::App::open(data)?, &file, dry_run)
+        }
     }
 }

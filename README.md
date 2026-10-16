@@ -19,7 +19,11 @@ locora review                  # only what is due
 locora show Planeten
 locora new Vortrag --video talk.mp4 -- 0:12=Einleitung 1:23=These
 locora new Vokabeln --image kueche.jpg --from vokabeln.txt   # lines: `Ort | Erinnerung | x,y`
+locora export Planeten         # Planeten.locora, with images and videos
+locora import Planeten.locora  # always a new copy; --dry-run only checks
 ```
+
+The `.locora` format is documented in [`format/README.md`](format/README.md).
 
 Data lives in your platform data directory (`--data DIR` or `$LOCORA_DATA` to change it).
 
@@ -41,6 +45,7 @@ crates/locora-sdk-macros   the #[locora_plugin] attribute
 crates/locora-host         loads plugins at runtime (wasmtime), sandbox, events, services, hot reload
 crates/locora-store        offline-first SQLite storage: palaces, stages, loci, media, plugin data, op log
 crates/locora-fsrs         FSRS-5 spaced-repetition scheduling
+crates/locora-format       the .locora file format (export, strict import)
 apps/cli                   the `locora` command (palaces, practice, review, plugin development)
 plugins/review             official spaced-repetition plugin (built into the CLI)
 plugins/                   other plugins compiled to wasm32-wasip2 (example: lernzeit)
