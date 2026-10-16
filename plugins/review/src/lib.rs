@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use locora_fsrs::Params;
-use locora_sdk::api::review::{CardState, Schedule, ScheduledLocus};
+use locora_sdk::api::review::{CardState, Restore, Schedule, ScheduledLocus};
 use locora_sdk::prelude::*;
 
 #[locora_plugin(name = "Wiederholung", permissions = [storage])]
@@ -55,6 +55,18 @@ impl Plugin for Review {
             Ok(())
         })?;
         ctx.on::<PalaceDeleted>(|ctx, ev| save(ctx, &ev.palace_id, &Cards::new()))?;
+        ctx.provide::<Restore>(|ctx, request| {
+            if let Some((locus, _)) = request.cards.iter().find(|(_, card)| !card.is_valid()) {
+                return Err(Error::msg(format!(
+                    "Ungültiger Wiederholungsstand für Locus {locus}"
+                )));
+            }
+            let mut cards = load(ctx, &request.palace_id)?;
+            let count = request.cards.len() as u32;
+            cards.extend(request.cards);
+            save(ctx, &request.palace_id, &cards)?;
+            Ok(count)
+        })?;
         ctx.provide::<Schedule>(|ctx, request| {
             let ids = match request.palace_id {
                 Some(id) => vec![id],

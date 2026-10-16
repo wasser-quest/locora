@@ -120,6 +120,25 @@ Review state and earned points do not.
 
 An array of rows (same shape as above) shared by all palaces. A palace's own row with the same `table` and `key` replaces the shared one.
 
+## Plugin data: `plugins/review/progress.json`
+
+`locora export --with-progress` adds the review schedule of the exported loci (plugin `review`) and lists the plugin in `manifest.plugins` with `required: false`:
+
+```json
+{
+  "version": 1,
+  "cards": [
+    { "palace": "0199f3a2…", "locus": "0199f3a4…", "stability": 3.17, "difficulty": 5.28,
+      "lastReview": 1800000000, "due": 1800259200, "reps": 1, "lapses": 0 }
+  ]
+}
+```
+
+- Ids are the ids inside the archive; importing maps them to the new ids of the copies.
+- Readers check everything before importing: known version, no unknown fields, every card belongs to a locus in the file and appears once, stability > 0, difficulty 1–10. A broken file imports nothing.
+- `locora import --without-progress` ignores the file; without the `review` plugin it is skipped with a note.
+- Other plugins may store data under `plugins/<plugin-id>/` the same way (plain file names, at most 16 MiB each).
+
 ## Rules for readers
 
 Readers fail closed instead of guessing:

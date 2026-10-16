@@ -121,6 +121,9 @@ enum Command {
         /// Zieldatei (Standard: <Palast>.locora)
         #[arg(long, short, value_name = "DATEI")]
         output: Option<PathBuf>,
+        /// Wiederholungsstand (Plugin `review`) mitnehmen
+        #[arg(long)]
+        with_progress: bool,
     },
     /// .locora-Datei importieren (immer als neue Kopie)
     Import {
@@ -128,6 +131,9 @@ enum Command {
         /// Nur prüfen und anzeigen, nichts importieren
         #[arg(long)]
         dry_run: bool,
+        /// Mitgelieferten Wiederholungsstand nicht übernehmen
+        #[arg(long)]
+        without_progress: bool,
     },
     /// Palast aus einer locora.toml-Quelltextdatei bauen
     Build {
@@ -294,10 +300,19 @@ fn main() -> Result<()> {
             palaces,
             all,
             output,
-        } => transfer::export(&mut app::App::open(data)?, palaces, all, output),
-        Command::Import { file, dry_run } => {
-            transfer::import(&mut app::App::open(data)?, &file, dry_run)
-        }
+            with_progress,
+        } => transfer::export(
+            &mut app::App::open(data)?,
+            palaces,
+            all,
+            output,
+            with_progress,
+        ),
+        Command::Import {
+            file,
+            dry_run,
+            without_progress,
+        } => transfer::import(&mut app::App::open(data)?, &file, dry_run, without_progress),
         Command::Build {
             file,
             check,

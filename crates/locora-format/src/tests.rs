@@ -467,3 +467,57 @@ fn answer_versions_round_trip_and_fail_closed() {
     });
     assert!(open_err(invalid).contains("eindeutig"));
 }
+
+#[test]
+fn plugin_files_travel_and_paths_are_checked() {
+    let a = tempfile::tempdir().unwrap();
+    let store = sample(a.path());
+    let entry = PluginEntry {
+        id: "review".into(),
+        version: "0.1.0".into(),
+        required: false,
+    };
+    let file = PluginFile {
+        plugin: entry.clone(),
+        path: "progress.json".into(),
+        bytes: b"{\"version\":1}".to_vec(),
+    };
+    let names = vec!["Planeten".to_string()];
+    let write = |files: &[PluginFile]| {
+        let mut out = Cursor::new(Vec::new());
+        export_with(&store, &names, files, &mut out).map(|_| out.into_inner())
+    };
+    let bytes = write(std::slice::from_ref(&file)).unwrap();
+    assert_eq!(
+        bytes,
+        write(std::slice::from_ref(&file)).unwrap(),
+        "still reproducible"
+    );
+    let mut package = Package::open(Cursor::new(bytes)).unwrap();
+    assert_eq!(package.manifest.plugins, vec![entry.clone()]);
+    assert_eq!(
+        package
+            .plugin_file("review", "progress.json")
+            .unwrap()
+            .unwrap(),
+        b"{\"version\":1}"
+    );
+    assert_eq!(package.plugin_file("review", "missing.json").unwrap(), None);
+    assert!(package.plugin_file("review", "../manifest.json").is_err());
+
+    for path in ["../x", "a//b", "", "x\\y", "./x"] {
+        let bad = PluginFile {
+            path: path.into(),
+            ..file.clone()
+        };
+        assert!(write(&[bad]).is_err(), "{path:?}");
+    }
+    let bad_id = PluginFile {
+        plugin: PluginEntry {
+            id: "../x".into(),
+            ..entry
+        },
+        ..file
+    };
+    assert!(write(&[bad_id]).is_err());
+}

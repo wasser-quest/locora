@@ -641,12 +641,13 @@ Ausführliche Verträge, Randfälle und Grenzen: [`docs/phase-1-notizen.md`](doc
 | 3 | `core` als WASM-Plugin: Recall, Quiz, Guess, Score-Hook; Migration 4; `.locora` v2 nur bei Quiz/Guess | erledigt (API 0.4) |
 | 4 | `locora plugin install/remove/ls` mit Rechteanzeige, Zustimmung, geschützten eingebauten Plugins | erledigt |
 | 5 | `locora.toml` + `locora build` (`--check`, `--replace`) und `locora dump`; Doku `format/locora-toml.md`, Crate `locora-source` | erledigt |
-| 6 | `locora export --with-progress`: Review-Daten nach `plugins/review/` | **als Nächstes** |
-| 7 | Review-Log (jede Antwort speichern), FSRS-Parameteroptimierung, Tageslimits für neue Loci | offen |
+| 6 | `locora export --with-progress` / `import [--without-progress]`: Review-Plan als `plugins/review/progress.json`, Dienst `review.restore@1` | erledigt |
+| 7 | Review-Log (jede Antwort speichern), FSRS-Parameteroptimierung, Tageslimits für neue Loci | **als Nächstes** |
 | 8 | Sammlungen (mehrere Paläste mit gemeinsamer Navigation, `navigate`-Aktion) | erst wenn gebraucht |
 
 Behoben: Beim palastübergreifenden Review bekam jeder Palast die gesamte Laufzeit gemeldet (`lernzeit` zählte doppelt);
-jetzt zählt nur die Zeit an den eigenen Loci.
+jetzt zählt nur die Zeit an den eigenen Loci. Die CLI-Tests waren gelegentlich rot, wenn ein Prozess vor dem Lesen der
+Testeingabe endete (Broken Pipe); die Test-Helfer behandeln das jetzt als normal.
 
 ### 13.4 Phase 2: die App (Tauri 2 + Leptos)
 

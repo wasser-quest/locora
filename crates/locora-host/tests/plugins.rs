@@ -263,3 +263,57 @@ fn calling_a_missing_service_is_an_error() {
     let err = host.call_raw("nobody.home@1", &[]).unwrap_err();
     assert!(err.to_string().contains("nobody.home@1"));
 }
+
+#[test]
+fn review_restores_imported_cards_and_rejects_bad_ones() {
+    use locora_api::review::{CardState, Restore, RestoreRequest, Schedule, ScheduleRequest};
+
+    let mut host = PluginHost::new(None).unwrap();
+    load(&mut host, "review");
+    let card = CardState {
+        stability: 3.2,
+        difficulty: 5.0,
+        last_review: 1_800_000_000,
+        due: 1_800_259_200,
+        reps: 1,
+        lapses: 0,
+    };
+    let restored = host
+        .call::<Restore>(&RestoreRequest {
+            palace_id: "p".into(),
+            cards: vec![("l1".into(), card), ("l2".into(), card)],
+        })
+        .unwrap();
+    assert_eq!(restored, 2);
+    let scheduled = host
+        .call::<Schedule>(&ScheduleRequest {
+            palace_id: Some("p".into()),
+        })
+        .unwrap();
+    assert_eq!(scheduled.len(), 2);
+    assert_eq!(scheduled[0].card, card);
+
+    let bad = CardState {
+        difficulty: 42.0,
+        ..card
+    };
+    let err = host
+        .call::<Restore>(&RestoreRequest {
+            palace_id: "p".into(),
+            cards: vec![("l3".into(), bad)],
+        })
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("Ungültiger Wiederholungsstand"),
+        "{err}"
+    );
+    assert_eq!(
+        host.call::<Schedule>(&ScheduleRequest {
+            palace_id: Some("p".into())
+        })
+        .unwrap()
+        .len(),
+        2,
+        "a rejected restore changes nothing"
+    );
+}

@@ -1044,8 +1044,10 @@ dependencies = [
  "locora-source",
  "locora-store",
  "notify",
+ "serde",
  "serde_json",
  "tempfile",
+ "zip",
 ]
 
 [[package]]

@@ -22,7 +22,7 @@ locora new Vortrag --video talk.mp4 -- 0:12=Einleitung 1:23=These
 locora new Vokabeln --image kueche.jpg --from vokabeln.txt   # lines: `Ort | Erinnerung | x,y`
 locora build planeten.locora.toml   # a palace from a text file (see format/locora-toml.md)
 locora dump Planeten -o quelle/     # and back: source + media files
-locora export Planeten         # Planeten.locora, with images and videos
+locora export Planeten         # Planeten.locora, with images and videos (--with-progress: plus review schedule)
 locora import Planeten.locora  # always a new copy; --dry-run only checks
 ```
 

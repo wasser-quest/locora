@@ -222,6 +222,33 @@ pub mod review {
         type Request = ScheduleRequest;
         type Response = Vec<ScheduledLocus>;
     }
+
+    /// Restore cards (e.g. from an imported `.locora` with progress).
+    /// Existing cards of the same loci are replaced; the answer is the number restored.
+    pub struct Restore;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct RestoreRequest {
+        pub palace_id: String,
+        /// (locus id, card)
+        pub cards: Vec<(String, CardState)>,
+    }
+
+    impl Service for Restore {
+        const NAME: &'static str = "review.restore@1";
+        type Request = RestoreRequest;
+        type Response = u32;
+    }
+
+    impl CardState {
+        /// Whether the numbers are usable for scheduling.
+        pub fn is_valid(&self) -> bool {
+            self.stability.is_finite()
+                && self.stability > 0.0
+                && self.difficulty.is_finite()
+                && (1.0..=10.0).contains(&self.difficulty)
+        }
+    }
 }
 
 #[cfg(test)]

@@ -323,6 +323,61 @@ pub struct ExportSummary {
 
 /// Write the given palaces (store queries: ids or names) into a `.locora` archive.
 pub fn export<W: Write + Seek>(store: &Store, palaces: &[String], out: W) -> Result<ExportSummary> {
+    export_with(store, palaces, &[], out)
+}
+
+/// Data a plugin adds to an export, stored as `plugins/<plugin>/<path>`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PluginFile {
+    pub plugin: PluginEntry,
+    /// Path inside the plugin's folder, e.g. `progress.json`.
+    pub path: String,
+    pub bytes: Vec<u8>,
+}
+
+/// File names inside `plugins/<id>/`: plain segments, no `..`, bounded length.
+fn safe_plugin_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.len() <= 200
+        && path.split('/').all(|part| {
+            !part.is_empty()
+                && part != "."
+                && part != ".."
+                && part
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
+        })
+}
+
+/// Like [`export`], plus plugin data files (e.g. review progress).
+pub fn export_with<W: Write + Seek>(
+    store: &Store,
+    palaces: &[String],
+    plugin_files: &[PluginFile],
+    out: W,
+) -> Result<ExportSummary> {
+    let mut plugin_files: Vec<&PluginFile> = plugin_files.iter().collect();
+    plugin_files.sort_by(|a, b| (&a.plugin.id, &a.path).cmp(&(&b.plugin.id, &b.path)));
+    for f in &plugin_files {
+        if !safe_id(&f.plugin.id) || !safe_plugin_path(&f.path) {
+            return Err(invalid(format!(
+                "ungültige Plugin-Datei {}/{}",
+                f.plugin.id, f.path
+            )));
+        }
+        if f.bytes.len() as u64 > limits::JSON_BYTES {
+            return Err(invalid(format!(
+                "Plugin-Datei {}/{} ist zu groß",
+                f.plugin.id, f.path
+            )));
+        }
+    }
+    let mut plugin_entries: Vec<PluginEntry> = Vec::new();
+    for f in &plugin_files {
+        if !plugin_entries.iter().any(|e| e.id == f.plugin.id) {
+            plugin_entries.push(f.plugin.clone());
+        }
+    }
     if palaces.is_empty() {
         return Err(invalid("keine Paläste zum Exportieren"));
     }
@@ -374,7 +429,7 @@ pub fn export<W: Write + Seek>(store: &Store, palaces: &[String], out: W) -> Res
             })
             .collect(),
         media: media.values().cloned().collect(),
-        plugins: Vec::new(),
+        plugins: plugin_entries,
         shared_tables: !shared.is_empty(),
     };
 
@@ -393,6 +448,10 @@ pub fn export<W: Write + Seek>(store: &Store, palaces: &[String], out: W) -> Res
     if !shared.is_empty() {
         zip.start_file(SHARED_TABLES, json)?;
         zip.write_all(&serde_json::to_vec_pretty(&shared).expect("serializable"))?;
+    }
+    for f in &plugin_files {
+        zip.start_file(format!("plugins/{}/{}", f.plugin.id, f.path).as_str(), json)?;
+        zip.write_all(&f.bytes)?;
     }
     for m in media.values() {
         if extension(&m.media_type).is_none() {
@@ -698,6 +757,27 @@ impl<R: Read + Seek> Package<R> {
         })
     }
 
+    /// A plugin's data file (`plugins/<plugin>/<path>`), if the archive has one.
+    /// Plugin data is untrusted input; the plugin glue must validate it.
+    pub fn plugin_file(&mut self, plugin: &str, path: &str) -> Result<Option<Vec<u8>>> {
+        if !safe_id(plugin) || !safe_plugin_path(path) {
+            return Err(invalid(format!("ungültige Plugin-Datei {plugin}/{path}")));
+        }
+        let name = format!("plugins/{plugin}/{path}");
+        let Ok(file) = self.archive.by_name(&name) else {
+            return Ok(None);
+        };
+        if file.size() > limits::JSON_BYTES {
+            return Err(invalid(format!("{name} ist zu groß")));
+        }
+        let mut bytes = Vec::new();
+        file.take(limits::JSON_BYTES + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > limits::JSON_BYTES {
+            return Err(invalid(format!("{name} ist zu groß")));
+        }
+        Ok(Some(bytes))
+    }
+
     /// Number of loci in all palaces.
     pub fn loci(&self) -> usize {
         self.palaces
@@ -764,6 +844,7 @@ impl<R: Read + Seek> Package<R> {
                 store.set_row(Some(&palace.id), row)?;
             }
             let mut loci = 0;
+            let mut locus_ids = Vec::new();
             for room in &doc.rooms {
                 let kind = room.backdrop.as_ref().map_or(RoomKind::Blank, |h| kinds[h]);
                 let created =
@@ -783,14 +864,17 @@ impl<R: Read + Seek> Package<R> {
                     for binding in locus.bindings.list() {
                         store.set_binding(&new.id, &binding)?;
                     }
+                    locus_ids.push((locus.id.clone(), new.id));
                     loci += 1;
                 }
             }
             imported.push(Imported {
                 id: palace.id,
+                original_id: doc.id.clone(),
                 name,
                 original_name: doc.name.clone(),
                 loci,
+                locus_ids,
                 localized_rows: clashing.len(),
             });
         }
@@ -802,9 +886,13 @@ impl<R: Read + Seek> Package<R> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Imported {
     pub id: String,
+    /// The palace id inside the archive.
+    pub original_id: String,
     pub name: String,
     pub original_name: String,
     pub loci: usize,
+    /// (id in the archive, new id) for every locus, in route order.
+    pub locus_ids: Vec<(String, String)>,
     /// Shared rows that clashed with existing shared rows and were copied
     /// into this palace instead.
     pub localized_rows: usize,
