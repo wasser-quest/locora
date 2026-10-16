@@ -65,6 +65,21 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let fields = RwSignal::new(None::<Vec<InputField>>);
     let start = StoredValue::new(start);
     let begin = move |inputs: Vec<InputValue>| {
+        // On failure (e.g. text in a number input) the form comes back with
+        // what was typed, so it can be corrected.
+        let retry = fields.get_untracked().map(|list| {
+            list.into_iter()
+                .map(|mut field| {
+                    if let Some(typed) = inputs
+                        .iter()
+                        .find(|v| v.palace_id == field.palace_id && v.key == field.key)
+                    {
+                        field.default = typed.value.clone();
+                    }
+                    field
+                })
+                .collect::<Vec<_>>()
+        });
         let start = JourneyStart {
             inputs,
             ..start.get_value()
@@ -75,7 +90,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             match call::<Step>(CMD_JOURNEY_START, StartArgs { start }).await {
                 Ok(Step::Question(q)) => question.set(Some(q)),
                 Ok(Step::Done(s)) => summary.set(Some(s)),
-                Err(e) => error.set(Some(e)),
+                Err(e) => {
+                    fields.set(retry);
+                    error.set(Some(e));
+                }
             }
         });
     };
