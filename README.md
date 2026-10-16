@@ -20,6 +20,8 @@ locora review                  # only what is due
 locora show Planeten
 locora new Vortrag --video talk.mp4 -- 0:12=Einleitung 1:23=These
 locora new Vokabeln --image kueche.jpg --from vokabeln.txt   # lines: `Ort | Erinnerung | x,y`
+locora build planeten.locora.toml   # a palace from a text file (see format/locora-toml.md)
+locora dump Planeten -o quelle/     # and back: source + media files
 locora export Planeten         # Planeten.locora, with images and videos
 locora import Planeten.locora  # always a new copy; --dry-run only checks
 ```
@@ -79,6 +81,7 @@ crates/locora-store        offline-first SQLite storage: palaces, stages, loci, 
 crates/locora-fsrs         FSRS-5 spaced-repetition scheduling
 crates/locora-format       the .locora file format (export, strict import)
 crates/locora-formula      safe, bounded formula language for workbook tables (Major system, functions)
+crates/locora-source       locora.toml source files: build palaces from text, dump them back
 apps/cli                   the `locora` command (palaces, practice, review, plugin development)
 plugins/core               answer evaluation and base scoring (WASM, built into the CLI)
 plugins/review             official spaced-repetition plugin (WASM, built into the CLI)

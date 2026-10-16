@@ -11,7 +11,6 @@ use locora_api::review::{CardState, Schedule, ScheduleRequest};
 use locora_store::{Locus, LocusPatch, NewLocus, PalaceTree, RoomKind};
 
 use crate::app::{App, now};
-use crate::places;
 
 /// One locus to create: from a command-line item or a line of a file.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,18 +21,7 @@ pub struct Item {
     pub time: Option<f64>,
 }
 
-/// Parse `mm:ss`, `h:mm:ss` or plain seconds.
-pub fn parse_time(text: &str) -> Option<f64> {
-    let parts: Vec<&str> = text.trim().split(':').collect();
-    if parts.len() > 3 || parts.iter().any(|p| p.is_empty()) {
-        return None;
-    }
-    let mut seconds = 0.0;
-    for part in &parts {
-        seconds = seconds * 60.0 + part.parse::<f64>().ok().filter(|v| *v >= 0.0)?;
-    }
-    Some(seconds)
-}
+pub use locora_source::parse_time;
 
 fn parse_point(text: &str) -> Option<(f64, f64)> {
     let (x, y) = text.split_once(',')?;
@@ -108,24 +96,11 @@ fn read_items(file: &Path) -> Result<Vec<Item>> {
 }
 
 fn media_kind(path: &Path) -> Result<(RoomKind, &'static str)> {
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    Ok(match ext.as_str() {
-        "png" => (RoomKind::Image, "image/png"),
-        "jpg" | "jpeg" => (RoomKind::Image, "image/jpeg"),
-        "webp" => (RoomKind::Image, "image/webp"),
-        "gif" => (RoomKind::Image, "image/gif"),
-        "avif" => (RoomKind::Image, "image/avif"),
-        "mp4" | "m4v" => (RoomKind::Video, "video/mp4"),
-        "webm" => (RoomKind::Video, "video/webm"),
-        "mov" => (RoomKind::Video, "video/quicktime"),
-        _ => bail!(
+    locora_source::media_type(path).with_context(|| {
+        format!(
             "{}: unbekanntes Format. Bilder: png, jpg, webp, gif, avif · Videos: mp4, webm, mov",
             path.display()
-        ),
+        )
     })
 }
 
@@ -172,7 +147,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
     let room = app
         .store
         .add_room(&palace.id, &room_name, kind, media.as_deref())?;
-    let spots = places::route(items.len());
+    let spots = locora_source::places::route(items.len());
     for (i, item) in items.iter().enumerate() {
         let (x, y) = item.at.unwrap_or(spots[i]);
         app.store.add_locus(
@@ -231,7 +206,9 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
         Some(text) => {
             parse_point(text).context("--at erwartet x,y zwischen 0 und 1, z. B. 0.4,0.6")?
         }
-        None => *places::route(count + 1).last().expect("one point"),
+        None => *locora_source::places::route(count + 1)
+            .last()
+            .expect("one point"),
     };
     let time = match &args.time {
         Some(t) => Some(parse_time(t).context("--time erwartet mm:ss oder Sekunden")?),
@@ -392,7 +369,7 @@ pub fn show(app: &mut App, query: &str) -> Result<()> {
     Ok(())
 }
 
-fn confirm(question: &str) -> Result<bool> {
+pub fn confirm(question: &str) -> Result<bool> {
     print!("{question} [j/N] ");
     io::stdout().flush()?;
     let mut answer = String::new();
@@ -517,15 +494,6 @@ mod tests {
         );
         assert!(parse_item("a | b | c | d").is_err());
         assert_eq!(parse_item("Gleich = 3").unwrap().item, "Gleich = 3");
-    }
-
-    #[test]
-    fn times_parse() {
-        assert_eq!(parse_time("83"), Some(83.0));
-        assert_eq!(parse_time("1:23"), Some(83.0));
-        assert_eq!(parse_time("1:00:05"), Some(3605.0));
-        assert_eq!(parse_time("a:1"), None);
-        assert_eq!(parse_time("1::2"), None);
     }
 
     #[test]

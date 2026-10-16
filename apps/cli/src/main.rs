@@ -2,9 +2,9 @@
 
 mod app;
 mod palace;
-mod places;
 mod plugin;
 mod practice;
+mod source;
 mod transfer;
 mod workbook;
 
@@ -128,6 +128,27 @@ enum Command {
         /// Nur prüfen und anzeigen, nichts importieren
         #[arg(long)]
         dry_run: bool,
+    },
+    /// Palast aus einer locora.toml-Quelltextdatei bauen
+    Build {
+        /// Quelltextdatei, z. B. planeten.locora.toml
+        file: PathBuf,
+        /// Nur prüfen, nichts anlegen
+        #[arg(long)]
+        check: bool,
+        /// Vorhandenen Palast gleichen Namens ersetzen (sein Wiederholungsplan geht verloren)
+        #[arg(long)]
+        replace: bool,
+        /// Ohne Rückfrage ersetzen
+        #[arg(long, short)]
+        yes: bool,
+    },
+    /// Palast als locora.toml plus Mediendateien in einen Ordner schreiben
+    Dump {
+        palace: String,
+        /// Zielordner (Standard: aktueller Ordner)
+        #[arg(long, short, value_name = "ORDNER", default_value = ".")]
+        output: PathBuf,
     },
     /// Workbook-Tabellen anzeigen und bearbeiten
     #[command(subcommand)]
@@ -276,6 +297,15 @@ fn main() -> Result<()> {
         } => transfer::export(&mut app::App::open(data)?, palaces, all, output),
         Command::Import { file, dry_run } => {
             transfer::import(&mut app::App::open(data)?, &file, dry_run)
+        }
+        Command::Build {
+            file,
+            check,
+            replace,
+            yes,
+        } => source::build(data, &file, check, replace, yes),
+        Command::Dump { palace, output } => {
+            source::dump(&mut app::App::open(data)?, &palace, &output)
         }
     }
 }

@@ -1,0 +1,19 @@
+[package]
+name = "locora-source"
+description = "locora.toml: memory palaces as human- and AI-friendly source files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+locora-api.workspace = true
+locora-formula = { path = "../locora-formula" }
+locora-store = { path = "../locora-store" }
+serde = { version = "1", features = ["derive"] }
+thiserror.workspace = true
+toml = "1"
+
+[dev-dependencies]
+tempfile = "3"
