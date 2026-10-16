@@ -16,6 +16,7 @@ use locora_host::{HostEvent, KvStore, Level, Manifest, PluginHost};
 use locora_store::{PalaceTree, Store};
 
 pub mod journey;
+pub mod tutorial;
 
 pub mod embedded {
     //! Official plugins compiled into this crate by `build.rs`.

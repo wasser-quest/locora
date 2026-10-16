@@ -23,7 +23,7 @@ impl DerefMut for App {
     }
 }
 
-fn print(notes: impl IntoIterator<Item = String>) {
+pub fn print(notes: impl IntoIterator<Item = String>) {
     for note in notes {
         eprintln!("⚠ {note}");
     }
