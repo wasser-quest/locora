@@ -32,6 +32,28 @@ pub fn Sply(
     #[prop(default = "status")] machine: &'static str,
 ) -> impl IntoView {
     let frame = NodeRef::<Iframe>::new();
+    let ready = RwSignal::new(false);
+    let failed = RwSignal::new(false);
+    let messages = window_event_listener(leptos::ev::message, move |event| {
+        let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) else {
+            return;
+        };
+        // Sandboxed frames have opaque origins: authenticate by source window.
+        let source = js_sys::Reflect::get(event.as_ref(), &"source".into()).ok();
+        if source != Some(window.into()) {
+            return;
+        }
+        let data = event.data();
+        let get = |key: &str| js_sys::Reflect::get(&data, &key.into()).ok();
+        if get("locora").and_then(|v| v.as_f64()) != Some(1.0) {
+            return;
+        }
+        if let Some(value) = get("runtimeReady").and_then(|v| v.as_bool()) {
+            ready.set(value);
+            failed.set(!value);
+        }
+    });
+    on_cleanup(move || messages.remove());
     let push = move || {
         if let (Some(state), Some(el)) = (state, frame.get_untracked()) {
             send(&el, machine, state.get_untracked());
@@ -52,8 +74,24 @@ pub fn Sply(
             title="Animation"
             // A focused frame would swallow every key (Ctrl/⌘+K, Space, 1–4).
             tabindex="-1"
-            on:load=move |_| push()
+            on:load=move |_| {
+                push();
+                if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+                    let request = js_sys::Object::new();
+                    let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
+                    let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());
+                    let _ = window.post_message(&request, "*");
+                }
+                set_timeout(move || {
+                    if ready.try_get_untracked() == Some(false) {
+                        failed.try_set(true);
+                    }
+                }, std::time::Duration::from_secs(5));
+            }
         ></iframe>
+        <Show when=move || failed.get()>
+            <span class="notes" role="alert">"Splinely-Runtime nicht gestartet – Animation konnte nicht geladen werden."</span>
+        </Show>
     }
 }
 

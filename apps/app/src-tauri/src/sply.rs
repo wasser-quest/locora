@@ -12,9 +12,20 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
 <script><![CDATA[
 (function () {
   var svg = document.documentElement;
+  // document.currentScript can be null for SVG scripts in WebViews. The
+  // bundled runtime may therefore be loaded without its auto-bootstrap.
+  if (!svg.splinely && window.SplinelyRuntime) {
+    window.SplinelyRuntime.createRuntime(svg);
+  }
+  window.parent.postMessage({ locora: 1, runtimeReady: !!svg.splinely }, '*');
   window.addEventListener('message', function (e) {
     var d = e.data;
-    if (!d || d.locora !== 1 || !svg.splinely) return;
+    if (!d || d.locora !== 1) return;
+    if (d.checkRuntime) {
+      window.parent.postMessage({ locora: 1, runtimeReady: !!svg.splinely }, '*');
+      return;
+    }
+    if (!svg.splinely) return;
     try {
       if (typeof d.machine === 'string' && typeof d.send === 'string') {
         svg.splinely.machine(d.machine).send(d.send);
@@ -42,12 +53,22 @@ pub fn to_svg(bytes: &[u8]) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    /// Generate the exact app document for an external browser smoke test.
+    #[test]
+    #[ignore = "set LOCORA_SPLY_INPUT and LOCORA_SPLY_OUTPUT"]
+    fn export_browser_fixture() {
+        let bytes = std::fs::read(std::env::var_os("LOCORA_SPLY_INPUT").unwrap()).unwrap();
+        let svg = super::to_svg(&bytes).unwrap();
+        std::fs::write(std::env::var_os("LOCORA_SPLY_OUTPUT").unwrap(), svg).unwrap();
+    }
+
     #[test]
     fn marker_becomes_svg_with_runtime_and_bridge() {
         let svg = super::to_svg(locora_runtime::tutorial::DEFAULT_MARKER).unwrap();
         assert!(svg.starts_with("<svg") || svg.starts_with("<?xml"));
         assert!(svg.contains("splinely-project"));
         assert!(svg.contains("locora !== 1"));
+        assert!(svg.contains("window.SplinelyRuntime.createRuntime(svg)"));
         assert!(svg.trim_end().ends_with("</svg>"));
         assert!(super::to_svg(b"kein sply").is_err());
     }
