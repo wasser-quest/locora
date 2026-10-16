@@ -735,10 +735,13 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    keine leeren Paläste oder partiellen DB-Änderungen (unreferenzierte Hash-Dateien können bleiben).
    Erfolg öffnet direkt den Editor; Zurück lädt die Startseite neu. Tests für Signaturen, Grenzen,
    Abbruch, Persistenz, Namen und DB-Rollback; nativer WebView-Smoke-Test noch offen.
-   **Noch offen:** Bild/Video-Datei hineinziehen,
-   einzelne ungebundene Felder an Workbook-Orten bearbeiten,
-   Undo/Redo und dauerhaft wiederherstellbare ungültige Entwürfe. Browser-/WebView-Gesten, Fokus bei
-   Autosave und Klick-Budgets manuell/E2E prüfen (`docs/app-editor-testplan.md`).
+   **Umgesetzt:** Datei hineinziehen über einmalige Tickets (Pfad bleibt im Backend; Startseite → neuer Palast,
+   Editor → Ortsbild); Undo/Redo (Inverse für Inhalt/Bild/Position/Größe, Backend-Belege `editor_receipts` für
+   Hinzufügen/Einfügen/Löschen mit Konfliktprüfung, neueste 500); jeder Formularstand liegt in `localStorage` und
+   wird nach Absturz zum Wiederherstellen/Verwerfen angeboten.
+   **Noch offen:** einzelne ungebundene Felder an Workbook-Orten bearbeiten. Browser-/WebView-Gesten, Drop,
+   Undo-Tastatur, Fokus bei Autosave und Klick-Budgets manuell/E2E prüfen (`docs/app-editor-testplan.md`,
+   `apps/app/tests/native_smoke.py`).
 3. **Workbook in der App — umgesetzt:** Eingaben (`Inputs`) werden vor der Journey abgefragt (vorbelegt mit dem
    Standardwert, gesetzt vor der Planung, damit `active`-Formeln sie sehen); Aktionen (`Actions`) erscheinen als Knöpfe
    unter der Frage, `reveal`-Aktionen decken auf (Guess/Quiz zählen dann als aufgegeben). Formelfehler erscheinen als
@@ -760,8 +763,9 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    gamification, andere Plugins) und Journey-Feedback (richtig/nochmal/geschafft) aus `assets/ui/src/ui.py` sowie der
    Willkommensbildschirm mit Simo (`assets/mascot/src/simo.py`). Ebenfalls umgesetzt: Raum-Arten (Tabs), „nichts fällig“
    (Simo), Ladezustand (Logo).
-6. **Leistung:** Jeder Marker ist ein eigener Frame mit eigener Runtime – bei vielen Loci alle Marker eines Raums in
-   einem gemeinsamen SVG zusammenfassen. **Medien mit Range-Anfragen umgesetzt:** Einzelbereiche,
+6. **Leistung:** Alle Marker eines Raums laufen in einem gemeinsamen SVG-Frame mit einer Runtime
+   (`/markers/<hash>`, `marker_layer.js`; IDs je Klon umbenannt, Zustände per Snapshot). Prüfskript für WebKitGTK:
+   `apps/app/tests/marker_layer_probe.py`. **Medien mit Range-Anfragen umgesetzt:** Einzelbereiche,
    offene und Suffix-Bereiche liefern 206 mit `Content-Range`; nicht erfüllbare Bereiche 416.
    Es wird nur der angeforderte Dateiausschnitt gelesen; HEAD liefert Metadaten ohne Body.
    Multipart/fehlerhafte Bereiche fallen auf die vollständige Antwort zurück. Backend-getestet;

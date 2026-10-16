@@ -2,7 +2,7 @@
 
 Alles, was noch gebaut oder entschieden werden muss. Wird bei jedem Schritt aktualisiert. Erledigtes wird hier gestrichen und in `PLAN.md` (Abschnitt 13) bzw. den Commits festgehalten. Reihenfolge innerhalb eines Abschnitts = Empfehlung.
 
-Stand: 16.10.2026 (abends)
+Stand: 17.10.2026
 
 ## Jetzt: Phase 2 – die App (Tauri 2 + Leptos)
 
@@ -15,7 +15,9 @@ Stand: 16.10.2026 (abends)
 - [x] Splinely-Startprüfung pro Frame: Runtime-Bestätigung per Nachricht, sichtbarer Fehler bei fehlendem Start; expliziter Bootstrap als Fallback
 - [x] Frischen Debug-Build mit separatem Profil nativ geprüft: Willkommens-Simo und Simo am ersten aufgedeckten Tutorial-Locus bewegen sich; REA-Prozessbeleg und Grenzen in `docs/splinely-runtime-smoke.md`
 - [ ] Gemeldeten statischen Zustand im betroffenen Build reproduzieren; Release-Build, alle Tutorial-Loci und Reduced Motion prüfen (Ursache noch nicht bestätigt)
-- [ ] Visuelle WebView-/E2E-Prüfung von Ortsbildern, Pointer-Gesten und Autosave-Fokus (`docs/app-editor-testplan.md`)
+- [x] Nativer WebKitGTK-Smoke-Test `apps/app/tests/native_smoke.py` (AT-SPI + xdotool, eigenes Profil): Tutorial, Journey-Start (1 Klick), Recall per Tastatur, Autosave, Tastatur-Verschieben + Undo/Redo persistent, Liste einfügen (0 Mausklicks) bestanden
+- [ ] Smoke-Test: Datei-Drop kommt unter Qubes/xdotool nicht im Fenster an (kein `DragDrop`-Event); Harness oder echter Drop von Hand prüfen, dann die restlichen Schritte
+- [ ] Visuelle WebView-Prüfung von Ortsbildern und Pointer-Gesten (`docs/app-editor-testplan.md`)
 - [x] „Weiter“-Zeile mit fälligen Loci; Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik (⚙ auf dem Startbildschirm)
 - [x] Import/Export von `.locora` in der App (Dateidialoge, mit Wiederholungsstand)
 - [x] `locora.toml`-Import in der App: relative Medien, neue Kopien bei Namenskonflikten, Validierung vor dem Bauen
@@ -32,7 +34,6 @@ Stand: 16.10.2026 (abends)
 - [x] Workbook-Eingaben passend zum Typ (Zahlenfeld, Ja/Nein-Kästchen)
 - [x] Workbook-Aktionen auch nach dem Bewerten (wie `locora practice`), auch nach der letzten Frage
 - [x] Liste = Route: Strg/⌘+V auf der fokussierten Bühne oder Textfeld/Knopf im Editor, 1–100 Begriffe, Schlangenroute, atomarer Batch mit Validierung und Op-Log (keine Video-Räume)
-- [ ] Liste = Route: WebView-/E2E-Prüfung und Klickbudget nachweisen
 - [x] Locus-Mediendatei-Auswahl: nativer Dialog, Bild wählen/entfernen, Raster-MIME-/`.sply`-Validierung, Scope-Prüfung und Fehleranzeige ohne freie Pfad-IPC (64 MiB)
 - [ ] Nativen Locus-Dateipicker im WebView manuell prüfen (Auswahl, Abbruch, Fehler, Entfernen, Neustart); mobile URI-Auswahl noch nicht unterstützt
 - [x] Startknopf „Bild/Video wählen…“: nativer Dialog, gemeinsame Signaturprüfung (64 MiB), atomarer neuer Palast + passender Raum + Medienmetadaten/Op-Log, Dateiname mit Kollisionssuffix, direkt Editor öffnen; Zurück aktualisiert Home
@@ -41,16 +42,19 @@ Stand: 16.10.2026 (abends)
 - [x] Videozeit aus Wiedergabe übernehmen: Knopf und Taste L auf der fokussierten Bühne, pausiert vor dem Anlegen
 - [x] Video-Ortsnavigation im Editor: chronologische Zeitknöpfe, pausieren/spulen/auswählen, aktive Auswahl
 - [ ] Video-Editor im WebView prüfen: Playhead, Ortsnavigation, ungeladenes Video, Taste L/Fokus, wiederholte Eingabe und Persistenz
-- [ ] Editor-Ausbau: Bild/Video hineinziehen, Undo/Redo und Entwurfswiederherstellung
+- [x] Editor-Ausbau: Datei hineinziehen über einmalige Tickets (Startseite → neuer Palast, Editor → Ortsbild); Undo/Redo (Knöpfe, Strg/⌘+Z/Y) mit Backend-Belegen für Hinzufügen/Einfügen/Löschen (Konfliktprüfung, neueste 500); Entwurfswiederherstellung über `localStorage`
 - [x] Tutorial in der App: Erststart mit Simo, „Tutorial starten“ legt den Palast an und öffnet ihn (Animationen über die Runtime)
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
 - [x] Medien über HTTP-Range ausliefern: Einzelbereiche, offene/Suffix-Bereiche, 416 und HEAD; nur angeforderte Bytes lesen
 - [ ] Video-Spulen über Range im nativen WebView prüfen
-- [ ] Viele Marker: in einem SVG pro Raum zusammenfassen statt je ein Frame
+- [x] Viele Marker: ein gemeinsamer Frame pro Raum (`/markers/<hash>`, `marker_layer.js`), eine Runtime, IDs je Klon umbenannt; Prüfskript `apps/app/tests/marker_layer_probe.py`
+- [ ] Marker-Layer in der App sichtbar prüfen (Zustände, Ziehen, Pupillen/Pointer, viele Loci)
 - [x] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons, Journey-Feedback (richtig/nochmal/geschafft), Willkommen mit Simo – `assets/ui/src/ui.py`, Simo aus `assets/mascot/src/simo.py`
 - [x] Weitere Grafiken: Raum-Arten in den Tabs, „nichts fällig“ mit Simo, Ladezustand mit dem Locora-Logo
-- [ ] Android- und iOS-Builds in CI; Klick-Budgets (PLAN 6.3) als E2E-Tests
+- [x] Mobile-CI `.github/workflows/mobile.yml`: Android-Debug-APK bei Push/PR, iOS-Simulator-App nur per Hand (macOS-Kontingent); TOML-Ordnerexport auf Mobil mit klarer Fehlermeldung
+- [ ] Mobile-Workflow einmal remote laufen lassen (noch nie ausgeführt); Wasmtime-JIT auf iOS-Geräten klären
+- [ ] Restliche Klick-Budgets (PLAN 6.3) als E2E-Tests
 - [x] Systemvoraussetzungen für Linux-Builds dokumentiert (`apps/app/README.md`)
 
 ## Antworten und Abfragen (aus dem Abgleich mit mnemodim)
