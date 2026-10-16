@@ -90,6 +90,10 @@ impl DayClock {
         if self.offsets.is_empty() {
             return self.boundary(t, 0);
         }
+        let local_day = |at: u64, minutes: i32| {
+            (at as i64 + i64::from(minutes) * 60 - i64::from(self.start_hour) * 3600)
+                .div_euclid(DAY as i64)
+        };
         let mut latest = 0;
         for (i, &(since, offset)) in self.offsets.iter().enumerate() {
             let begin = if i == 0 { 0 } else { since };
@@ -101,17 +105,16 @@ impl DayClock {
                 .get(i + 1)
                 .map_or(t, |(next, _)| t.min(next.saturating_sub(1)));
             let candidate = self.boundary(end, offset);
-            if candidate >= begin {
+            let repeats = i > 0
+                && since > 0
+                && local_day(candidate, offset) <= local_day(since - 1, self.offsets[i - 1].1);
+            if candidate >= begin && !repeats {
                 latest = latest.max(candidate);
             }
             // A forward jump across the start hour creates one boundary at
             // the switch itself, not at either hypothetical local start.
             if i > 0 && since > 0 {
                 let previous_offset = self.offsets[i - 1].1;
-                let local_day = |at: u64, minutes: i32| {
-                    (at as i64 + i64::from(minutes) * 60 - i64::from(self.start_hour) * 3600)
-                        .div_euclid(DAY as i64)
-                };
                 if local_day(since, offset) > local_day(since - 1, previous_offset) {
                     latest = latest.max(since);
                 }
@@ -582,6 +585,29 @@ mod tests {
             clock.previous_day(midnight + DAY + 2 * 3600),
             midnight + 3 * 3600
         );
+    }
+
+    #[test]
+    fn repeated_start_hour_does_not_start_a_second_day() {
+        let midnight = 1_800_000_000 - 1_800_000_000 % DAY;
+        // Europe repeats 02:00 local; the US repeats 01:00 local.
+        for (old, new, hour, switch_hour) in [(120, 60, 2, 1), (-240, -300, 1, 6)] {
+            let switch = midnight + switch_hour * 3600;
+            let clock = DayClock {
+                start_hour: hour,
+                offsets: vec![(0, old), (switch, new)],
+            };
+            let start = clock.day_start(switch - 1);
+            let entries = vec![entry("x", start + 60, Grade::Good)];
+            for now in [switch, switch + 1800, switch + 3600] {
+                assert_eq!(clock.day_start(now), start);
+                let s = stats(&entries, &[], now, &clock);
+                assert_eq!((s.answered_today, s.new_today, s.streak), (1, 1, 1));
+            }
+            let next = switch + DAY;
+            assert_eq!(clock.day_start(next), next);
+            assert_eq!(clock.previous_day(next), start);
+        }
     }
 
     #[test]
