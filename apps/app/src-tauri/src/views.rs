@@ -4,7 +4,9 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use locora_api::review::CardState;
-use locora_app_api::{Home, LocusView, Media, MediaKind, PalaceCard, PalaceView, RoomView, Status};
+use locora_app_api::{
+    Home, LocusView, Media, MediaKind, PalaceCard, PalaceView, RoomView, Status, TileView,
+};
 use locora_runtime::{Profile, count_due, now};
 use locora_store::{PalaceTree, SPLINELY, Store};
 
@@ -51,6 +53,15 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
     let mut home = Home {
         tutorial: locora_runtime::tutorial::find(profile)?.is_some(),
         notes: profile.notes.clone(),
+        tiles: profile
+            .tiles()?
+            .into_iter()
+            .map(|(plugin, tile)| TileView {
+                plugin,
+                title: tile.title,
+                text: tile.text,
+            })
+            .collect(),
         ..Home::default()
     };
     let mut fresh_total = 0;

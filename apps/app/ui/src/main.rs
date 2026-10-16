@@ -215,6 +215,25 @@ fn HomeView(screen: RwSignal<Screen>) -> impl IntoView {
                                 </section>
                             }
                         })}
+                    {(!home.tiles.is_empty())
+                        .then(|| {
+                            view! {
+                                <section class="tiles" aria-label="Plugins">
+                                    {home
+                                        .tiles
+                                        .iter()
+                                        .map(|t| {
+                                            view! {
+                                                <article class="card tile" title=t.plugin.clone()>
+                                                    <span class="meta">{t.title.clone()}</span>
+                                                    <span class="count">{t.text.clone()}</span>
+                                                </article>
+                                            }
+                                        })
+                                        .collect_view()}
+                                </section>
+                            }
+                        })}
                     {if home.palaces.is_empty() {
                         view! {
                             <p class="empty">
