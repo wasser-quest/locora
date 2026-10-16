@@ -44,7 +44,7 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 - `version` above the reader's version → rejected with "needs a newer Locora".
 - Current readers accept versions 1, 2 and 3. Exports without custom picture widths
   keep version 1 for plain Recall palaces or version 2 for Quiz/Guess, pictures,
-  notes or custom markers. A non-default `imageSize` requires version 3, so older
+  notes or custom markers. A non-default `imageSize` or `zoom` requires version 3, so older
   readers reject the archive rather than silently losing the size. Missing sizes
   default to 0.25. Version 1 with a non-Recall answer and versions 1/2 with a
   non-default picture width are rejected.
@@ -83,6 +83,7 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 - `image` (format 2): SHA-256 of a picture that belongs to the answer — an image or a `.sply` animation, never a video. Clients show it only when the locus is revealed (in reverse practice it is part of the question). Files with locus pictures are written as version 2; version 1 readers reject them instead of dropping the pictures.
 - `note` (format 2): memory aid, the vivid image in words; shown after the answer. Omitted when empty.
 - `imageSize` (format 3 for custom widths): finite picture width as a fraction of room width, from 0.05 to 1 inclusive; default 0.25, omitted at the default. Raster images keep their aspect ratio; `.sply` frames use a square viewport. The picture is centered at the locus only after reveal, not before (reverse practice keeps it in the question).
+- `zoom` (format 3 when not 1): how far the room zooms in on the locus while it is asked, from 1 (whole room) to 4; default 1, omitted at the default. The view centres on the locus and stays inside the backdrop.
 - `bindings`: formulas for `place`, `item`, `x`, `y`, `visible`, `active` (each at most once).
 - `tables`: rows `{ table, key, cells: [{ column, type, value }] }`; `type` is `text`, `number`, `boolean`, `json`, `formula`, `asset`, `palace` or `room`.
 - Array order is route order.

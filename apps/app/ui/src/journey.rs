@@ -331,23 +331,36 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 /// The room with the asked place marked (state „fällig“).
 #[component]
 fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
+    let zoom = question.zoom.clamp(1.0, 4.0);
     view! {
         <div class="stage">
-            {question.backdrop.clone().map(|m| view! { <Shown media=m class="backdrop" /> })}
-            {move || {
-                phase.get().stage_answer().cloned().and_then(|r| r.picture.map(|m| view! {
-                    <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
-                }))
-            }}
-            <div
-                class="marker"
-                style:left=format!("{}%", question.x * 100.0)
-                style:top=format!("{}%", question.y * 100.0)
-            >
-                <Sply media=question.marker.clone() state=Signal::stored("faellig") />
+            // The whole room zooms in on the locus; the marker keeps its size.
+            <div class="stage-view" style:transform=zoom_view(question.x, question.y, zoom)>
+                {question.backdrop.clone().map(|m| view! { <Shown media=m class="backdrop" /> })}
+                {move || {
+                    phase.get().stage_answer().cloned().and_then(|r| r.picture.map(|m| view! {
+                        <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
+                    }))
+                }}
+                <div
+                    class="marker"
+                    style:left=format!("{}%", question.x * 100.0)
+                    style:top=format!("{}%", question.y * 100.0)
+                    style:transform=format!("translate(-50%, -50%) scale({})", 1.0 / zoom)
+                >
+                    <Sply media=question.marker.clone() state=Signal::stored("faellig") />
+                </div>
             </div>
         </div>
     }
+}
+
+/// CSS transform that scales the room by `zoom` around its top-left corner and
+/// moves the locus (x, y in 0..1) to the centre – as far as the room allows,
+/// so the view never leaves the backdrop.
+fn zoom_view(x: f64, y: f64, zoom: f64) -> String {
+    let shift = |p: f64| (0.5 - p * zoom).clamp(1.0 - zoom, 0.0) * 100.0;
+    format!("translate({}%, {}%) scale({zoom})", shift(x), shift(y))
 }
 
 #[component]
@@ -690,5 +703,19 @@ mod input_tests {
         assert_eq!(decimal_point("+1"), "+1");
         assert_eq!(decimal_point("1.5"), "1.5");
         assert_eq!(decimal_point("1,000.5"), "1,000.5");
+    }
+}
+
+#[cfg(test)]
+mod zoom_tests {
+    use super::zoom_view;
+
+    #[test]
+    fn zoom_centres_the_locus_inside_the_room() {
+        assert_eq!(zoom_view(0.3, 0.7, 1.0), "translate(0%, 0%) scale(1)");
+        // Centre stays centre.
+        assert_eq!(zoom_view(0.5, 0.5, 2.0), "translate(-50%, -50%) scale(2)");
+        // Near the edge the view stops at the backdrop's border.
+        assert_eq!(zoom_view(0.0, 1.0, 2.0), "translate(0%, -100%) scale(2)");
     }
 }

@@ -132,6 +132,7 @@ pub fn palace_view(
                         status: status(cards, &l.id, now),
                         picture: l.image.as_deref().and_then(|h| media(store, h)),
                         image_size: l.image_size,
+                        zoom: l.zoom,
                         note: l.note.clone(),
                     }
                 })

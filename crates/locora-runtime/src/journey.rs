@@ -146,6 +146,7 @@ mod tests {
                         &room.id,
                         NewLocus {
                             image_size: locora_store::default_image_size(),
+                            zoom: locora_store::default_zoom(),
                             place: format!("bei {item}"),
                             item: (*item).into(),
                             x: 0.5,

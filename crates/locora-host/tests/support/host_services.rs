@@ -160,6 +160,7 @@ fn new_locus() -> p::NewLocus {
         note: String::new(),
         image: None,
         image_size: p::default_image_size(),
+        zoom: p::default_zoom(),
     }
 }
 

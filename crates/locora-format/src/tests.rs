@@ -16,6 +16,7 @@ fn sample(dir: &std::path::Path) -> Store {
                 &r.id,
                 NewLocus {
                     image_size: locora_store::default_image_size(),
+                    zoom: locora_store::default_zoom(),
                     place: format!("Ort {i}"),
                     item: item.to_string(),
                     x: 0.2 + 0.3 * i as f64,
@@ -37,6 +38,7 @@ fn sample(dir: &std::path::Path) -> Store {
             &vr.id,
             NewLocus {
                 image_size: locora_store::default_image_size(),
+                zoom: locora_store::default_zoom(),
                 place: "Tür".into(),
                 item: "These".into(),
                 x: 0.5,
@@ -320,6 +322,7 @@ fn tables_and_bindings_travel_and_clashes_stay_local() {
             &r.id,
             NewLocus {
                 image_size: locora_store::default_image_size(),
+                zoom: locora_store::default_zoom(),
                 place: "Tür".into(),
                 item: "?".into(),
                 x: 0.5,
@@ -552,6 +555,7 @@ fn splinely_animations_as_backdrops_and_locus_pictures() {
             &r.id,
             NewLocus {
                 image_size: locora_store::default_image_size(),
+                zoom: locora_store::default_zoom(),
                 place: "Tor".into(),
                 item: "Ein Palast ist eine Route".into(),
                 x: 0.5,
@@ -692,4 +696,38 @@ fn image_size_roundtrip_and_version_compatibility() {
         }));
         assert!(err.contains("Bildgröße"), "{err}");
     }
+}
+
+#[test]
+fn zoom_needs_format_3_and_round_trips() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = sample(dir.path());
+    let tree = store.palace("Planeten").unwrap();
+    let id = tree.route().next().unwrap().id.clone();
+    store
+        .update_locus(
+            &id,
+            &locora_store::LocusPatch {
+                zoom: Some(2.0),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let bytes = exported(&store, &["Planeten"]);
+    let package = Package::open(Cursor::new(&bytes)).unwrap();
+    assert_eq!(package.manifest.version, 3);
+    assert_eq!(package.palaces[0].rooms[0].loci[0].zoom, 2.0);
+    let err = open_err(rewrite(&bytes, |mut entries| {
+        edit_json(&mut entries, "manifest.json", |m| m["version"] = 2.into());
+        entries
+    }));
+    assert!(err.contains("Format 3"), "{err}");
+    let palace_file = format!("palaces/{}.json", tree.palace.id);
+    let err = open_err(rewrite(&bytes, |mut entries| {
+        edit_json(&mut entries, &palace_file, |p| {
+            p["rooms"][0]["loci"][0]["zoom"] = 9.0.into();
+        });
+        entries
+    }));
+    assert!(err.contains("Zoom"), "{err}");
 }

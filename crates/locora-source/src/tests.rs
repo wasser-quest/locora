@@ -374,3 +374,34 @@ fn image_size_validates_before_build_and_survives_dump() {
     let tree = build(&store, &plan_of(&dumped, file.parent().unwrap()).unwrap()).unwrap();
     assert_eq!(tree.route().next().unwrap().image_size, 0.4);
 }
+
+#[test]
+fn zoom_validates_and_survives_dump() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    let text = "name = \"P\"\n[[room]]\nname = \"R\"\n[[room.locus]]\nitem = \"X\"\n";
+    for value in ["0.5", "4.5", "nan"] {
+        let err = err_of(&format!("{text}zoom = {value}\n"), d);
+        assert!(err.contains("Zoom"), "{err}");
+    }
+    let store = Store::open(&d.join("profil")).unwrap();
+    let tree = build(&store, &plan_of(&format!("{text}zoom = 2\n"), d).unwrap()).unwrap();
+    assert_eq!(tree.route().next().unwrap().zoom, 2.0);
+    let file = dump(&store, "P", &d.join("out")).unwrap();
+    let dumped = fs::read_to_string(&file).unwrap();
+    assert!(dumped.contains("zoom = 2"), "{dumped}");
+    store.delete_palace(&tree.palace.id).unwrap();
+    let tree = build(&store, &plan_of(&dumped, file.parent().unwrap()).unwrap()).unwrap();
+    assert_eq!(tree.route().next().unwrap().zoom, 2.0);
+    let whole = build(
+        &store,
+        &plan_of(&text.replace("\"P\"", "\"Q\""), d).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(whole.route().next().unwrap().zoom, 1.0);
+    let plain = fs::read_to_string(dump(&store, "Q", &d.join("out2")).unwrap()).unwrap();
+    assert!(
+        !plain.contains("zoom"),
+        "the default is not written: {plain}"
+    );
+}

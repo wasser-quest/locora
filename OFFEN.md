@@ -47,7 +47,7 @@ Stand: 16.10.2026 (abends)
 - [x] Abfragerichtungen: `--reverse`, `--numbers`, `--shuffle`
 - [x] Dieselben Übungsarten und die Merkhilfe in der App (Schalter in der Palastansicht)
 - [ ] Später: Ton beim Aufdecken (in mnemodim `soundPath`), über Audio in Splinely (`audioAssets`/`playAudio` im `.sply`)
-- [ ] Zoom/Schwenk pro Locus in der App (mnemodim `zoom/panX/panY`)
+- [x] Zoom pro Locus (1 bis 4): beim Abfragen zoomt die Bühne auf den Ort, der Ausschnitt bleibt im Bild (Schwenk ergibt sich aus der Position); Store, `.locora` (Format 3), `locora.toml`, CLI `--zoom`, Palast-Dienst, Editor
 
 ## Phase 1 – Reste
 

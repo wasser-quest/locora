@@ -103,6 +103,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
                 &room_id,
                 db::NewLocus {
                     image_size: new.image_size,
+                    zoom: new.zoom,
                     place: new.place,
                     item: new.item,
                     x: new.x,
@@ -122,6 +123,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
                 &id,
                 &db::LocusPatch {
                     image_size: patch.image_size,
+                    zoom: patch.zoom,
                     place: patch.place,
                     item: patch.item,
                     x: patch.x,
@@ -172,6 +174,7 @@ fn locus(l: db::Locus) -> api::Locus {
         note: l.note,
         image: l.image,
         image_size: l.image_size,
+        zoom: l.zoom,
     }
 }
 
@@ -206,6 +209,7 @@ mod tests {
             note: String::new(),
             image,
             image_size: 0.4,
+            zoom: 2.0,
         }
     }
 

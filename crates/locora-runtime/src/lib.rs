@@ -383,6 +383,7 @@ mod review_tile_tests {
                     image: None,
                     note: String::new(),
                     image_size: 0.25,
+                    zoom: locora_store::default_zoom(),
                 },
             )
             .unwrap();

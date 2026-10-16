@@ -3,6 +3,7 @@ use super::*;
 fn locus(place: &str, item: &str, x: f64) -> NewLocus {
     NewLocus {
         image_size: default_image_size(),
+        zoom: default_zoom(),
         place: place.into(),
         item: item.into(),
         x,
@@ -637,4 +638,28 @@ fn image_size_defaults_persists_and_rejects_invalid_changes() {
     let copy = tree.route().next().unwrap();
     assert_eq!(copy.image_size, 1.0);
     assert_eq!(copy.item, "Inhalt");
+}
+
+#[test]
+fn zoom_defaults_persists_and_rejects_invalid_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let p = store.create_palace("Zoom").unwrap();
+    let r = store
+        .add_room(&p.id, "Raum", RoomKind::Blank, None)
+        .unwrap();
+    let l = store.add_locus(&r.id, locus("Tor", "Inhalt", 0.5)).unwrap();
+    assert_eq!(l.zoom, 1.0);
+    let patch = |zoom| LocusPatch {
+        zoom: Some(zoom),
+        ..Default::default()
+    };
+    assert_eq!(store.update_locus(&l.id, &patch(2.5)).unwrap().zoom, 2.5);
+    for zoom in [0.5, 4.01, f64::NAN, f64::INFINITY] {
+        assert!(store.update_locus(&l.id, &patch(zoom)).is_err(), "{zoom}");
+    }
+    assert_eq!(
+        store.palace(&p.id).unwrap().route().next().unwrap().zoom,
+        2.5
+    );
 }

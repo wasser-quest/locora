@@ -124,6 +124,14 @@ pub struct Locus {
     /// Picture width as a fraction of the room width (0.05–1).
     #[serde(default = "default_image_size")]
     pub image_size: f64,
+    /// Zoom on the locus while asking, 1 (whole room) to 4.
+    #[serde(default = "default_zoom")]
+    pub zoom: f64,
+}
+
+/// Zoom when none is given: the whole room.
+pub fn default_zoom() -> f64 {
+    1.0
 }
 
 /// Picture width when none is given: a quarter of the room.
@@ -147,6 +155,8 @@ pub struct NewLocus {
     pub image: Option<String>,
     #[serde(default = "default_image_size")]
     pub image_size: f64,
+    #[serde(default = "default_zoom")]
+    pub zoom: f64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -165,4 +175,6 @@ pub struct LocusPatch {
     pub image: Option<Option<String>>,
     #[serde(default)]
     pub image_size: Option<f64>,
+    #[serde(default)]
+    pub zoom: Option<f64>,
 }
