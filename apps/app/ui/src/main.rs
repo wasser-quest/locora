@@ -2,6 +2,7 @@
 
 mod editor;
 mod journey;
+mod palette;
 mod settings;
 mod sply;
 mod tauri;
@@ -33,7 +34,10 @@ fn main() {
 #[component]
 fn App() -> impl IntoView {
     let screen = RwSignal::new(Screen::Home);
+    let editing = palette::Editing(RwSignal::new(false));
+    provide_context(editing);
     view! {
+        <palette::Palette screen=screen editing=editing />
         <main>
             {move || match screen.get() {
                 Screen::Home => view! { <HomeView screen=screen/> }.into_any(),
@@ -328,6 +332,10 @@ struct IdArgs {
 fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     let palace = load(call::<PalaceView>(CMD_PALACE, IdArgs { id: id.clone() }));
     let blocked = RwSignal::new(false);
+    if let Some(palette::Editing(editing)) = use_context::<palette::Editing>() {
+        Effect::new(move |_| editing.set(blocked.get()));
+        on_cleanup(move || editing.set(false));
+    }
     let saved = RwSignal::new(Ok::<String, String>(String::new()));
     // The dialog closes before the file is written: no second export meanwhile.
     let exporting = RwSignal::new(false);
