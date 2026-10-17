@@ -336,7 +336,7 @@ pub fn VideoBackdrop(
     #[prop(optional, into)] controls: MaybeProp<bool>,
     #[prop(default = true)] muted: bool,
     #[prop(default = "auto".into())] preload: String,
-    #[prop(default = false)] autoplay: bool,
+    #[prop(default = true)] autoplay: bool,
     #[prop(optional, into)] node_ref: NodeRef<leptos::html::Video>,
     #[prop(optional)] on_loaded: Option<Box<dyn Fn() + Send + Sync>>,
     #[prop(optional)] on_error: Option<Box<dyn Fn() + Send + Sync>>,
