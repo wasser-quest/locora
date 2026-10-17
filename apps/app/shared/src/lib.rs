@@ -27,6 +27,8 @@ pub use locora_api::ui::HighlightRequest;
 pub const CMD_NOTIFICATIONS: &str = "notifications";
 pub const CMD_NOTIFICATION_SHOWN: &str = "notification_shown";
 pub const CMD_JOURNEY_START: &str = "journey_start";
+pub const CMD_GAMIFICATION_STATUS: &str = "gamification_status";
+pub use locora_api::gamification::{StatusResponse as GamificationStatus, Trophy};
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
 pub const CMD_JOURNEY_INPUTS: &str = "journey_inputs";
@@ -40,6 +42,10 @@ pub struct UiAssets {
     pub right: Media,
     pub again: Media,
     pub done: Media,
+    /// Journey progress symbols.
+    pub heart: Media,
+    pub combo: Media,
+    pub trophy: Media,
     /// Room kinds (tabs): no picture, picture, video.
     pub room_blank: Media,
     pub room_image: Media,
