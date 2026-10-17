@@ -51,6 +51,13 @@ pub enum PluginCommand {
         #[arg(long, short)]
         yes: bool,
     },
+    /// Installierte WASM-Komponente nach erneuter Rechteprüfung ersetzen
+    Update {
+        file: PathBuf,
+        /// Warnung und alle angezeigten Rechte ausdrücklich akzeptieren
+        #[arg(long, short)]
+        yes: bool,
+    },
     /// Installierte Datei entfernen; Plugin-Daten bleiben erhalten
     Remove {
         /// Plugin-ID oder Dateiname aus `plugin ls` (auch defekte Dateien)
@@ -75,6 +82,7 @@ pub fn run(cmd: PluginCommand, data: Option<&Path>) -> Result<()> {
         PluginCommand::Run { files } => run_files(&files),
         PluginCommand::Check { file } => check(&file),
         PluginCommand::Install { file, yes } => install(&file, &crate::app::data_dir(data)?, yes),
+        PluginCommand::Update { file, yes } => update(&file, &crate::app::data_dir(data)?, yes),
         PluginCommand::Remove { plugin } => remove(&plugin, &crate::app::data_dir(data)?),
         PluginCommand::Ls => list(&crate::app::data_dir(data)?),
     }
@@ -483,6 +491,120 @@ fn install(file: &Path, data: &Path, yes: bool) -> Result<()> {
         "✓ {:?} installiert; wird beim nächsten Profilbefehl aktiviert.",
         manifest.id
     );
+    Ok(())
+}
+
+fn update(file: &Path, data: &Path, yes: bool) -> Result<()> {
+    // Keep the exact bytes the user approves, even if the source file changes.
+    let bytes = read_regular(file).with_context(|| format!("Plugin {} lesen", file.display()))?;
+    let host = PluginHost::new(None)?;
+    let manifest = host.inspect_bytes(&bytes)?;
+    validate_install(&manifest)?;
+    if BUILT_INS.contains(&manifest.id.as_str()) {
+        bail!("Eingebautes Plugin {:?} ist geschützt", manifest.id);
+    }
+
+    let dir = crate::app::plugin_dir(data)?;
+    let destination = dir.join(format!("{}.wasm", manifest.id));
+    let approval = destination.with_extension("wasm.json");
+    let old_bytes = read_regular(&destination)
+        .with_context(|| format!("Plugin {:?} ist nicht regulär installiert", manifest.id))?;
+    let old_manifest = host.inspect_bytes(&old_bytes)?;
+    let old_receipt_bytes = read_regular(&approval)
+        .with_context(|| format!("Zustimmung für {:?} fehlt", manifest.id))?;
+    let old_receipt: ApprovalReceipt = serde_json::from_slice(&old_receipt_bytes)
+        .context("Bestehende Installationszustimmung ist ungültig")?;
+    if old_manifest.id != manifest.id || !old_receipt.matches(&old_manifest, &old_bytes) {
+        bail!("Installierte Plugin-Datei und Zustimmung stimmen nicht überein; Update verweigert");
+    }
+    for installed in installed_files(&dir)? {
+        if installed != destination
+            && let Ok(other) = inspect_file(&host, &installed)
+            && other.id == manifest.id
+        {
+            bail!("Plugin-ID {:?} ist mehrfach installiert ({})", manifest.id, installed.display());
+        }
+    }
+
+    let receipt = ApprovalReceipt::new(manifest.clone(), &bytes);
+    eprintln!("⚠ Nicht von Locora geprüft – Update auf eigene Verantwortung.");
+    eprintln!("  Plugin: {:?} ({:?})", manifest.name, manifest.id);
+    eprintln!("  Version: {:?} → {:?}; API {:?}", old_manifest.version, manifest.version, manifest.api);
+    eprintln!("  SHA-256: {}", receipt.sha256);
+    eprintln!("  Bisherige Rechte: {}", display_permissions(&old_manifest.permissions));
+    eprintln!("  Neue Rechte: {}", display_permissions(&manifest.permissions));
+    if !yes {
+        if !io::stdin().is_terminal() {
+            bail!("Keine interaktive Zustimmung möglich; nach Prüfung ausdrücklich --yes angeben");
+        }
+        eprint!("Update installieren? [j/N] ");
+        io::stderr().flush()?;
+        let mut answer = String::new();
+        io::stdin().read_line(&mut answer)?;
+        if !matches!(answer.trim().to_lowercase().as_str(), "j" | "ja") {
+            bail!("Update abgebrochen");
+        }
+    }
+
+    // A two-file replacement has no portable atomic commit. Keep the verified
+    // old pair as recoverable copies; publish consent before executable bytes.
+    let old_component_backup = destination.with_extension("wasm.previous");
+    let old_approval_backup = destination.with_extension("wasm.json.previous");
+    for path in [&old_component_backup, &old_approval_backup] {
+        if fs::symlink_metadata(path).is_ok() {
+            bail!("Vorheriges Update nicht bereinigt: {}. Alte Dateien sichern und Zustand prüfen", path.display());
+        }
+    }
+    if read_regular(&destination)? != old_bytes || read_regular(&approval)? != old_receipt_bytes {
+        bail!("Installierte Plugin-Datei wurde während der Zustimmung geändert; bitte erneut prüfen");
+    }
+    persist_new(&old_component_backup, &old_bytes)?;
+    if let Err(err) = persist_new(&old_approval_backup, &old_receipt_bytes) {
+        let _ = fs::remove_file(&old_component_backup);
+        return Err(err);
+    }
+
+    let replacement = (|| -> Result<()> {
+        replace_existing(&approval, &serde_json::to_vec(&receipt)?)?;
+        replace_existing(&destination, &bytes)?;
+        Ok(())
+    })();
+    if let Err(err) = replacement {
+        // Restore consent first. If restoration itself fails, keep both
+        // .previous files so the previous verified installation is recoverable.
+        let restored_approval = replace_existing(&approval, &old_receipt_bytes);
+        let restored_component = replace_existing(&destination, &old_bytes);
+        if restored_approval.is_ok() && restored_component.is_ok() {
+            let _ = fs::remove_file(&old_component_backup);
+            let _ = fs::remove_file(&old_approval_backup);
+            return Err(err.context("Update fehlgeschlagen; vorherige Installation wiederhergestellt"));
+        }
+        return Err(err.context(format!(
+            "Update fehlgeschlagen; geprüfte Vorversion liegt in {} und {}. Wiederherstellung: Zustimmung {restored_approval:?}, Plugin {restored_component:?}",
+            old_approval_backup.display(), old_component_backup.display()
+        )));
+    }
+    if let Err(err) = fs::remove_file(&old_component_backup) {
+        eprintln!("⚠ Alte Sicherheitskopie {} entfernen: {err}", old_component_backup.display());
+    }
+    if let Err(err) = fs::remove_file(&old_approval_backup) {
+        eprintln!("⚠ Alte Sicherheitskopie {} entfernen: {err}", old_approval_backup.display());
+    }
+    println!("✓ {:?} aktualisiert; wird beim nächsten Profilbefehl aktiviert.", manifest.id);
+    Ok(())
+}
+
+fn display_permissions(permissions: &[String]) -> String {
+    if permissions.is_empty() { "keine".into() } else { permissions.join(", ") }
+}
+
+fn replace_existing(path: &Path, bytes: &[u8]) -> Result<()> {
+    let mut temp = tempfile::NamedTempFile::new_in(path.parent().context("Kein Plugin-Ordner")?)?;
+    temp.write_all(bytes)?;
+    temp.as_file().sync_all()?;
+    temp.persist(path)
+        .map_err(|err| err.error)
+        .with_context(|| format!("{} ersetzen", path.display()))?;
     Ok(())
 }
 
