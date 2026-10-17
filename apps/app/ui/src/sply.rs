@@ -22,6 +22,30 @@ fn send(frame: &web_sys::HtmlIFrameElement, machine: &str, event: &str) {
     let _ = window.post_message(&message, "*");
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TimedCommand {
+    pub serial: u64,
+    pub time: f64,
+    pub start: Option<f64>,
+    pub play: bool,
+}
+
+fn send_timed(frame: &web_sys::HtmlIFrameElement, action: &str, time: Option<f64>, start: Option<f64>) {
+    let Some(window) = frame.content_window() else { return; };
+    let message = js_sys::Object::new();
+    let timed = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+    let _ = js_sys::Reflect::set(&timed, &"action".into(), &action.into());
+    if let Some(time) = time {
+        let _ = js_sys::Reflect::set(&timed, &"time".into(), &time.into());
+    }
+    if let Some(start) = start {
+        let _ = js_sys::Reflect::set(&timed, &"start".into(), &start.into());
+    }
+    let _ = js_sys::Reflect::set(&message, &"timed".into(), &timed);
+    let _ = window.post_message(&message, "*");
+}
+
 /// A `.sply` animation. With `state`, the event is sent to the state machine
 /// `machine` whenever it changes (and once the frame has loaded).
 #[component]
@@ -30,10 +54,20 @@ pub fn Sply(
     #[prop(optional, into)] class: String,
     #[prop(optional, into)] state: Option<Signal<&'static str>>,
     #[prop(default = "status")] machine: &'static str,
+    #[prop(optional)] timed: Option<RwSignal<TimedCommand>>,
+    #[prop(optional)] on_timed_ready: Option<Box<dyn Fn(f64) + Send + Sync>>,
+    #[prop(optional)] on_timed_at: Option<Box<dyn Fn(f64) + Send + Sync>>,
+    #[prop(optional)] on_timed_position: Option<Box<dyn Fn(f64) + Send + Sync>>,
+    #[prop(optional)] on_timed_error: Option<Box<dyn Fn() + Send + Sync>>,
 ) -> impl IntoView {
     let frame = NodeRef::<Iframe>::new();
     let ready = RwSignal::new(false);
     let failed = RwSignal::new(false);
+    let timed_ready = RwSignal::new(false);
+    let timed_ready_callback = StoredValue::new(on_timed_ready);
+    let timed_at_callback = StoredValue::new(on_timed_at);
+    let timed_position_callback = StoredValue::new(on_timed_position);
+    let timed_error_callback = StoredValue::new(on_timed_error);
     let messages = window_event_listener(leptos::ev::message, move |event| {
         let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) else {
             return;
@@ -51,6 +85,25 @@ pub fn Sply(
         if let Some(value) = get("runtimeReady").and_then(|v| v.as_bool()) {
             ready.set(value);
             failed.set(!value);
+        }
+        if let Some(duration) = get("timedReady").and_then(|v| v.as_f64()) {
+            timed_ready_callback.with_value(|callback| {
+                if let Some(callback) = callback { callback(duration); }
+            });
+            timed_ready.set(true);
+        }
+        if let Some(time) = get("timedAt").and_then(|v| v.as_f64()) {
+            timed_at_callback.with_value(|callback| {
+                if let Some(callback) = callback { callback(time); }
+            });
+        }
+        if let Some(time) = get("timedPosition").and_then(|v| v.as_f64()) {
+            timed_position_callback.with_value(|callback| {
+                if let Some(callback) = callback { callback(time); }
+            });
+        }
+        if get("timedError").and_then(|v| v.as_string()).is_some() {
+            failed.set(true);
         }
     });
     let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
@@ -156,6 +209,21 @@ pub fn Sply(
         }
         push();
     });
+    Effect::new(move |_| {
+        if timed_ready.get() {
+            if let (Some(command), Some(frame)) = (timed, frame.get_untracked()) {
+                let command = command.get();
+                send_timed(&frame, if command.play { "playTo" } else { "seek" }, Some(command.time), command.start);
+            }
+        }
+    });
+    Effect::new(move |_| {
+        if failed.get() && timed.is_some() {
+            timed_error_callback.with_value(|callback| {
+                if let Some(callback) = callback { callback(); }
+            });
+        }
+    });
     view! {
         <iframe
             node_ref=frame
@@ -166,8 +234,14 @@ pub fn Sply(
             // A focused frame would swallow every key (Ctrl/⌘+K, Space, 1–4).
             tabindex="-1"
             on:load=move |_| {
+                timed_ready.set(false);
                 push();
                 if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+                    if timed.is_some() {
+                        if let Some(element) = frame.get_untracked() {
+                            send_timed(&element, "init", None, None);
+                        }
+                    }
                     let request = js_sys::Object::new();
                     let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
                     let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());

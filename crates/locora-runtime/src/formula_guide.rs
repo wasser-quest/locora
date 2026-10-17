@@ -48,10 +48,13 @@ const FILES: &[(&str, &[u8])] = &[
 ];
 
 pub fn find(profile: &Profile) -> Result<Option<locora_store::Palace>> {
-    Ok(profile.store.find_palace(NAME)?)
+    Ok(profile
+        .store
+        .find_palace(&locora_source::bundled_palace_id("formula-guide/v1"))?
+        .or(profile.store.find_palace(NAME)?))
 }
 
 /// Build or replace the guide palace; the prior review plan is removed.
 pub fn install(profile: &mut Profile) -> Result<(PalaceTree, Vec<String>)> {
-    tutorial::install_files(profile, NAME, FILES, SOURCE)
+    tutorial::install_files(profile, NAME, FILES, SOURCE, "formula-guide/v1")
 }

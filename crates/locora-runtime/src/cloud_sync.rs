@@ -13,6 +13,7 @@
 //! block later pages.
 
 use std::fs;
+use std::path::Path;
 
 use anyhow::{Context, Result, anyhow, bail};
 use base64::Engine;
@@ -38,6 +39,24 @@ pub struct SyncReport {
     /// Newly quarantined operations, retained locally with payload and reason.
     pub quarantined: Vec<String>,
     pub cloud_expires_at: Option<i64>,
+}
+
+/// App entry point for the same encrypted sync used by the CLI. The passphrase
+/// stays on this device and is only used to unlock the account key for this run.
+pub fn sync_with_passphrase(data: &Path, store: &Store, passphrase: &str) -> Result<SyncReport> {
+    let state = cloud::load(data)?.ok_or_else(|| {
+        anyhow!("Nicht bei Locora Cloud angemeldet. Zuerst `locora cloud login` ausführen")
+    })?;
+    if cloud::access(&state, cloud::now_secs()).is_none() {
+        bail!(
+            "Keine gültige Cloud-Freischaltung. Abo prüfen oder `locora cloud refresh` ausführen"
+        );
+    }
+    let bundle = cloud::get_keys(&state)?.ok_or_else(|| {
+        anyhow!("Verschlüsselung fehlt. Zuerst `locora cloud encrypt setup` ausführen")
+    })?;
+    let dek = locora_crypto::unlock(&bundle, passphrase)?;
+    sync(&state, store, &dek)
 }
 
 /// The plaintext of one sealed operation. Never leaves the device unsealed.

@@ -12,6 +12,21 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
 <script><![CDATA[
 (function () {
   var svg = document.documentElement;
+  var timedClips = [], timedCancel = null, timedTicker = null, timed = false;
+  function animationDuration() {
+    var clips = svg.splinely && svg.splinely.sourceProject.clips;
+    return clips && clips.length ? Math.max.apply(null, clips.map(function (clip) { return clip.duration; })) : 0;
+  }
+  function timedReply(field, value) {
+    var reply = { locora: 1 };
+    reply[field] = value;
+    window.parent.postMessage(reply, '*');
+  }
+  function pauseTimed() {
+    if (timedCancel) { timedCancel(); timedCancel = null; }
+    if (timedTicker) { clearInterval(timedTicker); timedTicker = null; }
+    if (svg.splinely) svg.splinely.timeline.pause();
+  }
   // document.currentScript can be null for SVG scripts in WebViews. The
   // bundled runtime may therefore be loaded without its auto-bootstrap.
   if (!svg.splinely && window.SplinelyRuntime) {
@@ -26,6 +41,57 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
       return;
     }
     if (!svg.splinely) return;
+    if (d.timed && typeof d.timed.action === 'string') {
+      try {
+        var runtime = svg.splinely, duration = animationDuration();
+        if (!Number.isFinite(duration) || duration <= 0) {
+          timedReply('timedError', 'Diese Splinely-Animation hat keine Zeitleiste');
+          return;
+        }
+        if (d.timed.action === 'init') {
+          timedClips = runtime.sourceProject.clips.filter(function (clip) {
+            return runtime.clip(clip.id).playing;
+          }).map(function (clip) { return clip.id; });
+          if (!timedClips.length) {
+            timedReply('timedError', 'Keine aktive Splinely-Animation');
+            return;
+          }
+          timed = true;
+          pauseTimed();
+          runtime.timeline.seek(0);
+          timedReply('timedReady', duration);
+        } else if (timed && (d.timed.action === 'seek' || d.timed.action === 'playTo')) {
+          var target = d.timed.time;
+          if (!Number.isFinite(target) || target < 0 || target > duration) {
+            timedReply('timedError', 'Zeit liegt außerhalb der Animation');
+            return;
+          }
+          pauseTimed();
+          if (d.timed.action === 'playTo' && Number.isFinite(d.timed.start)
+              && d.timed.start >= 0 && d.timed.start <= target) {
+            runtime.timeline.seek(d.timed.start);
+          }
+          if (d.timed.action === 'seek' || target <= runtime.timeline.time) {
+            runtime.timeline.seek(target);
+            timedReply('timedAt', target);
+          } else {
+            timedCancel = runtime.timeline.at(target, function () {
+              pauseTimed();
+              runtime.timeline.seek(target);
+              timedReply('timedAt', target);
+            });
+            timedClips.forEach(function (id) { runtime.clip(id).play(); });
+            timedTicker = setInterval(function () {
+              timedReply('timedPosition', runtime.timeline.time);
+            }, 100);
+            runtime.timeline.play();
+          }
+        }
+      } catch (err) {
+        timedReply('timedError', String(err));
+      }
+      return;
+    }
     if (d.pointer && Number.isFinite(d.pointer.x) && Number.isFinite(d.pointer.y)) {
       svg.dispatchEvent(new PointerEvent('pointermove', {
         clientX: d.pointer.x, clientY: d.pointer.y, bubbles: true,
@@ -173,5 +239,14 @@ mod tests {
         assert!(svg.contains("window.SplinelyRuntime.createRuntime(svg)"));
         assert!(svg.trim_end().ends_with("</svg>"));
         assert!(super::to_svg(b"kein sply").is_err());
+    }
+
+    #[test]
+    fn timed_bridge_uses_only_splinely_timeline() {
+        let svg = super::to_svg(locora_runtime::tutorial::DEFAULT_MARKER).unwrap();
+        assert!(svg.contains("runtime.timeline.seek(target)"));
+        assert!(svg.contains("runtime.timeline.at(target"));
+        assert!(svg.contains("svg.splinely.timeline.pause()"));
+        assert!(svg.contains("timedError"));
     }
 }

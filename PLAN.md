@@ -552,7 +552,7 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 
 Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI geprüft.
 
-**Stand (17.10.2026):** Phasen 0 und 1 sind abgeschlossen. Die App, Video-Journeys,
+**Stand (18.10.2026):** Phasen 0 und 1 sind abgeschlossen. Die App, Video-Journeys,
 Tutorial-Palast, erste App-Tour, Formel-Guide und lokale Gamification sind umgesetzt.
 Offene Arbeiten und native Prüfungen stehen in [`OFFEN.md`](OFFEN.md).
 
@@ -812,11 +812,12 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Ungültige Zeiten/Ladefehler werden angezeigt und geben die Antwort frei. Bei verweigertem Autoplay
    wird mit Hinweis direkt zum Locus gesprungen. Nach Bewertung werden manuelle Videokontrollen freigegeben.
    Die Editor-Zeitleiste markiert Ortszeiten proportional zur geladenen Videodauer; Orte nach dem
-   Videoende werden gekennzeichnet und nicht angesprungen. Die native Sichtprüfung dieser Skala,
-   eine Start-Vorschau und `requestVideoFrameCallback` bleiben offen. Die Zeitgrenze wird per
-   16-ms-Timer und `timeupdate` geprüft; der Timer endet, sobald der Locus erreicht oder ein
-   Ladefehler gemeldet wird. Bei gedrosselter WebView gibt es weiter keine Garantie für
-   framegenauen Halt.
+   Videoende werden gekennzeichnet und nicht angesprungen. Orte lassen sich per Zeitregler verschieben;
+   der Backend-Befehl prüft Raumzugehörigkeit und endliche, nichtnegative Zeiten. Beim ersten Ort bei
+   0 Sekunden zeigt die Journey eine Vorschau aller dort platzierten Orte. Die Zeitgrenze nutzt
+   `requestVideoFrameCallback`, wenn die WebView es anbietet; `timeupdate` und ein 16-ms-Timer
+   bleiben als Fallback. Der Timer endet am Ziel oder bei Ladefehlern. Das UI-Release-Bundle baut;
+   die native Sichtprüfung dieser Funktionen und gedrosselter WebViews steht noch aus.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
 9. **Später:** Ton beim Aufdecken über Audio im `.sply`.
@@ -832,3 +833,15 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
   Ed25519-Entitlements mit 14 Tagen Offline-Kulanz, In-App-Kauf auf iOS/Android).
 - **Phase 6:** Sync über das Op-Log (HLC, Last-Writer-Wins pro Feld) mit Locora Cloud.
 - **Phase 7:** Plugin-Verzeichnis, Signaturen, WASM-Plugins für Dritte inkl. deklarativer UI (4.4) und Store-Prüfung.
+
+**Stand 18.10.2026:** `.locora-plugin`-ZIP-Pakete werden mit `locora plugin pack` erstellt und
+bei Prüfung, Installation und Update begrenzt und gegen das eingebettete WASM-Manifest geprüft.
+Der manuelle Cloud-Sync ist in den App-Einstellungen erreichbar; Anmeldung und Schlüsselaufbau
+erfolgen weiter per CLI. Neue Tutorial- und Formel-Guide-Paläste verwenden feste Kennungen über
+Geräte hinweg. Für vorhandene Paläste ist ein bewusster Neuaufbau nötig, der den bisherigen
+Wiederholungsstand zurücksetzt. Der Gamification-Fortschritt bleibt beim Sync ein LWW-Snapshot;
+eine verlustfreie Zusammenführung erfordert Ereignis-IDs und ein Upgrade-Protokoll für alte Clients.
+Die Vorlagen `befehl`, `locus-typ` und `importer` sind als aufrufbare Dienste angelegt;
+die automatische Journey-Einbindung eines Locus-Typs und `plugin dev --device` benötigen noch
+zusätzliche Host- und App-Schnittstellen. Zeitgebundene `.sply`-Räume nutzen die Splinely-Runtime
+in Editor und Journey; steuerbare GIF-Räume bleiben offen.

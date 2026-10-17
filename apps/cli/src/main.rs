@@ -5,6 +5,7 @@ mod cloud;
 mod notify;
 mod palace;
 mod plugin;
+mod plugin_package;
 mod plugin_sign;
 mod practice;
 mod settings;

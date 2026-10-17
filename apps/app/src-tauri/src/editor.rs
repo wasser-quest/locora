@@ -28,6 +28,13 @@ pub fn apply_with_history(
         .iter_mut()
         .find(|r| r.room.id == change.room_id)
         .context("Raum gehört nicht zu diesem Palast")?;
+    let animated = if room.room.kind == RoomKind::Image {
+        room.room.media.as_deref().map(|hash| store.media(hash))
+            .transpose()?
+            .flatten()
+            .is_some_and(|media| media.mime == locora_store::SPLINELY)
+    } else { false };
+    let timed_room = room.room.kind == RoomKind::Video || animated;
     let id = match &change.action {
         EditorAction::Restore { receipt } => {
             let (loci, reciprocal) =
@@ -37,8 +44,8 @@ pub fn apply_with_history(
         }
         EditorAction::Create { x, y } => {
             ensure!(
-                room.room.kind != RoomKind::Video,
-                "Neue Orte in Video-Räumen benötigen eine Zeit; bitte die CLI verwenden"
+                !timed_room,
+                "Neue Orte in zeitgebundenen Räumen benötigen eine Zeit"
             );
             let (mut loci, receipt) = store.editor_add_loci(
                 &change.palace_id,
@@ -63,8 +70,8 @@ pub fn apply_with_history(
         }
         EditorAction::CreateVideo { time } => {
             ensure!(
-                room.room.kind == RoomKind::Video,
-                "Zeitangaben sind nur für Video-Räume"
+                timed_room,
+                "Zeitangaben sind nur für Video- und Splinely-Räume"
             );
             ensure!(
                 time.is_finite() && *time >= 0.0,
@@ -93,8 +100,8 @@ pub fn apply_with_history(
         }
         EditorAction::Paste { items } => {
             ensure!(
-                room.room.kind != RoomKind::Video,
-                "Listen sind in Video-Räumen noch nicht verfügbar"
+                !timed_room,
+                "Listen sind in zeitgebundenen Räumen noch nicht verfügbar"
             );
             locora_app_api::validate_paste_items(items).map_err(anyhow::Error::msg)?;
             let loci = items
@@ -132,6 +139,7 @@ pub fn apply_with_history(
         }
         EditorAction::Save { id, .. }
         | EditorAction::Move { id, .. }
+        | EditorAction::Retime { id, .. }
         | EditorAction::Resize { id, .. }
         | EditorAction::Delete { id } => id,
     };
@@ -167,6 +175,20 @@ pub fn apply_with_history(
             LocusPatch {
                 x: Some(*x),
                 y: Some(*y),
+                ..Default::default()
+            }
+        }
+        EditorAction::Retime { time, .. } => {
+            ensure!(
+                room.room.kind == RoomKind::Video,
+                "Zeitpunkte gibt es nur in Video-Räumen"
+            );
+            ensure!(
+                time.is_finite() && *time >= 0.0,
+                "Zeit muss eine nichtnegative, endliche Sekundenzahl sein"
+            );
+            LocusPatch {
+                time: Some(Some(*time)),
                 ..Default::default()
             }
         }
@@ -318,6 +340,35 @@ pub fn import_palace(store: &Store, path: Option<&std::path::Path>) -> Result<Op
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn timed_loci_are_allowed_for_splinely_but_not_static_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let animated = store.create_media_palace(
+            "Animation", RoomKind::Image,
+            locora_runtime::tutorial::DEFAULT_MARKER,
+            locora_store::SPLINELY,
+        ).unwrap();
+        let room = &animated.rooms[0].room;
+        let change = |action| EditorChange {
+            palace_id: animated.palace.id.clone(),
+            room_id: room.id.clone(),
+            action,
+        };
+        let (tree, selected) = apply(&store, &change(EditorAction::CreateVideo { time: 1.25 })).unwrap();
+        assert_eq!(tree.rooms[0].loci[0].time, Some(1.25));
+        assert!(selected.is_some());
+        assert!(apply(&store, &change(EditorAction::CreateVideo { time: f64::NAN })).is_err());
+        assert!(apply(&store, &change(EditorAction::Create { x: 0.5, y: 0.5 })).is_err());
+
+        let static_image = store.create_media_palace("Still", RoomKind::Image, b"bytes", "image/png").unwrap();
+        assert!(apply(&store, &EditorChange {
+            palace_id: static_image.palace.id,
+            room_id: static_image.rooms[0].room.id.clone(),
+            action: EditorAction::CreateVideo { time: 1.0 },
+        }).is_err());
+    }
 
     #[test]
     fn home_import_cancel_validation_persistence_and_names() {
@@ -637,6 +688,64 @@ mod tests {
         drop(store);
         let store = Store::open(dir.path()).unwrap();
         assert_eq!(store.palace(&palace.id).unwrap().route().count(), 2);
+    }
+
+    #[test]
+    fn video_locus_can_be_retimed_only_in_its_own_room() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let palace = store.create_palace("Video").unwrap();
+        let media = store.put_media(b"video", "video/mp4").unwrap();
+        let video = store
+            .add_room(&palace.id, "Film", RoomKind::Video, Some(&media.hash))
+            .unwrap();
+        let blank = store
+            .add_room(&palace.id, "Leer", RoomKind::Blank, None)
+            .unwrap();
+        let id = apply(
+            &store,
+            &EditorChange {
+                palace_id: palace.id.clone(),
+                room_id: video.id.clone(),
+                action: EditorAction::CreateVideo { time: 1.0 },
+            },
+        )
+        .unwrap()
+        .1
+        .unwrap();
+        let change = |room_id: &str, time| EditorChange {
+            palace_id: palace.id.clone(),
+            room_id: room_id.to_owned(),
+            action: EditorAction::Retime {
+                id: id.clone(),
+                time,
+            },
+        };
+        apply(&store, &change(&video.id, 0.0)).unwrap();
+        assert_eq!(
+            store
+                .palace(&palace.id)
+                .unwrap()
+                .route()
+                .next()
+                .unwrap()
+                .time,
+            Some(0.0)
+        );
+        for invalid in [f64::NAN, f64::INFINITY, -0.1] {
+            assert!(apply(&store, &change(&video.id, invalid)).is_err());
+        }
+        assert!(apply(&store, &change(&blank.id, 2.0)).is_err());
+        assert_eq!(
+            store
+                .palace(&palace.id)
+                .unwrap()
+                .route()
+                .next()
+                .unwrap()
+                .time,
+            Some(0.0)
+        );
     }
 
     #[test]

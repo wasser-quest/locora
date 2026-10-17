@@ -13,7 +13,9 @@ mod views;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use locora_app_api::{
     ActionDone, Feedback, Home, ImportResult, InputField, JourneyStart, NotificationView,
@@ -37,6 +39,8 @@ pub struct Backend {
     assets: assets::Assets,
     /// Protocol kind + `.sply` hash → immutable SVG template, converted once per run.
     svg: HashMap<String, String>,
+    data: std::path::PathBuf,
+    cloud_sync_busy: Arc<AtomicBool>,
 }
 
 type Shared = Mutex<Backend>;
@@ -438,6 +442,64 @@ async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
     settings::view(&mut b.profile).map_err(err)
 }
 
+#[tauri::command]
+async fn cloud_status(state: State<'_, Shared>) -> Result<locora_app_api::CloudStatus, String> {
+    let data = lock(&state)?.data.clone();
+    let saved = locora_runtime::cloud::load(&data).map_err(err)?;
+    Ok(locora_app_api::CloudStatus {
+        account: saved.as_ref().map(|state| state.account.email.clone()),
+        access: saved.as_ref().is_some_and(|state| {
+            locora_runtime::cloud::access(state, locora_runtime::cloud::now_secs()).is_some()
+        }),
+    })
+}
+
+/// Argon2 and network I/O run off the UI thread. Only one sync may mutate the
+/// profile's cursors at once; other app actions keep access to the backend.
+#[tauri::command]
+async fn cloud_sync(
+    app: tauri::AppHandle,
+    passphrase: String,
+) -> Result<locora_app_api::CloudSyncResult, String> {
+    let state = app.state::<Shared>();
+    let (data, store, busy) = {
+        let backend = lock(&state)?;
+        (
+            backend.data.clone(),
+            backend.profile.store.clone(),
+            backend.cloud_sync_busy.clone(),
+        )
+    };
+    if busy.swap(true, Ordering::AcqRel) {
+        return Err("Ein Cloud-Sync läuft bereits".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        struct Reset(Arc<AtomicBool>);
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::Release);
+            }
+        }
+        let _reset = Reset(busy);
+        let report = locora_runtime::cloud_sync::sync_with_passphrase(&data, &store, &passphrase)
+            .map_err(err)?;
+        Ok(locora_app_api::CloudSyncResult {
+            pushed: report.pushed,
+            media_uploaded: report.media_uploaded,
+            pulled: report.pulled,
+            media_downloaded: report.media_downloaded,
+            applied: report.applied.applied,
+            stale: report.applied.stale,
+            missing: report.applied.missing,
+            failed: report.applied.failed.len(),
+            quarantined: report.quarantined.len(),
+            cloud_expires_at: report.cloud_expires_at,
+        })
+    })
+    .await
+    .map_err(|error| format!("Cloud-Sync konnte nicht abgeschlossen werden: {error}"))?
+}
+
 /// The UI sends the system's UTC offset at every start (summer time included).
 #[tauri::command]
 async fn set_utc_offset(
@@ -615,7 +677,8 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
         let _ = app;
         None
     };
-    let profile = Profile::open(data.as_deref())?;
+    let data = locora_runtime::data_dir(data.as_deref())?;
+    let profile = Profile::open(Some(&data))?;
     let default_marker = profile
         .store
         .put_media(locora_runtime::tutorial::DEFAULT_MARKER, SPLINELY)?
@@ -632,6 +695,8 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
         simo,
         assets,
         svg: HashMap::new(),
+        data,
+        cloud_sync_busy: Arc::new(AtomicBool::new(false)),
     })
 }
 
@@ -696,6 +761,8 @@ pub fn run() {
             formula_guide,
             journey_inputs,
             settings,
+            cloud_status,
+            cloud_sync,
             ui_assets,
             gamification_status,
             import_pick,

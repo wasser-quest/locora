@@ -78,6 +78,30 @@ pub struct ImportedPalace {
 pub const CMD_SETTINGS: &str = "settings";
 pub const CMD_SETTINGS_SET: &str = "settings_set";
 pub const CMD_SETTINGS_OPTIMIZE: &str = "settings_optimize";
+pub const CMD_CLOUD_STATUS: &str = "cloud_status";
+pub const CMD_CLOUD_SYNC: &str = "cloud_sync";
+
+/// Cloud account saved in this profile; status is available without a network call.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudStatus {
+    pub account: Option<String>,
+    pub access: bool,
+}
+
+/// Result of one encrypted, manually started sync.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudSyncResult {
+    pub pushed: usize,
+    pub media_uploaded: usize,
+    pub pulled: usize,
+    pub media_downloaded: usize,
+    pub applied: usize,
+    pub stale: usize,
+    pub missing: usize,
+    pub failed: usize,
+    pub quarantined: usize,
+    pub cloud_expires_at: Option<i64>,
+}
 /// The system's offset from UTC in minutes, sent by the UI at every start.
 pub const CMD_SET_UTC_OFFSET: &str = "set_utc_offset";
 
@@ -337,6 +361,10 @@ pub enum EditorAction {
         x: f64,
         y: f64,
     },
+    Retime {
+        id: String,
+        time: f64,
+    },
     Resize {
         id: String,
         image_size: f64,
@@ -480,6 +508,9 @@ pub struct Question {
     pub room: String,
     /// Video position for this locus, in seconds.
     pub time: Option<f64>,
+    /// At the first zero-second video stop, show all loci placed at the start.
+    #[serde(default)]
+    pub video_preview: Vec<VideoPreviewItem>,
     pub backdrop: Option<Media>,
     pub marker: Media,
     pub x: f64,
@@ -496,6 +527,12 @@ pub struct Question {
     /// Workbook actions of this palace, run with `journey_action`.
     #[serde(default)]
     pub actions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VideoPreviewItem {
+    pub place: String,
+    pub item: String,
 }
 
 /// What the learner did.

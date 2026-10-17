@@ -321,6 +321,16 @@ fn new_id() -> String {
     uuid::Uuid::now_v7().simple().to_string()
 }
 
+fn check_stable_id(id: &str) -> Result<()> {
+    if id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err(StoreError::Invalid(
+            "ID muss aus 32 Hex-Zeichen bestehen".into(),
+        ))
+    }
+}
+
 fn check_position(x: f64, y: f64) -> Result<()> {
     if (0.0..=1.0).contains(&x) && (0.0..=1.0).contains(&y) {
         Ok(())
@@ -434,6 +444,12 @@ impl Store {
     // ------------------------------------------------------------ palaces
 
     pub fn create_palace(&self, name: &str) -> Result<Palace> {
+        self.create_palace_with_id(name, &new_id())
+    }
+
+    /// Create a bundled palace with a stable ID shared by installations.
+    pub fn create_palace_with_id(&self, name: &str, id: &str) -> Result<Palace> {
+        check_stable_id(id)?;
         let name = name.trim();
         if name.is_empty() {
             return Err(StoreError::Invalid("Der Palast braucht einen Namen".into()));
@@ -451,7 +467,7 @@ impl Store {
         }
         let now = now_secs();
         let palace = Palace {
-            id: new_id(),
+            id: id.to_owned(),
             name: name.to_owned(),
             created_at: now,
             updated_at: now,
@@ -793,6 +809,19 @@ impl Store {
         kind: RoomKind,
         media: Option<&str>,
     ) -> Result<Room> {
+        self.add_room_with_id(palace_id, name, kind, media, &new_id())
+    }
+
+    /// Add a room whose ID is fixed across installations of a bundled palace.
+    pub fn add_room_with_id(
+        &self,
+        palace_id: &str,
+        name: &str,
+        kind: RoomKind,
+        media: Option<&str>,
+        id: &str,
+    ) -> Result<Room> {
+        check_stable_id(id)?;
         if kind != RoomKind::Blank && media.is_none() {
             return Err(StoreError::Invalid(
                 "Räume mit Bild oder Video brauchen eine Mediendatei".into(),
@@ -805,7 +834,7 @@ impl Store {
             |r| r.get(0),
         )?;
         let room = Room {
-            id: new_id(),
+            id: id.to_owned(),
             palace_id: palace_id.to_owned(),
             position,
             name: name.trim().to_owned(),
@@ -841,19 +870,35 @@ impl Store {
         Ok(self.add_loci(room_id, vec![locus])?.remove(0))
     }
 
+    /// Add a bundled locus with a stable ID.
+    pub fn add_locus_with_id(&self, room_id: &str, locus: NewLocus, id: &str) -> Result<Locus> {
+        check_stable_id(id)?;
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        let added = self.insert_locus(&tx, room_id, locus, Some(id))?;
+        tx.commit()?;
+        Ok(added)
+    }
+
     /// Append a batch, including palace timestamp and operation log, atomically.
     pub fn add_loci(&self, room_id: &str, loci: Vec<NewLocus>) -> Result<Vec<Locus>> {
         let mut conn = self.conn();
         let tx = conn.transaction()?;
         let mut added = Vec::with_capacity(loci.len());
         for locus in loci {
-            added.push(self.insert_locus(&tx, room_id, locus)?);
+            added.push(self.insert_locus(&tx, room_id, locus, None)?);
         }
         tx.commit()?;
         Ok(added)
     }
 
-    fn insert_locus(&self, conn: &Connection, room_id: &str, locus: NewLocus) -> Result<Locus> {
+    fn insert_locus(
+        &self,
+        conn: &Connection,
+        room_id: &str,
+        locus: NewLocus,
+        id: Option<&str>,
+    ) -> Result<Locus> {
         check_image_size(locus.image_size)?;
         check_zoom(locus.zoom)?;
         check_position(locus.x, locus.y)?;
@@ -878,7 +923,7 @@ impl Store {
             |r| r.get(0),
         )?;
         let locus = Locus {
-            id: new_id(),
+            id: id.map(str::to_owned).unwrap_or_else(new_id),
             room_id: room_id.to_owned(),
             position,
             place: locus.place.trim().to_owned(),

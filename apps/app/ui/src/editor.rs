@@ -9,7 +9,7 @@ use web_sys::PointerEvent;
 
 use crate::{
     Answer,
-    sply::{Shown, VideoBackdrop},
+    sply::{Shown, Sply, TimedCommand, VideoBackdrop},
     tauri::call,
 };
 
@@ -563,7 +563,7 @@ pub fn Rooms(
         video_editor.data.with(|p| {
             p.rooms
                 .get(video_editor.room.get())
-                .is_some_and(|r| r.video)
+                .is_some_and(|r| r.video || r.backdrop.as_ref().is_some_and(|m| m.kind == locora_app_api::MediaKind::Sply))
         })
     });
     let video_time = RwSignal::new(String::from("0"));
@@ -645,7 +645,7 @@ pub fn Rooms(
                                 }
                                 _ => editor.message.set("Bitte eine nichtnegative Sekundenzahl eingeben".into()),
                             }
-                        }>"Video-Ort hinzufügen"</button>
+                        }>"Zeitgebundenen Ort hinzufügen"</button>
                 </Show>
                 <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.undo.is_empty())}
                     on:click={let e = editor.clone(); move |_| e.replay(false)}>"Rückgängig"</button>
@@ -866,9 +866,12 @@ fn RoomStage(
     let pick_editor = editor.clone();
     let paste_editor = editor.clone();
     let video = room.video;
+    let timed_sply = !video && room.backdrop.as_ref().is_some_and(|media| media.kind == locora_app_api::MediaKind::Sply);
+    let timed = video || timed_sply;
     let player = NodeRef::<html::Video>::new();
     let video_duration = RwSignal::new(None::<f64>);
     let playhead = RwSignal::new(0.0_f64);
+    let sply_command = RwSignal::new(TimedCommand { serial: 0, time: 0.0, start: None, play: false });
     let mut timeline: Vec<_> = room
         .loci
         .iter()
@@ -891,24 +894,34 @@ fn RoomStage(
         {
             return;
         }
-        let Some(player) = player.get() else {
-            return;
+        let time = if timed_sply {
+            if video_duration.get_untracked().is_none() {
+                timed_editor.message.set("Die Animation ist noch nicht geladen".into());
+                return;
+            }
+            playhead.get_untracked()
+        } else {
+            let Some(player) = player.get() else { return; };
+            if player.ready_state() == 0 {
+                timed_editor.message.set("Das Video ist noch nicht geladen".into());
+                return;
+            }
+            if player.pause().is_err() {
+                timed_editor.message.set("Video konnte nicht angehalten werden".into());
+                return;
+            }
+            player.current_time()
         };
-        if player.ready_state() == 0 {
-            timed_editor
-                .message
-                .set("Das Video ist noch nicht geladen".into());
-            return;
-        }
-        let time = player.current_time();
         if !time.is_finite() || time < 0.0 {
             return;
         }
-        if player.pause().is_err() {
-            timed_editor
-                .message
-                .set("Video konnte nicht angehalten werden".into());
-            return;
+        if timed_sply {
+            sply_command.update(|command| {
+                command.serial += 1;
+                command.time = time;
+                command.start = None;
+                command.play = false;
+            });
         }
         revealed.set(false);
         timed_editor.change(EditorAction::CreateVideo { time });
@@ -943,16 +956,16 @@ fn RoomStage(
         ));
     });
     view! {
-        <Show when=move || editing.get() && video>
-            <p class="notes">"Video: An die gewünschte Stelle spulen und einen Ort hinzufügen. Taste L funktioniert, wenn die Bühne selbst fokussiert ist; , und . springen einen Frame zurück bzw. vor."</p>
+        <Show when=move || editing.get() && timed>
+            <p class="notes">{if video { "Video: An die gewünschte Stelle spulen und einen Ort hinzufügen. Taste L funktioniert auf der Bühne; , und . springen einen Frame." } else { "Splinely: Zur gewünschten Zeit springen oder die Animation abspielen und einen Ort an der aktuellen Zeit hinzufügen." }}</p>
             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
                 on:click=move |_| create_at_playhead.with_value(|create| create())>
-                "Ort an aktueller Videozeit"
+                "Ort an aktueller Zeit"
             </button>
         </Show>
-        {if video {
+        {if timed {
             Some(view! {
-                <nav class="video-timeline" aria-label="Video-Orte nach Zeit">
+                <nav class="video-timeline" aria-label="Orte nach Zeit">
                     <Show when=move || video_duration.get().is_some()>
                         <div class="video-timeline-scale" aria-hidden="true">
                             {timeline_marks.clone().into_iter().map(|(time, _, _, _)| view! {
@@ -970,36 +983,94 @@ fn RoomStage(
                         </div>
                     </Show>
                     <p class="notes video-playhead">{move || format!("Position {:.2} s", playhead.get())}</p>
+                    {timed_sply.then(|| view! {
+                        <div class="row">
+                            <button disabled=move || video_duration.get().is_none()
+                                on:click=move |_| {
+                                    if let Some(duration) = video_duration.get_untracked() {
+                                        sply_command.update(|command| {
+                                            command.serial += 1;
+                                            command.time = duration;
+                                            command.start = Some(0.0);
+                                            command.play = true;
+                                        });
+                                    }
+                                }>"Animation abspielen"</button>
+                            <button disabled=move || video_duration.get().is_none()
+                                on:click=move |_| {
+                                    let time = playhead.get_untracked();
+                                    sply_command.update(|command| {
+                                        command.serial += 1;
+                                        command.time = time;
+                                        command.start = None;
+                                        command.play = false;
+                                    });
+                                }>"Pause"</button>
+                        </div>
+                    })}
                     <div class="video-timeline-loci">
                     {timeline.into_iter().map(|(time, id, number, place)| {
                         let selected_id = id.clone();
+                        let retime_id = id.clone();
                         view! {
+                            <div class="video-timeline-locus">
                             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
                                 class:on=move || timeline_editor.with_value(|e| e.selected.get().as_ref() == Some(&selected_id))
                                 class:invalid=move || video_duration.get().is_some_and(|duration| time > duration)
                                 on:click=move |_| {
                                     let editor = timeline_editor.get_value();
                                     if busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) { return; }
-                                    let Some(player) = player.get() else { return; };
-                                    if player.ready_state() == 0 {
-                                        editor.message.set("Das Video ist noch nicht geladen".into());
-                                        return;
+                                    if timed_sply {
+                                        let Some(duration) = video_duration.get_untracked() else {
+                                            editor.message.set("Die Animation ist noch nicht geladen".into());
+                                            return;
+                                        };
+                                        if time > duration {
+                                            editor.message.set("Der Ort liegt hinter dem Ende der Animation".into());
+                                            return;
+                                        }
+                                        sply_command.update(|command| {
+                                            command.serial += 1;
+                                            command.time = time;
+                                            command.start = None;
+                                            command.play = false;
+                                        });
+                                    } else {
+                                        let Some(player) = player.get() else { return; };
+                                        if player.ready_state() == 0 {
+                                            editor.message.set("Das Video ist noch nicht geladen".into());
+                                            return;
+                                        }
+                                        let duration = player.duration();
+                                        if duration.is_finite() && time > duration {
+                                            editor.message.set("Der Ort liegt hinter dem Ende des Videos".into());
+                                            return;
+                                        }
+                                        if player.pause().is_err() {
+                                            editor.message.set("Video konnte nicht angehalten werden".into());
+                                            return;
+                                        }
+                                        player.set_current_time(time);
                                     }
-                                    let duration = player.duration();
-                                    if duration.is_finite() && time > duration {
-                                        editor.message.set("Der Ort liegt hinter dem Ende des Videos".into());
-                                        return;
-                                    }
-                                    if player.pause().is_err() {
-                                        editor.message.set("Video konnte nicht angehalten werden".into());
-                                        return;
-                                    }
-                                    player.set_current_time(time);
                                     revealed.set(false);
                                     editor.selected.set(Some(id.clone()));
                                 }>
                                 {format!("{time:.2} s · {number}. {place}")}
                             </button>
+                            <input type="range" min="0" step="0.033333333"
+                                max=move || video_duration.get().unwrap_or(time).max(0.001).to_string()
+                                prop:value=time.to_string()
+                                disabled=move || !editing.get() || busy.get() || dirty.get() || video_duration.get().is_none_or(|d| !d.is_finite() || d <= 0.0)
+                                aria-label=format!("Zeitpunkt von Ort {number} verschieben")
+                                on:change=move |ev| {
+                                    let Ok(time) = event_target_value(&ev).parse::<f64>() else { return; };
+                                    let Some(duration) = video_duration.get_untracked() else { return; };
+                                    if !time.is_finite() || !duration.is_finite() || !(0.0..=duration).contains(&time) { return; }
+                                    let editor = timeline_editor.get_value();
+                                    editor.change(EditorAction::Retime { id: retime_id.clone(), time });
+                                }
+                            />
+                            </div>
                         }
                     }).collect_view()}
                     </div>
@@ -1007,11 +1078,11 @@ fn RoomStage(
             })
         } else { None }}
         <div class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
-            aria-label=if video { "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
+            aria-label=if video { "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame" } else if timed_sply { "Animationsraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
             on:keydown=move |ev: web_sys::KeyboardEvent| {
                 // Only the stage itself, never native video controls or markers.
                 let stage_focused = ev.target().is_some() && ev.target() == ev.current_target();
-                if video && stage_focused && editing.get_untracked() && !ev.repeat()
+                if timed && stage_focused && editing.get_untracked() && !ev.repeat()
                     && !ev.is_composing() && !ev.ctrl_key() && !ev.meta_key()
                     && !ev.alt_key() && ev.key().eq_ignore_ascii_case("l") {
                     ev.prevent_default();
@@ -1027,7 +1098,7 @@ fn RoomStage(
             on:paste=move |ev: web_sys::ClipboardEvent| {
                 // Text fields are outside the stage, so ordinary text paste
                 // never reaches this handler. Do not request clipboard access.
-                if !editing.get_untracked() || video || busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) {
+                if !editing.get_untracked() || timed || busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) {
                     return;
                 }
                 let Some(data) = ev.clipboard_data() else { return; };
@@ -1041,7 +1112,7 @@ fn RoomStage(
                 }
             }
             on:pointerdown=move |ev| {
-                if editing.get() && adding.get() && !video { begin.with_value(|begin| begin(ev, DragKind::Create)); }
+                if editing.get() && adding.get() && !timed { begin.with_value(|begin| begin(ev, DragKind::Create)); }
             }
             on:pointermove=move |ev| { if !busy.get_untracked() { update(&ev); } }
             on:pointerup=move |ev| {
@@ -1080,6 +1151,15 @@ fn RoomStage(
                                 playhead.set(video.current_time());
                             }
                         })
+                    /> }.into_any()
+                } else if timed_sply {
+                    view! { <Sply media=media class="backdrop" timed=sply_command
+                        on_timed_ready=Box::new(move |duration| {
+                            video_duration.set(Some(duration));
+                        })
+                        on_timed_position=Box::new(move |time| playhead.set(time))
+                        on_timed_at=Box::new(move |time| playhead.set(time))
+                        on_timed_error=Box::new({ let message = editor.message; move || message.set("Splinely-Zeitleiste konnte nicht gesteuert werden".into()) })
                     /> }.into_any()
                 } else {
                     view! { <Shown media=media class="backdrop" /> }.into_any()

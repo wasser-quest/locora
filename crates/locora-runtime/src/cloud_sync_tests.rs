@@ -280,3 +280,38 @@ fn invalid_ciphertext_is_quarantined_and_own_operations_advance_cursor() {
     assert_eq!(store.sync_cursor("pull").unwrap(), 10);
     assert_eq!(worker.join().unwrap().len(), 2);
 }
+
+#[test]
+fn app_sync_requires_a_saved_account_before_contacting_cloud() {
+    let data = tempfile::tempdir().unwrap();
+    let store = Store::in_memory().unwrap();
+    let error = sync_with_passphrase(data.path(), &store, "unused passphrase")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("Nicht bei Locora Cloud angemeldet"));
+}
+
+#[test]
+fn app_sync_checks_access_before_fetching_keys() {
+    let data = tempfile::tempdir().unwrap();
+    let store = Store::in_memory().unwrap();
+    let state = CloudState {
+        server: "http://127.0.0.1:1".into(),
+        token: "unused".into(),
+        account: locora_cloud_api::api::Account {
+            id: "test".into(),
+            email: "test@example.invalid".into(),
+            display_name: "Test".into(),
+            subscription: locora_cloud_api::api::SubscriptionState::None,
+            plan: None,
+            period_end: None,
+        },
+        sync_generation: 0,
+        entitlement: None,
+    };
+    cloud::save(data.path(), &state).unwrap();
+    let error = sync_with_passphrase(data.path(), &store, "unused passphrase")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("Keine gültige Cloud-Freischaltung"));
+}

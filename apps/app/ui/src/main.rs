@@ -6,6 +6,7 @@ mod palette;
 mod settings;
 mod sply;
 mod tauri;
+mod video_frames;
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -43,16 +44,35 @@ fn tour_action(
     screen: RwSignal<Screen>,
     busy: RwSignal<bool>,
     error: RwSignal<String>,
+    route_ready: RwSignal<bool>,
+    target_ready: RwSignal<bool>,
     action: TourAction,
 ) {
     if busy.get_untracked() { return; }
+    if action == TourAction::Next {
+        let exists = active.get_untracked().is_some_and(|step| {
+            web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.get_element_by_id(&step.target))
+                .is_some()
+        });
+        if !(route_ready.get_untracked() && target_ready.get_untracked() && exists) {
+            target_ready.set(false);
+            return;
+        }
+    }
     busy.set(true);
+    route_ready.set(false);
+    target_ready.set(false);
     spawn_local(async move {
         match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action }).await {
             Ok(step) => {
                 active.set(step.clone());
                 match route_tour_step(step, screen).await {
-                    Ok(()) => error.set(String::new()),
+                    Ok(()) => {
+                        error.set(String::new());
+                        route_ready.set(true);
+                    }
                     Err(message) => error.set(message),
                 }
             }
@@ -90,10 +110,16 @@ async fn route_tour_step(step: Option<HighlightRequest>, screen: RwSignal<Screen
 }
 
 #[component]
-fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Screen>) -> impl IntoView {
+fn TourOverlay(
+    active: RwSignal<Option<HighlightRequest>>,
+    screen: RwSignal<Screen>,
+    error: RwSignal<String>,
+    route_ready: RwSignal<bool>,
+) -> impl IntoView {
     let busy = RwSignal::new(false);
-    let error = RwSignal::new(String::new());
+    let target_ready = RwSignal::new(false);
     let focused = StoredValue::new(None::<(u8, String)>);
+    let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
     let highlight = move || {
         let current = active.get_untracked();
         let Some(document) = web_sys::window().and_then(|window| window.document()) else { return; };
@@ -102,8 +128,18 @@ fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Scre
                 let _ = node.remove_attribute("data-tour-active");
             }
         }
-        if let Some(step) = current
-            && let Some(node) = document.get_element_by_id(&step.target) {
+        if let Some(step) = current {
+            if before.get_value().is_none() {
+                before.set_value(document.active_element().and_then(|element| {
+                    wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlElement>(element).ok()
+                }));
+            }
+            if !route_ready.get_untracked() {
+                focused.set_value(None);
+                target_ready.set(false);
+                return;
+            }
+            if let Some(node) = document.get_element_by_id(&step.target) {
                 let _ = node.set_attribute("data-tour-active", "true");
                 let key = (step.step, step.target);
                 if focused.get_value().as_ref() != Some(&key) {
@@ -113,8 +149,19 @@ fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Scre
                     }
                     focused.set_value(Some(key));
                 }
+                target_ready.set(true);
+            } else {
+                focused.set_value(None);
+                target_ready.set(false);
             }
-        if active.get_untracked().is_none() { focused.set_value(None); }
+        } else {
+            focused.set_value(None);
+            target_ready.set(false);
+            if let Some(element) = before.get_value() {
+                let _ = element.focus();
+                before.set_value(None);
+            }
+        }
     };
     highlight();
     let timer = set_interval_with_handle(highlight, std::time::Duration::from_millis(150)).ok();
@@ -122,18 +169,25 @@ fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Scre
     view! {
         <Show when=move || active.get().is_some()>
             {move || active.get().map(|step| view! {
-                <aside class="tour-panel card" role="dialog" aria-label="App-Tour" aria-live="polite">
+                <aside class="tour-panel card" role="region" aria-label="App-Tour" aria-live="polite">
                     <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
                     <div class="tour-copy">
                         <small>{format!("Schritt {} von {}", step.step, step.total)}</small>
                         <h2>{step.title}</h2>
                         <p>{step.text}</p>
-                        <p class="notes" role="status">{move || error.get()}</p>
+                        <p class="notes" role="status">{move || {
+                            let message = error.get();
+                            if !message.is_empty() { message }
+                            else if route_ready.get() && !target_ready.get() {
+                                "Tour-Ziel nicht gefunden. Du kannst den Schritt erneut laden oder die Tour schließen.".into()
+                            } else { String::new() }
+                        }}</p>
                         <div class="row">
-                            <button disabled=move || busy.get() on:click=move |_| tour_action(active, screen, busy, error, TourAction::Skip)>"Schließen"</button>
+                            <button disabled=move || busy.get() on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Skip)>"Schließen"</button>
                             <button class="primary" disabled=move || busy.get()
-                                on:click=move |_| tour_action(active, screen, busy, error, if error.get_untracked().is_empty() { TourAction::Next } else { TourAction::Resume })>
-                                {move || if !error.get().is_empty() { "Erneut versuchen" } else if step.step == step.total { "Fertig" } else { "Weiter" }}
+                                on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready,
+                                    if route_ready.get_untracked() && target_ready.get_untracked() { TourAction::Next } else { TourAction::Resume })>
+                                {move || if !route_ready.get() || !target_ready.get() { "Erneut versuchen" } else if step.step == step.total { "Fertig" } else { "Weiter" }}
                             </button>
                         </div>
                     </div>
@@ -147,10 +201,18 @@ fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Scre
 fn App() -> impl IntoView {
     let screen = RwSignal::new(Screen::Home);
     let tour = RwSignal::new(None::<HighlightRequest>);
+    let tour_error = RwSignal::new(String::new());
+    let tour_route_ready = RwSignal::new(false);
     spawn_local(async move {
-        if let Ok(step) = call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Resume }).await {
-            tour.set(step.clone());
-            let _ = route_tour_step(step, screen).await;
+        match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Resume }).await {
+            Ok(step) => {
+                tour.set(step.clone());
+                match route_tour_step(step, screen).await {
+                    Ok(()) => tour_route_ready.set(true),
+                    Err(message) => tour_error.set(message),
+                }
+            }
+            Err(message) => tour_error.set(message),
         }
     });
     let editing = palette::Editing(RwSignal::new(false));
@@ -207,11 +269,12 @@ fn App() -> impl IntoView {
     view! {
         <palette::Palette screen=screen editing=editing />
         <Notifications screen=screen />
-        <TourOverlay active=tour screen=screen />
+        <TourOverlay active=tour screen=screen error=tour_error route_ready=tour_route_ready />
         <main>
             {move || match screen.get() {
                 Screen::Home => view! {
-                    <HomeView screen=screen offset_revision=offset_revision tour=tour/>
+                    <HomeView screen=screen offset_revision=offset_revision tour=tour
+                        tour_error=tour_error tour_route_ready=tour_route_ready/>
                 }.into_any(),
 
                 Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
@@ -403,7 +466,13 @@ fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
 }
 
 #[component]
-fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSignal<Option<HighlightRequest>>) -> impl IntoView {
+fn HomeView(
+    screen: RwSignal<Screen>,
+    offset_revision: RwSignal<u64>,
+    tour: RwSignal<Option<HighlightRequest>>,
+    tour_error: RwSignal<String>,
+    tour_route_ready: RwSignal<bool>,
+) -> impl IntoView {
     let home = RwSignal::new(None::<Result<Home, String>>);
     Effect::new(move |_| {
         let revision = offset_revision.get();
@@ -512,13 +581,23 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSi
     let start_tour = move |_| {
         if busy.get_untracked() { return; }
         busy.set(true);
+        tour_route_ready.set(false);
         spawn_local(async move {
             match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Start }).await {
                 Ok(step) => {
                     tour.set(step.clone());
-                    if let Err(error) = route_tour_step(step, screen).await { message.set(error); }
+                    match route_tour_step(step, screen).await {
+                        Ok(()) => {
+                            tour_error.set(String::new());
+                            tour_route_ready.set(true);
+                        }
+                        Err(error) => tour_error.set(error),
+                    }
                 }
-                Err(error) => message.set(error),
+                Err(error) => {
+                    tour_error.set(error.clone());
+                    message.set(error);
+                }
             }
             busy.set(false);
         });

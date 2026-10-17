@@ -44,6 +44,30 @@ pub enum PluginCommand {
     },
     /// Plugin-Datei ohne Aktivierung prüfen und Manifest anzeigen
     Check { file: PathBuf },
+    /// Textdienst eines installierten Plugins aufrufen
+    Invoke {
+        /// Installierte Plugin-ID
+        plugin: String,
+        /// Dienst der Vorlage
+        #[arg(value_enum)]
+        kind: InvokeKind,
+        /// Eingabetext (oder --file verwenden)
+        #[arg(conflicts_with = "file")]
+        text: Option<String>,
+        /// Eingabetext aus UTF-8-Datei lesen
+        #[arg(long)]
+        file: Option<PathBuf>,
+    },
+    /// WASM-Komponente als weitergebbares .locora-plugin-Paket verpacken
+    Pack {
+        file: PathBuf,
+        /// Zielpfad (Standard: <Plugin-ID>.locora-plugin)
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Optionales Icon für das Paket
+        #[arg(long)]
+        icon: Option<PathBuf>,
+    },
     /// Lokale WASM-Komponente nach Rechteprüfung installieren (kein Update)
     Install {
         file: PathBuf,
@@ -91,6 +115,29 @@ pub enum Template {
     Ereignis,
     /// Zeigt eine eigene Kachel auf dem Startbildschirm
     Kachel,
+    /// Befehl als aufrufbarer CLI-Dienst
+    Befehl,
+    /// Beispiel für einen eigenen Antwortprüfdienst
+    LocusTyp,
+    /// Textzeilen als neuen Palast importieren
+    Importer,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub enum InvokeKind {
+    Command,
+    Locus,
+    Import,
+}
+
+impl InvokeKind {
+    fn service(self) -> &'static str {
+        match self {
+            Self::Command => "command",
+            Self::Locus => "locus",
+            Self::Import => "import",
+        }
+    }
 }
 
 pub fn run(cmd: PluginCommand, data: Option<&Path>) -> Result<()> {
@@ -99,6 +146,15 @@ pub fn run(cmd: PluginCommand, data: Option<&Path>) -> Result<()> {
         PluginCommand::Dev { dir, demo, once } => dev(&dir, demo, once),
         PluginCommand::Run { files } => run_files(&files),
         PluginCommand::Check { file } => check(&file),
+        PluginCommand::Invoke {
+            plugin,
+            kind,
+            text,
+            file,
+        } => invoke(&plugin, kind, text.as_deref(), file.as_deref(), data),
+        PluginCommand::Pack { file, output, icon } => {
+            crate::plugin_package::pack(&file, output.as_deref(), icon.as_deref())
+        }
         PluginCommand::Install { file, yes } => install(&file, &crate::app::data_dir(data)?, yes),
         PluginCommand::Remove { plugin } => remove(&plugin, &crate::app::data_dir(data)?),
         PluginCommand::Ls => list(&crate::app::data_dir(data)?),
@@ -154,9 +210,13 @@ fn new(name: &str, template: Template) -> Result<()> {
     let source = match template {
         Template::Ereignis => include_str!("../templates/ereignis.rs"),
         Template::Kachel => include_str!("../templates/kachel.rs"),
+        Template::Befehl => include_str!("../templates/befehl.rs"),
+        Template::LocusTyp => include_str!("../templates/locus-typ.rs"),
+        Template::Importer => include_str!("../templates/importer.rs"),
     }
-    .replace("{{name}}", name.trim())
-    .replace("{{type}}", &type_name);
+    .replace("{{name_literal}}", &format!("{:?}", name.trim()))
+    .replace("{{type}}", &type_name)
+    .replace("{{id}}", &id);
 
     fs::create_dir_all(dir.join("src"))?;
     fs::create_dir_all(dir.join(".cargo"))?;
@@ -178,6 +238,8 @@ locora-sdk = {sdk}
 lto = true
 opt-level = "s"
 strip = true
+
+[workspace]
 "#,
             sdk = sdk_dependency()
         ),
@@ -188,11 +250,33 @@ strip = true
     )?;
     fs::write(dir.join(".gitignore"), "/target\n")?;
     fs::write(dir.join("src/lib.rs"), source)?;
+    let readme = match template {
+        Template::Befehl => Some(include_str!("../templates/befehl.md")),
+        Template::LocusTyp => Some(include_str!("../templates/locus-typ.md")),
+        Template::Importer => Some(include_str!("../templates/importer.md")),
+        _ => None,
+    };
+    if let Some(readme) = readme {
+        fs::write(dir.join("README.md"), readme.replace("{{id}}", &id))?;
+    }
 
     println!("✓ Plugin `{name}` angelegt in ./{id}");
     println!();
     println!("  cd {id}");
     println!("  locora plugin dev --demo");
+    if matches!(
+        template,
+        Template::Befehl | Template::LocusTyp | Template::Importer
+    ) {
+        println!("  locora plugin install target/{WASM_TARGET}/release/{id}.wasm --yes");
+        let kind = match template {
+            Template::Befehl => "command",
+            Template::LocusTyp => "locus",
+            Template::Importer => "import",
+            _ => unreachable!(),
+        };
+        println!("  locora plugin invoke {id} {kind} <TEXT>  # oder --file <DATEI>");
+    }
     Ok(())
 }
 
@@ -377,7 +461,8 @@ fn run_files(files: &[PathBuf]) -> Result<()> {
 
 fn check(file: &Path) -> Result<()> {
     let host = PluginHost::new(None)?;
-    let manifest = host.inspect_bytes(&read_regular(file)?)?;
+    let input = crate::plugin_package::read_input(file)?;
+    let manifest = host.inspect_bytes(&input.bytes)?;
     validate_install(&manifest)?;
     println!("✓ {} ({})", manifest.name, manifest.id);
     println!("  Version:       {}", manifest.version);
@@ -388,6 +473,52 @@ fn check(file: &Path) -> Result<()> {
         manifest.permissions.join(", ")
     };
     println!("  Berechtigungen: {permissions}");
+    Ok(())
+}
+
+fn invoke(
+    plugin: &str,
+    kind: InvokeKind,
+    text: Option<&str>,
+    file: Option<&Path>,
+    data: Option<&Path>,
+) -> Result<()> {
+    let input = match (text, file) {
+        (Some(text), None) => text.to_owned(),
+        (None, Some(file)) => {
+            let metadata = fs::symlink_metadata(file)?;
+            if !metadata.file_type().is_file() || metadata.len() > 1024 * 1024 {
+                bail!("Eingabedatei muss regulär und höchstens 1 MiB groß sein");
+            }
+            let bytes = read_regular(file)?;
+            if bytes.len() > 1024 * 1024 {
+                bail!("Eingabedatei überschreitet 1 MiB");
+            }
+            String::from_utf8(bytes).context("Eingabedatei ist kein UTF-8-Text")?
+        }
+        _ => bail!("Text oder --file angeben"),
+    };
+    if input.len() > 1024 * 1024 {
+        bail!("Eingabetext überschreitet 1 MiB");
+    }
+    let mut app = crate::app::App::open(data)?;
+    let service = format!("{plugin}.{}@1", kind.service());
+    if !app.host.plugin_provides(plugin, &service) {
+        bail!("Installiertes Plugin {plugin:?} bietet {service:?} nicht an");
+    }
+    if app
+        .host
+        .plugins()
+        .filter(|manifest| app.host.plugin_provides(&manifest.id, &service))
+        .count()
+        != 1
+    {
+        bail!("Dienst {service:?} wird von mehreren Plugins angeboten");
+    }
+    let bytes = app.host.call_raw(&service, &locora_api::encode(&input)?)?;
+    let answer: String = locora_api::decode(&bytes)?;
+    println!("{answer}");
+    app.report();
     Ok(())
 }
 
@@ -451,7 +582,8 @@ fn inspect_file(host: &PluginHost, file: &Path) -> Result<Manifest> {
 
 fn install(file: &Path, data: &Path, yes: bool) -> Result<()> {
     // Read once: the exact reviewed bytes are persisted, not a later source copy.
-    let bytes = read_regular(file).with_context(|| format!("Plugin {} lesen", file.display()))?;
+    let input = crate::plugin_package::read_input(file)?;
+    let bytes = input.bytes;
     let host = PluginHost::new(None)?;
     let manifest = host.inspect_bytes(&bytes)?;
     validate_install(&manifest)?;
@@ -480,7 +612,7 @@ fn install(file: &Path, data: &Path, yes: bool) -> Result<()> {
             );
         }
     }
-    let signer = plugin_sign::signer_of(file, &bytes)?;
+    let signer = input.signer;
     match &signer {
         Some(key) => match locora_runtime::publishers::trusted_name(data, key)? {
             Some(name) => eprintln!("✓ Signiert von {name} (vertrauenswürdig)."),

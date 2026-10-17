@@ -6,14 +6,14 @@ use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    ActionDone, AnswerKind, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS,
-    CMD_GAMIFICATION_STATUS, CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, GameView,
-    GamificationStatus, InputField, InputValue, JourneyStart, Question, Reply, Revealed,
-    Step, Summary, Trophy, UiAssets,
+    ActionDone, AnswerKind, CMD_GAMIFICATION_STATUS, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER,
+    CMD_JOURNEY_INPUTS, CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, GameView,
+    GamificationStatus, InputField, InputValue, JourneyStart, Question, Reply, Revealed, Step,
+    Summary, Trophy, UiAssets,
 };
 use serde::Serialize;
 
-use crate::sply::{Shown, Sply, VideoBackdrop};
+use crate::sply::{Shown, Sply, TimedCommand, VideoBackdrop};
 use crate::tauri::{NoArgs, call};
 use crate::{Answer, Screen};
 
@@ -64,7 +64,9 @@ struct VideoReady(RwSignal<bool>);
 
 fn refresh_game(status: RwSignal<Option<GamificationStatus>>) {
     spawn_local(async move {
-        if let Ok(value) = call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, NoArgs {}).await {
+        if let Ok(value) =
+            call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, NoArgs {}).await
+        {
             status.set(value);
         }
     });
@@ -381,7 +383,10 @@ fn trophy_name(trophy: Trophy) -> &'static str {
 }
 
 #[component]
-fn GameStatus(status: RwSignal<Option<GamificationStatus>>, art: RwSignal<Option<UiAssets>>) -> impl IntoView {
+fn GameStatus(
+    status: RwSignal<Option<GamificationStatus>>,
+    art: RwSignal<Option<UiAssets>>,
+) -> impl IntoView {
     view! {
         {move || status.get().map(|game| {
             let icons = art.get();
@@ -434,11 +439,21 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
     let zoom = question.zoom.clamp(1.0, 4.0);
     view! {
         <div class="stage">
+            {(!question.video_preview.is_empty()).then(|| view! {
+                <div class="video-start-preview" role="note">
+                    <strong>"Startvorschau · Orte bei 0 s"</strong>
+                    <ul>{question.video_preview.clone().into_iter().map(|locus| view! {
+                        <li><span>{locus.place}</span>{(!locus.item.is_empty()).then(|| view! { " · " <span>{locus.item}</span> })}</li>
+                    }).collect_view()}</ul>
+                </div>
+            })}
             // The whole room zooms in on the locus; the marker keeps its size.
             <div class="stage-view" style:transform=zoom_view(question.x, question.y, zoom)>
                 {question.backdrop.clone().map(|m| {
                     if m.kind == locora_app_api::MediaKind::Video {
                         view! { <VideoAtLocus media=m time=question.time phase=phase /> }.into_any()
+                    } else if m.kind == locora_app_api::MediaKind::Sply && question.time.is_some() {
+                        view! { <SplyAtLocus media=m time=question.time /> }.into_any()
                     } else {
                         view! { <Shown media=m class="backdrop" /> }.into_any()
                     }
@@ -461,6 +476,34 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
     }
 }
 
+/// Splinely's own timeline plays to the locus and holds that exact position.
+#[component]
+fn SplyAtLocus(media: locora_app_api::Media, time: Option<f64>) -> impl IntoView {
+    let ready = expect_context::<VideoReady>().0;
+    ready.set(false);
+    let progress = expect_context::<VideoProgress>().0;
+    let error = RwSignal::new(false);
+    let target = time.unwrap_or(0.0);
+    let key = media.hash.clone();
+    let start = video_segment_start(progress.get_value().as_ref(), &key, target);
+    let command = RwSignal::new(TimedCommand { serial: 0, time: target, start: Some(start), play: true });
+    view! {
+        <Sply media=media class="backdrop" timed=command
+            on_timed_at=Box::new(move |time| {
+                progress.set_value(Some((key.clone(), time)));
+                ready.set(true);
+            })
+            on_timed_error=Box::new(move || {
+                error.set(true);
+                ready.set(true);
+            })
+        />
+        <Show when=move || error.get()>
+            <p class="notes" role="alert">"Splinely-Animation oder gespeicherte Locus-Zeit konnte nicht geladen werden."</p>
+        </Show>
+    }
+}
+
 /// Play to the question's timestamp, then hold until the answer is graded.
 #[component]
 fn VideoAtLocus(
@@ -475,6 +518,7 @@ fn VideoAtLocus(
     ready.set(false);
     let progress = expect_context::<VideoProgress>().0;
     let key = StoredValue::new(media.hash.clone());
+    let frame_watch = crate::video_frames::new_id();
     let stop_at_locus = move || {
         if let (Some(player), Some(target)) = (player.get_untracked(), time)
             && player.ready_state() >= 1
@@ -499,12 +543,14 @@ fn VideoAtLocus(
             if let Some(timer) = timer {
                 timer.clear();
             }
+            crate::video_frames::stop(frame_watch);
         }
     });
     on_cleanup(move || {
         if let Some(timer) = timer {
             timer.clear();
         }
+        crate::video_frames::stop(frame_watch);
     });
     view! {
         <VideoBackdrop
@@ -515,7 +561,14 @@ fn VideoAtLocus(
             preload="auto".to_string()
             autoplay=true
             node_ref=player
-            on_loaded=Box::new(move || on_metadata(player, time, phase, progress, key, ready, (error, fallback)))
+            on_loaded=Box::new(move || {
+                on_metadata(player, time, phase, progress, key, ready, (error, fallback));
+                if !ready.get_untracked()
+                    && let Some(video) = player.get_untracked()
+                {
+                    crate::video_frames::start(frame_watch, &video, stop_at_locus);
+                }
+            })
             on_timeupdate=Box::new(stop_at_locus)
             on_error=Box::new(move || { error.set(true); ready.set(true); })
         />
