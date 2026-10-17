@@ -667,6 +667,11 @@ Der Formel-Guide „Formeln verstehen“ ist als eigener Palast mit sechs `.sply
 Eingaben, `Integer`, `Major` und Bindungen werden mit echten Workbook-Formeln gezeigt;
 `locora formula-guide [--reset]` und die Startseite legen ihn an.
 
+Das offizielle `gamification`-Plugin berechnet lokal XP, Combos, Herzen, vier Trophäen
+und das Tagesziel. Der native Lernbeginn bestimmt Tagesgrenzen und den Review-Streak;
+`locora stats` und die App-Kachel zeigen den Stand. Animierte Erfolgsansichten in der
+Journey stehen noch aus.
+
 **Antworten und Abfragen (erledigt, aus dem Abgleich mit mnemodim):** Quiz mit bis zu 30 Optionen, pro Frage alle
 richtigen und drei zufällige falsche, gemischt (`Answer::quiz_selection`); Guess vergleicht ohne Groß-/Kleinschreibung,
 Satzzeichen und doppelte Leerzeichen (`normalize`) und nimmt weitere Antworten an (`accept`, `--accept`); Merkhilfe

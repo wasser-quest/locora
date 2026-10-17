@@ -1,0 +1,13 @@
+[package]
+name = "gamification"
+description = "Offline XP, combos, hearts, trophies and daily challenges for Locora"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+locora-sdk = { path = "../../crates/locora-sdk" }
+serde = { version = "1", features = ["derive"] }

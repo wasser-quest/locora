@@ -358,7 +358,7 @@ fn check(file: &Path) -> Result<()> {
 }
 
 // These identities remain reserved even in builds without embedded components.
-const BUILT_INS: &[&str] = &["core", "review", "notify", "tutorial"];
+const BUILT_INS: &[&str] = &["core", "review", "notify", "tutorial", "gamification"];
 
 fn validate_install(manifest: &Manifest) -> Result<()> {
     let id = &manifest.id;

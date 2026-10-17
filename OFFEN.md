@@ -96,7 +96,8 @@ Stand: 17.10.2026
 
 ## Phase 5 – Gamification und Locora Cloud
 
-- [ ] Plugin `gamification` (lokal, kostenlos): XP, Combos, Herzen, Trophäen, Daily Challenges, Streak – Grafiken als `.sply`
+- [x] Plugin `gamification` (lokal, kostenlos): XP, Combos, Herzen, vier Trophäen, Tagesziel und Streak; Status in CLI und App-Kachel
+- [ ] Erfolge visuell mit `.sply`-Grafiken in App und Journey darstellen; Herzen/Combo während der Journey zeigen
 - [ ] Privates Repo `locora-cloud` (axum + Postgres): Abo, Ranglisten, Freunde, gemeinsame Challenges
 - [ ] Ed25519-Entitlements mit 14 Tagen Offline-Kulanz; In-App-Kauf auf iOS/Android, Merchant of Record auf Desktop
 

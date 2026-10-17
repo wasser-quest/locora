@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use locora_api::Service;
-use locora_api::core::{Grade, JourneyCompleted};
+use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{AnswerKind, Evaluate, Submission};
 use locora_formula::workbook::{ActionOutcome, Run};
 use locora_store::{Locus, PalaceTree};
@@ -387,6 +387,15 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
         }
         return Ok(());
     }
+
+    let mut palace_ids = Vec::new();
+    for entry in &plan {
+        let id = &entry.tree.palace.id;
+        if !palace_ids.contains(id) {
+            palace_ids.push(id.clone());
+        }
+    }
+    app.publish(&JourneyStarted { palace_ids })?;
 
     let title = match palace {
         Some(_) => trees[0].palace.name.clone(),

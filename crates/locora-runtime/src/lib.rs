@@ -9,7 +9,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 
 use anyhow::{Context, Result, bail};
-use locora_api::core::{Grade, JourneyScore, LocusAnswered, Score};
+use locora_api::core::{Grade, JourneyScore, LearningDayAnswer, LocusAnswered, Score};
+use locora_api::gamification::{
+    Status as GamificationStatus, StatusRequest as GamificationStatusRequest,
+    StatusResponse as GamificationStatusResponse,
+};
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
 use locora_api::notify::{Due, DueRequest, Message};
 use locora_api::ui::Tile;
@@ -371,14 +375,24 @@ impl Profile {
             points: evaluation.points,
         })?;
         notes.extend(self.report());
+        let answered_at = now();
         notes.extend(self.publish(&LocusAnswered {
             palace_id: request.palace_id.to_owned(),
             locus_id: request.locus_id.to_owned(),
             correct: evaluation.correct,
             grade: evaluation.grade,
             elapsed_ms: request.elapsed_ms,
-            answered_at: now(),
+            answered_at,
         })?);
+        if self.host.plugin_provides("gamification", GamificationStatus::NAME) {
+            let day_start = self.day_clock()?.day_start(answered_at);
+            notes.extend(self.publish(&LearningDayAnswer {
+                palace_id: request.palace_id.to_owned(),
+                correct: evaluation.correct,
+                answered_at,
+                day_start,
+            })?);
+        }
         // Trusted route identity, even if a points filter changed ids.
         notes.extend(self.publish(&Scored {
             palace_id: request.palace_id.to_owned(),
@@ -391,6 +405,24 @@ impl Profile {
             points: score.points,
             notes,
         })
+    }
+
+    /// Local game progress, using the same learning-day boundary as review.
+    pub fn gamification_status(&mut self) -> Result<Option<GamificationStatusResponse>> {
+        if !self.host.plugin_provides("gamification", GamificationStatus::NAME) {
+            return Ok(None);
+        }
+        let day_start = self.day_clock()?.day_start(now());
+        let streak = self
+            .stats()?
+            .map_or(0, |stats| stats.streak.min(u32::MAX as usize) as u32);
+        let status = self.host.call_plugin::<GamificationStatus>(
+            "gamification",
+            &GamificationStatusRequest { day_start, streak },
+        )?;
+        let reported = self.report();
+        self.notes.extend(reported);
+        Ok(Some(status))
     }
 }
 

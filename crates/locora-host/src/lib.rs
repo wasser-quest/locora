@@ -421,7 +421,7 @@ impl PluginHost {
         }
         let component = self.compile(bytes)?;
         let manifest = self.inspect_component(&component)?;
-        if !allow_reload && matches!(manifest.id.as_str(), "core" | "review" | "notify" | "tutorial") {
+        if !allow_reload && matches!(manifest.id.as_str(), "core" | "review" | "notify" | "tutorial" | "gamification") {
             bail!("Eingebaute Plugin-ID `{}` ist geschützt", manifest.id);
         }
         if approved.is_some_and(|approved| !approved.matches(&manifest, bytes)) {

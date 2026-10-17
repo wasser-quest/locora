@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
-use locora_api::core::{Grade, JourneyCompleted};
+use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{Answer, AnswerKind as Kind, Submission};
 use locora_app_api::{
     ActionDone, AnswerKind, Feedback, InputField, JourneyStart, Media, Question, Reply, Revealed,
@@ -121,6 +121,14 @@ impl Journey {
         if planned.stops.is_empty() {
             return Ok(None);
         }
+        let mut palace_ids = Vec::new();
+        for stop in &planned.stops {
+            let id = &trees[stop.palace].palace.id;
+            if !palace_ids.contains(id) {
+                palace_ids.push(id.clone());
+            }
+        }
+        let start_notes = profile.publish(&JourneyStarted { palace_ids })?;
         let mut journey = Self {
             trees,
             runs,
@@ -135,7 +143,7 @@ impl Journey {
             results: Vec::new(),
             points: 0,
             spent: HashMap::new(),
-            notes: planned.warnings,
+            notes: planned.warnings.into_iter().chain(start_notes).collect(),
         };
         journey.enter();
         Ok(Some(journey))

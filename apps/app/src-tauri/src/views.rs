@@ -49,6 +49,7 @@ pub fn marker(store: &Store, tree: &PalaceTree, default: &str) -> Media {
 pub fn home(profile: &mut Profile) -> Result<Home> {
     let cards = profile.schedule(None)?;
     let budget = profile.new_budget()?;
+    let _game = profile.gamification_status()?;
     let now = now();
     // Tiles published while scheduling are stored before they are read.
     let reported = profile.report();
