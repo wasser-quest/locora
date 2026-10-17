@@ -209,8 +209,9 @@ warning and cannot bypass validation. Supported permissions are exactly
 implemented and is refused, as are `network` and unknown permissions.
 
 Installation stores the reviewed bytes in `<data>/plugins/<id>.wasm` and the
-approved manifest in `<id>.wasm.json`, with atomic no-clobber publication (approval
-first, component last). IDs are 1–128 ASCII lowercase letters/digits/`-`/`_`,
+approved manifest and SHA-256 of those exact bytes in `<id>.wasm.json`, with
+atomic no-clobber publication (approval first, component last). IDs are 1–128
+ASCII lowercase letters/digits/`-`/`_`,
 starting with a letter/digit and excluding Windows device names; filenames never
 come from display names or paths. Components/approval must be regular files, not
 symlinks or pipes; removal unlinks a component/approval symlink without following
@@ -225,10 +226,12 @@ the next normal profile command. `PluginHost::inspect_bytes` instantiates with n
 capabilities, no profile backends and no inherited WASI resources; start/manifest
 code still runs, with fuel, and its events/logs are discarded. It does not write
 the compiled cache. Profile loading uses `load_approved_file`, the same duplicate-
-rejecting policy as `load_additional_file`, plus an exact approved-manifest check
-before granting capabilities/activation. This prevents nondeterministic manifests
+rejecting policy as `load_additional_file`, plus an exact approved-manifest and
+byte-hash check before granting capabilities/activation. The byte hash is
+checked before compiling or probing a component. This prevents nondeterministic manifests
 from gaining rights not displayed at install. Missing/invalid approvals refuse
-activation; manually copied files must go through `plugin install` instead.
+activation; manually copied files must go through `plugin install` instead. Legacy
+manifest-only approvals also require removal and a fresh installation.
 
 `plugin ls` reports built-ins and installed metadata (not activation/health),
 including broken/incompatible files and missing/mismatched approvals. `plugin

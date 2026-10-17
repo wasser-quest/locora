@@ -74,6 +74,7 @@ Stand: 17.10.2026
 - [ ] Sammlungen: mehrere Paläste mit gemeinsamer Navigation und `navigate`-Aktion (erst wenn gebraucht)
 - [x] FSRS-Optimierung in der App (Einstellungen) mit Hinweis beim ersten Mal ab 100 und dann je 1 000 neuen Wiederholungen; Tipp auch in `locora stats`
 - [x] Lerntage in lokaler Zeit: Tagesbeginn einstellbar (Standard 4:00), UTC-Versatz setzt die App bei jedem Start (CLI: `settings day-start`, `settings utc-offset`)
+- [x] Plugin-Zustimmung an Manifest und Hash der tatsächlich installierten WASM-Datei binden; alte Belege erfordern Neuinstallation
 - [ ] Plugin-Signaturen (Ed25519), Update-Befehl für Plugins
 
 ## Phase 3 – Video-Räume in der App und Benachrichtigungen

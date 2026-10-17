@@ -45,6 +45,31 @@ pub struct Manifest {
     pub permissions: Vec<String>,
 }
 
+/// Consent for one exact component, not just its self-declared metadata.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovalReceipt {
+    pub manifest: Manifest,
+    pub sha256: String,
+}
+
+impl ApprovalReceipt {
+    pub fn new(manifest: Manifest, bytes: &[u8]) -> Self {
+        Self {
+            manifest,
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+        }
+    }
+
+    pub fn matches(&self, manifest: &Manifest, bytes: &[u8]) -> bool {
+        self.manifest == *manifest && self.matches_bytes(bytes)
+    }
+
+    pub fn matches_bytes(&self, bytes: &[u8]) -> bool {
+        self.sha256 == format!("{:x}", Sha256::digest(bytes))
+    }
+}
+
 impl From<types::Manifest> for Manifest {
     fn from(m: types::Manifest) -> Self {
         Self {
@@ -312,9 +337,13 @@ impl PluginHost {
         self.load_file_with_policy(path, false)
     }
 
-    /// Load a profile component only if its manifest still matches the user's
-    /// approval. The comparison and activation use the same manifest probe.
-    pub fn load_approved_file(&mut self, path: &Path, approved: &Manifest) -> Result<Manifest> {
+    /// Load a profile component only if its bytes and manifest match approval.
+    /// The comparison and activation use the same component bytes.
+    pub fn load_approved_file(
+        &mut self,
+        path: &Path,
+        approved: &ApprovalReceipt,
+    ) -> Result<Manifest> {
         self.load_file_with_approval(path, false, Some(approved))
     }
 
@@ -326,7 +355,7 @@ impl PluginHost {
         &mut self,
         path: &Path,
         allow_reload: bool,
-        approved: Option<&Manifest>,
+        approved: Option<&ApprovalReceipt>,
     ) -> Result<Manifest> {
         if !fs::symlink_metadata(path)?.file_type().is_file() {
             bail!("Keine reguläre Plugin-Datei: {}", path.display());
@@ -352,15 +381,20 @@ impl PluginHost {
         &mut self,
         bytes: &[u8],
         allow_reload: bool,
-        approved: Option<&Manifest>,
+        approved: Option<&ApprovalReceipt>,
     ) -> Result<Manifest> {
+        if approved.is_some_and(|approved| !approved.matches_bytes(bytes)) {
+            bail!("Plugin-Datei stimmt nicht mit der bestätigten Installation überein");
+        }
         let component = self.compile(bytes)?;
         let manifest = self.inspect_component(&component)?;
         if !allow_reload && matches!(manifest.id.as_str(), "core" | "review") {
             bail!("Eingebaute Plugin-ID `{}` ist geschützt", manifest.id);
         }
-        if approved.is_some_and(|approved| approved != &manifest) {
-            bail!("Plugin-Manifest stimmt nicht mit der bestätigten Installation überein");
+        if approved.is_some_and(|approved| !approved.matches(&manifest, bytes)) {
+            bail!(
+                "Plugin-Datei oder Manifest stimmt nicht mit der bestätigten Installation überein"
+            );
         }
 
         let reloading = self.plugins.contains_key(&manifest.id);

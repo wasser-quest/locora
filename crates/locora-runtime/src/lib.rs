@@ -18,7 +18,7 @@ use locora_api::Service as _;
 /// Latest `ui.tile` per plugin, kept in the profile (reserved id `host`).
 const TILES: &str = "tiles";
 use locora_api::review::{CardState, Schedule, ScheduleRequest};
-use locora_host::{HostEvent, KvStore, Level, Manifest, PluginHost};
+use locora_host::{ApprovalReceipt, HostEvent, KvStore, Level, Manifest, PluginHost};
 use locora_store::{PalaceTree, Store};
 
 pub mod journey;
@@ -135,7 +135,9 @@ impl Profile {
                     let approval = read_regular(&file.with_extension("wasm.json")).context(
                         "Keine Installationszustimmung; bitte `locora plugin install` verwenden",
                     )?;
-                    let approved = serde_json::from_slice(&approval)?;
+                    let approved: ApprovalReceipt = serde_json::from_slice(&approval).context(
+                        "Ungültige oder veraltete Installationszustimmung; Plugin erneut installieren",
+                    )?;
                     host.load_approved_file(&file, &approved)
                 })();
                 if let Err(err) = load {

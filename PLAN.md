@@ -647,6 +647,11 @@ Ausführliche Verträge, Randfälle und Grenzen: [`docs/phase-1-notizen.md`](doc
 
 **Phase 1 ist damit abgeschlossen** (Punkt 8 bleibt bewusst offen).
 
+Die Installationszustimmung für fremde Plugins bindet inzwischen Manifest und SHA-256 der
+installierten WASM-Datei. Der Host prüft die Bytes vor dem Kompilieren und das Manifest vor der
+Aktivierung. Alte Belege ohne Hash werden nicht mehr akzeptiert; betroffene Plugins müssen entfernt
+und erneut installiert werden. Ed25519-Signaturen und Plugin-Updates bleiben offen.
+
 **Tutorial als Palast (erledigt, Teil von Phase 4 vorgezogen):** Das Tutorial besteht aus Loci mit `.sply`-Grafiken:
 `assets/tutorial/locora-lernen.locora.toml` (3 Räume, 9 Orte, Recall/Quiz/Guess), Grafiken per
 `assets/tutorial/src/tutorial.py`, Simo und Glühwürmchen aus `assets/mascot/`. In die CLI eingebaut: `locora tutorial

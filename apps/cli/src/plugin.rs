@@ -11,7 +11,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Subcommand, ValueEnum};
 use locora_api::core::JourneyCompleted;
 use locora_api::host::Started;
-use locora_host::{HostEvent, Level, Manifest, PluginHost};
+use locora_host::{ApprovalReceipt, HostEvent, Level, Manifest, PluginHost};
 use notify::{RecursiveMode, Watcher};
 
 const WASM_TARGET: &str = "wasm32-wasip2";
@@ -473,7 +473,8 @@ fn install(file: &Path, data: &Path, yes: bool) -> Result<()> {
     fs::create_dir_all(&dir)?;
     // Publish approval first and the component last. A crash can leave an
     // orphan approval, but never a loadable component without consent.
-    persist_new(&approval, &serde_json::to_vec(&manifest)?)?;
+    let receipt = ApprovalReceipt::new(manifest.clone(), &bytes);
+    persist_new(&approval, &serde_json::to_vec(&receipt)?)?;
     if let Err(err) = persist_new(&destination, &bytes) {
         let _ = fs::remove_file(&approval);
         return Err(err);
@@ -577,9 +578,13 @@ fn list(data: &Path) -> Result<()> {
                 }
                 let approved = read_regular(&file.with_extension("wasm.json"))
                     .ok()
-                    .and_then(|bytes| serde_json::from_slice::<Manifest>(&bytes).ok());
-                if approved.as_ref() != Some(&manifest) {
-                    println!("  ⚠ Keine passende Installationszustimmung; wird nicht aktiviert");
+                    .and_then(|bytes| serde_json::from_slice::<ApprovalReceipt>(&bytes).ok());
+                let component = read_regular(&file).ok();
+                if !matches!((&approved, &component), (Some(receipt), Some(bytes)) if receipt.matches(&manifest, bytes))
+                {
+                    println!(
+                        "  ⚠ Keine passende Installationszustimmung für diese Plugin-Datei; wird nicht aktiviert"
+                    );
                 }
                 if BUILT_INS.contains(&manifest.id.as_str()) {
                     println!("  ⚠ Eingebaute ID geschützt; wird nicht ersetzt");

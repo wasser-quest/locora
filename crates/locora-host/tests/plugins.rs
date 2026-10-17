@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 
 use locora_api::core::{JourneyCompleted, PalaceCreated};
 use locora_api::ui::Tile;
-use locora_host::{HostEvent, PluginHost};
+use locora_host::{ApprovalReceipt, HostEvent, PluginHost};
 
 /// Build the plugin workspace once and return the directory with the `.wasm` files.
 fn wasm_dir() -> &'static PathBuf {
@@ -51,7 +51,8 @@ fn metadata_inspection_and_approval_mismatch_never_activate_or_touch_backends() 
     assert!(store.palaces().unwrap().is_empty());
     assert!(kv.get("install-probe", "activated").unwrap().is_none());
     manifest.permissions.clear();
-    let err = host.load_approved_file(&path, &manifest).unwrap_err();
+    let approved = ApprovalReceipt::new(manifest, &std::fs::read(&path).unwrap());
+    let err = host.load_approved_file(&path, &approved).unwrap_err();
     assert!(err.to_string().contains("bestätigten Installation"));
     assert!(kv.get("install-probe", "activated").unwrap().is_none());
     assert!(store.palaces().unwrap().is_empty());
@@ -63,17 +64,21 @@ fn approved_profile_loading_rejects_duplicates_and_reserved_ids_before_activatio
     load(&mut host, "fixture");
     let path = wasm_dir().join("fixture.wasm");
     let manifest = host.inspect_bytes(&std::fs::read(&path).unwrap()).unwrap();
-    let err = host.load_approved_file(&path, &manifest).unwrap_err();
+    let approved = ApprovalReceipt::new(manifest, &std::fs::read(&path).unwrap());
+    let err = host.load_approved_file(&path, &approved).unwrap_err();
     assert!(err.to_string().contains("bereits geladen"));
     assert_eq!(host.plugins().count(), 1);
     for name in ["core", "review"] {
         let path = wasm_dir().join(format!("{name}.wasm"));
         let manifest = host.inspect_bytes(&std::fs::read(&path).unwrap()).unwrap();
         assert!(
-            host.load_approved_file(&path, &manifest)
-                .unwrap_err()
-                .to_string()
-                .contains("geschützt")
+            host.load_approved_file(
+                &path,
+                &ApprovalReceipt::new(manifest, &std::fs::read(&path).unwrap()),
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("geschützt")
         );
         assert!(host.load_additional_file(&path).is_err());
     }

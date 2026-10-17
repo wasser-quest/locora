@@ -4,7 +4,7 @@
 
 **Offline-first memory palaces, written in pure Rust.** Build palaces from images or videos, place loci in a few clicks, and practice recall on desktop, Android, iOS and the command line.
 
-> **Status:** early development. The command line works end to end (palaces, practice, spaced repetition through the `review` plugin, local SQLite storage); the desktop/mobile app is next. See [`PLAN.md`](PLAN.md) for the architecture and roadmap (German).
+> **Status:** early development. The CLI works end to end, and the Tauri/Leptos app supports palace editing, journeys, video loci and local notifications. Mobile builds and several native interaction checks remain open. See [`PLAN.md`](PLAN.md) for the architecture and roadmap (German).
 
 ## Try it
 
@@ -75,9 +75,11 @@ locora --data ./test-profile plugin install ./mein_plugin.wasm --yes
 Installation never calls `activate`; activation happens on the next normal profile
 command. Only `storage`, `palaces:read` and `palaces:write` are supported; all other
 permissions (including `notify`/`network`) are refused. Components must match the
-host API (currently 0.6). Files live in `<data>/plugins/<id>.wasm`, alongside the
-approved manifest in `<id>.wasm.json`. Keep both files: manually copied components
-without approval are not activated. Changed manifests are rejected before activation.
+host API (currently 0.6). Files live in `<data>/plugins/<id>.wasm`, alongside a
+receipt in `<id>.wasm.json` that binds the approved manifest and SHA-256 of the
+installed component. Keep both files: manually copied or changed components
+without matching approval are not activated. Older manifest-only receipts require
+removing and reinstalling the plugin.
 Existing destinations and duplicate IDs (even under another filename) are refused;
 there is no update command. Remove first to reinstall; plugin KV/palaces are retained.
 Removal by ID resolves renamed components and refuses ambiguous IDs; an explicit
