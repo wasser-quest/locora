@@ -78,9 +78,7 @@ struct PullPage {
 }
 
 fn pull(state: &CloudState, store: &Store, report: &mut SyncReport) -> Result<()> {
-    for entry in store.pending_pull()? {
-        apply_entry(state, store, entry, report)?;
-    }
+    let pending = store.pending_pull()?;
     let mut after = store.sync_cursor("pull")?;
     loop {
         let page: PullPage = cloud::get(
@@ -106,9 +104,13 @@ fn pull(state: &CloudState, store: &Store, report: &mut SyncReport) -> Result<()
         }
         after = page.cursor;
         if done {
-            return Ok(());
+            break;
         }
     }
+    for entry in pending {
+        apply_entry(state, store, entry, report)?;
+    }
+    Ok(())
 }
 
 fn apply_entry(

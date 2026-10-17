@@ -102,6 +102,46 @@ fn missing_op_does_not_block_later_parent_and_recovers_after_restart() {
 }
 
 #[test]
+fn pending_retry_waits_for_successful_pages_and_a_later_parent() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let entry = store.queue_pull_page(8, &[room()]).unwrap().remove(0);
+    for _ in 0..2 {
+        assert!(
+            store
+                .fail_pull(entry.id, "missing parent", false)
+                .unwrap()
+                .is_none()
+        );
+    }
+    let other = op(9, "palace", "other", "create", json!({"name": "Other"}));
+    let (state, worker) = responses(vec![
+        page(9, vec![other]),
+        (503, json!({"error": "temporarily unavailable"})),
+    ]);
+    let mut report = SyncReport::default();
+    assert!(pull(&state, &store, &mut report).is_err());
+    assert_eq!(store.sync_cursor("pull").unwrap(), 9);
+    assert!(report.quarantined.is_empty());
+    let pending = store.pending_pull().unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].id, entry.id);
+    assert_eq!(pending[0].attempts, 2);
+    assert_eq!(worker.join().unwrap().len(), 2);
+
+    let parent = op(10, "palace", "palace", "create", json!({"name": "Palace"}));
+    let (state, worker) = responses(vec![page(10, vec![parent]), page(10, vec![])]);
+    let mut report = SyncReport::default();
+    pull(&state, &store, &mut report).unwrap();
+    assert_eq!(report.applied.applied, 2);
+    assert_eq!(report.applied.missing, 0);
+    assert!(report.quarantined.is_empty());
+    assert!(store.pending_pull().unwrap().is_empty());
+    assert_eq!(store.palace("Palace").unwrap().rooms.len(), 1);
+    assert_eq!(worker.join().unwrap().len(), 2);
+}
+
+#[test]
 fn invalid_wire_and_payload_are_quarantined_without_blocking_later_pages() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).unwrap();
@@ -162,14 +202,20 @@ fn missing_and_media_failures_are_quarantined_after_three_attempts() {
             room()
         };
         for attempt in 1..=4 {
-            let mut replies = Vec::new();
-            if attempt == 1 {
-                replies.push(page(8, vec![operation.clone()]));
-            }
+            let mut replies = vec![page(
+                8,
+                if attempt == 1 {
+                    vec![operation.clone()]
+                } else {
+                    vec![]
+                },
+            )];
             if media_failure && attempt <= 3 {
                 replies.push((503, json!({"error": "temporarily unavailable"})));
             }
-            replies.push(page(8, vec![]));
+            if attempt == 1 {
+                replies.push(page(8, vec![]));
+            }
             let (state, worker) = responses(replies);
             let mut report = SyncReport::default();
             pull(&state, &store, &mut report).unwrap();
