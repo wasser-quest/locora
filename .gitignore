@@ -4,3 +4,12 @@
 .DS_Store
 .env
 __pycache__/
+
+# Codex local configuration
+.codex/
+# Claude Flow runtime data
+.claude-flow/data/
+.claude-flow/logs/
+# Environment variables
+.env.local
+.env.*.local

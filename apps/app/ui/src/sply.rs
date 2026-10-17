@@ -2,7 +2,7 @@
 //! sandboxed frame (scripts only, no access to the app); state changes reach
 //! it as messages (see `src-tauri/src/sply.rs`).
 
-use leptos::html::Iframe;
+use leptos::{html::Iframe, task::spawn_local};
 use leptos::prelude::*;
 use locora_app_api::{Media, MediaKind};
 
@@ -32,6 +32,119 @@ pub fn Sply(
     #[prop(default = "status")] machine: &'static str,
 ) -> impl IntoView {
     let frame = NodeRef::<Iframe>::new();
+    let ready = RwSignal::new(false);
+    let failed = RwSignal::new(false);
+    let messages = window_event_listener(leptos::ev::message, move |event| {
+        let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) else {
+            return;
+        };
+        // Sandboxed frames have opaque origins: authenticate by source window.
+        let source = js_sys::Reflect::get(event.as_ref(), &"source".into()).ok();
+        if source != Some(window.into()) {
+            return;
+        }
+        let data = event.data();
+        let get = |key: &str| js_sys::Reflect::get(&data, &key.into()).ok();
+        if get("locora").and_then(|v| v.as_f64()) != Some(1.0) {
+            return;
+        }
+        if let Some(value) = get("runtimeReady").and_then(|v| v.as_bool()) {
+            ready.set(value);
+            failed.set(!value);
+        }
+    });
+    let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
+        if !ready.get_untracked() || event.pointer_type() != "mouse" {
+            return;
+        }
+        let Some(frame) = frame.get_untracked() else {
+            return;
+        };
+        let Some(window) = frame.content_window() else {
+            return;
+        };
+        let rect = frame.get_bounding_client_rect();
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return;
+        }
+        // Convert parent viewport coordinates into the iframe viewport, also
+        // accounting for CSS-scaled locus pictures. Coordinates may be outside
+        // the frame so followers can look toward a cursor elsewhere in the app.
+        let x = (f64::from(event.client_x()) - rect.left()) * f64::from(frame.client_width())
+            / rect.width();
+        let y = (f64::from(event.client_y()) - rect.top()) * f64::from(frame.client_height())
+            / rect.height();
+        let message = js_sys::Object::new();
+        let point = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&point, &"x".into(), &x.into());
+        let _ = js_sys::Reflect::set(&point, &"y".into(), &y.into());
+        let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+        let _ = js_sys::Reflect::set(&message, &"pointer".into(), &point);
+        let _ = window.post_message(&message, "*");
+    });
+    let clicks = window_event_listener(leptos::ev::click, move |event| {
+        use wasm_bindgen::JsCast;
+        if !ready.get_untracked() || event.button() != 0 {
+            return;
+        }
+        let Some(target) = event
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+        else {
+            return;
+        };
+        // Never duplicate an app command or interfere with editor gestures.
+        if target.closest("button, a, input, select, textarea, [role=button], [contenteditable], .stage.editing").ok().flatten().is_some() {
+            return;
+        }
+        let Some(frame) = frame.get_untracked() else {
+            return;
+        };
+        let Some(window) = frame.content_window() else {
+            return;
+        };
+        let rect = frame.get_bounding_client_rect();
+        let x = f64::from(event.client_x()) - rect.left();
+        let y = f64::from(event.client_y()) - rect.top();
+        if rect.width() <= 0.0
+            || rect.height() <= 0.0
+            || x < 0.0
+            || y < 0.0
+            || x >= rect.width()
+            || y >= rect.height()
+        {
+            return;
+        }
+        let point = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(
+            &point,
+            &"x".into(),
+            &(x * f64::from(frame.client_width()) / rect.width()).into(),
+        );
+        let _ = js_sys::Reflect::set(
+            &point,
+            &"y".into(),
+            &(y * f64::from(frame.client_height()) / rect.height()).into(),
+        );
+        let message = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+        let _ = js_sys::Reflect::set(&message, &"click".into(), &point);
+        let _ = window.post_message(&message, "*");
+    });
+    let blur = window_event_listener(leptos::ev::blur, move |_| {
+        if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+            let message = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+            let _ = js_sys::Reflect::set(&message, &"pointerLeave".into(), &true.into());
+            let _ = window.post_message(&message, "*");
+        }
+    });
+    on_cleanup(move || {
+        messages.remove();
+        pointer.remove();
+        clicks.remove();
+        blur.remove();
+    });
     let push = move || {
         if let (Some(state), Some(el)) = (state, frame.get_untracked()) {
             send(&el, machine, state.get_untracked());
@@ -52,8 +165,148 @@ pub fn Sply(
             title="Animation"
             // A focused frame would swallow every key (Ctrl/⌘+K, Space, 1–4).
             tabindex="-1"
-            on:load=move |_| push()
+            on:load=move |_| {
+                push();
+                if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+                    let request = js_sys::Object::new();
+                    let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
+                    let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());
+                    let _ = window.post_message(&request, "*");
+                }
+                set_timeout(move || {
+                    if ready.try_get_untracked() == Some(false) {
+                        failed.try_set(true);
+                    }
+                }, std::time::Duration::from_secs(5));
+            }
         ></iframe>
+        <Show when=move || failed.get()>
+            <span class="notes" role="alert">"Splinely-Runtime nicht gestartet – Animation konnte nicht geladen werden."</span>
+        </Show>
+    }
+}
+
+/// One marker in a complete room snapshot. Coordinates are normalized room
+/// coordinates (including any drag preview); status is `LocusStatus::event()`.
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct MarkerLocus {
+    pub id: String,
+    pub x: f64,
+    pub y: f64,
+    pub status: &'static str,
+}
+
+fn marker_message(frame: NodeRef<Iframe>, message: &js_sys::Object) {
+    if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+        let _ = js_sys::Reflect::set(message, &"locora".into(), &1.into());
+        let _ = window.post_message(message, "*");
+    }
+}
+
+/// A room's marker artwork in one opaque frame, below the room's native buttons.
+/// The containing stage must be positioned; this layer never takes input/focus.
+#[component]
+pub fn MarkerLayer(media: Media, loci: Signal<Vec<MarkerLocus>>) -> impl IntoView {
+    let frame = NodeRef::<Iframe>::new();
+    let ready = RwSignal::new(false);
+    let failed = RwSignal::new(media.kind != MediaKind::Sply);
+    let src = crate::tauri::marker_url(&media);
+    let messages = window_event_listener(leptos::ev::message, move |event| {
+        let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) else {
+            return;
+        };
+        if js_sys::Reflect::get(event.as_ref(), &"source".into()).ok() != Some(window.into()) {
+            return;
+        }
+        let data = event.data();
+        if js_sys::Reflect::get(&data, &"locora".into())
+            .ok()
+            .and_then(|v| v.as_f64())
+            != Some(1.0)
+        {
+            return;
+        }
+        if let Some(value) = js_sys::Reflect::get(&data, &"markerLayerReady".into())
+            .ok()
+            .and_then(|v| v.as_bool())
+        {
+            ready.set(value);
+            failed.set(!value);
+        }
+    });
+    Effect::new(move |_| {
+        let snapshot = loci.get();
+        if !ready.get() {
+            return;
+        }
+        let message = js_sys::Object::new();
+        if let Ok(value) = serde_wasm_bindgen::to_value(&snapshot) {
+            let _ = js_sys::Reflect::set(&message, &"loci".into(), &value);
+            marker_message(frame, &message);
+        }
+    });
+    let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
+        if !ready.get_untracked() || event.pointer_type() != "mouse" {
+            return;
+        }
+        let Some(el) = frame.get_untracked() else {
+            return;
+        };
+        let rect = el.get_bounding_client_rect();
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return;
+        }
+        let point = js_sys::Object::new();
+        let x = (f64::from(event.client_x()) - rect.left()) * f64::from(el.client_width())
+            / rect.width();
+        let y = (f64::from(event.client_y()) - rect.top()) * f64::from(el.client_height())
+            / rect.height();
+        let _ = js_sys::Reflect::set(&point, &"x".into(), &x.into());
+        let _ = js_sys::Reflect::set(&point, &"y".into(), &y.into());
+        let message = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&message, &"pointer".into(), &point);
+        marker_message(frame, &message);
+    });
+    let leave = move || {
+        let message = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&message, &"pointerLeave".into(), &true.into());
+        marker_message(frame, &message);
+    };
+    let blur = window_event_listener(leptos::ev::blur, move |_| leave());
+    let pointerout = window_event_listener(leptos::ev::pointerout, move |event| {
+        if event.related_target().is_none() {
+            leave();
+        }
+    });
+    on_cleanup(move || {
+        messages.remove();
+        pointer.remove();
+        blur.remove();
+        pointerout.remove();
+    });
+    view! {
+        <iframe
+            node_ref=frame
+            class="sply marker-layer"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;z-index:1"
+            sandbox="allow-scripts"
+            tabindex="-1"
+            aria-hidden="true"
+            title="Raummarker"
+            src=src
+            on:load=move |_| {
+                ready.set(false);
+                let message = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&message, &"checkRuntime".into(), &true.into());
+                marker_message(frame, &message);
+                set_timeout(move || {
+                    if ready.try_get_untracked() == Some(false) { failed.try_set(true); }
+                }, std::time::Duration::from_secs(5));
+            }
+        ></iframe>
+        <Show when=move || failed.get()>
+            <span class="notes" role="alert">"Raummarker konnten nicht geladen werden."</span>
+        </Show>
     }
 }
 
@@ -64,8 +317,67 @@ pub fn Shown(media: Media, #[prop(optional, into)] class: String) -> impl IntoVi
         MediaKind::Sply => view! { <Sply media=media class=class/> }.into_any(),
         MediaKind::Image => view! { <img class=class src=url(&media) alt=""/> }.into_any(),
         MediaKind::Video => {
-            view! { <video class=class src=url(&media) controls=true muted=true></video> }
+            view! { <VideoBackdrop media=media class=class controls=true muted=true/> }
                 .into_any()
         }
+    }
+}
+
+/// A stored video, played from a blob URL (see `tauri::video_url`): WebKitGTK's
+/// media player refuses custom schemes, so the bytes are fetched over the
+/// custom scheme and handed to `<video>` as a blob. `node_ref` receives the
+/// element; `on_loaded`/`on_error` wrap the DOM events of the same name;
+/// `on_timeupdate` runs on the periodic video clock. All callbacks may fire more
+/// than once if the source changes.
+#[component]
+pub fn VideoBackdrop(
+    media: Media,
+    #[prop(optional, into)] class: String,
+    #[prop(optional, into)] controls: MaybeProp<bool>,
+    #[prop(default = true)] muted: bool,
+    #[prop(default = "auto".into())] preload: String,
+    #[prop(default = true)] autoplay: bool,
+    #[prop(optional, into)] node_ref: NodeRef<leptos::html::Video>,
+    #[prop(optional)] on_loaded: Option<Box<dyn Fn() + Send + Sync>>,
+    #[prop(optional)] on_error: Option<Box<dyn Fn() + Send + Sync>>,
+    #[prop(optional)] on_timeupdate: Option<Box<dyn Fn() + Send + Sync>>,
+) -> impl IntoView {
+    let source = RwSignal::new(Err("Video lädt…".to_string()));
+    spawn_local(async move {
+        let result = crate::tauri::video_url(&media).await;
+        source.set(result);
+    });
+    on_cleanup(move || {
+        // Revoke the object URL once the component is gone.
+        if let Some(Ok(object)) = source.try_get_untracked() {
+            crate::tauri::revoke_object_url(&object);
+        }
+    });
+    let loaded = StoredValue::new(on_loaded);
+    let failed = StoredValue::new(on_error);
+    let ticked = StoredValue::new(on_timeupdate);
+    let player = node_ref;
+    let class = StoredValue::new(class);
+    let preload = StoredValue::new(preload);
+    let muted = StoredValue::new(muted);
+    let autoplay = StoredValue::new(autoplay);
+    view! {
+        <Show when=move || source.get().is_ok()>
+            <video
+                node_ref=player
+                class=class.with_value(|value| value.clone())
+                controls=move || controls.get().unwrap_or(true)
+                muted=muted.with_value(|value| *value)
+                preload=preload.with_value(|value| value.clone())
+                autoplay=autoplay.with_value(|value| *value)
+                src=move || source.get().expect("checked by Show")
+                on:loadedmetadata=move |_| loaded.with_value(|callback| if let Some(cb) = callback { cb(); })
+                on:timeupdate=move |_| ticked.with_value(|callback| if let Some(cb) = callback { cb(); })
+                on:error=move |_| failed.with_value(|callback| if let Some(cb) = callback { cb(); })
+            ></video>
+        </Show>
+        <Show when=move || source.get().is_err()>
+            <p class="notes" role="alert">{move || source.get().unwrap_err()}</p>
+        </Show>
     }
 }

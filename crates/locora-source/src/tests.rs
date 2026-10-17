@@ -405,3 +405,51 @@ fn zoom_validates_and_survives_dump() {
         "the default is not written: {plain}"
     );
 }
+
+#[test]
+fn media_limit_checks_bytes_at_build_time_and_rolls_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("room.png");
+    fs::write(&path, b"small").unwrap();
+    let mut plan = plan_of(
+        r#"name = "P"
+[[room]]
+name = "R"
+image = "room.png"
+items = ["x"]
+"#,
+        dir.path(),
+    )
+    .unwrap();
+    let file = fs::OpenOptions::new().write(true).open(&path).unwrap();
+    file.set_len(MEDIA_BYTES).unwrap();
+    assert_eq!(read_media(&path).unwrap().len() as u64, MEDIA_BYTES);
+    file.set_len(MEDIA_BYTES + 1).unwrap();
+    let store = Store::open(&dir.path().join("profile")).unwrap();
+    assert!(
+        build(&store, &plan)
+            .unwrap_err()
+            .to_string()
+            .contains("64 MiB")
+    );
+    assert!(store.palaces().unwrap().is_empty());
+    // Marker and locus media use the same bounded reader.
+    let media = plan.rooms[0].media.take().unwrap();
+    plan.marker = Some(media.clone());
+    assert!(
+        build(&store, &plan)
+            .unwrap_err()
+            .to_string()
+            .contains("64 MiB")
+    );
+    plan.marker = None;
+    plan.rooms[0].kind = RoomKind::Blank;
+    plan.rooms[0].loci[0].2 = Some(media);
+    assert!(
+        build(&store, &plan)
+            .unwrap_err()
+            .to_string()
+            .contains("64 MiB")
+    );
+    assert!(store.palaces().unwrap().is_empty());
+}

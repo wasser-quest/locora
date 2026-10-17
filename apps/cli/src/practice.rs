@@ -6,9 +6,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use locora_api::Service;
-use locora_api::core::{Grade, JourneyCompleted};
+use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{AnswerKind, Evaluate, Submission};
 use locora_formula::workbook::{ActionOutcome, Run};
+use locora_store::JourneyAnswer;
 use locora_store::{Locus, PalaceTree};
 
 use crate::app::{App, now};
@@ -388,6 +389,15 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
         return Ok(());
     }
 
+    let mut palace_ids = Vec::new();
+    for entry in &plan {
+        let id = &entry.tree.palace.id;
+        if !palace_ids.contains(id) {
+            palace_ids.push(id.clone());
+        }
+    }
+    app.publish(&JourneyStarted { palace_ids })?;
+
     let title = match palace {
         Some(_) => trees[0].palace.name.clone(),
         None => "alle Paläste".into(),
@@ -402,6 +412,9 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
     // several palaces does not report the whole session to each of them.
     let mut spent: HashMap<String, Duration> = HashMap::new();
     let mut results: Vec<(String, bool)> = Vec::new();
+    // Graded answers per palace with their time from the start, for rankings.
+    let session_start = Instant::now();
+    let mut transcripts: HashMap<String, Vec<JourneyAnswer>> = HashMap::new();
     let mut points = 0u64;
     let total = plan.len();
     let recall = locora_api::journey::Answer::default();
@@ -468,6 +481,13 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                 })?;
                 points = points.saturating_add(evaluation.points);
                 results.push((tree.palace.id.clone(), evaluation.correct));
+                transcripts
+                    .entry(tree.palace.id.clone())
+                    .or_default()
+                    .push(JourneyAnswer {
+                        correct: evaluation.correct,
+                        at_ms: session_start.elapsed().as_millis() as u64,
+                    });
                 if kind != AnswerKind::Recall {
                     println!(
                         "        {} → {}",
@@ -519,6 +539,9 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                 .get(&tree.palace.id)
                 .map_or(0, |d| d.as_secs_f64().round() as u64),
         })?;
+        if let Some(answers) = transcripts.get(&tree.palace.id) {
+            app.store.record_journey(&tree.palace.id, answers)?;
+        }
     }
     let answered = results.len();
     let correct = results.iter().filter(|(_, ok)| *ok).count();

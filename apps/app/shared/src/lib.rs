@@ -20,6 +20,12 @@ pub const CMD_HOME: &str = "home";
 pub const CMD_HOME_PICK_MEDIA: &str = "home_pick_media";
 pub const CMD_PALACE: &str = "palace";
 pub const CMD_TUTORIAL: &str = "tutorial";
+pub const CMD_FORMULA_GUIDE: &str = "formula_guide";
+pub const CMD_TOUR: &str = "tour";
+pub use locora_api::tutorial::TourAction;
+pub use locora_api::ui::HighlightRequest;
+pub const CMD_NOTIFICATIONS: &str = "notifications";
+pub const CMD_NOTIFICATION_SHOWN: &str = "notification_shown";
 pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
@@ -43,6 +49,7 @@ pub struct UiAssets {
     pub simo: Media,
 }
 pub const CMD_EXPORT_PICK: &str = "export_pick";
+pub const CMD_DUMP_PICK: &str = "dump_pick";
 
 /// After importing a `.locora` file.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -148,6 +155,9 @@ pub struct Home {
     pub fresh: u32,
     /// Is the tutorial palace there?
     pub tutorial: bool,
+    /// Is the separate formula guide palace there?
+    #[serde(default)]
+    pub formula_guide: bool,
     /// Problems while opening the profile (plugins that did not load).
     pub notes: Vec<String>,
     /// The latest tile of every loaded plugin (`ui.tile`).
@@ -165,6 +175,18 @@ pub struct TileView {
     pub text: String,
     #[serde(default)]
     pub icon: Option<Media>,
+}
+
+/// A notification to show now. `action` names what a tap runs,
+/// e.g. `review.start@Planeten` (start a journey through that palace).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NotificationView {
+    pub channel: String,
+    /// `0` = informational, `1` = time-sensitive, `2` = urgent.
+    pub priority: u8,
+    pub title: String,
+    pub body: String,
+    pub action: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -230,12 +252,18 @@ pub struct LocusView {
     /// Keep the raw reference even if media cannot currently be displayed.
     pub image: Option<String>,
     pub bound: bool,
+    /// Formula-bound fields (`place`, `item`, `x`, `y`, `visible`, `active`);
+    /// only these stay read-only in the editor.
+    #[serde(default)]
+    pub bound_fields: Vec<String>,
     /// Picture width as a fraction of the room width.
     pub image_size: f64,
     /// Zoom on the locus while asking, 1 (whole room) to 4.
     #[serde(default = "whole_room")]
     pub zoom: f64,
     pub id: String,
+    /// Video position in seconds; absent in non-video rooms.
+    pub time: Option<f64>,
     /// Route number across the palace, from 1.
     pub number: u32,
     pub place: String,
@@ -247,6 +275,12 @@ pub struct LocusView {
     /// Belongs to the answer: shown only once the locus is revealed.
     pub picture: Option<Media>,
     pub note: String,
+}
+
+impl LocusView {
+    pub fn is_bound(&self, field: &str) -> bool {
+        self.bound_fields.iter().any(|f| f == field)
+    }
 }
 
 /// Full content replacement; geometry is deliberately patched separately.
@@ -277,12 +311,36 @@ pub struct EditorChange {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum EditorAction {
-    Create { x: f64, y: f64 },
-    Paste { items: Vec<String> },
-    Save { id: String, content: LocusContent },
-    Move { id: String, x: f64, y: f64 },
-    Resize { id: String, image_size: f64 },
-    Delete { id: String },
+    Create {
+        x: f64,
+        y: f64,
+    },
+    CreateVideo {
+        time: f64,
+    },
+    Paste {
+        items: Vec<String>,
+    },
+    Save {
+        id: String,
+        content: LocusContent,
+    },
+    Move {
+        id: String,
+        x: f64,
+        y: f64,
+    },
+    Resize {
+        id: String,
+        image_size: f64,
+    },
+    Delete {
+        id: String,
+    },
+    /// Backend-issued, scoped, single-use structural undo/redo capability.
+    Restore {
+        receipt: String,
+    },
 }
 
 pub const MAX_PASTE_ITEMS: usize = 100;
@@ -326,6 +384,9 @@ pub fn paste_route_position(index: usize, count: usize) -> (f64, f64) {
 pub struct EditorUpdated {
     pub palace: PalaceView,
     pub selected: Option<String>,
+    /// Reciprocal receipt after a structural mutation or restore.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt: Option<String>,
 }
 
 /// Marker states; the names are the marker's state machine events.
@@ -410,6 +471,8 @@ pub struct Question {
     pub total: u32,
     pub palace: String,
     pub room: String,
+    /// Video position for this locus, in seconds.
+    pub time: Option<f64>,
     pub backdrop: Option<Media>,
     pub marker: Media,
     pub x: f64,
@@ -460,6 +523,18 @@ pub struct Feedback {
     pub points: u64,
     pub revealed: Revealed,
     pub next: Step,
+    /// Combo and hearts after this answer; `None` without the gamification plugin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game: Option<GameView>,
+}
+
+/// Progress inside the current journey, as the gamification plugin counts it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameView {
+    /// Correct answers in a row.
+    pub combo: u32,
+    /// Hearts left (a wrong answer costs one).
+    pub hearts: u8,
 }
 
 /// What follows an answer.

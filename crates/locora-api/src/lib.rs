@@ -7,6 +7,7 @@
 
 extern crate alloc;
 
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -60,6 +61,8 @@ pub mod permission {
     pub const PALACES_WRITE: &str = "palaces:write";
     /// Send and schedule notifications.
     pub const NOTIFY: &str = "notify";
+    /// Highlight a named app control during an interactive tour.
+    pub const UI_HIGHLIGHT: &str = "ui:highlight";
 }
 
 /// Events published by the host itself.
@@ -88,6 +91,44 @@ pub mod ui {
 
     impl Event for Tile {
         const TOPIC: &'static str = "ui.tile";
+    }
+
+    /// A short, declarative tour step. The app locates `target` by its stable
+    /// element ID; no HTML or CSS selector is accepted from a plugin.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct HighlightRequest {
+        pub target: String,
+        pub title: String,
+        pub text: String,
+        pub step: u8,
+        pub total: u8,
+    }
+
+    pub struct Highlight;
+
+    impl Service for Highlight {
+        const NAME: &'static str = "ui.highlight@1";
+        type Request = HighlightRequest;
+        type Response = bool;
+    }
+}
+
+pub mod tutorial {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum TourAction {
+        Start,
+        Next,
+        Skip,
+    }
+
+    pub struct Tour;
+
+    impl Service for Tour {
+        const NAME: &'static str = "tutorial.tour@1";
+        type Request = TourAction;
+        type Response = bool;
     }
 }
 
@@ -146,6 +187,30 @@ pub mod core {
         const TOPIC: &'static str = "core.journey.locus_answered";
     }
 
+    /// A journey begins for these palaces. Sent after a route was planned.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct JourneyStarted {
+        pub palace_ids: Vec<String>,
+    }
+
+    impl Event for JourneyStarted {
+        const TOPIC: &'static str = "core.journey.started";
+    }
+
+    /// Answer with the profile's local learning day attached by the runtime.
+    /// This additive event leaves the established LocusAnswered ABI intact.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct LearningDayAnswer {
+        pub palace_id: String,
+        pub correct: bool,
+        pub answered_at: u64,
+        pub day_start: u64,
+    }
+
+    impl Event for LearningDayAnswer {
+        const TOPIC: &'static str = "core.journey.learning_day_answer";
+    }
+
     /// A journey was finished.
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     pub struct JourneyCompleted {
@@ -178,6 +243,307 @@ pub mod core {
 
     impl Event for LocusDeleted {
         const TOPIC: &'static str = "core.locus.deleted";
+    }
+}
+
+/// Local, offline progress supplied by the gamification plugin.
+pub mod gamification {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Trophy {
+        FirstJourney,
+        PerfectJourney,
+        HundredXp,
+        SevenDayStreak,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct TrophyUnlocked {
+        pub trophy: Trophy,
+    }
+
+    impl Event for TrophyUnlocked {
+        const TOPIC: &'static str = "gamification.trophy.unlocked";
+    }
+
+    pub struct Status;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct StatusRequest {
+        /// Start of the current learning day, calculated by the native runtime.
+        pub day_start: u64,
+        /// The runtime's local-time streak (zero without review history).
+        pub streak: u32,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct StatusResponse {
+        pub xp: u64,
+        pub combo: u32,
+        pub max_combo: u32,
+        pub hearts: u8,
+        pub trophies: Vec<Trophy>,
+        pub daily_correct: u32,
+        pub daily_goal: u32,
+        pub streak: u32,
+    }
+
+    impl Service for Status {
+        const NAME: &'static str = "gamification.status@1";
+        type Request = StatusRequest;
+        type Response = StatusResponse;
+    }
+}
+
+/// Services of the `notify` plugin: local notifications. Every plugin sends
+/// its notifications through `notify`, so quiet hours, muting and bundling
+/// live in one place.
+pub mod notify {
+    use super::*;
+
+    /// One notification, as shown to the user. `plugin` is filled in by the
+    /// host: a sender cannot claim another identity.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Message {
+        /// Id of the plugin that sent the notification.
+        pub plugin: String,
+        /// Channel, e.g. `review.due` or `gamification.streak`.
+        pub channel: String,
+        /// `0` = informational, `1` = time-sensitive, `2` = urgent.
+        pub priority: u8,
+        pub title: String,
+        pub body: String,
+        /// What a tap runs, e.g. `review.start@Planeten`; empty for none.
+        pub action: String,
+        /// Seconds since the Unix epoch when the message was shown.
+        pub shown_at: u64,
+    }
+
+    /// A notification waiting to be shown (the plugin's queue).
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Queued {
+        pub channel: String,
+        pub priority: u8,
+        pub title: String,
+        pub body: String,
+        pub action: String,
+        /// Queued at, in seconds since the Unix epoch.
+        pub queued_at: u64,
+    }
+
+    /// Show a notification now (subject to quiet hours, muting, the daily
+    /// per-channel limit and bundling).
+    pub struct Send;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct SendRequest {
+        /// Host-provided queue time in seconds since the Unix epoch.
+        pub now: u64,
+        pub channel: String,
+        pub priority: u8,
+        pub title: String,
+        pub body: String,
+        /// What a tap runs, e.g. `review.start@Planeten`; empty for none.
+        pub action: String,
+    }
+
+    impl Service for Send {
+        const NAME: &'static str = "notify.send@1";
+        type Request = SendRequest;
+        /// Whether the message was queued.
+        type Response = bool;
+    }
+
+    /// One planned notification.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Plan {
+        /// Once, at a Unix time in seconds.
+        At { at: u64 },
+        /// Every day at `seconds` past midnight local time (0–86 399).
+        Daily { seconds: u64 },
+    }
+
+    /// Schedule a notification under `key`: the same key replaces, `None`
+    /// cancels. Answers the stored schedules, sorted by key.
+    pub struct Schedule;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct ScheduleRequest {
+        pub key: String,
+        pub channel: String,
+        pub priority: u8,
+        pub title: String,
+        pub body: String,
+        pub action: String,
+        /// `None` cancels the schedule with this key.
+        pub plan: Option<Plan>,
+    }
+
+    impl Service for Schedule {
+        const NAME: &'static str = "notify.schedule@1";
+        type Request = ScheduleRequest;
+        type Response = Vec<ScheduleEntry>;
+    }
+
+    /// A stored schedule, as answered by [`Schedule`].
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct ScheduleEntry {
+        pub key: String,
+        pub channel: String,
+        pub priority: u8,
+        pub title: String,
+        pub body: String,
+        pub action: String,
+        pub plan: Plan,
+    }
+
+    /// Everything that became due and may now be shown (after quiet hours,
+    /// muting and the daily limit). The host calls this at start and whenever
+    /// the app is used; the plugin cannot keep time itself.
+    pub struct Due;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct DueRequest {
+        /// Now, in seconds since the Unix epoch.
+        pub now: u64,
+        /// Seconds past local midnight (daily plans fire at or after this).
+        pub day_seconds: u32,
+    }
+
+    impl Service for Due {
+        const NAME: &'static str = "notify.due@1";
+        type Request = DueRequest;
+        /// Messages that may be shown now, oldest first, bundled per channel.
+        type Response = Vec<Queued>;
+    }
+
+    /// A notification was shown to the user (host → plugin, so the queue can
+    /// drop it and the history can keep it). Also the event other plugins
+    /// may log.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Displayed {
+        /// The message as shown; the host fills in `plugin` and `shown_at`.
+        pub message: Message,
+    }
+
+    impl Event for Displayed {
+        const TOPIC: &'static str = "notify.displayed";
+    }
+
+    /// Quiet hours and muted channels.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+    pub struct Settings {
+        /// Muted channels (exact names), sorted.
+        pub muted: Vec<String>,
+        /// Quiet hours as seconds past local midnight; equal means none.
+        pub quiet_start: u32,
+        pub quiet_end: u32,
+    }
+
+    /// Read (empty request) or change the settings; answers the new ones.
+    pub struct Configure;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+    pub struct ConfigureRequest {
+        /// Mute this channel in addition to the current list.
+        pub mute: Option<String>,
+        /// Replace the muted list entirely; applied after `mute`.
+        pub muted: Option<Vec<String>>,
+        /// Quiet hours as `HH:MM-HH:MM` local time; `Some("")` clears.
+        pub quiet: Option<String>,
+    }
+
+    impl Service for Configure {
+        const NAME: &'static str = "notify.configure@1";
+        type Request = ConfigureRequest;
+        type Response = Settings;
+    }
+
+    /// The notification history (newest first), for the bell in the app and
+    /// `locora notify ls`.
+    pub struct History;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct HistoryRequest {
+        /// At most this many entries.
+        pub limit: u32,
+    }
+
+    impl Service for History {
+        const NAME: &'static str = "notify.history@1";
+        type Request = HistoryRequest;
+        type Response = Vec<Message>;
+    }
+
+    /// Parse `HH:MM` into seconds past midnight; `Err` keeps the message.
+    pub fn parse_hhmm(value: &str) -> Result<u32, String> {
+        let (h, m) = value
+            .split_once(':')
+            .ok_or_else(|| format!("Ungültige Zeit {value}: HH:MM erwartet"))?;
+        let h: u32 = h
+            .parse()
+            .map_err(|_| format!("Ungültige Stunde in {value}"))?;
+        let m: u32 = m
+            .parse()
+            .map_err(|_| format!("Ungültige Minute in {value}"))?;
+        if h > 23 || m > 59 {
+            return Err(format!("Ungültige Zeit {value}"));
+        }
+        Ok(h * 3600 + m * 60)
+    }
+
+    impl Settings {
+        /// Whether `day_seconds` (past local midnight) falls in quiet hours.
+        /// Equal start and end mean no quiet hours; ranges may wrap midnight.
+        pub fn is_quiet(&self, day_seconds: u32) -> bool {
+            if self.quiet_start == self.quiet_end {
+                return false;
+            }
+            if self.quiet_start < self.quiet_end {
+                (self.quiet_start..self.quiet_end).contains(&day_seconds)
+            } else {
+                // Wraps midnight, e.g. 22:00–08:00.
+                day_seconds >= self.quiet_start || day_seconds < self.quiet_end
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn quiet_hours_wrap_midnight() {
+            let night = Settings {
+                quiet_start: 22 * 3600,
+                quiet_end: 8 * 3600,
+                ..Default::default()
+            };
+            assert!(night.is_quiet(23 * 3600));
+            assert!(night.is_quiet(3 * 3600));
+            assert!(!night.is_quiet(12 * 3600));
+            let day = Settings {
+                quiet_start: 8 * 3600,
+                quiet_end: 17 * 3600,
+                ..Default::default()
+            };
+            assert!(day.is_quiet(8 * 3600));
+            assert!(!day.is_quiet(7 * 3600));
+            assert!(!Settings::default().is_quiet(0));
+            // A range that is the whole day counts as none too (start == end).
+            assert!(!Settings::default().is_quiet(86_399));
+        }
+
+        #[test]
+        fn hhmm_parses() {
+            assert_eq!(parse_hhmm("18:00"), Ok(18 * 3600));
+            assert_eq!(parse_hhmm("00:00"), Ok(0));
+            assert!(parse_hhmm("24:00").is_err());
+            assert!(parse_hhmm("8").is_err());
+            assert!(parse_hhmm("ab:cd").is_err());
+            assert!(parse_hhmm("8:60").is_err());
+        }
     }
 }
 

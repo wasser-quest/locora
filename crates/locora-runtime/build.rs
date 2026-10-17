@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
 
-const OFFICIAL: &[&str] = &["core", "review"];
+const OFFICIAL: &[&str] = &["core", "notify", "review", "tutorial", "gamification"];
 
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -22,6 +22,7 @@ fn main() {
         "crates/locora-sdk-macros/src",
         "crates/locora-api/src",
         "crates/locora-fsrs/src",
+        "crates/locora-scoring/src",
     ] {
         println!("cargo:rerun-if-changed={}", root.join(dir).display());
     }

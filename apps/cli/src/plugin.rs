@@ -1,6 +1,6 @@
 //! `locora plugin …`: scaffold, build, hot-reload and inspect plugins.
 
-use std::io::{self, BufRead, IsTerminal, Write};
+use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -11,7 +11,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Subcommand, ValueEnum};
 use locora_api::core::JourneyCompleted;
 use locora_api::host::Started;
-use locora_host::{HostEvent, Level, Manifest, PluginHost};
+use locora_host::{ApprovalReceipt, HostEvent, Level, Manifest, PluginHost};
 use notify::{RecursiveMode, Watcher};
 
 const WASM_TARGET: &str = "wasm32-wasip2";
@@ -58,6 +58,31 @@ pub enum PluginCommand {
     },
     /// Eingebaute und installierte Plugins ohne Aktivierung auflisten
     Ls,
+    /// Signierschlüssel für Plugins anlegen (Datei, Modus 0600)
+    Keygen { path: PathBuf },
+    /// Plugin-Datei signieren; schreibt `<datei>.sig` daneben
+    Sign {
+        file: PathBuf,
+        /// Schlüsseldatei aus `plugin keygen`
+        #[arg(long)]
+        key: PathBuf,
+    },
+    /// Einem Herausgeber (öffentlicher Schlüssel) vertrauen
+    Trust {
+        /// Öffentlicher Schlüssel des Herausgebers (base64)
+        key: String,
+        #[arg(long)]
+        name: String,
+    },
+    /// Vertrauenswürdige Herausgeber anzeigen
+    Publishers,
+    /// Installiertes Plugin durch eine neuere, vom selben Herausgeber signierte Version ersetzen
+    Update {
+        file: PathBuf,
+        /// Änderungen (Rechte, Version) ausdrücklich akzeptieren
+        #[arg(long, short)]
+        yes: bool,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -77,6 +102,15 @@ pub fn run(cmd: PluginCommand, data: Option<&Path>) -> Result<()> {
         PluginCommand::Install { file, yes } => install(&file, &crate::app::data_dir(data)?, yes),
         PluginCommand::Remove { plugin } => remove(&plugin, &crate::app::data_dir(data)?),
         PluginCommand::Ls => list(&crate::app::data_dir(data)?),
+        PluginCommand::Keygen { path } => plugin_sign::keygen(&path),
+        PluginCommand::Sign { file, key } => plugin_sign::sign(&file, &key),
+        PluginCommand::Trust { key, name } => {
+            plugin_sign::trust(&crate::app::data_dir(data)?, &key, &name)
+        }
+        PluginCommand::Publishers => plugin_sign::list_publishers(&crate::app::data_dir(data)?),
+        PluginCommand::Update { file, yes } => {
+            plugin_sign::update(&file, &crate::app::data_dir(data)?, yes)
+        }
     }
 }
 
@@ -358,9 +392,9 @@ fn check(file: &Path) -> Result<()> {
 }
 
 // These identities remain reserved even in builds without embedded components.
-const BUILT_INS: &[&str] = &["core", "review"];
+pub(crate) const BUILT_INS: &[&str] = &["core", "review", "notify", "tutorial", "gamification"];
 
-fn validate_install(manifest: &Manifest) -> Result<()> {
+pub(crate) fn validate_install(manifest: &Manifest) -> Result<()> {
     let id = &manifest.id;
     let device_name = matches!(id.as_str(), "con" | "prn" | "aux" | "nul")
         || (id.len() == 4
@@ -381,10 +415,10 @@ fn validate_install(manifest: &Manifest) -> Result<()> {
     for permission in &manifest.permissions {
         if !matches!(
             permission.as_str(),
-            "storage" | "palaces:read" | "palaces:write"
+            "storage" | "palaces:read" | "palaces:write" | "ui:highlight"
         ) {
             bail!(
-                "Nicht unterstützte Berechtigung {permission:?}; unterstützt: storage, palaces:read, palaces:write"
+                "Nicht unterstützte Berechtigung {permission:?}; unterstützt: storage, palaces:read, palaces:write, ui:highlight"
             );
         }
     }
@@ -408,6 +442,7 @@ fn installed_files(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+use crate::plugin_sign;
 use locora_runtime::read_regular;
 
 fn inspect_file(host: &PluginHost, file: &Path) -> Result<Manifest> {
@@ -445,6 +480,16 @@ fn install(file: &Path, data: &Path, yes: bool) -> Result<()> {
             );
         }
     }
+    let signer = plugin_sign::signer_of(file, &bytes)?;
+    match &signer {
+        Some(key) => match locora_runtime::publishers::trusted_name(data, key)? {
+            Some(name) => eprintln!("✓ Signiert von {name} (vertrauenswürdig)."),
+            None => eprintln!(
+                "⚠ Signiert von einem unbekannten Herausgeber: {key}\n  Vertrauen: locora plugin trust {key} --name <NAME>"
+            ),
+        },
+        None => eprintln!("⚠ Nicht signiert."),
+    }
     eprintln!("⚠ Nicht von Locora geprüft – Installation auf eigene Verantwortung.");
     eprintln!(
         "  Plugin: {:?} ({:?}), Version {:?}, API {:?}",
@@ -458,22 +503,15 @@ fn install(file: &Path, data: &Path, yes: bool) -> Result<()> {
             manifest.permissions.join(", ")
         }
     );
-    if !yes {
-        if !io::stdin().is_terminal() {
-            bail!("Keine interaktive Zustimmung möglich; nach Prüfung ausdrücklich --yes angeben");
-        }
-        eprint!("Trotzdem installieren? [j/N] ");
-        io::stderr().flush()?;
-        let mut answer = String::new();
-        io::stdin().read_line(&mut answer)?;
-        if !matches!(answer.trim().to_lowercase().as_str(), "j" | "ja") {
-            bail!("Installation abgebrochen");
-        }
-    }
+    plugin_sign::consent(yes, "Trotzdem installieren?")?;
     fs::create_dir_all(&dir)?;
     // Publish approval first and the component last. A crash can leave an
     // orphan approval, but never a loadable component without consent.
-    persist_new(&approval, &serde_json::to_vec(&manifest)?)?;
+    let mut receipt = ApprovalReceipt::new(manifest.clone(), &bytes);
+    if let Some(key) = signer {
+        receipt = receipt.signed_by(key);
+    }
+    persist_new(&approval, &serde_json::to_vec(&receipt)?)?;
     if let Err(err) = persist_new(&destination, &bytes) {
         let _ = fs::remove_file(&approval);
         return Err(err);
@@ -577,9 +615,13 @@ fn list(data: &Path) -> Result<()> {
                 }
                 let approved = read_regular(&file.with_extension("wasm.json"))
                     .ok()
-                    .and_then(|bytes| serde_json::from_slice::<Manifest>(&bytes).ok());
-                if approved.as_ref() != Some(&manifest) {
-                    println!("  ⚠ Keine passende Installationszustimmung; wird nicht aktiviert");
+                    .and_then(|bytes| serde_json::from_slice::<ApprovalReceipt>(&bytes).ok());
+                let component = read_regular(&file).ok();
+                if !matches!((&approved, &component), (Some(receipt), Some(bytes)) if receipt.matches(&manifest, bytes))
+                {
+                    println!(
+                        "  ⚠ Keine passende Installationszustimmung für diese Plugin-Datei; wird nicht aktiviert"
+                    );
                 }
                 if BUILT_INS.contains(&manifest.id.as_str()) {
                     println!("  ⚠ Eingebaute ID geschützt; wird nicht ersetzt");
@@ -594,6 +636,12 @@ fn list(data: &Path) -> Result<()> {
 fn print_events(host: &mut PluginHost) {
     for event in host.drain_events() {
         match event {
+            HostEvent::Highlighted { plugin, step } => {
+                println!(
+                    "[{plugin}] App-Tour: {} ({}/{})",
+                    step.title, step.step, step.total
+                );
+            }
             HostEvent::Loaded(m) => println!("✓ geladen: {} {} ({})", m.name, m.version, m.id),
             HostEvent::Reloaded(m) => {
                 println!("↻ neu geladen: {} {} ({})", m.name, m.version, m.id)

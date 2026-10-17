@@ -190,7 +190,9 @@ activation. Native `host.call::<palaces::Palaces>(...)` callers are trusted and 
 not need guest capabilities. `new`/`with_kv` remain usable without
 a palace backend; calls then fail explicitly. Plugins cannot override the native
 service with `provide`, even when its backend is absent. `provides` reports the
-service only when a backend is attached.
+palace service only when a backend is attached. The reserved `ui.highlight@1`
+service accepts short plain-text tour steps with stable element IDs and requires
+`ui:highlight`; a guest event cannot bypass this check.
 
 The CLI application attaches the selected profile's persistent store. In
 contrast, `plugin dev/run` use isolated in-memory palace and plugin storage.
@@ -205,30 +207,40 @@ German warning, identity and requested permissions. Interactive consent defaults
 to **cancel**; EOF/anything except `j`/`ja` refuses. Non-terminal stdin always
 requires explicit `--yes` (piped `ja` is not consent). Even `--yes` displays the
 warning and cannot bypass validation. Supported permissions are exactly
-`storage`, `palaces:read`, `palaces:write`; SDK `notify` is recognized but not yet
+`storage`, `palaces:read`, `palaces:write`, `ui:highlight`; SDK `notify` is recognized but not yet
 implemented and is refused, as are `network` and unknown permissions.
 
 Installation stores the reviewed bytes in `<data>/plugins/<id>.wasm` and the
-approved manifest in `<id>.wasm.json`, with atomic no-clobber publication (approval
-first, component last). IDs are 1–128 ASCII lowercase letters/digits/`-`/`_`,
+approved manifest and SHA-256 of those exact bytes in `<id>.wasm.json`, with
+atomic no-clobber publication (approval first, component last). IDs are 1–128
+ASCII lowercase letters/digits/`-`/`_`,
 starting with a letter/digit and excluding Windows device names; filenames never
 come from display names or paths. Components/approval must be regular files, not
 symlinks or pipes; removal unlinks a component/approval symlink without following
 its target. The profile's `plugins` entry must be a real directory, not a symlink;
 this is checked before opening the profile database.
 Existing components, destinations and duplicate manifest IDs under other filenames
-are refused. Broken unrelated files do not block installation. No upgrades,
-packages, signatures, registry or network downloads are implemented.
+are refused. Broken unrelated files do not block installation. Packages,
+a registry and network downloads are not implemented.
+
+`plugin sign FILE.wasm --key KEY` creates `FILE.wasm.sig`, a JSON signature
+file containing the Ed25519 public key and a signature over the exact component
+bytes. `plugin keygen KEY` creates a private signing key; keep it secret.
+`plugin trust PUBLIC_KEY --name NAME` records a publisher in the profile's
+`plugin-publishers.json` trust store. Installation verifies any supplied signature
+and records its signer in the approval receipt; an unknown signer requires consent.
 
 Installation does **not** activate even after approval; activation is deferred to
 the next normal profile command. `PluginHost::inspect_bytes` instantiates with no
 capabilities, no profile backends and no inherited WASI resources; start/manifest
 code still runs, with fuel, and its events/logs are discarded. It does not write
 the compiled cache. Profile loading uses `load_approved_file`, the same duplicate-
-rejecting policy as `load_additional_file`, plus an exact approved-manifest check
-before granting capabilities/activation. This prevents nondeterministic manifests
+rejecting policy as `load_additional_file`, plus an exact approved-manifest and
+byte-hash check before granting capabilities/activation. The byte hash is
+checked before compiling or probing a component. This prevents nondeterministic manifests
 from gaining rights not displayed at install. Missing/invalid approvals refuse
-activation; manually copied files must go through `plugin install` instead.
+activation; manually copied files must go through `plugin install` instead. Legacy
+manifest-only approvals also require removal and a fresh installation.
 
 `plugin ls` reports built-ins and installed metadata (not activation/health),
 including broken/incompatible files and missing/mismatched approvals. `plugin
@@ -240,11 +252,19 @@ cleanup. Only profile files/approval are removed; palace data and plugin KV
 survive. Embedded Core/Review remain protected, even in builds without them;
 extraneous profile files named `core.wasm`/`review.wasm` can be cleaned up. An
 interrupted installation may leave an orphan `.wasm.json`; remove its ID before
-retrying. For updates, remove then reinstall and review the warning again.
+retrying.
 
-The profile directory and approval files are trusted local user data, not signed
-artifacts; a local process with write access can change them. Fuel is not a memory,
-compilation-time or host-buffer quota: inspection is not a resource-exhaustion
+`plugin update FILE.wasm` requires an installation approved with a signature,
+a valid signature from the same signer, and a numerically greater dotted version
+(e.g. `1.2.4` after `1.2.3`). It checks the installed component against its approval
+before replacing it, displays permission changes, and asks for consent again
+(or requires `--yes` without a terminal). Unsigned installations cannot be updated
+this way.
+
+The signature authenticates the component bytes; the approval receipt records
+local consent and the signer. The profile directory, approval receipts and trust
+store are trusted local user data; a local process with write access can change
+them. Fuel is not a memory, compilation-time or host-buffer quota: inspection is not a resource-exhaustion
 boundary for hostile WASM. Development `dev/run` deliberately execute untrusted
 code in ephemeral storage and are not installation approval.
 

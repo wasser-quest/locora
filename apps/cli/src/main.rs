@@ -1,8 +1,11 @@
 //! `locora`: memory palaces from the command line, and plugin development.
 
 mod app;
+mod cloud;
+mod notify;
 mod palace;
 mod plugin;
+mod plugin_sign;
 mod practice;
 mod settings;
 mod source;
@@ -15,6 +18,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use locora_store::LocusPatch;
+use notify::NotifyCommand;
 
 #[derive(Parser)]
 #[command(
@@ -145,6 +149,11 @@ enum Command {
     },
     /// Was ist heute fällig?
     Due,
+    /// Benachrichtigungen des notify-Plugins zeigen oder schicken
+    Notify {
+        #[command(subcommand)]
+        command: NotifyCommand,
+    },
     /// Einstellungen anzeigen oder ändern
     Settings {
         #[command(subcommand)]
@@ -174,6 +183,12 @@ enum Command {
     /// Tutorial-Palast „Locora lernen“ anlegen (Locora mit der Loci-Methode lernen)
     Tutorial {
         /// Vorhandenes Tutorial neu anlegen (sein Wiederholungsplan geht verloren)
+        #[arg(long)]
+        reset: bool,
+    },
+    /// Formel-Guide als eigenen Palast anlegen und üben
+    FormulaGuide {
+        /// Vorhandenen Guide neu anlegen (sein Wiederholungsplan geht verloren)
         #[arg(long)]
         reset: bool,
     },
@@ -249,6 +264,9 @@ enum Command {
     /// Plugins erstellen, entwickeln und testen
     #[command(subcommand)]
     Plugin(plugin::PluginCommand),
+    /// Locora Cloud: Konto, Abo und Freischaltung
+    #[command(subcommand)]
+    Cloud(cloud::CloudCommand),
 }
 
 fn main() -> Result<()> {
@@ -256,6 +274,7 @@ fn main() -> Result<()> {
     let data = cli.data.as_deref();
     match cli.command {
         Command::Plugin(cmd) => plugin::run(cmd, data),
+        Command::Cloud(cmd) => cloud::run(cmd, data),
         Command::Table(cmd) => workbook::table(&mut app::App::open(data)?, cmd),
         Command::Bind {
             palace,
@@ -433,7 +452,11 @@ fn main() -> Result<()> {
             reset,
         } => palace::marker(&mut app::App::open(data)?, &palace, file.as_deref(), reset),
         Command::Tutorial { reset } => tutorial::run(&mut app::App::open(data)?, reset),
+        Command::FormulaGuide { reset } => {
+            tutorial::run_formula_guide(&mut app::App::open(data)?, reset)
+        }
         Command::Due => palace::due(&mut app::App::open(data)?),
+        Command::Notify { command } => notify::run(command, &mut app::App::open(data)?),
         Command::Export {
             palaces,
             all,

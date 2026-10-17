@@ -49,11 +49,13 @@ pub fn marker(store: &Store, tree: &PalaceTree, default: &str) -> Media {
 pub fn home(profile: &mut Profile) -> Result<Home> {
     let cards = profile.schedule(None)?;
     let budget = profile.new_budget()?;
+    let _game = profile.gamification_status()?;
     let now = now();
     // Tiles published while scheduling are stored before they are read.
     let reported = profile.report();
     let mut home = Home {
         tutorial: locora_runtime::tutorial::find(profile)?.is_some(),
+        formula_guide: locora_runtime::formula_guide::find(profile)?.is_some(),
         notes: profile.notes.iter().cloned().chain(reported).collect(),
         tiles: profile
             .tiles()?
@@ -123,8 +125,14 @@ pub fn palace_view(
                         answer: l.answer.clone(),
                         image: l.image.clone(),
                         bound: !l.bindings.is_empty(),
+                        bound_fields: l
+                            .bindings
+                            .iter()
+                            .map(|b| b.field.name().to_owned())
+                            .collect(),
                         id: l.id.clone(),
                         number,
+                        time: l.time,
                         place: l.place.clone(),
                         item: l.item.clone(),
                         x: l.x,

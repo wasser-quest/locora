@@ -22,6 +22,7 @@ locora-app-api.workspace = true
 locora-formula = { path = "../../../crates/locora-formula" }
 locora-runtime = { path = "../../../crates/locora-runtime" }
 locora-source = { path = "../../../crates/locora-source" }
+locora-format = { path = "../../../crates/locora-format" }
 locora-store = { path = "../../../crates/locora-store" }
 serde.workspace = true
 serde_json.workspace = true

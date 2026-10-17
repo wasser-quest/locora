@@ -214,7 +214,8 @@ Ein zur Laufzeit geladenes Plugin kann keine Leptos-Komponenten in die fertig ko
 
 **Fremde Plugins auf dem Handy: Warnung, dann auf eigene Verantwortung**
 
-Die offiziellen Plugins (`core`, `review`, `notify`, `tutorial`, `gamification`) sind signiert und kommen mit der App.
+Die offiziellen Plugins (`core`, `review`, `notify`, `tutorial`, `gamification`) kommen mit der App.
+Ed25519-Signaturen sind für die Plugin-Pakete vorgesehen und noch nicht umgesetzt.
 Für alle anderen Plugins gilt auf **Android und iOS** (auf Desktop in Kurzform, siehe unten):
 
 ```text
@@ -551,7 +552,9 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 
 Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI geprüft.
 
-**Stand (16.10.2026):** Phase 0 erledigt, Phase 1 fast fertig. Details und alle offenen Aufgaben: Abschnitt 13.
+**Stand (17.10.2026):** Phasen 0 und 1 sind abgeschlossen. Die App, Video-Journeys,
+Tutorial-Palast, erste App-Tour, Formel-Guide und lokale Gamification sind umgesetzt.
+Offene Arbeiten und native Prüfungen stehen in [`OFFEN.md`](OFFEN.md).
 
 ---
 
@@ -579,13 +582,14 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 
 ## 13. Handout für den nächsten Agenten
 
-Stand: 16.10.2026. Dieser Abschnitt ist die Übergabe: was es gibt, wie man arbeitet und was noch gebaut werden muss.
+Stand: 17.10.2026. Dieser Abschnitt enthält auch historische Implementierungsschritte.
+Für den aktuellen Arbeitsstand gilt [`OFFEN.md`](OFFEN.md).
 
 ### 13.1 Arbeitsweise und Vorgaben des Nutzers
 
 - **Kommunikation auf Deutsch.** Code, Kommentare, Commit-Messages und README auf Englisch; `PLAN.md`, `assets/STIL.md`
   und alle Texte, die Nutzer sehen (CLI, App), auf Deutsch.
-- **Alles in Rust**, möglichst schnell. UI später mit Tauri 2 + Leptos.
+- **Alles in Rust**, möglichst schnell. Die UI nutzt Tauri 2 + Leptos.
 - **Alle Grafiken mit `splinely-cli` als `.sply`** (Installation unter `~/.local/opt/splinely-v0.5.2-x86_64-linux/bin`,
   Version 0.5.2, installiert am 16.10.2026). Für jede neue Idee mit Bildbedarf sofort eine `.sply`
   unter `assets/` anlegen, bevorzugt per Bauskript unter `assets/**/src/`; die Splinely-Runtime soll sie später rendern.
@@ -597,18 +601,22 @@ Stand: 16.10.2026. Dieser Abschnitt ist die Übergabe: was es gibt, wie man arbe
 - Lizenz MIT; Gamification kostenlos, nur Locora Cloud kostet (9,99 €/Jahr oder 1,49 €/Monat).
 - Fremde Plugins: Warnung „gefährlich, auf eigene Verantwortung“ auf Android/iOS, kurze Warnung auf Desktop. Wird das
   Laden auf Mobile schwierig, darf es dort abgeschaltet werden.
-- **Git:** Push per SSH (`~/.ssh/id_ed25519`, im Repo als `core.sshCommand` gesetzt). Commit-Messages enden mit
-  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Die GitHub-API meldet für das Repo derzeit „Not Found“
-  (vermutlich privat); CI-Ergebnisse deshalb nur über die Weboberfläche oder mit Token sichtbar.
+- **Git:** Push per SSH. Commit-Messages folgen den Repository-Vorgaben; kein `Co-Authored-By`-Trailer
+  ohne ausdrückliche Autorisierung. Das Repository ist privat; CI-Ergebnisse benötigen GitHub-Zugriff.
 
 ### 13.2 Was es schon gibt
 
 | Baustein | Stand |
 |---|---|
-| `crates/locora-api` | Events (`core.*`, `host.started`, `ui.tile`), Services (`review.schedule@1`, `core.palaces@1`, `core.journey.evaluate@1`), typisierte Antworten und Hooks (`core.journey.score`), API-Version 0.4 |
+| `crates/locora-api` | Typisierte Events, Services und Hooks für Core, Review, Notify, Tutorial und Gamification; API-Version 0.6 |
 | `crates/locora-sdk` + `-macros` | `#[locora_plugin]`, `ctx.on/emit/provide/filter/call_host/palaces`, `ctx.store()`, `ctx.tile`, WIT in `wit/plugin.wit`; Anleitung: `crates/locora-sdk/README.md` |
 | `crates/locora-host` | wasmtime-Komponenten, Hot-Reload, Fuel-Limit, Absturz-Isolation, Kompilat-Cache, Berechtigungen (`storage`, `palaces:read/write`), Filter-Ketten, native Palastdienste, austauschbarer `KvStore` |
-| `crates/locora-store` | SQLite (Migrationen 1–4), Paläste → Räume → Loci (`place`, `item`, `x`, `y`, `time`, `answer`), Medien nach SHA-256, Tabellen (lokal/gemeinsam), Bindungen, Plugin-KV, Op-Log mit HLC |
+| `crates/locora-store` | SQLite (Migrationen 1–12), Paläste → Räume → Loci, Medien nach SHA-256, Tabellen, Bindungen, Plugin-KV, Op-Log mit HLC, Sync (Feldzeiten, Grabsteine, Anwenden von Remote-Ops), Journeys |
+| `crates/locora-scoring` | Journey-XP-Regel und Journey-Replay (Plugin `gamification` und Locora Cloud) |
+| `crates/locora-cloud-api` | Typen der Locora-Cloud-API und signierte Entitlements (Ed25519, 14 Tage Kulanz) |
+| `crates/locora-signing` | Ed25519-Signaturen für Plugins (`<datei>.sig`) |
+| `locora-runtime`: `cloud`, `cloud_sync`, `publishers` | Sitzung und Freischaltung, Sync mit Locora Cloud, vertrauenswürdige Plugin-Herausgeber |
+| `locora-cloud` (eigenes privates Repo `wasser-quest/locora-cloud`) | Konten, Abo-Webhook, Ranglisten, Freunde, Challenges, Sync-Server, Medien; Tests gegen PostgreSQL |
 | `crates/locora-fsrs` | FSRS-5 mit Standardgewichten |
 | `crates/locora-formula` | vollständiger Port der mnemodim-Formelsprache + `workbook::Run` (Eingaben, Aktionen `set/reveal/reset`, Bindungen `place/item/x/y/visible/active`, `View.reveal`) |
 | `crates/locora-format` | `.locora` v1/v2 (siehe `format/README.md`) inkl. Tabellen, Bindungen und Antwortarten; Recall-only bleibt v1 |
@@ -647,20 +655,38 @@ Ausführliche Verträge, Randfälle und Grenzen: [`docs/phase-1-notizen.md`](doc
 
 **Phase 1 ist damit abgeschlossen** (Punkt 8 bleibt bewusst offen).
 
+Die Installationszustimmung für fremde Plugins bindet inzwischen Manifest und SHA-256 der
+installierten WASM-Datei. Der Host prüft die Bytes vor dem Kompilieren und das Manifest vor der
+Aktivierung. Alte Belege ohne Hash werden nicht mehr akzeptiert; betroffene Plugins müssen entfernt
+und erneut installiert werden. Ed25519-Signaturen und Plugin-Updates bleiben offen.
+
 **Tutorial als Palast (erledigt, Teil von Phase 4 vorgezogen):** Das Tutorial besteht aus Loci mit `.sply`-Grafiken:
 `assets/tutorial/locora-lernen.locora.toml` (3 Räume, 9 Orte, Recall/Quiz/Guess), Grafiken per
 `assets/tutorial/src/tutorial.py`, Simo und Glühwürmchen aus `assets/mascot/`. In die CLI eingebaut: `locora tutorial
 [--reset]`. Dafür neu: Medientyp `application/vnd.splinely` (`.sply`) für Raum-Hintergründe und Bilder an Orten,
 Locus-Bilder in Store (Migration 5), `.locora` (Version 2) und `locora.toml` (`image`), `locora add/edit --image`.
-Noch offen: Bilder im Palast-Dienst `core.palaces@1`; das Tutorial-Plugin (Touren über `ui.highlight@1`) folgt mit der App.
+Bild-Hashes im Palast-Dienst `core.palaces@1` sind umgesetzt. Das offizielle `tutorial`-Plugin bietet
+eine erste App-Tour über den berechtigungsgeprüften Host-Dienst `ui.highlight@1`: drei Schritte auf
+der Startseite mit Simo, Weiter/Schließen und gespeichertem Schrittstand. Tour-Schritte für Palast,
+Editor und Journey folgen.
+
+Der Formel-Guide „Formeln verstehen“ ist als eigener Palast mit sechs `.sply`-Orten umgesetzt.
+Eingaben, `Integer`, `Major` und Bindungen werden mit echten Workbook-Formeln gezeigt;
+`locora formula-guide [--reset]` und die Startseite legen ihn an.
+
+Das offizielle `gamification`-Plugin berechnet lokal XP, Combos, Herzen, vier Trophäen
+und das Tagesziel. Der native Lernbeginn bestimmt Tagesgrenzen und den Review-Streak;
+`locora stats` und die App-Kachel zeigen den Stand. Animierte Erfolgsansichten in der
+Journey stehen noch aus.
 
 **Antworten und Abfragen (erledigt, aus dem Abgleich mit mnemodim):** Quiz mit bis zu 30 Optionen, pro Frage alle
 richtigen und drei zufällige falsche, gemischt (`Answer::quiz_selection`); Guess vergleicht ohne Groß-/Kleinschreibung,
 Satzzeichen und doppelte Leerzeichen (`normalize`) und nimmt weitere Antworten an (`accept`, `--accept`); Merkhilfe
 `note` pro Locus (Migration 7, `.locora` v2, `locora.toml`, `--note`), nach dem Aufdecken gezeigt; Übungsarten
-`--reverse` (Inhalt → Ort), `--numbers` („Ort 7 · Raum“) und `--shuffle`. Plugin-API 0.5 (neues Postcard-Layout).
+`--reverse` (Inhalt → Ort), `--numbers` („Ort 7 · Raum“) und `--shuffle`. Plugin-API inzwischen 0.6.
 
-Nächster Schritt: Phase 2, die App (13.4). Die App spielt die `.sply`-Bilder der Orte mit der Splinely-Runtime ab.
+Die App spielt `.sply`-Bilder der Orte mit der Splinely-Runtime ab. Die nächsten
+Schritte stehen in [`OFFEN.md`](OFFEN.md).
 
 Behoben: Beim palastübergreifenden Review bekam jeder Palast die gesamte Laufzeit gemeldet (`lernzeit` zählte doppelt);
 jetzt zählt nur die Zeit an den eigenen Loci. Die CLI-Tests waren gelegentlich rot, wenn ein Prozess vor dem Lesen der
@@ -735,10 +761,13 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    keine leeren Paläste oder partiellen DB-Änderungen (unreferenzierte Hash-Dateien können bleiben).
    Erfolg öffnet direkt den Editor; Zurück lädt die Startseite neu. Tests für Signaturen, Grenzen,
    Abbruch, Persistenz, Namen und DB-Rollback; nativer WebView-Smoke-Test noch offen.
-   **Noch offen:** Bild/Video-Datei hineinziehen,
-   Video-Loci mit Zeit, einzelne ungebundene Felder an Workbook-Orten bearbeiten,
-   Undo/Redo und dauerhaft wiederherstellbare ungültige Entwürfe. Browser-/WebView-Gesten, Fokus bei
-   Autosave und Klick-Budgets manuell/E2E prüfen (`docs/app-editor-testplan.md`).
+   **Umgesetzt:** Datei hineinziehen über einmalige Tickets (Pfad bleibt im Backend; Startseite → neuer Palast,
+   Editor → Ortsbild); Undo/Redo (Inverse für Inhalt/Bild/Position/Größe, Backend-Belege `editor_receipts` für
+   Hinzufügen/Einfügen/Löschen mit Konfliktprüfung, neueste 500); jeder Formularstand liegt in `localStorage` und
+   wird nach Absturz zum Wiederherstellen/Verwerfen angeboten.
+   **Noch offen:** einzelne ungebundene Felder an Workbook-Orten bearbeiten. Browser-/WebView-Gesten, Drop,
+   Undo-Tastatur, Fokus bei Autosave und Klick-Budgets manuell/E2E prüfen (`docs/app-editor-testplan.md`,
+   `apps/app/tests/native_smoke.py`).
 3. **Workbook in der App — umgesetzt:** Eingaben (`Inputs`) werden vor der Journey abgefragt (vorbelegt mit dem
    Standardwert, gesetzt vor der Planung, damit `active`-Formeln sie sehen); Aktionen (`Actions`) erscheinen als Knöpfe
    unter der Frage, `reveal`-Aktionen decken auf (Guess/Quiz zählen dann als aufgegeben). Formelfehler erscheinen als
@@ -747,14 +776,45 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    (⚙, gleiche Berechnung wie `locora settings`/`stats` über `locora_runtime::settings`). Import/Export von
    `.locora` (Dateidialoge, mit Wiederholungsstand; Logik in `locora_runtime::transfer`, gemeinsam mit der CLI) ist
    umgesetzt. Plugin-Kacheln (`ui.tile`) erscheinen auf dem Startbildschirm; die letzte Kachel je Plugin speichert das Profil
-   (`Profile::tiles`). Die Befehlspalette (Strg/⌘+K) findet Paläste und Befehle per Tastatur. Offen: `locora.toml` in der App.
+   (`Profile::tiles`). Die Befehlspalette (Strg/⌘+K) findet Paläste und Befehle per Tastatur.
+   **`locora.toml`-Import umgesetzt:** Der Importdialog nimmt auch TOML-Quellen an, prüft sie mit
+   `locora-source` und löst Medien relativ zur Quelldatei auf. Import erzeugt neue Kopien mit freien
+   Namen statt bestehende Paläste zu ersetzen; TOML enthält keinen Wiederholungsstand.
+   Backend-Tests für Medien, Namenskonflikte, Neustart und ungültige Quellen; nativer Dialog-Smoke-Test offen.
+   **TOML-Export umgesetzt:** „TOML exportieren…“ wählt einen lokalen Zielordner und schreibt
+   Quelle und Medien mit `locora-source::dump`, ohne bestehende Dateien zu überschreiben.
+   Kein Wiederholungsstand im TOML; Roundtrip und Überschreibschutz sind backend-getestet.
+   Nativer Ordnerdialog und Abbruch bleiben manuell zu prüfen.
 5. **Grafiken als `.sply`** (Stil `assets/STIL.md`): umgesetzt sind Kachel-Icons (core, review, notify, tutorial,
    gamification, andere Plugins) und Journey-Feedback (richtig/nochmal/geschafft) aus `assets/ui/src/ui.py` sowie der
    Willkommensbildschirm mit Simo (`assets/mascot/src/simo.py`). Ebenfalls umgesetzt: Raum-Arten (Tabs), „nichts fällig“
    (Simo), Ladezustand (Logo).
-6. **Leistung:** Jeder Marker ist ein eigener Frame mit eigener Runtime – bei vielen Loci alle Marker eines Raums in
-   einem gemeinsamen SVG zusammenfassen; Medien mit Range-Anfragen ausliefern (Video-Spulen).
+6. **Leistung:** Alle Marker eines Raums laufen in einem gemeinsamen SVG-Frame mit einer Runtime
+   (`/markers/<hash>`, `marker_layer.js`; IDs je Klon umbenannt, Zustände per Snapshot). Prüfskript für WebKitGTK:
+   `apps/app/tests/marker_layer_probe.py`. **Medien mit Range-Anfragen umgesetzt:** Einzelbereiche,
+   offene und Suffix-Bereiche liefern 206 mit `Content-Range`; nicht erfüllbare Bereiche 416.
+   Es wird nur der angeforderte Dateiausschnitt gelesen; HEAD liefert Metadaten ohne Body.
+   Multipart/fehlerhafte Bereiche fallen auf die vollständige Antwort zurück. Backend-getestet;
+   Video-Spulen in der nativen WebView noch manuell prüfen.
 7. **Video-Räume** (Phase 3): am Locus anhalten, Zeitleiste.
+   **Erster Editor-Schnitt umgesetzt:** Video-Orte über eine nichtnegative Sekundenangabe anlegen,
+   inkl. Backend-Validierung (endlich, Video-Raum) und Persistenztest. Normales Ortsetzen bleibt
+   in Video-Räumen deaktiviert. **Wiedergabezeit übernehmen umgesetzt:** „Ort an aktueller Videozeit“
+   pausiert das geladene Video und legt einen Ort am Playhead an. Taste L wirkt nur auf der
+   fokussierten Bühne (keine Texteingaben, Videosteuerung oder Marker; kein Key-Repeat).
+   **Erste Zeitleisten-Navigation umgesetzt:** chronologische, horizontal scrollbar angeordnete
+   Ortsknöpfe mit Sekundenangabe und Routennummer; Klick pausiert, springt zum Zeitpunkt und
+   wählt den Ort aus. Zeitwerte werden im gemeinsamen `LocusView` projiziert und getestet.
+   **Erster Journey-Schnitt umgesetzt:** Video-Fragen erhalten die Locus-Zeit im gemeinsamen IPC-Vertrag;
+   das Video läuft stumm bis zum Locus und hält dort für die Frage an. Beim nächsten vorwärtsliegenden
+   Locus desselben Videos startet es am zuletzt erreichten Locus; bei Medienwechsel/Rückwärtsrichtung bei 0.
+   Während der Wiedergabe sind Antworten und Workbook-Aktionen gesperrt (auch per Tastatur).
+   Ungültige Zeiten/Ladefehler werden angezeigt und geben die Antwort frei. Bei verweigertem Autoplay
+   wird mit Hinweis direkt zum Locus gesprungen. Nach Bewertung werden manuelle Videokontrollen freigegeben.
+   Die Editor-Zeitleiste markiert Ortszeiten proportional zur geladenen Videodauer; Orte nach dem
+   Videoende werden gekennzeichnet und nicht angesprungen. Die native Sichtprüfung dieser Skala,
+   eine Start-Vorschau und Timer-Drosselung bleiben offen. Die Zeitgrenze wird per 16-ms-Timer
+   und `timeupdate` geprüft; keine Garantie für framegenauen Halt bei gedrosselter WebView.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
 9. **Später:** Ton beim Aufdecken über Audio im `.sply`.

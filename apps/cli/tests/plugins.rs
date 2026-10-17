@@ -261,7 +261,7 @@ fn changed_approval_and_unapproved_manual_copies_are_never_activated() {
     let path = d.join("plugins/install-probe.wasm.json");
     let mut approval: serde_json::Value =
         serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    approval["permissions"] = serde_json::json!([]);
+    approval["manifest"]["permissions"] = serde_json::json!([]);
     fs::write(&path, serde_json::to_vec(&approval).unwrap()).unwrap();
     let out = run(d, &["ls"], "");
     assert!(out.status.success());

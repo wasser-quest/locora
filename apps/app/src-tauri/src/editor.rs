@@ -1,12 +1,23 @@
 //! Scoped editor mutations. All domain validation remains in the store.
 use anyhow::{Context, Result, ensure};
 use locora_app_api::{EditorAction, EditorChange};
+use locora_formula::workbook::BindingField;
 use locora_store::{LocusPatch, NewLocus, PalaceTree, RoomKind, Store};
 
 /// Check exact ownership before mutating; IPC must not target another room.
 /// Return a snapshot assembled from the successful store write, without a
 /// fallible post-commit reload that could invite replaying a completed mutation.
+#[cfg(test)]
 pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option<String>)> {
+    let (tree, selected, _) = apply_with_history(store, change)?;
+    Ok((tree, selected))
+}
+
+/// IPC entry point: forward the third value as `EditorUpdated.receipt`.
+pub fn apply_with_history(
+    store: &Store,
+    change: &EditorChange,
+) -> Result<(PalaceTree, Option<String>, Option<String>)> {
     let mut tree = store.palace(&change.palace_id)?;
     ensure!(
         tree.palace.id == change.palace_id,
@@ -18,14 +29,21 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
         .find(|r| r.room.id == change.room_id)
         .context("Raum gehört nicht zu diesem Palast")?;
     let id = match &change.action {
+        EditorAction::Restore { receipt } => {
+            let (loci, reciprocal) =
+                store.editor_restore(&change.palace_id, &change.room_id, receipt)?;
+            room.loci = loci;
+            return Ok((tree, None, Some(reciprocal)));
+        }
         EditorAction::Create { x, y } => {
             ensure!(
                 room.room.kind != RoomKind::Video,
                 "Neue Orte in Video-Räumen benötigen eine Zeit; bitte die CLI verwenden"
             );
-            let locus = store.add_locus(
+            let (mut loci, receipt) = store.editor_add_loci(
+                &change.palace_id,
                 &room.room.id,
-                NewLocus {
+                vec![NewLocus {
                     place: "Neuer Ort".into(),
                     item: String::new(),
                     x: *x,
@@ -36,11 +54,42 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                     image_size: locora_store::default_image_size(),
                     zoom: locora_store::default_zoom(),
                     note: String::new(),
-                },
+                }],
             )?;
+            let locus = loci.remove(0);
             let id = locus.id.clone();
             room.loci.push(locus);
-            return Ok((tree, Some(id)));
+            return Ok((tree, Some(id), Some(receipt)));
+        }
+        EditorAction::CreateVideo { time } => {
+            ensure!(
+                room.room.kind == RoomKind::Video,
+                "Zeitangaben sind nur für Video-Räume"
+            );
+            ensure!(
+                time.is_finite() && *time >= 0.0,
+                "Zeit muss eine nichtnegative, endliche Sekundenzahl sein"
+            );
+            let (mut loci, receipt) = store.editor_add_loci(
+                &change.palace_id,
+                &room.room.id,
+                vec![NewLocus {
+                    place: "Neuer Ort".into(),
+                    item: String::new(),
+                    x: 0.5,
+                    y: 0.5,
+                    time: Some(*time),
+                    answer: Default::default(),
+                    image: None,
+                    image_size: locora_store::default_image_size(),
+                    zoom: locora_store::default_zoom(),
+                    note: String::new(),
+                }],
+            )?;
+            let locus = loci.remove(0);
+            let id = locus.id.clone();
+            room.loci.push(locus);
+            return Ok((tree, Some(id), Some(receipt)));
         }
         EditorAction::Paste { items } => {
             ensure!(
@@ -76,10 +125,10 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                     }
                 })
                 .collect();
-            let added = store.add_loci(&room.room.id, loci)?;
+            let (added, receipt) = store.editor_add_loci(&change.palace_id, &room.room.id, loci)?;
             let selected = added.first().map(|l| l.id.clone());
             room.loci.extend(added);
-            return Ok((tree, selected));
+            return Ok((tree, selected, Some(receipt)));
         }
         EditorAction::Save { id, .. }
         | EditorAction::Move { id, .. }
@@ -93,13 +142,12 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
         .context("Ort gehört nicht zu diesem Raum")?;
     let patch = match &change.action {
         EditorAction::Save { content, .. } => {
-            ensure!(
-                locus.bindings.is_empty(),
-                "Dieser Ort hat Workbook-Formeln; Inhalte bitte über die Quelldatei bearbeiten"
-            );
+            // Formula-bound fields stay owned by the workbook; every other
+            // field of a workbook locus is edited like any other.
+            let bound = |field| locus.bindings.iter().any(|b| b.field == field);
             LocusPatch {
-                place: Some(content.place.clone()),
-                item: Some(content.item.clone()),
+                place: (!bound(BindingField::Place)).then(|| content.place.clone()),
+                item: (!bound(BindingField::Item)).then(|| content.item.clone()),
                 note: Some(content.note.clone()),
                 image: Some(content.image.clone()),
                 image_size: Some(content.image_size),
@@ -108,26 +156,38 @@ pub fn apply(store: &Store, change: &EditorChange) -> Result<(PalaceTree, Option
                 ..Default::default()
             }
         }
-        EditorAction::Move { x, y, .. } => LocusPatch {
-            x: Some(*x),
-            y: Some(*y),
-            ..Default::default()
-        },
+        EditorAction::Move { x, y, .. } => {
+            ensure!(
+                !locus
+                    .bindings
+                    .iter()
+                    .any(|b| matches!(b.field, BindingField::X | BindingField::Y)),
+                "Die Position dieses Orts kommt aus einer Workbook-Formel"
+            );
+            LocusPatch {
+                x: Some(*x),
+                y: Some(*y),
+                ..Default::default()
+            }
+        }
         EditorAction::Resize { image_size, .. } => LocusPatch {
             image_size: Some(*image_size),
             ..Default::default()
         },
         EditorAction::Delete { .. } => {
-            store.delete_locus(id)?;
+            let receipt = store.editor_delete_locus(&change.palace_id, &change.room_id, id)?;
             room.loci.retain(|l| &l.id != id);
-            return Ok((tree, None));
+            return Ok((tree, None, Some(receipt)));
         }
-        EditorAction::Create { .. } | EditorAction::Paste { .. } => unreachable!(),
+        EditorAction::Create { .. }
+        | EditorAction::CreateVideo { .. }
+        | EditorAction::Paste { .. }
+        | EditorAction::Restore { .. } => unreachable!(),
     };
     let mut updated = store.update_locus(id, &patch)?;
     updated.bindings = locus.bindings.clone();
     *locus = updated;
-    Ok((tree, Some(id.clone())))
+    Ok((tree, Some(id.clone()), None))
 }
 
 /// Validate ownership before opening a dialog or reading any selected file.
@@ -142,15 +202,11 @@ pub fn picture_target(store: &Store, target: &locora_app_api::PictureTarget) -> 
         .iter()
         .find(|r| r.room.id == target.room_id)
         .context("Raum gehört nicht zu diesem Palast")?;
-    let locus = room
-        .loci
+    // Pictures are never formula-bound, so workbook loci accept them too.
+    room.loci
         .iter()
         .find(|l| l.id == target.locus_id)
         .context("Ort gehört nicht zu diesem Raum")?;
-    ensure!(
-        locus.bindings.is_empty(),
-        "Workbook-Ort: Bild bitte in der Quelldatei ändern"
-    );
     Ok(())
 }
 
@@ -473,6 +529,116 @@ mod tests {
         assert_eq!(store.palace(&palace.id).unwrap(), before);
     }
 
+    /// Optional real-artifact smoke test; fixtures are never copied into the repo.
+    #[test]
+    #[ignore = "set LOCORA_TEST_GIF, LOCORA_TEST_SPLY and LOCORA_TEST_VIDEO to local fixtures"]
+    fn real_animation_media_import_smoke() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        for (variable, kind, mime) in [
+            ("LOCORA_TEST_GIF", RoomKind::Image, "image/gif"),
+            ("LOCORA_TEST_SPLY", RoomKind::Image, locora_store::SPLINELY),
+            ("LOCORA_TEST_VIDEO", RoomKind::Video, "video/mp4"),
+        ] {
+            let path = std::path::PathBuf::from(std::env::var_os(variable).expect(variable));
+            let tree = import_palace(&store, Some(&path)).unwrap().unwrap();
+            assert_eq!(tree.rooms[0].room.kind, kind);
+            let hash = tree.rooms[0].room.media.as_ref().unwrap();
+            assert_eq!(store.media(hash).unwrap().unwrap().mime, mime);
+            let bytes = std::fs::read(store.media_file(hash).unwrap()).unwrap();
+            assert_eq!(bytes, std::fs::read(&path).unwrap());
+            if mime == locora_store::SPLINELY {
+                let svg = crate::sply::to_svg(&bytes).unwrap();
+                assert!(svg.contains("splinely-project"));
+                assert!(svg.contains("svg.splinely"));
+            }
+            if kind == RoomKind::Video {
+                let (_, selected) = apply(
+                    &store,
+                    &EditorChange {
+                        palace_id: tree.palace.id,
+                        room_id: tree.rooms[0].room.id.clone(),
+                        action: EditorAction::CreateVideo { time: 6.0 },
+                    },
+                )
+                .unwrap();
+                assert!(selected.is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn video_loci_require_valid_time_and_video_room() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let palace = store.create_palace("Video").unwrap();
+        let media = store.put_media(b"video", "video/mp4").unwrap();
+        let room = store
+            .add_room(&palace.id, "Film", RoomKind::Video, Some(&media.hash))
+            .unwrap();
+        let blank = store
+            .add_room(&palace.id, "Leer", RoomKind::Blank, None)
+            .unwrap();
+        for time in [0.0, 12.5] {
+            let (_, id) = apply(
+                &store,
+                &EditorChange {
+                    palace_id: palace.id.clone(),
+                    room_id: room.id.clone(),
+                    action: EditorAction::CreateVideo { time },
+                },
+            )
+            .unwrap();
+            let tree = store.palace(&palace.id).unwrap();
+            assert_eq!(
+                tree.route()
+                    .find(|l| Some(&l.id) == id.as_ref())
+                    .unwrap()
+                    .time,
+                Some(time)
+            );
+        }
+        let before = store.palace(&palace.id).unwrap();
+        let marker = store
+            .put_media(
+                locora_runtime::tutorial::DEFAULT_MARKER,
+                locora_store::SPLINELY,
+            )
+            .unwrap();
+        let view = crate::views::palace_view(&store, &before, &Default::default(), &marker.hash);
+        assert!(view.rooms[0].video);
+        assert_eq!(
+            view.rooms[0]
+                .loci
+                .iter()
+                .map(|l| l.time)
+                .collect::<Vec<_>>(),
+            vec![Some(0.0), Some(12.5)]
+        );
+        for (room_id, time) in [
+            (&room.id, -1.0),
+            (&room.id, f64::NAN),
+            (&room.id, f64::INFINITY),
+            (&blank.id, 1.0),
+        ] {
+            assert!(
+                apply(
+                    &store,
+                    &EditorChange {
+                        palace_id: palace.id.clone(),
+                        room_id: room_id.clone(),
+                        action: EditorAction::CreateVideo { time },
+                    }
+                )
+                .is_err()
+            );
+            assert_eq!(store.palace(&palace.id).unwrap(), before);
+        }
+        drop(store);
+        let store = Store::open(dir.path()).unwrap();
+        assert_eq!(store.palace(&palace.id).unwrap().route().count(), 2);
+    }
+
     #[test]
     fn crud_persists_and_invalid_commands_leave_no_writes() {
         let dir = tempfile::tempdir().unwrap();
@@ -724,5 +890,103 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn workbook_loci_edit_unbound_fields_and_keep_formulas() {
+        use locora_formula::workbook::Binding;
+        let store = Store::in_memory().unwrap();
+        let palace = store.create_palace("Workbook").unwrap();
+        let room = store
+            .add_room(&palace.id, "Raum", RoomKind::Blank, None)
+            .unwrap();
+        let change = |action| EditorChange {
+            palace_id: palace.id.clone(),
+            room_id: room.id.clone(),
+            action,
+        };
+        let id = apply(&store, &change(EditorAction::Create { x: 0.2, y: 0.8 }))
+            .unwrap()
+            .1
+            .unwrap();
+        store
+            .update_locus(
+                &id,
+                &LocusPatch {
+                    item: Some("roh".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let item = Binding {
+            field: BindingField::Item,
+            expression: "\"berechnet\"".into(),
+        };
+        store.set_binding(&id, &item).unwrap();
+        let content = LocusContent {
+            place: "Herd".into(),
+            item: "vom UI".into(),
+            note: "Merkhilfe".into(),
+            image: None,
+            image_size: 0.3,
+            zoom: 2.0,
+            answer: EditorAnswer::default(),
+        };
+        let (tree, _) = apply(
+            &store,
+            &change(EditorAction::Save {
+                id: id.clone(),
+                content,
+            }),
+        )
+        .unwrap();
+        for locus in [
+            &tree.rooms[0].loci[0],
+            &store.palace(&palace.id).unwrap().rooms[0].loci[0],
+        ] {
+            assert_eq!(locus.place, "Herd");
+            assert_eq!(locus.note, "Merkhilfe");
+            assert_eq!(locus.item, "roh", "bound item must not be overwritten");
+            assert_eq!(locus.bindings, vec![item.clone()]);
+        }
+        picture_target(
+            &store,
+            &locora_app_api::PictureTarget {
+                palace_id: palace.id.clone(),
+                room_id: room.id.clone(),
+                locus_id: id.clone(),
+            },
+        )
+        .unwrap();
+        apply(
+            &store,
+            &change(EditorAction::Move {
+                id: id.clone(),
+                x: 0.5,
+                y: 0.5,
+            }),
+        )
+        .unwrap();
+        store
+            .set_binding(
+                &id,
+                &Binding {
+                    field: BindingField::X,
+                    expression: "0.1".into(),
+                },
+            )
+            .unwrap();
+        assert!(
+            apply(
+                &store,
+                &change(EditorAction::Move {
+                    id: id.clone(),
+                    x: 0.9,
+                    y: 0.5
+                })
+            )
+            .is_err()
+        );
+        assert_eq!(store.palace(&palace.id).unwrap().rooms[0].loci[0].x, 0.5);
     }
 }

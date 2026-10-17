@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Locora</title>
     <link data-trunk rel="css" href="style.css" />
-    <link data-trunk rel="rust" data-wasm-opt="z" />
+    <!-- Rust enables these wasm32 features by default; wasm-opt must accept them. -->
+    <link data-trunk rel="rust" data-wasm-opt="z"
+      data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types --enable-multivalue --enable-mutable-globals" />
   </head>
   <body></body>
 </html>

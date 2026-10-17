@@ -71,6 +71,38 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE loci ADD COLUMN image_size REAL NOT NULL DEFAULT 0.25 CHECK(image_size >= 0.05 AND image_size <= 1.0);",
     // 9: how far the room zooms in on the locus while asking (1 = whole room)
     "ALTER TABLE loci ADD COLUMN zoom REAL NOT NULL DEFAULT 1 CHECK(zoom >= 1.0 AND zoom <= 4.0);",
+    // 10: opaque, single-use structural editor undo receipts (never client snapshots).
+    "CREATE TABLE editor_receipts(
+        id TEXT PRIMARY KEY,
+        palace_id TEXT NOT NULL REFERENCES palaces(id) ON DELETE CASCADE,
+        room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        before_json TEXT NOT NULL,
+        after_json TEXT NOT NULL);",
+    // 11: operation sync: per-field clocks (last writer wins) and deletion tombstones
+    "CREATE TABLE sync_clock(
+        entity TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        field TEXT NOT NULL,
+        hlc TEXT NOT NULL,
+        PRIMARY KEY(entity, entity_id, field));
+     CREATE TABLE sync_tombstone(
+        entity TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        hlc TEXT NOT NULL,
+        PRIMARY KEY(entity, entity_id));",
+    // 12: finished journeys with their answers and times (for rankings in Locora Cloud)
+    "CREATE TABLE journeys(
+        id TEXT PRIMARY KEY,
+        palace_name TEXT NOT NULL,
+        answers TEXT NOT NULL,
+        recorded_at INTEGER NOT NULL);",
+    // 13: durable pull inbox; quarantined entries retain their payload and reason.
+    "CREATE TABLE sync_pull_retry(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        error TEXT,
+        quarantined INTEGER NOT NULL DEFAULT 0 CHECK(quarantined IN (0, 1)));",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {

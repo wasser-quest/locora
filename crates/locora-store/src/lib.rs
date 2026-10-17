@@ -19,6 +19,29 @@ use sha2::{Digest, Sha256};
 
 pub use locora_api::journey::{Answer, AnswerKind, QuizOption};
 
+mod history;
+mod pull_queue;
+mod sync;
+pub use pull_queue::{PullAttempt, PullRetry};
+pub use sync::{ApplyReport, RemoteOp, media_refs};
+
+/// One graded answer of a finished journey. `at_ms` counts from the start of
+/// the journey and must not go backwards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JourneyAnswer {
+    pub correct: bool,
+    pub at_ms: u64,
+}
+
+/// A finished journey as stored on this device.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Journey {
+    pub id: String,
+    pub palace_name: String,
+    pub answers: Vec<JourneyAnswer>,
+    /// Seconds since the Unix epoch.
+    pub recorded_at: u64,
+}
 mod schema;
 
 #[derive(Debug, thiserror::Error)]
@@ -207,20 +230,45 @@ pub struct NewLocus {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LocusPatch {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_size: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub zoom: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub item: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub x: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub y: Option<f64>,
+    /// `None` = keep, `Some(None)` = remove the time, `Some(Some(t))` = set it.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "double_option"
+    )]
     pub time: Option<Option<f64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answer: Option<Answer>,
     /// `None` = keep, `Some(None)` = remove, `Some(Some(hash))` = set.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "double_option"
+    )]
     pub image: Option<Option<String>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+}
+
+/// Keeps an explicit `null` as `Some(None)`, so "remove" is not read as "keep".
+fn double_option<'de, T, D>(deserializer: D) -> std::result::Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 /// Media types a locus picture may have.
@@ -328,6 +376,26 @@ impl Store {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    /// Moves the clock past a timestamp from another device, so later local
+    /// writes always sort after everything this device has seen.
+    fn observe(&self, hlc: &str) {
+        let mut parts = hlc.splitn(3, '-');
+        let millis = parts.next().and_then(|p| p.parse::<u64>().ok());
+        let counter = parts.next().and_then(|c| c.parse::<u32>().ok());
+        let (Some(millis), Some(counter)) = (millis, counter) else {
+            return;
+        };
+        let mut clock = self.clock.lock().unwrap_or_else(|p| p.into_inner());
+        if (millis, counter) > *clock {
+            *clock = (millis, counter);
+        }
+    }
+
+    /// This device's id inside the operation log (`hlc` suffix).
+    pub fn node_id(&self) -> &str {
+        &self.node
+    }
+
     fn tick(&self) -> String {
         let mut clock = self.clock.lock().unwrap_or_else(|p| p.into_inner());
         let wall = now_millis();
@@ -347,11 +415,12 @@ impl Store {
         op: &str,
         data: Option<serde_json::Value>,
     ) -> Result<()> {
+        let hlc = self.tick();
         conn.execute(
             "INSERT INTO ops(hlc, entity, entity_id, op, data) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![self.tick(), entity, id, op, data.map(|d| d.to_string())],
+            params![hlc, entity, id, op, data.as_ref().map(|d| d.to_string())],
         )?;
-        Ok(())
+        sync::record(conn, entity, id, op, &hlc, data.as_ref())
     }
 
     fn touch(&self, conn: &Connection, palace_id: &str) -> Result<()> {
@@ -982,13 +1051,11 @@ impl Store {
             row.table,
             row.key
         );
-        self.log(
-            &conn,
-            "row",
-            &entity,
-            "set",
-            Some(serde_json::to_value(row).expect("serializable")),
-        )
+        let mut data = serde_json::to_value(row).expect("serializable");
+        if let serde_json::Value::Object(map) = &mut data {
+            map.insert("palace".into(), serde_json::json!(palace_id));
+        }
+        self.log(&conn, "row", &entity, "set", Some(data))
     }
 
     /// Delete a table row. Returns false if it did not exist.
@@ -1000,7 +1067,8 @@ impl Store {
         )? > 0;
         if deleted {
             let entity = format!("{}/{table}.{key}", palace_id.unwrap_or("shared"));
-            self.log(&conn, "row", &entity, "delete", None)?;
+            let data = serde_json::json!({ "palace": palace_id, "table": table, "key": key });
+            self.log(&conn, "row", &entity, "delete", Some(data))?;
         }
         Ok(deleted)
     }
@@ -1135,15 +1203,120 @@ impl Store {
 
     pub fn kv_set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<()> {
         let conn = self.conn();
+        // Writing the same bytes again is not a change, so it is not logged or synced.
+        let current: Option<Vec<u8>> = conn
+            .query_row(
+                "SELECT value FROM kv WHERE plugin = ?1 AND key = ?2",
+                params![plugin, key],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if current.as_deref() == Some(value) {
+            return Ok(());
+        }
         conn.execute(
             "INSERT INTO kv(plugin, key, value) VALUES (?1, ?2, ?3)
              ON CONFLICT(plugin, key) DO UPDATE SET value = excluded.value",
             params![plugin, key, value],
         )?;
-        self.log(&conn, "kv", &format!("{plugin}/{key}"), "set", None)
+        self.log(
+            &conn,
+            "kv",
+            &format!("{plugin}/{key}"),
+            "set",
+            Some(serde_json::json!({ "value": sync::hex(value) })),
+        )
     }
 
     // ------------------------------------------------------------ sync
+
+    /// Cursor of the sync client: `push` = last local operation sent,
+    /// `pull` = last cloud operation received. Zero when never synced.
+    pub fn sync_cursor(&self, name: &str) -> Result<i64> {
+        let conn = self.conn();
+        let value: Option<String> = conn
+            .query_row(
+                "SELECT value FROM meta WHERE key = ?1",
+                [format!("sync.{name}")],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(value.and_then(|v| v.parse().ok()).unwrap_or(0))
+    }
+
+    pub fn set_sync_cursor(&self, name: &str, value: i64) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO meta(key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![format!("sync.{name}"), value.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Stores a finished journey and logs it, so it syncs to Locora Cloud.
+    pub fn record_journey(&self, palace_id: &str, answers: &[JourneyAnswer]) -> Result<Journey> {
+        if answers.is_empty() {
+            return Err(StoreError::Invalid(
+                "Die Journey hat keine Antworten".into(),
+            ));
+        }
+        let palace_name: String = {
+            let conn = self.conn();
+            conn.query_row("SELECT name FROM palaces WHERE id = ?1", [palace_id], |r| {
+                r.get(0)
+            })
+            .optional()?
+            .ok_or_else(|| StoreError::NotFound(format!("Palast {palace_id}")))?
+        };
+        let journey = Journey {
+            id: new_id(),
+            palace_name,
+            answers: answers.to_vec(),
+            recorded_at: now_secs(),
+        };
+        let answers_json = serde_json::to_string(&journey.answers).expect("serializable");
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO journeys(id, palace_name, answers, recorded_at) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                journey.id,
+                journey.palace_name,
+                answers_json,
+                journey.recorded_at
+            ],
+        )?;
+        self.log(
+            &conn,
+            "journey",
+            &journey.id,
+            "create",
+            Some(serde_json::json!({
+                "palace_name": journey.palace_name,
+                "answers": journey.answers,
+                "recorded_at": journey.recorded_at,
+            })),
+        )?;
+        Ok(journey)
+    }
+
+    /// Finished journeys, newest first.
+    pub fn journeys(&self, limit: u32) -> Result<Vec<Journey>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, palace_name, answers, recorded_at FROM journeys ORDER BY recorded_at DESC, id DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map([limit], |r| {
+            let answers: String = r.get(2)?;
+            Ok(Journey {
+                id: r.get(0)?,
+                palace_name: r.get(1)?,
+                answers: serde_json::from_str(&answers).unwrap_or_default(),
+                recorded_at: r.get::<_, i64>(3)? as u64,
+            })
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
 
     /// Logged changes after `seq`, oldest first.
     pub fn ops_since(&self, seq: i64) -> Result<Vec<Op>> {

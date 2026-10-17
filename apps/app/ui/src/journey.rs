@@ -7,12 +7,12 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     ActionDone, AnswerKind, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS,
-    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, InputField, InputValue, JourneyStart,
-    Question, Reply, Revealed, Step, Summary, UiAssets,
+    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, GameView, InputField, InputValue,
+    JourneyStart, Question, Reply, Revealed, Step, Summary, UiAssets,
 };
 use serde::Serialize;
 
-use crate::sply::{Shown, Sply};
+use crate::sply::{Shown, Sply, VideoBackdrop};
 use crate::tauri::{NoArgs, call};
 use crate::{Answer, Screen};
 
@@ -55,8 +55,17 @@ impl Phase {
     }
 }
 
+#[derive(Clone, Copy)]
+struct VideoProgress(StoredValue<Option<(String, f64)>>);
+
+#[derive(Clone, Copy)]
+struct VideoReady(RwSignal<bool>);
+
 #[component]
 pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoView {
+    provide_context(VideoProgress(StoredValue::new(None)));
+    let video_ready = RwSignal::new(true);
+    provide_context(VideoReady(video_ready));
     let question = RwSignal::new(None::<Question>);
     let phase = RwSignal::new(Phase::Asking);
     let summary = RwSignal::new(None::<Summary>);
@@ -113,7 +122,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     });
 
     let reveal = move || {
-        if busy.get_untracked() || phase.get_untracked() != Phase::Asking {
+        if busy.get_untracked()
+            || !video_ready.get_untracked()
+            || phase.get_untracked() != Phase::Asking
+        {
             return;
         }
         busy.set(true);
@@ -126,7 +138,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         });
     };
     let reply = move |reply: Reply| {
-        if busy.get_untracked() {
+        if busy.get_untracked() || !video_ready.get_untracked() {
             return;
         }
         busy.set(true);
@@ -140,7 +152,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     };
     // A workbook action on the current question; „reveal“ actions show the answer.
     let act = move |key: String| {
-        if busy.get_untracked() {
+        if busy.get_untracked() || !video_ready.get_untracked() {
             return;
         }
         let revealed = matches!(phase.get_untracked(), Phase::Revealed(_));
@@ -280,6 +292,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                                 </div>
                             }
                         })}
+                    <Show when=move || !video_ready.get()>
+                        <p role="status">"Video läuft zum nächsten Locus …"</p>
+                    </Show>
+                    <fieldset disabled=move || !video_ready.get() style="border:0;padding:0;margin:0;min-width:0">
                     {(!q.actions.is_empty())
                         .then(|| {
                             let actions = q.actions.clone();
@@ -321,6 +337,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                             view! { <Judged feedback=*f question=q.clone() next=next busy=busy art=art /> }.into_any()
                         }
                     }}
+                    </fieldset>
                 </section>
             }
                 .into_any()
@@ -331,12 +348,19 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 /// The room with the asked place marked (state „fällig“).
 #[component]
 fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
+    expect_context::<VideoReady>().0.set(true);
     let zoom = question.zoom.clamp(1.0, 4.0);
     view! {
         <div class="stage">
             // The whole room zooms in on the locus; the marker keeps its size.
             <div class="stage-view" style:transform=zoom_view(question.x, question.y, zoom)>
-                {question.backdrop.clone().map(|m| view! { <Shown media=m class="backdrop" /> })}
+                {question.backdrop.clone().map(|m| {
+                    if m.kind == locora_app_api::MediaKind::Video {
+                        view! { <VideoAtLocus media=m time=question.time phase=phase /> }.into_any()
+                    } else {
+                        view! { <Shown media=m class="backdrop" /> }.into_any()
+                    }
+                })}
                 {move || {
                     phase.get().stage_answer().cloned().and_then(|r| r.picture.map(|m| view! {
                         <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
@@ -352,6 +376,120 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                 </div>
             </div>
         </div>
+    }
+}
+
+/// Play to the question's timestamp, then hold until the answer is graded.
+#[component]
+fn VideoAtLocus(
+    media: locora_app_api::Media,
+    time: Option<f64>,
+    phase: RwSignal<Phase>,
+) -> impl IntoView {
+    let player = NodeRef::<leptos::html::Video>::new();
+    let error = RwSignal::new(false);
+    let fallback = RwSignal::new(false);
+    let ready = expect_context::<VideoReady>().0;
+    ready.set(false);
+    let progress = expect_context::<VideoProgress>().0;
+    let key = StoredValue::new(media.hash.clone());
+    let stop_at_locus = move || {
+        if let (Some(player), Some(target)) = (player.get_untracked(), time)
+            && player.ready_state() >= 1
+            && target.is_finite()
+            && target >= 0.0
+            && !matches!(phase.get_untracked(), Phase::Judged(_))
+            && player.current_time() >= target
+        {
+            let _ = player.pause();
+            if player.current_time() != target {
+                player.set_current_time(target);
+            }
+            progress.set_value(Some((key.get_value(), target)));
+            ready.set(true);
+        }
+    };
+    // timeupdate alone can lag by hundreds of milliseconds. Poll near frame
+    // cadence too; background WebViews may still throttle timers.
+    let timer = set_interval_with_handle(stop_at_locus, std::time::Duration::from_millis(16)).ok();
+    on_cleanup(move || {
+        if let Some(timer) = timer {
+            timer.clear();
+        }
+    });
+    view! {
+        <VideoBackdrop
+            media=media.clone()
+            class="backdrop"
+            controls=MaybeProp::derive(move || Some(matches!(phase.get(), Phase::Judged(_))))
+            muted=true
+            preload="auto".to_string()
+            autoplay=true
+            node_ref=player
+            on_loaded=Box::new(move || on_metadata(player, time, phase, progress, key, ready, (error, fallback)))
+            on_timeupdate=Box::new(stop_at_locus)
+            on_error=Box::new(move || { error.set(true); ready.set(true); })
+        />
+        <Show when=move || error.get()>
+            <p class="notes" role="alert">"Video oder gespeicherte Locus-Zeit konnte nicht geladen werden."</p>
+        </Show>
+        <Show when=move || fallback.get()>
+            <p class="notes" role="status">"Automatische Wiedergabe nicht möglich; direkt zum Locus gesprungen."</p>
+        </Show>
+    }
+}
+
+fn video_segment_start(previous: Option<&(String, f64)>, key: &str, target: f64) -> f64 {
+    previous
+        .filter(|(old_key, t)| old_key == key && t.is_finite() && *t >= 0.0 && *t <= target)
+        .map_or(0.0, |(_, t)| *t)
+}
+
+/// Seek to the question's segment once the video's metadata is loaded.
+fn on_metadata(
+    player: NodeRef<leptos::html::Video>,
+    time: Option<f64>,
+    _phase: RwSignal<Phase>,
+    progress: StoredValue<Option<(String, f64)>>,
+    key: StoredValue<String>,
+    ready: RwSignal<bool>,
+    flags: (RwSignal<bool>, RwSignal<bool>),
+) {
+    let (error, fallback) = flags;
+    let Some(player) = player.get_untracked() else {
+        return;
+    };
+    let duration = player.duration();
+    match time.filter(|t| t.is_finite() && *t >= 0.0 && (!duration.is_finite() || *t <= duration)) {
+        Some(target) => {
+            let start =
+                video_segment_start(progress.get_value().as_ref(), &key.get_value(), target);
+            player.set_current_time(start);
+            if start == target {
+                let _ = player.pause();
+                progress.set_value(Some((key.get_value(), target)));
+                ready.set(true);
+                return;
+            }
+            let playing = player.play();
+            spawn_local(async move {
+                let failed = match playing {
+                    Ok(promise) => wasm_bindgen_futures::JsFuture::from(promise).await.is_err(),
+                    Err(_) => true,
+                };
+                if failed && player.is_connected() && !ready.get_untracked() {
+                    let _ = player.pause();
+                    player.set_current_time(target);
+                    progress.set_value(Some((key.get_value(), target)));
+                    fallback.set(true);
+                    ready.set(true);
+                }
+            });
+        }
+        None => {
+            error.set(true);
+            ready.set(true);
+        }
     }
 }
 
@@ -407,6 +545,45 @@ fn Ask(
         }
         AnswerKind::Quiz => {
             let picked = RwSignal::new(Vec::<u32>::new());
+            let toggle = move |i: u32| {
+                picked.update(|p| {
+                    if let Some(at) = p.iter().position(|x| *x == i) {
+                        p.remove(at);
+                    } else {
+                        p.push(i);
+                    }
+                })
+            };
+            // PLAN 6.3: keys 1–9 toggle options, Enter checks. Only mounted while asking.
+            let count = question.options.len().min(9) as u32;
+            let keys = window_event_listener(leptos::ev::keydown, move |e| {
+                if busy.get_untracked() || e.alt_key() || e.ctrl_key() || e.meta_key() || e.repeat()
+                {
+                    return;
+                }
+                // A focused button already handles Enter itself (no double submit).
+                let control = e
+                    .target()
+                    .and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(t).ok())
+                    .is_some_and(|el| {
+                        matches!(el.tag_name().as_str(), "BUTTON" | "TEXTAREA")
+                            || el.get_attribute("type").as_deref() == Some("text")
+                    });
+                match e.key().as_str() {
+                    "Enter" if !control && !picked.get_untracked().is_empty() => {
+                        e.prevent_default();
+                        reply(Reply::Quiz(picked.get_untracked()));
+                    }
+                    key => {
+                        if let Some(n) = key.parse::<u32>().ok().filter(|n| (1..=count).contains(n))
+                        {
+                            e.prevent_default();
+                            toggle(n - 1);
+                        }
+                    }
+                }
+            });
+            on_cleanup(move || keys.remove());
             view! {
                 <div class="options">
                     {question
@@ -420,24 +597,16 @@ fn Ask(
                                     <input
                                         type="checkbox"
                                         prop:checked=move || picked.get().contains(&i)
-                                        on:change=move |_| {
-                                            picked
-                                                .update(|p| {
-                                                    if let Some(at) = p.iter().position(|x| *x == i) {
-                                                        p.remove(at);
-                                                    } else {
-                                                        p.push(i);
-                                                    }
-                                                })
-                                        }
+                                        on:change=move |_| toggle(i)
                                     />
+                                    {(i < 9).then(|| view! { <kbd>{i + 1}</kbd> })}
                                     {text.clone()}
                                 </label>
                             }
                         })
                         .collect_view()}
                 </div>
-                <div class="progress">"Alle richtigen wählen."</div>
+                <div class="progress">"Alle richtigen wählen (Tasten 1–9, Enter prüft)."</div>
                 <button
                     class="primary"
                     disabled=move || busy.get() || picked.get().is_empty()
@@ -447,7 +616,7 @@ fn Ask(
                 </button>
                 <button on:click=move |_| reply(Reply::Forfeit)>"Aufdecken"</button>
             }
-                .into_any()
+            .into_any()
         }
     }
 }
@@ -480,6 +649,7 @@ fn Judged(
     busy: RwSignal<bool>,
     art: RwSignal<Option<UiAssets>>,
 ) -> impl IntoView {
+    let game = feedback.game;
     let r = feedback.revealed;
     let automatic = question.kind != AnswerKind::Recall;
     let right: Vec<String> = r
@@ -503,6 +673,7 @@ fn Judged(
                 }
             })}
         <Answer solution=r.solution note=r.note picture=r.picture />
+        {game.map(|game| view! { <p class="progress game-status">{game_status(game)}</p> })}
         {(!right.is_empty())
             .then(|| {
                 view! { <div class="progress">{format!("Richtig: {}", right.join(", "))}</div> }
@@ -511,6 +682,18 @@ fn Judged(
             "Weiter (Leertaste)"
         </button>
     }
+}
+
+/// Combo and hearts as one line, e.g. "Combo 3 · Herzen ♥♥♥♡♡".
+fn game_status(game: GameView) -> String {
+    const HEARTS: usize = 5;
+    let held = usize::from(game.hearts).min(HEARTS);
+    format!(
+        "Combo {} · Herzen {}{}",
+        game.combo,
+        "♥".repeat(held),
+        "♡".repeat(HEARTS - held)
+    )
 }
 
 #[component]
@@ -560,6 +743,39 @@ mod tests {
     use locora_app_api::{Media, MediaKind};
 
     #[test]
+    fn game_status_shows_combo_and_hearts() {
+        assert_eq!(
+            game_status(GameView {
+                combo: 3,
+                hearts: 3
+            }),
+            "Combo 3 · Herzen ♥♥♥♡♡"
+        );
+        assert_eq!(
+            game_status(GameView {
+                combo: 0,
+                hearts: 9
+            }),
+            "Combo 0 · Herzen ♥♥♥♥♥"
+        );
+    }
+
+    #[test]
+    fn video_segments_continue_only_for_same_media_in_forward_order() {
+        assert_eq!(video_segment_start(None, "a", 5.0), 0.0);
+        assert_eq!(video_segment_start(Some(&("a".into(), 2.5)), "a", 5.0), 2.5);
+        assert_eq!(video_segment_start(Some(&("a".into(), 5.0)), "a", 5.0), 5.0);
+        assert_eq!(video_segment_start(Some(&("a".into(), 8.0)), "a", 5.0), 0.0);
+        assert_eq!(video_segment_start(Some(&("b".into(), 2.5)), "a", 5.0), 0.0);
+        for invalid in [f64::NAN, f64::INFINITY, -1.0] {
+            assert_eq!(
+                video_segment_start(Some(&("a".into(), invalid)), "a", 5.0),
+                0.0
+            );
+        }
+    }
+
+    #[test]
     fn stage_answer_stays_hidden_until_revealed_and_resets_for_next_question() {
         let answer = Revealed {
             image_size: 0.4,
@@ -579,6 +795,7 @@ mod tests {
             points: 1,
             revealed: answer.clone(),
             next: Step::Done(Summary::default()),
+            game: None,
         }));
         assert_eq!(judged.stage_answer(), Some(&answer));
         let next = Phase::Asking;

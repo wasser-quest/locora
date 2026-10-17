@@ -63,6 +63,7 @@ impl App {
             store: std::sync::Arc::new(locora_store::Store::in_memory().unwrap()),
             host: locora_host::PluginHost::new(None).unwrap(),
             notes: Vec::new(),
+            highlight: None,
         })
     }
 }

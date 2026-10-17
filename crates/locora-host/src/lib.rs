@@ -45,6 +45,41 @@ pub struct Manifest {
     pub permissions: Vec<String>,
 }
 
+/// Consent for one exact component, not just its self-declared metadata.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovalReceipt {
+    pub manifest: Manifest,
+    pub sha256: String,
+    /// Publisher key (base64) that signed the approved bytes, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signer: Option<String>,
+}
+
+impl ApprovalReceipt {
+    pub fn new(manifest: Manifest, bytes: &[u8]) -> Self {
+        Self {
+            manifest,
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+            signer: None,
+        }
+    }
+
+    /// Records who signed the approved bytes.
+    pub fn signed_by(mut self, publisher: String) -> Self {
+        self.signer = Some(publisher);
+        self
+    }
+
+    pub fn matches(&self, manifest: &Manifest, bytes: &[u8]) -> bool {
+        self.manifest == *manifest && self.matches_bytes(bytes)
+    }
+
+    pub fn matches_bytes(&self, bytes: &[u8]) -> bool {
+        self.sha256 == format!("{:x}", Sha256::digest(bytes))
+    }
+}
+
 impl From<types::Manifest> for Manifest {
     fn from(m: types::Manifest) -> Self {
         Self {
@@ -60,6 +95,11 @@ impl From<types::Manifest> for Manifest {
 /// Something the host observed that the UI or CLI may want to show.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostEvent {
+    /// A validated, capability-checked tour step requested via `ui.highlight@1`.
+    Highlighted {
+        plugin: String,
+        step: locora_api::ui::HighlightRequest,
+    },
     Log {
         plugin: String,
         level: Level,
@@ -122,6 +162,7 @@ struct PluginState {
     subscriptions: Vec<String>,
     provided: Vec<String>,
     outbox: Vec<(String, String, Vec<u8>)>,
+    highlights: Vec<locora_api::ui::HighlightRequest>,
     logs: Vec<(Level, String)>,
     wasi: WasiCtx,
     table: ResourceTable,
@@ -138,6 +179,7 @@ impl PluginState {
             subscriptions: Vec::new(),
             provided: Vec::new(),
             outbox: Vec::new(),
+            highlights: Vec::new(),
             logs: Vec::new(),
             // No files, network, env or clock access beyond the defaults.
             wasi: WasiCtx::builder().build(),
@@ -184,7 +226,9 @@ impl host::Host for PluginState {
     }
 
     fn provide(&mut self, service: String) {
-        if service == <locora_api::palaces::Palaces as locora_api::Service>::NAME {
+        if service == <locora_api::palaces::Palaces as locora_api::Service>::NAME
+            || service == <locora_api::ui::Highlight as locora_api::Service>::NAME
+        {
             self.logs.push((
                 Level::Warn,
                 format!("Dienst `{service}` ist für den Host reserviert"),
@@ -205,6 +249,33 @@ impl host::Host for PluginState {
     }
 
     fn call_host(&mut self, service: String, request: Vec<u8>) -> Result<Vec<u8>, String> {
+        if service == <locora_api::ui::Highlight as locora_api::Service>::NAME {
+            self.require(locora_api::permission::UI_HIGHLIGHT)?;
+            if request.len() > 1_024 {
+                return Err("Tour-Schritt ist zu groß".into());
+            }
+            let step: locora_api::ui::HighlightRequest = locora_api::decode(&request)
+                .map_err(|e| format!("Ungültiger Tour-Schritt: {e}"))?;
+            if !step.target.starts_with("tour-")
+                || step.target.len() > 64
+                || !step
+                    .target
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'-')
+                || step.title.trim().is_empty()
+                || step.title.chars().count() > 80
+                || step.text.trim().is_empty()
+                || step.text.chars().count() > 320
+                || step.total == 0
+                || step.total > 12
+                || step.step == 0
+                || step.step > step.total
+            {
+                return Err("Ungültiges Ziel oder Inhalt des Tour-Schritts".into());
+            }
+            self.highlights.push(step);
+            return locora_api::encode(&true).map_err(|e| e.to_string());
+        }
         if service != <locora_api::palaces::Palaces as locora_api::Service>::NAME {
             return Err(format!("Unbekannter Host-Dienst `{service}`"));
         }
@@ -312,9 +383,13 @@ impl PluginHost {
         self.load_file_with_policy(path, false)
     }
 
-    /// Load a profile component only if its manifest still matches the user's
-    /// approval. The comparison and activation use the same manifest probe.
-    pub fn load_approved_file(&mut self, path: &Path, approved: &Manifest) -> Result<Manifest> {
+    /// Load a profile component only if its bytes and manifest match approval.
+    /// The comparison and activation use the same component bytes.
+    pub fn load_approved_file(
+        &mut self,
+        path: &Path,
+        approved: &ApprovalReceipt,
+    ) -> Result<Manifest> {
         self.load_file_with_approval(path, false, Some(approved))
     }
 
@@ -326,7 +401,7 @@ impl PluginHost {
         &mut self,
         path: &Path,
         allow_reload: bool,
-        approved: Option<&Manifest>,
+        approved: Option<&ApprovalReceipt>,
     ) -> Result<Manifest> {
         if !fs::symlink_metadata(path)?.file_type().is_file() {
             bail!("Keine reguläre Plugin-Datei: {}", path.display());
@@ -352,15 +427,25 @@ impl PluginHost {
         &mut self,
         bytes: &[u8],
         allow_reload: bool,
-        approved: Option<&Manifest>,
+        approved: Option<&ApprovalReceipt>,
     ) -> Result<Manifest> {
+        if approved.is_some_and(|approved| !approved.matches_bytes(bytes)) {
+            bail!("Plugin-Datei stimmt nicht mit der bestätigten Installation überein");
+        }
         let component = self.compile(bytes)?;
         let manifest = self.inspect_component(&component)?;
-        if !allow_reload && matches!(manifest.id.as_str(), "core" | "review") {
+        if !allow_reload
+            && matches!(
+                manifest.id.as_str(),
+                "core" | "review" | "notify" | "tutorial" | "gamification"
+            )
+        {
             bail!("Eingebaute Plugin-ID `{}` ist geschützt", manifest.id);
         }
-        if approved.is_some_and(|approved| approved != &manifest) {
-            bail!("Plugin-Manifest stimmt nicht mit der bestätigten Installation überein");
+        if approved.is_some_and(|approved| !approved.matches(&manifest, bytes)) {
+            bail!(
+                "Plugin-Datei oder Manifest stimmt nicht mit der bestätigten Installation überein"
+            );
         }
 
         let reloading = self.plugins.contains_key(&manifest.id);
@@ -701,6 +786,12 @@ impl PluginHost {
                 plugin: state.id.clone(),
                 level,
                 message,
+            });
+        }
+        for step in state.highlights.drain(..) {
+            self.events.push(HostEvent::Highlighted {
+                plugin: state.id.clone(),
+                step,
             });
         }
         state.outbox.drain(..).collect()

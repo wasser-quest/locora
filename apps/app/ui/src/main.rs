@@ -10,8 +10,8 @@ mod tauri;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, PalaceCard,
-    PalaceView, UiAssets,
+    CMD_FORMULA_GUIDE, CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, NotificationView,
+    PalaceCard, PalaceView, UiAssets, HighlightRequest, TourAction, CMD_TOUR,
 };
 use serde::Serialize;
 
@@ -32,9 +32,78 @@ fn main() {
     mount_to_body(App);
 }
 
+#[derive(Serialize)]
+struct TourArgs {
+    action: TourAction,
+}
+
+fn tour_action(
+    active: RwSignal<Option<HighlightRequest>>,
+    busy: RwSignal<bool>,
+    error: RwSignal<String>,
+    action: TourAction,
+) {
+    if busy.get_untracked() { return; }
+    busy.set(true);
+    spawn_local(async move {
+        match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action }).await {
+            Ok(step) => { active.set(step); error.set(String::new()); }
+            Err(message) => error.set(message),
+        }
+        busy.set(false);
+    });
+}
+
+#[component]
+fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Screen>) -> impl IntoView {
+    let busy = RwSignal::new(false);
+    let error = RwSignal::new(String::new());
+    Effect::new(move |_| {
+        let on_home = screen.get() == Screen::Home;
+        let current = active.get();
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else { return; };
+        for id in ["tour-home-media", "tour-home-import", "tour-home-settings"] {
+            if let Some(node) = document.get_element_by_id(id) {
+                let _ = node.remove_attribute("data-tour-active");
+            }
+        }
+        if !on_home && current.is_some() {
+            active.set(None);
+            return;
+        }
+        if let Some(step) = current
+            && let Some(node) = document.get_element_by_id(&step.target) {
+                let _ = node.set_attribute("data-tour-active", "true");
+            }
+    });
+    view! {
+        <Show when=move || active.get().is_some()>
+            {move || active.get().map(|step| view! {
+                <aside class="tour-panel card" role="dialog" aria-label="App-Tour" aria-live="polite">
+                    <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
+                    <div class="tour-copy">
+                        <small>{format!("Schritt {} von {}", step.step, step.total)}</small>
+                        <h2>{step.title}</h2>
+                        <p>{step.text}</p>
+                        <p class="notes" role="status">{move || error.get()}</p>
+                        <div class="row">
+                            <button disabled=move || busy.get() on:click=move |_| tour_action(active, busy, error, TourAction::Skip)>"Schließen"</button>
+                            <button class="primary" disabled=move || busy.get()
+                                on:click=move |_| tour_action(active, busy, error, TourAction::Next)>
+                                {if step.step == step.total { "Fertig" } else { "Weiter" }}
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+            })}
+        </Show>
+    }
+}
+
 #[component]
 fn App() -> impl IntoView {
     let screen = RwSignal::new(Screen::Home);
+    let tour = RwSignal::new(None::<HighlightRequest>);
     let editing = palette::Editing(RwSignal::new(false));
     provide_context(editing);
     // The app's own animations (assets/ui), loaded once for every screen.
@@ -88,10 +157,12 @@ fn App() -> impl IntoView {
     });
     view! {
         <palette::Palette screen=screen editing=editing />
+        <Notifications screen=screen />
+        <TourOverlay active=tour screen=screen />
         <main>
             {move || match screen.get() {
                 Screen::Home => view! {
-                    <HomeView screen=screen offset_revision=offset_revision/>
+                    <HomeView screen=screen offset_revision=offset_revision tour=tour/>
                 }.into_any(),
 
                 Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
@@ -182,8 +253,108 @@ fn loci_text(n: u32) -> String {
     }
 }
 
+/// A tap on a notification runs its action, e.g. `review.start@Planeten`.
+fn notification_action(
+    notification: &NotificationView,
+    screen: RwSignal<Screen>,
+) {
+    if let Some(palace) = notification.action.strip_prefix("review.start@") {
+        screen.set(Screen::Journey(JourneyStart {
+            palace_id: Some(palace.to_owned()),
+            due_only: true,
+            ..Default::default()
+        }));
+    } else if let Some(palace) = notification.action.strip_prefix("review.open@") {
+        screen.set(Screen::Palace(palace.to_owned()));
+    }
+}
+
+/// Due reminders as small cards on top of everything, from the `notify`
+/// plugin. Fetching more acknowledges the ones on screen, so each message
+/// shows until it is handled (tap or dismiss).
 #[component]
-fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl IntoView {
+fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
+    let shown = RwSignal::new(Vec::<NotificationView>::new());
+    let busy = StoredValue::new(false);
+    let poll = move || {
+        if busy.get_value() {
+            return;
+        }
+        busy.set_value(true);
+        spawn_local(async move {
+            if let Ok(due) = call::<Vec<NotificationView>>(
+                locora_app_api::CMD_NOTIFICATIONS,
+                tauri::NoArgs {},
+            )
+            .await
+            {
+                shown.set(due);
+            }
+            busy.set_value(false);
+        });
+    };
+    poll();
+    let every = set_interval_with_handle(poll, std::time::Duration::from_secs(15 * 60)).ok();
+    on_cleanup(move || {
+        if let Some(handle) = every {
+            handle.clear();
+        }
+    });
+    let dismiss = move |notification: NotificationView, seen: bool| {
+        shown.update(|list| list.retain(|n| n != &notification));
+        if seen {
+            spawn_local(async move {
+                let _ = call::<()>(
+                    locora_app_api::CMD_NOTIFICATION_SHOWN,
+                    NotificationArgs { notification },
+                )
+                .await;
+            });
+        }
+    };
+    view! {
+        <div class="notifications" role="region" aria-label="Erinnerungen">
+            <For
+                each=move || shown.get()
+                key=|n| (n.channel.clone(), n.title.clone(), n.body.clone())
+                let:notification
+            >
+                {move || {
+                    let notification = StoredValue::new(notification.clone());
+                    view! {
+                        <div class="notification" role="status" data-priority=move || notification.get_value().priority>
+                            <button
+                                class="tap"
+                                on:click=move |_| {
+                                    notification_action(&notification.get_value(), screen);
+                                    dismiss(notification.get_value().clone(), true);
+                                }
+                            >
+                                {move || {
+                                    let n = notification.get_value();
+                                    view! {
+                                        <strong>{n.title.clone()}</strong>
+                                        <span>{n.body.clone()}</span>
+                                    }
+                                }}
+                            </button>
+                            <button
+                                class="close"
+                                aria-label="Erinnerung schließen"
+                                on:click=move |_| dismiss(notification.get_value().clone(), true)
+                            >
+                                "✕"
+                            </button>
+                        </div>
+                    }
+                }}
+            </For>
+        </div>
+    }
+}
+
+#[component]
+fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSignal<Option<HighlightRequest>>) -> impl IntoView {
     let home = RwSignal::new(None::<Result<Home, String>>);
     Effect::new(move |_| {
         let revision = offset_revision.get();
@@ -198,6 +369,31 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl In
     let busy = RwSignal::new(false);
     let message = RwSignal::new(String::new());
     let info = RwSignal::new(String::new());
+    tauri::on_file_drop(move |drop| {
+        if busy.get_untracked() {
+            return;
+        }
+        let ticket = match drop {
+            Ok(ticket) => ticket,
+            Err(error) => {
+                message.set(error);
+                return;
+            }
+        };
+        busy.set(true);
+        message.set(String::new());
+        spawn_local(async move {
+            #[derive(serde::Serialize)]
+            struct DropArgs {
+                ticket: String,
+            }
+            match call::<PalaceView>("home_import_drop", DropArgs { ticket }).await {
+                Ok(palace) => screen.set(Screen::Imported(palace)),
+                Err(error) => message.set(error),
+            }
+            busy.set(false);
+        });
+    });
     let pick_media = move |_| {
         if busy.get_untracked() {
             return;
@@ -254,14 +450,36 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl In
             }
         });
     };
+    let start_formula_guide = move |_| {
+        if busy.get_untracked() { return; }
+        busy.set(true);
+        spawn_local(async move {
+            match call::<String>(CMD_FORMULA_GUIDE, tauri::NoArgs {}).await {
+                Ok(id) => screen.set(Screen::Palace(id)),
+                Err(error) => { busy.set(false); message.set(error); }
+            }
+        });
+    };
+    let start_tour = move |_| {
+        if busy.get_untracked() { return; }
+        busy.set(true);
+        spawn_local(async move {
+            match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Start }).await {
+                Ok(step) => tour.set(step),
+                Err(error) => message.set(error),
+            }
+            busy.set(false);
+        });
+    };
     view! {
         <header class="bar">
             <h1>"Locora"</h1>
-            <button disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
-            <button disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei">
+            <button id="tour-home-media" disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
+            <button id="tour-home-import" disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei oder locora.toml">
                 "Importieren…"
             </button>
-            <button title="Einstellungen & Statistik" on:click=move |_| screen.set(Screen::Settings)>
+            <button disabled=move || busy.get() on:click=start_tour>"App-Tour"</button>
+            <button id="tour-home-settings" title="Einstellungen & Statistik" on:click=move |_| screen.set(Screen::Settings)>
                 "⚙"
             </button>
         </header>
@@ -273,6 +491,7 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl In
             Some(Ok(home)) => {
                 let waiting = home.due + home.fresh;
                 let tutorial = home.tutorial;
+                let formula_guide = home.formula_guide;
                 if let Some(simo) = home.welcome.clone() {
                     return view! {
                         <section class="card welcome">
@@ -299,6 +518,9 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl In
                                     </button>
                                     <button disabled=move || busy.get() on:click=pick_media>
                                         "Eigener Palast aus Bild/Video…"
+                                    </button>
+                                    <button disabled=move || busy.get() on:click=start_formula_guide>
+                                        "Formel-Guide öffnen"
                                     </button>
                                 </div>
                             </div>
@@ -367,6 +589,20 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl In
                                     </div>
                                     <button disabled=move || busy.get() on:click=start_tutorial>
                                         "Tutorial anlegen"
+                                    </button>
+                                </section>
+                            }
+                        })}
+                    {(!formula_guide)
+                        .then(|| {
+                            view! {
+                                <section class="card weiter">
+                                    <div class="text">
+                                        <div class="count">"Formeln verstehen"</div>
+                                        <div class="meta">"Variablen, Tabellen und Bindungen in einem eigenen Palast üben."</div>
+                                    </div>
+                                    <button disabled=move || busy.get() on:click=start_formula_guide>
+                                        "Formel-Guide anlegen"
                                     </button>
                                 </section>
                             }
@@ -442,7 +678,7 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
     view! {
         <article class="card palace" aria-disabled=move || busy.get()
             on:click=move |_| { if !busy.get_untracked() { screen.set(Screen::Palace(id.clone())); } }>
-            <span class="name">{palace.name.clone()}</span>
+            <button class="name palace-title" disabled=move || busy.get()>{palace.name.clone()}</button>
             <div class="row">
                 <span class="meta">{format!("{} · {}", loci_text(palace.loci), status)}</span>
                 <button
@@ -494,6 +730,11 @@ fn guard_palette(blocked: RwSignal<bool>) {
 #[derive(Serialize)]
 struct OffsetArgs {
     offset: locora_app_api::UtcOffset,
+}
+
+#[derive(Serialize)]
+struct NotificationArgs {
+    notification: NotificationView,
 }
 
 #[derive(Serialize)]
@@ -555,6 +796,24 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
                 }
             >
                 "Exportieren…"
+            </button>
+            <button disabled=move || blocked.get() || exporting.get()
+                title="Bearbeitbare TOML-Quelle und Medien in einen Ordner exportieren (ohne Wiederholungsstand)"
+                on:click=move |_| {
+                    if exporting.get_untracked() { return; }
+                    let id = id.get_value();
+                    saved.set(Ok(String::new()));
+                    exporting.set(true);
+                    spawn_local(async move {
+                        match call::<Option<String>>(locora_app_api::CMD_DUMP_PICK, IdArgs { id }).await {
+                            Ok(Some(text)) => saved.set(Ok(text)),
+                            Err(text) => saved.set(Err(text)),
+                            Ok(None) => {}
+                        }
+                        exporting.set(false);
+                    });
+                }>
+                "TOML exportieren…"
             </button>
             <button class="primary" disabled=move || blocked.get() on:click=move |_| start(false)>
                 "▶ Route ablaufen"

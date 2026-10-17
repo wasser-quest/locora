@@ -5,15 +5,16 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
-use locora_api::core::{Grade, JourneyCompleted};
+use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{Answer, AnswerKind as Kind, Submission};
 use locora_app_api::{
-    ActionDone, AnswerKind, Feedback, InputField, JourneyStart, Media, Question, Reply, Revealed,
-    Step, Summary,
+    ActionDone, AnswerKind, Feedback, GameView, InputField, JourneyStart, Media, Question, Reply,
+    Revealed, Step, Summary,
 };
 use locora_formula::workbook::{ActionOutcome, Run};
 use locora_runtime::journey::{PlanOptions, Stop, plan, resolve_text};
 use locora_runtime::{AnswerRequest, Profile, now};
+use locora_store::JourneyAnswer;
 use locora_store::{Locus, PalaceTree};
 
 use crate::views::{marker, media};
@@ -33,6 +34,10 @@ pub struct Journey {
     finished: Option<Summary>,
     asked: Instant,
     results: Vec<(String, bool)>,
+    /// Start of the journey; answers are timed from here for rankings.
+    started: Instant,
+    /// Graded answers per palace, stored when the palace is completed.
+    transcripts: HashMap<String, Vec<JourneyAnswer>>,
     points: u64,
     /// Time per palace, only at its own loci.
     spent: HashMap<String, Duration>,
@@ -121,6 +126,14 @@ impl Journey {
         if planned.stops.is_empty() {
             return Ok(None);
         }
+        let mut palace_ids = Vec::new();
+        for stop in &planned.stops {
+            let id = &trees[stop.palace].palace.id;
+            if !palace_ids.contains(id) {
+                palace_ids.push(id.clone());
+            }
+        }
+        let start_notes = profile.publish(&JourneyStarted { palace_ids })?;
         let mut journey = Self {
             trees,
             runs,
@@ -133,9 +146,11 @@ impl Journey {
             finished: None,
             asked: Instant::now(),
             results: Vec::new(),
+            started: Instant::now(),
+            transcripts: HashMap::new(),
             points: 0,
             spent: HashMap::new(),
-            notes: planned.warnings,
+            notes: planned.warnings.into_iter().chain(start_notes).collect(),
         };
         journey.enter();
         Ok(Some(journey))
@@ -218,6 +233,7 @@ impl Journey {
             total: self.stops.len() as u32,
             palace: tree.palace.name.clone(),
             room: room.name.clone(),
+            time: locus.time,
             backdrop: room.media.as_deref().and_then(|h| media(&profile.store, h)),
             marker: marker(&profile.store, tree, default_marker),
             x: locus.x,
@@ -403,6 +419,13 @@ impl Journey {
                     elapsed_ms: elapsed.as_millis().min(u64::MAX as u128) as u64,
                 })?;
                 self.notes.extend(answered.notes);
+                self.transcripts
+                    .entry(palace_id.clone())
+                    .or_default()
+                    .push(JourneyAnswer {
+                        correct: answered.correct,
+                        at_ms: self.started.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                    });
                 self.results.push((palace_id, answered.correct));
                 self.points = self.points.saturating_add(answered.points);
                 (answered.correct, answered.points)
@@ -417,7 +440,12 @@ impl Journey {
         } else {
             Step::Done(self.finish(profile)?)
         };
+        let game = profile.gamification_status()?.map(|status| GameView {
+            combo: status.combo,
+            hearts: status.hearts,
+        });
         Ok(Feedback {
+            game,
             correct,
             points,
             revealed,
@@ -458,6 +486,9 @@ impl Journey {
                     .map_or(0, |d| d.as_secs_f64().round() as u64),
             })?;
             self.notes.extend(notes);
+            if let Some(answers) = self.transcripts.get(&tree.palace.id) {
+                profile.store.record_journey(&tree.palace.id, answers)?;
+            }
         }
         let summary = Summary {
             asked: self.results.len() as u32,
@@ -474,6 +505,51 @@ impl Journey {
 mod tests {
     use super::*;
     use locora_store::{NewLocus, RoomKind};
+
+    #[test]
+    fn video_question_preserves_locus_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let palace = profile.store.create_palace("Video").unwrap();
+        let video = profile.store.put_media(b"video", "video/mp4").unwrap();
+        let room = profile
+            .store
+            .add_room(&palace.id, "Film", RoomKind::Video, Some(&video.hash))
+            .unwrap();
+        profile
+            .store
+            .add_locus(
+                &room.id,
+                NewLocus {
+                    place: "Szene".into(),
+                    item: "Antwort".into(),
+                    x: 0.5,
+                    y: 0.5,
+                    time: Some(6.25),
+                    answer: Answer::default(),
+                    image: None,
+                    note: String::new(),
+                    image_size: locora_store::default_image_size(),
+                    zoom: locora_store::default_zoom(),
+                },
+            )
+            .unwrap();
+        let journey = Journey::start(
+            &mut profile,
+            JourneyStart {
+                palace_id: Some(palace.id),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+        let question = journey.question(&profile, "marker");
+        assert_eq!(question.time, Some(6.25));
+        assert_eq!(
+            question.backdrop.unwrap().kind,
+            locora_app_api::MediaKind::Video
+        );
+    }
 
     #[test]
     fn pictures_and_widths_travel_only_on_reveal_except_reverse_prompt() {

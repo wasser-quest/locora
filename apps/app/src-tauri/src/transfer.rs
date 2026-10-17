@@ -1,15 +1,21 @@
-//! Import and export `.locora` files (with the review schedule) through
+//! Import `.locora` archives or TOML sources and export `.locora` files through
 //! native file dialogs; the logic is `locora_runtime::transfer`.
 
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result, ensure};
 use locora_app_api::{ImportResult, ImportedPalace};
 use locora_runtime::Profile;
 use locora_runtime::transfer::{self, file_name};
 
 /// Import a file: always new copies, the review schedule when it is there.
 pub fn import_path(profile: &mut Profile, path: &Path) -> Result<ImportResult> {
+    if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("toml"))
+    {
+        return import_source(profile, path);
+    }
     let opened = transfer::open(path, true)?;
     let done = profile.import(opened)?;
     Ok(ImportResult {
@@ -25,6 +31,69 @@ pub fn import_path(profile: &mut Profile, path: &Path) -> Result<ImportResult> {
         restored: done.restored,
         notes: done.notes,
     })
+}
+
+/// Build a checked TOML source as a new copy, resolving media beside the file.
+fn import_source(profile: &mut Profile, path: &Path) -> Result<ImportResult> {
+    use std::io::Read;
+    let mut text = String::new();
+    std::fs::File::open(path)
+        .with_context(|| format!("{} lesen", path.display()))?
+        .take(locora_format::limits::JSON_BYTES + 1)
+        .read_to_string(&mut text)?;
+    ensure!(
+        text.len() as u64 <= locora_format::limits::JSON_BYTES,
+        "TOML-Datei ist zu groß"
+    );
+    let source = locora_source::parse(&text)?;
+    let base = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let mut plan = locora_source::check(&source, base)?;
+    ensure!(
+        plan.rooms.len() <= locora_format::limits::ROOMS_PER_PALACE,
+        "Zu viele Räume"
+    );
+    ensure!(plan.loci() <= locora_format::limits::LOCI, "Zu viele Loci");
+    ensure!(
+        plan.tables.len() <= locora_format::limits::TABLE_ROWS,
+        "Zu viele Tabellenzeilen"
+    );
+    let original_name = plan.name.clone();
+    let mut n = 2;
+    while profile.store.find_palace(&plan.name)?.is_some() {
+        plan.name = format!("{original_name} ({n})");
+        n += 1;
+    }
+    let tree = locora_source::build(&profile.store, &plan)?;
+    // Once stored, notification failures are notes, not failed imports that
+    // would invite the user to retry and create another copy.
+    let notes = match profile.publish(&locora_api::core::PalaceCreated {
+        palace_id: tree.palace.id.clone(),
+        name: tree.palace.name.clone(),
+    }) {
+        Ok(notes) => notes,
+        Err(error) => vec![format!("Plugins nicht benachrichtigt: {error:#}")],
+    };
+    Ok(ImportResult {
+        palaces: vec![ImportedPalace {
+            id: tree.palace.id,
+            name: tree.palace.name,
+            original_name,
+        }],
+        restored: None,
+        notes,
+    })
+}
+
+/// Export editable TOML and media without replacing existing files.
+pub fn dump_path(profile: &Profile, palace_id: &str, directory: &Path) -> Result<String> {
+    let file = locora_source::dump(&profile.store, palace_id, directory)?;
+    Ok(format!(
+        "Gespeichert: {} (TOML und Medien, ohne Wiederholungsstand)",
+        file.display()
+    ))
 }
 
 /// The file name the save dialog suggests.
@@ -69,6 +138,87 @@ pub fn export_path(profile: &mut Profile, palace_id: &str, path: &Path) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn toml_import_resolves_media_and_makes_copies() {
+        let dir = tempfile::tempdir().unwrap();
+        let profile_path = dir.path().join("profile");
+        let source_dir = dir.path().join("source");
+        std::fs::create_dir(&source_dir).unwrap();
+        std::fs::write(source_dir.join("room.png"), b"picture").unwrap();
+        let file = source_dir.join("locora.TOML");
+        std::fs::write(&file, "name = \"Planeten\"\n[[room]]\nname = \"Zimmer\"\nimage = \"room.png\"\nitems = [\"Merkur\", \"Venus\"]\n").unwrap();
+        let mut profile = Profile::open(Some(&profile_path)).unwrap();
+        let first = import_path(&mut profile, &file).unwrap();
+        assert_eq!(first.palaces[0].name, "Planeten");
+        assert_eq!(first.restored, None);
+        let second = import_path(&mut profile, &file).unwrap();
+        assert_eq!(second.palaces[0].name, "Planeten (2)");
+        assert_eq!(second.palaces[0].original_name, "Planeten");
+        assert_ne!(first.palaces[0].id, second.palaces[0].id);
+        drop(profile);
+        let profile = Profile::open(Some(&profile_path)).unwrap();
+        let tree = profile.store.palace(&first.palaces[0].id).unwrap();
+        assert_eq!(tree.route().count(), 2);
+        assert!(tree.rooms[0].room.media.is_some());
+    }
+
+    #[test]
+    fn toml_export_roundtrips_and_does_not_overwrite() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(&dir.path().join("profile"))).unwrap();
+        let (tree, _) = locora_runtime::tutorial::install(&mut profile).unwrap();
+        let output = dir.path().join("export");
+        let message = dump_path(&profile, &tree.palace.id, &output).unwrap();
+        assert!(message.contains("ohne Wiederholungsstand"));
+        let file = std::fs::read_dir(&output)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .find(|p| p.extension().is_some_and(|e| e == "toml"))
+            .unwrap();
+        let before = std::fs::read(&file).unwrap();
+        assert!(dump_path(&profile, &tree.palace.id, &output).is_err());
+        assert_eq!(std::fs::read(&file).unwrap(), before);
+        let imported = import_path(&mut profile, &file).unwrap();
+        let copy = profile.store.palace(&imported.palaces[0].id).unwrap();
+        assert_eq!(copy.route().count(), tree.route().count());
+        assert_eq!(copy.rooms.len(), tree.rooms.len());
+        assert_ne!(copy.palace.id, tree.palace.id);
+    }
+
+    #[test]
+    fn toml_import_rejects_too_many_rooms_before_building() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(&dir.path().join("profile"))).unwrap();
+        let file = dir.path().join("locora.toml");
+        let mut text = String::from("name = \"P\"\n");
+        for i in 0..=locora_format::limits::ROOMS_PER_PALACE {
+            text.push_str(&format!("[[room]]\nname = \"R{i}\"\n"));
+        }
+        std::fs::write(&file, text).unwrap();
+        assert!(
+            import_path(&mut profile, &file)
+                .unwrap_err()
+                .to_string()
+                .contains("Zu viele Räume")
+        );
+        assert!(profile.store.palaces().unwrap().is_empty());
+    }
+
+    #[test]
+    fn invalid_toml_import_does_not_create_a_palace() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(&dir.path().join("profile"))).unwrap();
+        let file = dir.path().join("locora.toml");
+        for text in [
+            "not toml",
+            "name = \"P\"\n[[room]]\nname = \"R\"\nimage = \"missing.png\"\n",
+        ] {
+            std::fs::write(&file, text).unwrap();
+            assert!(import_path(&mut profile, &file).is_err());
+            assert!(profile.store.palaces().unwrap().is_empty());
+        }
+    }
 
     #[test]
     fn export_then_import_makes_a_copy() {
