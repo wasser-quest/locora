@@ -2,6 +2,7 @@
 //! 4:00/local-offset convention applies to reviews and daily challenges.
 use std::collections::BTreeMap;
 
+use locora_scoring::journey_xp;
 use locora_sdk::api::core::{JourneyStarted, LearningDayAnswer};
 use locora_sdk::api::gamification::{Status, StatusResponse, Trophy, TrophyUnlocked};
 use locora_sdk::prelude::*;
@@ -47,6 +48,11 @@ fn load(ctx: &mut Ctx) -> Result<Progress> {
 
 fn save(ctx: &mut Ctx, progress: &Progress) -> Result {
     ctx.store().set("progress", progress)?;
+    show(ctx, progress)
+}
+
+/// Updates the start-screen tile without writing anything to storage.
+fn show(ctx: &mut Ctx, progress: &Progress) -> Result {
     ctx.tile(
         "Erfolge",
         format!(
@@ -67,31 +73,11 @@ fn unlock(ctx: &mut Ctx, progress: &mut Progress, trophy: Trophy) -> Result {
     Ok(())
 }
 
-/// Port of mnemodim/shared/journeyScoring.ts: rounded integer accuracy.
-fn journey_xp(correct: u32, total: u32, max_combo: u32) -> u64 {
-    let accuracy = if total == 0 {
-        0
-    } else {
-        (u64::from(correct).saturating_mul(100) + u64::from(total) / 2) / u64::from(total)
-    };
-    let multiplier = if accuracy >= 90 {
-        3
-    } else if accuracy >= 70 {
-        2
-    } else {
-        1
-    };
-    (u64::from(correct)
-        .saturating_mul(10)
-        .saturating_add(u64::from(max_combo).saturating_mul(5)))
-    .saturating_mul(multiplier)
-}
-
 impl Plugin for Gamification {
     fn activate(ctx: &mut Ctx) -> Result {
         ctx.on::<Started>(|ctx, _| {
             let progress = load(ctx)?;
-            save(ctx, &progress)
+            show(ctx, &progress)
         })?;
         ctx.on::<JourneyStarted>(|ctx, event| {
             let mut progress = load(ctx)?;
@@ -188,6 +174,6 @@ impl Plugin for Gamification {
             })
         })?;
         let progress = load(ctx)?;
-        save(ctx, &progress)
+        show(ctx, &progress)
     }
 }

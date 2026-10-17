@@ -1,0 +1,10 @@
+[package]
+name = "locora-scoring"
+description = "Journey XP rules and transcript replay shared by the app plugins and Locora Cloud"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]

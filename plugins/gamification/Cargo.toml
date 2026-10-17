@@ -10,4 +10,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 locora-sdk = { path = "../../crates/locora-sdk" }
+locora-scoring = { path = "../../crates/locora-scoring" }
 serde = { version = "1", features = ["derive"] }

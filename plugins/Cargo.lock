@@ -65,6 +65,7 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 name = "gamification"
 version = "0.1.0"
 dependencies = [
+ "locora-scoring",
  "locora-sdk",
  "serde",
 ]
@@ -149,6 +150,10 @@ version = "0.1.0"
 dependencies = [
  "locora-api",
 ]
+
+[[package]]
+name = "locora-scoring"
+version = "0.1.0"
 
 [[package]]
 name = "locora-sdk"

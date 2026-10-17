@@ -22,6 +22,7 @@ fn main() {
         "crates/locora-sdk-macros/src",
         "crates/locora-api/src",
         "crates/locora-fsrs/src",
+        "crates/locora-scoring/src",
     ] {
         println!("cargo:rerun-if-changed={}", root.join(dir).display());
     }
