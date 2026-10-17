@@ -1,0 +1,67 @@
+# Ein kleiner Palast für die Formelsprache. Die Bilder zeigen jeweils die
+# Antwort; beim Fragen bleiben sie wie im Tutorial zunächst verborgen.
+name = "Formeln verstehen"
+
+[[room]]
+name = "Schreibstube"
+image = "../bibliothek.sply"
+
+[[room.locus]]
+place = "Das Eingabebuch – wie liest eine Formel eine Eingabe?"
+item = "$zahl"
+note = "Ein Dollarzeichen vor dem Eingabenamen liest dessen aktuellen Wert."
+at = [0.22, 0.27]
+image = "eingabe.sply"
+
+[[room.locus]]
+place = "Der Rechentisch – was ergibt Integer($zahl) + 1 bei zahl = 3?"
+item = "4"
+note = "Dieser Ort berechnet seine Antwort selbst: Integer($zahl) + 1. Der Startwert von zahl ist 3."
+at = [0.50, 0.55]
+image = "rechnen.sply"
+bindings = { item = "Integer($zahl) + 1" }
+
+[[room.locus]]
+place = "Das Register – welches Merkwort liefert Major[4]?"
+item = "Reh"
+note = 'Dieser Ort liest seine Antwort aus Major["4"]. Der Schlüssel steht als Text in eckigen Klammern.'
+at = [0.79, 0.28]
+image = "tabelle.sply"
+bindings = { item = 'Major["4"]' }
+
+[[room]]
+name = "Werkstatt"
+image = "../halle.sply"
+
+[[room.locus]]
+place = "Das Etikett – welches Feld ersetzt eine Bindung?"
+item = "item"
+note = "Eine item-Bindung berechnet den Inhalt eines Ortes. Auch place, x, y, visible und active lassen sich binden."
+at = [0.24, 0.56]
+image = "bindung.sply"
+
+[[room.locus]]
+place = "Die Weiche – wann ist ein Ort aktiv?"
+item = "Wenn die active-Formel true ergibt"
+note = "Zum Beispiel: Integer($zahl) > 2. Ein inaktiver Ort wird in der Journey übersprungen."
+at = [0.53, 0.28]
+image = "aktiv.sply"
+bindings = { active = "Integer($zahl) > 2" }
+
+[[room.locus]]
+place = "Das Tor – wo schreibst du die Formel für den Ort?"
+item = "In bindings der locora.toml-Datei"
+note = "Beispiel: bindings = { item = 'Major[\"4\"]', active = \"Integer($zahl) > 2\" }"
+at = [0.77, 0.62]
+image = "quelle.sply"
+
+[[table]]
+table = "Inputs"
+key = "zahl"
+value = "3"
+type = "number"
+
+[[table]]
+table = "Major"
+key = "4"
+value = "Reh"
