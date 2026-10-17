@@ -8,12 +8,13 @@ use anyhow::{Context, Result, bail};
 use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{Answer, AnswerKind as Kind, Submission};
 use locora_app_api::{
-    ActionDone, AnswerKind, Feedback, InputField, JourneyStart, Media, Question, Reply, Revealed,
-    Step, Summary,
+    ActionDone, AnswerKind, Feedback, GameView, InputField, JourneyStart, Media, Question, Reply,
+    Revealed, Step, Summary,
 };
 use locora_formula::workbook::{ActionOutcome, Run};
 use locora_runtime::journey::{PlanOptions, Stop, plan, resolve_text};
 use locora_runtime::{AnswerRequest, Profile, now};
+use locora_store::JourneyAnswer;
 use locora_store::{Locus, PalaceTree};
 
 use crate::views::{marker, media};
@@ -33,6 +34,10 @@ pub struct Journey {
     finished: Option<Summary>,
     asked: Instant,
     results: Vec<(String, bool)>,
+    /// Start of the journey; answers are timed from here for rankings.
+    started: Instant,
+    /// Graded answers per palace, stored when the palace is completed.
+    transcripts: HashMap<String, Vec<JourneyAnswer>>,
     points: u64,
     /// Time per palace, only at its own loci.
     spent: HashMap<String, Duration>,
@@ -141,6 +146,8 @@ impl Journey {
             finished: None,
             asked: Instant::now(),
             results: Vec::new(),
+            started: Instant::now(),
+            transcripts: HashMap::new(),
             points: 0,
             spent: HashMap::new(),
             notes: planned.warnings.into_iter().chain(start_notes).collect(),
@@ -412,6 +419,13 @@ impl Journey {
                     elapsed_ms: elapsed.as_millis().min(u64::MAX as u128) as u64,
                 })?;
                 self.notes.extend(answered.notes);
+                self.transcripts
+                    .entry(palace_id.clone())
+                    .or_default()
+                    .push(JourneyAnswer {
+                        correct: answered.correct,
+                        at_ms: self.started.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                    });
                 self.results.push((palace_id, answered.correct));
                 self.points = self.points.saturating_add(answered.points);
                 (answered.correct, answered.points)
@@ -426,7 +440,12 @@ impl Journey {
         } else {
             Step::Done(self.finish(profile)?)
         };
+        let game = profile.gamification_status()?.map(|status| GameView {
+            combo: status.combo,
+            hearts: status.hearts,
+        });
         Ok(Feedback {
+            game,
             correct,
             points,
             revealed,
@@ -467,6 +486,9 @@ impl Journey {
                     .map_or(0, |d| d.as_secs_f64().round() as u64),
             })?;
             self.notes.extend(notes);
+            if let Some(answers) = self.transcripts.get(&tree.palace.id) {
+                profile.store.record_journey(&tree.palace.id, answers)?;
+            }
         }
         let summary = Summary {
             asked: self.results.len() as u32,

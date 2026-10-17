@@ -23,6 +23,11 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Atspi, Gtk, Gdk, GLib
 
 
+def node_text(node):
+    text = node.get_text_iface()
+    return Atspi.Text.get_text(text, 0, Atspi.Text.get_character_count(text)) if text else ""
+
+
 def walk(node, depth=0):
     if node is None:
         return
@@ -168,7 +173,10 @@ class Scenario:
         self.until(lambda: self.find("Leicht", "button", True) or self.find("Gut", "button", True))
         self.x("key", "--clearmodifiers", "3")
         self.until(lambda: self.find("Weiter", "button", True))
-        self.record("recall-keyboard-reveal-and-grade", clicks=0)
+        # One correct answer: combo 1, all five hearts still there.
+        status = self.until(lambda: next((t for t in (node_text(n) for n in walk(self.app) if n.get_role_name() == "paragraph") if t.startswith("Combo ")), None))
+        assert status == "Combo 1 · Herzen ♥♥♥♥♥", status
+        self.record("recall-keyboard-reveal-and-grade", clicks=0, combo=1, hearts=5)
         # Loci 2–6 are recall, 7 is the tutorial's quiz (multiple choice).
         for _ in range(5):
             self.x("key", "--clearmodifiers", "space")
@@ -298,6 +306,30 @@ class Scenario:
         assert not any((n.get_name() or "").strip() and "konnte nicht" in n.get_name() for n in walk(self.app))
         self.shot("video-timeline")
         self.record("video-timeline-navigation", buttons=2, chronological=True)
+
+        # Frame steps: on the focused, paused stage "." and "," move the playhead by one 1/30 s frame.
+        def position():
+            # WebKitGTK exposes paragraph text through the Text interface, not the name.
+            def read():
+                for node in walk(self.app):
+                    text = node_text(node) if node.get_role_name() == "paragraph" else ""
+                    if text.startswith("Position "):
+                        return float(text.split()[1])
+                return None
+            return self.until(read)
+        def moved_from(value):
+            current = position()
+            return current if current != value else None
+        stage = self.until(lambda: self.find("Videoraum", "section", True))
+        assert stage.grab_focus()
+        before = position()
+        self.x("key", "--clearmodifiers", "period")
+        after = self.until(lambda: moved_from(before))
+        assert .02 <= after - before <= .05, (before, after)
+        self.x("key", "--clearmodifiers", "comma")
+        back = self.until(lambda: moved_from(after))
+        assert .02 <= after - back <= .05, (after, back)
+        self.record("video-frame-steps", keys=2, frame_seconds=round(after - before, 3))
 
         # Video journey: play muted to each locus, hold there, keyboard reveal/grade.
         self.click("←")

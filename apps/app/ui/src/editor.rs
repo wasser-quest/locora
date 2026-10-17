@@ -233,6 +233,23 @@ fn inverse(action: &EditorAction, room: &locora_app_api::RoomView) -> Option<Edi
     })
 }
 
+/// Length of one frame for `,` and `.` in the video editor (30 fps).
+const VIDEO_FRAME_SECONDS: f64 = 1.0 / 30.0;
+
+/// Time one frame before or after `current`, never below 0 s or past a known duration.
+fn frame_step_time(current: f64, forward: bool, duration: Option<f64>) -> f64 {
+    let next = if forward {
+        current + VIDEO_FRAME_SECONDS
+    } else {
+        current - VIDEO_FRAME_SECONDS
+    }
+    .max(0.0);
+    match duration.filter(|d| d.is_finite() && *d > 0.0) {
+        Some(duration) => next.min(duration),
+        None => next,
+    }
+}
+
 fn recoverable_draft(stored: Option<Draft>, committed: &Draft) -> Option<Draft> {
     stored.filter(|draft| draft != committed)
 }
@@ -851,6 +868,7 @@ fn RoomStage(
     let video = room.video;
     let player = NodeRef::<html::Video>::new();
     let video_duration = RwSignal::new(None::<f64>);
+    let playhead = RwSignal::new(0.0_f64);
     let mut timeline: Vec<_> = room
         .loci
         .iter()
@@ -864,6 +882,7 @@ fn RoomStage(
     let timeline_marks = timeline.clone();
     let timeline_editor = StoredValue::new(editor.clone());
     let timed_editor = editor.clone();
+    let stepped_editor = editor.clone();
     let create_at_playhead = StoredValue::new_local(move || {
         if !editing.get_untracked()
             || busy.get_untracked()
@@ -894,9 +913,38 @@ fn RoomStage(
         revealed.set(false);
         timed_editor.change(EditorAction::CreateVideo { time });
     });
+    let step_frame = StoredValue::new_local(move |forward: bool| {
+        if !editing.get_untracked()
+            || busy.get_untracked()
+            || gesture.with_untracked(|g| g.is_some())
+        {
+            return;
+        }
+        let Some(player) = player.get() else {
+            return;
+        };
+        if player.ready_state() == 0 {
+            stepped_editor
+                .message
+                .set("Das Video ist noch nicht geladen".into());
+            return;
+        }
+        if player.pause().is_err() {
+            stepped_editor
+                .message
+                .set("Video konnte nicht angehalten werden".into());
+            return;
+        }
+        let duration = player.duration();
+        player.set_current_time(frame_step_time(
+            player.current_time(),
+            forward,
+            duration.is_finite().then_some(duration),
+        ));
+    });
     view! {
         <Show when=move || editing.get() && video>
-            <p class="notes">"Video: An die gewünschte Stelle spulen und einen Ort hinzufügen. Taste L funktioniert, wenn die Bühne selbst fokussiert ist."</p>
+            <p class="notes">"Video: An die gewünschte Stelle spulen und einen Ort hinzufügen. Taste L funktioniert, wenn die Bühne selbst fokussiert ist; , und . springen einen Frame zurück bzw. vor."</p>
             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
                 on:click=move |_| create_at_playhead.with_value(|create| create())>
                 "Ort an aktueller Videozeit"
@@ -921,6 +969,7 @@ fn RoomStage(
                             <span>{move || format!("{:.2} s", video_duration.get().unwrap_or_default())}</span>
                         </div>
                     </Show>
+                    <p class="notes video-playhead">{move || format!("Position {:.2} s", playhead.get())}</p>
                     <div class="video-timeline-loci">
                     {timeline.into_iter().map(|(time, id, number, place)| {
                         let selected_id = id.clone();
@@ -958,7 +1007,7 @@ fn RoomStage(
             })
         } else { None }}
         <div class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
-            aria-label=if video { "Videoraum – Bühne fokussieren und L für einen Ort an der aktuellen Zeit drücken" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
+            aria-label=if video { "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
             on:keydown=move |ev: web_sys::KeyboardEvent| {
                 // Only the stage itself, never native video controls or markers.
                 let stage_focused = ev.target().is_some() && ev.target() == ev.current_target();
@@ -967,6 +1016,12 @@ fn RoomStage(
                     && !ev.alt_key() && ev.key().eq_ignore_ascii_case("l") {
                     ev.prevent_default();
                     create_at_playhead.with_value(|create| create());
+                }
+                let frame_key = ev.key();
+                if video && stage_focused && editing.get_untracked() && !ev.is_composing()
+                    && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() && (frame_key == "," || frame_key == ".") {
+                    ev.prevent_default();
+                    step_frame.with_value(|step| step(frame_key == "."));
                 }
             }
             on:paste=move |ev: web_sys::ClipboardEvent| {
@@ -1019,6 +1074,11 @@ fn RoomStage(
                         on_loaded=Box::new(move || {
                             video_duration.set(player.get_untracked().map(|video| video.duration())
                                 .filter(|duration| duration.is_finite() && *duration > 0.0));
+                        })
+                        on_timeupdate=Box::new(move || {
+                            if let Some(video) = player.get_untracked() {
+                                playhead.set(video.current_time());
+                            }
                         })
                     /> }.into_any()
                 } else {
@@ -1497,6 +1557,26 @@ fn ContentForm(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn frame_steps_stay_inside_the_video() {
+        assert_eq!(
+            frame_step_time(1.0, true, Some(10.0)),
+            1.0 + VIDEO_FRAME_SECONDS
+        );
+        assert_eq!(
+            frame_step_time(1.0, false, Some(10.0)),
+            1.0 - VIDEO_FRAME_SECONDS
+        );
+        assert_eq!(frame_step_time(0.0, false, Some(10.0)), 0.0);
+        assert_eq!(frame_step_time(9.99, true, Some(10.0)), 10.0);
+        assert_eq!(frame_step_time(2.0, true, None), 2.0 + VIDEO_FRAME_SECONDS);
+        assert_eq!(
+            frame_step_time(2.0, true, Some(f64::NAN)),
+            2.0 + VIDEO_FRAME_SECONDS
+        );
+    }
+
     fn move_to(x: f64) -> EditorAction {
         EditorAction::Move {
             id: "locus".into(),

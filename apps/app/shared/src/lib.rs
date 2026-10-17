@@ -523,6 +523,18 @@ pub struct Feedback {
     pub points: u64,
     pub revealed: Revealed,
     pub next: Step,
+    /// Combo and hearts after this answer; `None` without the gamification plugin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game: Option<GameView>,
+}
+
+/// Progress inside the current journey, as the gamification plugin counts it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameView {
+    /// Correct answers in a row.
+    pub combo: u32,
+    /// Hearts left (a wrong answer costs one).
+    pub hearts: u8,
 }
 
 /// What follows an answer.

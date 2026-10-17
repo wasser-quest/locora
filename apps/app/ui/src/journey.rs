@@ -7,8 +7,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     ActionDone, AnswerKind, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS,
-    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, InputField, InputValue, JourneyStart,
-    Question, Reply, Revealed, Step, Summary, UiAssets,
+    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, GameView, InputField, InputValue,
+    JourneyStart, Question, Reply, Revealed, Step, Summary, UiAssets,
 };
 use serde::Serialize;
 
@@ -460,10 +460,10 @@ fn on_metadata(
         return;
     };
     let duration = player.duration();
-    match time.filter(|t| t.is_finite() && *t >= 0.0
-        && (!duration.is_finite() || *t <= duration)) {
+    match time.filter(|t| t.is_finite() && *t >= 0.0 && (!duration.is_finite() || *t <= duration)) {
         Some(target) => {
-            let start = video_segment_start(progress.get_value().as_ref(), &key.get_value(), target);
+            let start =
+                video_segment_start(progress.get_value().as_ref(), &key.get_value(), target);
             player.set_current_time(start);
             if start == target {
                 let _ = player.pause();
@@ -486,7 +486,10 @@ fn on_metadata(
                 }
             });
         }
-        None => { error.set(true); ready.set(true); },
+        None => {
+            error.set(true);
+            ready.set(true);
+        }
     }
 }
 
@@ -646,6 +649,7 @@ fn Judged(
     busy: RwSignal<bool>,
     art: RwSignal<Option<UiAssets>>,
 ) -> impl IntoView {
+    let game = feedback.game;
     let r = feedback.revealed;
     let automatic = question.kind != AnswerKind::Recall;
     let right: Vec<String> = r
@@ -669,6 +673,7 @@ fn Judged(
                 }
             })}
         <Answer solution=r.solution note=r.note picture=r.picture />
+        {game.map(|game| view! { <p class="progress game-status">{game_status(game)}</p> })}
         {(!right.is_empty())
             .then(|| {
                 view! { <div class="progress">{format!("Richtig: {}", right.join(", "))}</div> }
@@ -677,6 +682,18 @@ fn Judged(
             "Weiter (Leertaste)"
         </button>
     }
+}
+
+/// Combo and hearts as one line, e.g. "Combo 3 · Herzen ♥♥♥♡♡".
+fn game_status(game: GameView) -> String {
+    const HEARTS: usize = 5;
+    let held = usize::from(game.hearts).min(HEARTS);
+    format!(
+        "Combo {} · Herzen {}{}",
+        game.combo,
+        "♥".repeat(held),
+        "♡".repeat(HEARTS - held)
+    )
 }
 
 #[component]
@@ -726,6 +743,24 @@ mod tests {
     use locora_app_api::{Media, MediaKind};
 
     #[test]
+    fn game_status_shows_combo_and_hearts() {
+        assert_eq!(
+            game_status(GameView {
+                combo: 3,
+                hearts: 3
+            }),
+            "Combo 3 · Herzen ♥♥♥♡♡"
+        );
+        assert_eq!(
+            game_status(GameView {
+                combo: 0,
+                hearts: 9
+            }),
+            "Combo 0 · Herzen ♥♥♥♥♥"
+        );
+    }
+
+    #[test]
     fn video_segments_continue_only_for_same_media_in_forward_order() {
         assert_eq!(video_segment_start(None, "a", 5.0), 0.0);
         assert_eq!(video_segment_start(Some(&("a".into(), 2.5)), "a", 5.0), 2.5);
@@ -760,6 +795,7 @@ mod tests {
             points: 1,
             revealed: answer.clone(),
             next: Step::Done(Summary::default()),
+            game: None,
         }));
         assert_eq!(judged.stage_answer(), Some(&answer));
         let next = Phase::Asking;
