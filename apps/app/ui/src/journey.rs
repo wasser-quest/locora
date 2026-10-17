@@ -7,8 +7,9 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     ActionDone, AnswerKind, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS,
-    CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, GameView, InputField, InputValue,
-    JourneyStart, Question, Reply, Revealed, Step, Summary, UiAssets,
+    CMD_GAMIFICATION_STATUS, CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, GameView,
+    GamificationStatus, InputField, InputValue, JourneyStart, Question, Reply, Revealed,
+    Step, Summary, Trophy, UiAssets,
 };
 use serde::Serialize;
 
@@ -61,6 +62,14 @@ struct VideoProgress(StoredValue<Option<(String, f64)>>);
 #[derive(Clone, Copy)]
 struct VideoReady(RwSignal<bool>);
 
+fn refresh_game(status: RwSignal<Option<GamificationStatus>>) {
+    spawn_local(async move {
+        if let Ok(value) = call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, NoArgs {}).await {
+            status.set(value);
+        }
+    });
+}
+
 #[component]
 pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoView {
     provide_context(VideoProgress(StoredValue::new(None)));
@@ -71,6 +80,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let summary = RwSignal::new(None::<Summary>);
     let error = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
+    let game = RwSignal::new(None::<GamificationStatus>);
     // Feedback animations (assets/ui); the journey works without them.
     let art = crate::art();
 
@@ -101,8 +111,14 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         error.set(None);
         spawn_local(async move {
             match call::<Step>(CMD_JOURNEY_START, StartArgs { start }).await {
-                Ok(Step::Question(q)) => question.set(Some(q)),
-                Ok(Step::Done(s)) => summary.set(Some(s)),
+                Ok(Step::Question(q)) => {
+                    question.set(Some(q));
+                    refresh_game(game);
+                }
+                Ok(Step::Done(s)) => {
+                    summary.set(Some(s));
+                    refresh_game(game);
+                }
                 Err(e) => {
                     fields.set(retry);
                     error.set(Some(e));
@@ -144,7 +160,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         busy.set(true);
         spawn_local(async move {
             match call::<Feedback>(CMD_JOURNEY_ANSWER, ReplyArgs { reply }).await {
-                Ok(f) => phase.set(Phase::Judged(Box::new(f))),
+                Ok(f) => {
+                    phase.set(Phase::Judged(Box::new(f)));
+                    refresh_game(game);
+                }
                 Err(e) => error.set(Some(e)),
             }
             busy.set(false);
@@ -272,6 +291,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 }}
             </span>
         </header>
+        <GameStatus status=game art=art />
         {move || error.get().map(|e| view! { <p class="notes">{e}</p> })}
         {move || {
             if let Some(s) = summary.get() {
@@ -348,6 +368,59 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             }
                 .into_any()
         }}
+    }
+}
+
+fn trophy_name(trophy: Trophy) -> &'static str {
+    match trophy {
+        Trophy::FirstJourney => "Erste Journey",
+        Trophy::PerfectJourney => "Fehlerfreie Journey",
+        Trophy::HundredXp => "100 XP",
+        Trophy::SevenDayStreak => "7 Tage gelernt",
+    }
+}
+
+#[component]
+fn GameStatus(status: RwSignal<Option<GamificationStatus>>, art: RwSignal<Option<UiAssets>>) -> impl IntoView {
+    view! {
+        {move || status.get().map(|game| {
+            let icons = art.get();
+            let goal = game.daily_goal.max(1);
+            view! {
+                <aside class="game-status card" aria-label="Lernfortschritt">
+                    <div class="game-numbers">
+                        <span class="game-stat" title="Erfahrungspunkte">
+                            {icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.trophy /></span> })}
+                            <strong>{format!("{} XP", game.xp)}</strong>
+                        </span>
+                        <span class="game-stat" title="Richtige Antworten in Folge">
+                            {icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.combo /></span> })}
+                            <strong>{format!("{} Combo", game.combo)}</strong>
+                        </span>
+                        <span class="game-hearts" aria-label=format!("{} von 5 Herzen", game.hearts.min(5))>
+                            {(0..5).map(|index| {
+                                let live = index < game.hearts;
+                                let icon = icons.clone();
+                                view! { <span class:spent=!live class="game-icon" aria-hidden="true">
+                                    {icon.map(|a| view! { <Sply media=a.heart /> })}
+                                </span> }
+                            }).collect_view()}
+                        </span>
+                    </div>
+                    <div class="game-daily">
+                        <label for="game-daily-progress">{format!("Tagesziel: {} von {} richtig · {} Tage in Folge", game.daily_correct, game.daily_goal, game.streak)}</label>
+                        <progress id="game-daily-progress" max=goal value=game.daily_correct.min(goal)></progress>
+                    </div>
+                    {(!game.trophies.is_empty()).then(|| view! {
+                        <div class="game-trophies" aria-label="Erfolge">
+                            {game.trophies.into_iter().map(|trophy| view! {
+                                <span class="game-trophy">{icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.trophy /></span> })}{trophy_name(trophy)}</span>
+                            }).collect_view()}
+                        </div>
+                    })}
+                </aside>
+            }
+        })}
     }
 }
 

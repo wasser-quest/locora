@@ -426,6 +426,13 @@ async fn ui_assets(state: State<'_, Shared>) -> Result<locora_app_api::UiAssets,
 }
 
 #[tauri::command]
+async fn gamification_status(
+    state: State<'_, Shared>,
+) -> Result<Option<locora_app_api::GamificationStatus>, String> {
+    lock(&state)?.profile.gamification_status().map_err(err)
+}
+
+#[tauri::command]
 async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
     let mut b = lock(&state)?;
     settings::view(&mut b.profile).map_err(err)
@@ -690,6 +697,7 @@ pub fn run() {
             journey_inputs,
             settings,
             ui_assets,
+            gamification_status,
             import_pick,
             export_pick,
             dump_pick,
