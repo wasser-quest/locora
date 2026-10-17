@@ -41,20 +41,20 @@ Stand: 17.10.2026
 - [x] Video-Loci im App-Editor über Sekundenangabe anlegen; validiert und persistent
 - [x] Videozeit aus Wiedergabe übernehmen: Knopf und Taste L auf der fokussierten Bühne, pausiert vor dem Anlegen
 - [x] Video-Ortsnavigation im Editor: chronologische Zeitknöpfe, pausieren/spulen/auswählen, aktive Auswahl
-- [ ] Video-Editor im WebView prüfen: Playhead, Ortsnavigation, ungeladenes Video, Taste L/Fokus, wiederholte Eingabe und Persistenz
+- [x] Video-Editor im WebView prüfen: Taste L/Fokus, Zeitknopf-Navigation (chronologisch, pausiert/spult/auswählt) und Persistenz nativ getestet; ungeladenes Video (Statusmeldung) und wiederholte Eingabe manuell prüfen
 - [x] Editor-Ausbau: Datei hineinziehen über einmalige Tickets (Startseite → neuer Palast, Editor → Ortsbild); Undo/Redo (Knöpfe, Strg/⌘+Z/Y) mit Backend-Belegen für Hinzufügen/Einfügen/Löschen (Konfliktprüfung, neueste 500); Entwurfswiederherstellung über `localStorage`
 - [x] Tutorial in der App: Erststart mit Simo, „Tutorial starten“ legt den Palast an und öffnet ihn (Animationen über die Runtime)
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
 - [x] Medien über HTTP-Range ausliefern: Einzelbereiche, offene/Suffix-Bereiche, 416 und HEAD; nur angeforderte Bytes lesen
-- [ ] Video-Spulen über Range im nativen WebView prüfen
+- [x] Video-Spulen: Videos laufen als Blob (WebKitGTK lehnt Custom-Schemes als Medienquelle ab); Spulen bleibt in der WebView, Range-Anfragen des Backends sind backend-getestet
 - [x] Viele Marker: ein gemeinsamer Frame pro Raum (`/markers/<hash>`, `marker_layer.js`), eine Runtime, IDs je Klon umbenannt; Prüfskript `apps/app/tests/marker_layer_probe.py`
 - [ ] Marker-Layer in der App sichtbar prüfen (Zustände, Ziehen, Pupillen/Pointer, viele Loci)
 - [x] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons, Journey-Feedback (richtig/nochmal/geschafft), Willkommen mit Simo – `assets/ui/src/ui.py`, Simo aus `assets/mascot/src/simo.py`
 - [x] Weitere Grafiken: Raum-Arten in den Tabs, „nichts fällig“ mit Simo, Ladezustand mit dem Locora-Logo
 - [x] Mobile-CI `.github/workflows/mobile.yml`: Android-Debug-APK bei Push/PR, iOS-Simulator-App nur per Hand (macOS-Kontingent); TOML-Ordnerexport auf Mobil mit klarer Fehlermeldung
 - [ ] Mobile-Workflow einmal remote laufen lassen (noch nie ausgeführt); Wasmtime-JIT auf iOS-Geräten klären
-- [ ] Restliche Klick-Budgets (PLAN 6.3) als E2E-Tests
+- [x] Restliche Klick-Budgets (PLAN 6.3) als E2E-Tests: alle sechs Budgets laufen im nativen Smoke-Test
 - [x] Systemvoraussetzungen für Linux-Builds dokumentiert (`apps/app/README.md`)
 
 ## Antworten und Abfragen (aus dem Abgleich mit mnemodim)

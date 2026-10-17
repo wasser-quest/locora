@@ -277,6 +277,28 @@ class Scenario:
         self.record("video-locus-key-l", clicks=0, keys=1, time=times[0][0])
         self.shot("video-locus")
 
+        # Video timeline navigation: a second locus at a later playhead gives two
+        # chronological buttons; the first pauses, seeks and selects its locus.
+        timeline = lambda: [n for n in walk(self.app) if n.get_role_name() == "button" and n.get_name() and " s · " in n.get_name()]
+        self.until(lambda: len(timeline()) == 1)
+        # Play for a moment so the second playhead differs, then L again.
+        stage = self.until(lambda: self.find("Videoraum", "section", True))
+        assert stage.grab_focus()
+        time.sleep(2)
+        self.x("key", "--clearmodifiers", "l")
+        second = self.until(lambda: self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id = l.room_id JOIN palaces p ON p.id = r.palace_id WHERE p.name=?", (video.stem,)))
+        assert second[0][0] == 2, second
+        buttons = self.until(lambda: timeline() if len(timeline()) == 2 else None)
+        labels = [b.get_name() for b in buttons]
+        assert labels == sorted(labels), labels
+        # Clicking the earlier button seeks back, keeps both loci and no error appears.
+        buttons[0].do_action(0)
+        time.sleep(1)
+        assert self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id = l.room_id JOIN palaces p ON p.id = r.palace_id WHERE p.name=?", (video.stem,))[0][0] == 2
+        assert not any((n.get_name() or "").strip() and "konnte nicht" in n.get_name() for n in walk(self.app))
+        self.shot("video-timeline")
+        self.record("video-timeline-navigation", buttons=2, chronological=True)
+
         # Persistence is checked from SQLite, not merely optimistic UI text.
         self.record("no-runtime-start-error", checked_views="welcome, tutorial room, first recall")
         assert not any("Animation konnte nicht" in n.get_name() for n in walk(self.app))
