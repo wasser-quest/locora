@@ -78,6 +78,24 @@ const MIGRATIONS: &[&str] = &[
         room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
         before_json TEXT NOT NULL,
         after_json TEXT NOT NULL);",
+    // 11: operation sync: per-field clocks (last writer wins) and deletion tombstones
+    "CREATE TABLE sync_clock(
+        entity TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        field TEXT NOT NULL,
+        hlc TEXT NOT NULL,
+        PRIMARY KEY(entity, entity_id, field));
+     CREATE TABLE sync_tombstone(
+        entity TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        hlc TEXT NOT NULL,
+        PRIMARY KEY(entity, entity_id));",
+    // 12: finished journeys with their answers and times (for rankings in Locora Cloud)
+    "CREATE TABLE journeys(
+        id TEXT PRIMARY KEY,
+        palace_name TEXT NOT NULL,
+        answers TEXT NOT NULL,
+        recorded_at INTEGER NOT NULL);",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
