@@ -9,6 +9,8 @@ use locora_api::Service;
 use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{AnswerKind, Evaluate, Submission};
 use locora_formula::workbook::{ActionOutcome, Run};
+use locora_cloud_api::api::GameAnswer;
+use locora_runtime::cloud::{self, CloudState};
 use locora_store::JourneyAnswer;
 use locora_store::{Locus, PalaceTree};
 
@@ -22,6 +24,96 @@ pub struct Options {
     /// `new` comes from the daily limit (not from an explicit `--new`).
     pub daily_limit: bool,
     pub modes: Modes,
+    /// Count the journeys on Locora Cloud, answer by answer (signed in with a subscription).
+    pub live: Option<Live>,
+}
+
+/// The cloud session under which journeys are timed and scored by the server.
+pub struct Live {
+    pub state: CloudState,
+    /// Challenge the journeys count for.
+    pub challenge: Option<String>,
+}
+
+/// One palace journey on the server. Its clock starts when the server confirmed the start.
+struct LiveJourney {
+    id: String,
+    started: Instant,
+    answered: u32,
+    /// Set after a failed call; the journey is then not scored.
+    offline: bool,
+}
+
+fn live_start(live: &Live, journeys: &mut HashMap<String, LiveJourney>, palace: &str) {
+    if journeys.contains_key(palace) {
+        return;
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let id = format!("j{nanos:x}{:x}", std::process::id());
+    let offline = match cloud::start_journey(&live.state, &id, live.challenge.as_deref()) {
+        Ok(_) => false,
+        Err(error) => {
+            println!("  (nicht auf dem Server gewertet: {error})");
+            true
+        }
+    };
+    journeys.insert(
+        palace.to_owned(),
+        LiveJourney {
+            id,
+            started: Instant::now(),
+            answered: 0,
+            offline,
+        },
+    );
+}
+
+/// Reports one answer; prints the combo and hearts the server computed.
+fn live_answer(live: &Live, journeys: &mut HashMap<String, LiveJourney>, palace: &str, correct: bool) {
+    let Some(journey) = journeys.get_mut(palace) else {
+        return;
+    };
+    if journey.offline {
+        return;
+    }
+    journey.answered += 1;
+    let answer = GameAnswer {
+        seq: journey.answered,
+        correct,
+        at_ms: journey.started.elapsed().as_millis() as u64,
+    };
+    match cloud::answer(&live.state, &journey.id, &answer) {
+        Ok(state) => println!("        Combo {} · Herzen {}", state.combo, hearts(state.hearts)),
+        Err(error) => {
+            journey.offline = true;
+            println!("  (ab hier nicht mehr auf dem Server gewertet: {error})");
+        }
+    }
+}
+
+/// Ends a completed palace journey on the server and prints the XP the server gave.
+fn live_finish(live: &Live, journeys: &mut HashMap<String, LiveJourney>, palace: &str) {
+    let Some(journey) = journeys.remove(palace) else {
+        return;
+    };
+    if journey.offline {
+        return;
+    }
+    match cloud::finish_journey(&live.state, &journey.id) {
+        Ok(done) => println!(
+            "  ✓ Auf dem Server gewertet: {} von {} richtig, +{} XP (gesamt {})",
+            done.correct, done.total, done.xp, done.xp_total
+        ),
+        Err(error) => println!("  (Wertung auf dem Server fehlgeschlagen: {error})"),
+    }
+}
+
+fn hearts(count: u8) -> String {
+    const MAX: usize = 5;
+    let held = usize::from(count).min(MAX);
+    format!("{}{}", "♥".repeat(held), "♡".repeat(MAX - held))
 }
 
 /// How the route is asked.
@@ -415,6 +507,7 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
     // Graded answers per palace with their time from the start, for rankings.
     let session_start = Instant::now();
     let mut transcripts: HashMap<String, Vec<JourneyAnswer>> = HashMap::new();
+    let mut live_journeys: HashMap<String, LiveJourney> = HashMap::new();
     let mut points = 0u64;
     let total = plan.len();
     let recall = locora_api::journey::Answer::default();
@@ -437,6 +530,9 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             }),
         };
         let kind = view.kind(locus);
+        if let Some(live) = &options.live {
+            live_start(live, &mut live_journeys, &tree.palace.id);
+        }
         let asked = Instant::now();
         let track = |spent: &mut HashMap<String, Duration>| {
             *spent.entry(tree.palace.id.clone()).or_default() += asked.elapsed();
@@ -481,6 +577,9 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                 })?;
                 points = points.saturating_add(evaluation.points);
                 results.push((tree.palace.id.clone(), evaluation.correct));
+                if let Some(live) = &options.live {
+                    live_answer(live, &mut live_journeys, &tree.palace.id, evaluation.correct);
+                }
                 transcripts
                     .entry(tree.palace.id.clone())
                     .or_default()
@@ -542,6 +641,9 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
         if let Some(answers) = transcripts.get(&tree.palace.id) {
             app.store.record_journey(&tree.palace.id, answers)?;
         }
+        if let Some(live) = &options.live {
+            live_finish(live, &mut live_journeys, &tree.palace.id);
+        }
     }
     let answered = results.len();
     let correct = results.iter().filter(|(_, ok)| *ok).count();
@@ -563,6 +665,7 @@ mod tests {
                 new: 10,
                 daily_limit: false,
                 modes: Modes::default(),
+                live: None,
             },
         )
         .unwrap_err();

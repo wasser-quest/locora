@@ -11,8 +11,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use locora_cloud_api::api::{
-    Account, Challenge, CreateChallenge, EntitlementReply, ErrorBody, Friend, FriendRequest, Login,
-    Ranking, Register, Session, SubscriptionState,
+    Account, Challenge, CreateChallenge, EntitlementReply, ErrorBody, FinishReply, Friend,
+    FriendRequest, GameAnswer, GameState, JourneyStarted, KeyBundle, Login, Ranking, Register,
+    Session, StartJourney, SubscriptionState, XpState,
 };
 use locora_cloud_api::entitlement::{Access, Claims, parse_public_key, verify};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -27,8 +28,40 @@ pub struct CloudState {
     pub server: String,
     pub token: String,
     pub account: Account,
+    #[serde(default)]
+    pub sync_generation: i64,
     /// Last signed entitlement token the server issued.
     pub entitlement: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RetentionStatus {
+    pub state: String,
+    pub last_successful_sync_at: i64,
+    pub expires_at: i64,
+    pub generation: i64,
+}
+
+pub fn retention(state: &CloudState) -> Result<RetentionStatus> {
+    get(&state.server, "/v1/sync/retention", &state.token)
+}
+
+pub(crate) fn complete_sync(state: &CloudState) -> Result<RetentionStatus> {
+    post(
+        &state.server,
+        &format!("/v1/sync/complete?generation={}", state.sync_generation),
+        Some(&state.token),
+        &serde_json::Value::Null,
+    )
+}
+
+pub fn begin_rebuild(state: &CloudState, generation: i64) -> Result<RetentionStatus> {
+    post(
+        &state.server,
+        "/v1/sync/rebuild",
+        Some(&state.token),
+        &serde_json::json!({"generation": generation}),
+    )
 }
 
 pub fn state_path(data: &Path) -> PathBuf {
@@ -138,6 +171,7 @@ fn finish_login(server: String, session: Session) -> Result<CloudState> {
         server,
         token: session.token,
         account: session.account,
+        sync_generation: 0,
         entitlement: None,
     };
     if state.account.subscription != SubscriptionState::None {
@@ -219,6 +253,75 @@ pub fn challenge_ranking(state: &CloudState, id: &str) -> Result<Ranking> {
     )
 }
 
+/// The wrapped account keys, or `None` before the encryption was set up.
+pub fn get_keys(state: &CloudState) -> Result<Option<KeyBundle>> {
+    let response = send(
+        &state.server,
+        ureq::http::Method::GET,
+        "/v1/keys",
+        Some(&state.token),
+        None::<&()>,
+    )?;
+    if response.status().as_u16() == 404 {
+        return Ok(None);
+    }
+    read(response).map(Some)
+}
+
+pub fn create_keys(state: &CloudState, bundle: &KeyBundle) -> Result<()> {
+    let _: serde_json::Value = post(&state.server, "/v1/keys", Some(&state.token), bundle)?;
+    Ok(())
+}
+
+pub fn replace_keys(state: &CloudState, bundle: &KeyBundle) -> Result<()> {
+    let _: serde_json::Value = put(&state.server, "/v1/keys", &state.token, bundle)?;
+    Ok(())
+}
+
+/// Starts a journey on the server; its clock starts now.
+pub fn start_journey(
+    state: &CloudState,
+    journey_id: &str,
+    challenge: Option<&str>,
+) -> Result<JourneyStarted> {
+    let body = StartJourney {
+        journey_id: journey_id.to_owned(),
+        challenge_id: challenge.map(str::to_owned),
+    };
+    post(
+        &state.server,
+        "/v1/game/journeys",
+        Some(&state.token),
+        &body,
+    )
+}
+
+/// Reports one answer. `at_ms` is measured from the same start as the server's clock.
+pub fn answer(state: &CloudState, journey_id: &str, answer: &GameAnswer) -> Result<GameState> {
+    post(
+        &state.server,
+        &format!("/v1/game/journeys/{journey_id}/answers"),
+        Some(&state.token),
+        answer,
+    )
+}
+
+/// Ends a journey; the server computes its XP from the answers it recorded.
+pub fn finish_journey(state: &CloudState, journey_id: &str) -> Result<FinishReply> {
+    post(
+        &state.server,
+        &format!("/v1/game/journeys/{journey_id}/finish"),
+        Some(&state.token),
+        &serde_json::Value::Null,
+    )
+}
+
+/// The XP of this account, as the server counts it.
+pub fn xp(state: &CloudState) -> Result<XpState> {
+    get(&state.server, "/v1/game/xp", &state.token)
+}
+
+>>>>>>> 7472bab (update)
 /// Ends the server session (best effort) and forgets the local one.
 pub fn logout(data: &Path, state: &CloudState) -> Result<()> {
     let _ = send(
@@ -238,6 +341,22 @@ pub(crate) fn get<T: DeserializeOwned>(server: &str, path: &str, token: &str) ->
         path,
         Some(token),
         None::<&()>,
+    )?;
+    read(response)
+}
+
+pub(crate) fn put<T: DeserializeOwned, B: Serialize>(
+    server: &str,
+    path: &str,
+    token: &str,
+    body: &B,
+) -> Result<T> {
+    let response = send(
+        server,
+        ureq::http::Method::PUT,
+        path,
+        Some(token),
+        Some(body),
     )?;
     read(response)
 }
@@ -289,12 +408,12 @@ fn send<B: Serialize>(
     response.with_context(|| format!("Locora Cloud unter {server} nicht erreichbar"))
 }
 
-/// Whether the server already holds the media file with this hash.
-pub(crate) fn media_exists(state: &CloudState, hash: &str) -> Result<bool> {
+/// Whether the server already holds the media file with this keyed id.
+pub(crate) fn media_exists(state: &CloudState, id: &str) -> Result<bool> {
     let response = send(
         &state.server,
         ureq::http::Method::HEAD,
-        &format!("/v1/media/{hash}"),
+        &format!("/v1/media/{id}?generation={}", state.sync_generation),
         Some(&state.token),
         None::<&()>,
     )?;
@@ -305,43 +424,40 @@ pub(crate) fn media_exists(state: &CloudState, hash: &str) -> Result<bool> {
     }
 }
 
-pub(crate) fn put_media(state: &CloudState, hash: &str, mime: &str, bytes: Vec<u8>) -> Result<()> {
+/// Uploads one sealed media file under its keyed id.
+pub(crate) fn put_media(state: &CloudState, id: &str, sealed: Vec<u8>) -> Result<()> {
     let request = ureq::http::Request::builder()
         .method(ureq::http::Method::PUT)
-        .uri(format!("{}/v1/media/{hash}", state.server))
+        .uri(format!(
+            "{}/v1/media/{id}?generation={}",
+            state.server, state.sync_generation
+        ))
         .header("authorization", format!("Bearer {}", state.token))
-        .header("content-type", mime)
-        .body(bytes)?;
+        .header("content-type", "application/octet-stream")
+        .body(sealed)?;
     let response = agent(Duration::from_secs(300))
         .run(request)
-        .with_context(|| format!("Medium {hash} konnte nicht hochgeladen werden"))?;
+        .with_context(|| "Medium konnte nicht hochgeladen werden".to_string())?;
     read::<serde_json::Value>(response).map(|_| ())
 }
 
-/// Media type and bytes of a file the server holds. The caller checks the hash.
-pub(crate) fn get_media(state: &CloudState, hash: &str) -> Result<(String, Vec<u8>)> {
+/// The sealed bytes of a media file, by its keyed id.
+pub(crate) fn get_media(state: &CloudState, id: &str) -> Result<Vec<u8>> {
     let mut response = send(
         &state.server,
         ureq::http::Method::GET,
-        &format!("/v1/media/{hash}"),
+        &format!("/v1/media/{id}?generation={}", state.sync_generation),
         Some(&state.token),
         None::<&()>,
     )?;
     if !response.status().is_success() {
-        return read::<serde_json::Value>(response).map(|_| (String::new(), Vec::new()));
+        return read::<serde_json::Value>(response).map(|_| Vec::new());
     }
-    let mime = response
-        .headers()
-        .get("content-type")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default()
-        .to_owned();
-    let bytes = response
+    Ok(response
         .body_mut()
         .with_config()
         .limit(MAX_BODY)
-        .read_to_vec()?;
-    Ok((mime, bytes))
+        .read_to_vec()?)
 }
 
 fn read<T: DeserializeOwned>(mut response: ureq::http::Response<ureq::Body>) -> Result<T> {

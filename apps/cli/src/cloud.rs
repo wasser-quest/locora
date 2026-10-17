@@ -28,10 +28,19 @@ pub enum CloudCommand {
     },
     /// Konto, Abo und Freischaltung ohne Netz anzeigen
     Status,
+    /// Cloud-Aufbewahrungsfrist beim Server abfragen (verlängert sie nicht)
+    Retention,
+    /// Cloud-Bestand nach Ablauf aus diesem lokalen Gerät neu aufbauen
+    Rebuild,
     /// Freischaltung beim Server erneuern (nur mit aktivem Abo)
     Refresh,
-    /// Änderungen mit Locora Cloud austauschen (Sync)
+    /// Änderungen mit Locora Cloud austauschen (Ende-zu-Ende-verschlüsselt, fragt das Verschlüsselungs-Passwort ab)
     Sync,
+    /// Verschlüsselung einrichten oder wiederherstellen
+    #[command(subcommand)]
+    Encrypt(EncryptCommand),
+    /// Den XP-Stand zeigen, den der Server berechnet hat
+    Xp,
     /// Rangliste: alle Lernenden oder nur Freunde (Abo nötig)
     Ranking {
         #[arg(long)]
@@ -64,6 +73,14 @@ pub enum ChallengeCommand {
     Join { id: String },
     /// Rangliste einer Challenge
     Ranking { id: String },
+}
+
+#[derive(Subcommand)]
+pub enum EncryptCommand {
+    /// Verschlüsselung für das Konto einrichten; zeigt den Wiederherstellungsschlüssel einmal
+    Setup,
+    /// Mit dem Wiederherstellungsschlüssel ein neues Verschlüsselungs-Passwort setzen
+    Recover,
 }
 
 pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
@@ -111,11 +128,17 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             Ok(())
         }
         CloudCommand::Sync => {
-            let Some(state) = cloud::load(&data)? else {
-                bail!("Nicht angemeldet: zuerst `locora cloud login <E-Mail>`");
-            };
+            let state = signed_in(&data)?;
+            let bundle = cloud::get_keys(&state)?.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Die Verschlüsselung ist noch nicht eingerichtet: `locora cloud encrypt setup`"
+                )
+            })?;
+            let passphrase = read_password("Verschlüsselungs-Passwort: ")?;
+            let dek =
+                locora_crypto::unlock(&bundle, &passphrase).map_err(|e| anyhow::anyhow!("{e}"))?;
             let app = crate::app::App::open(Some(&data))?;
-            let report = cloud_sync::sync(&state, &app.store)?;
+            let report = cloud_sync::sync(&state, &app.store, &dek)?;
             println!(
                 "✓ Sync: {} gesendet, {} Medien hochgeladen, {} empfangen, {} Medien geladen",
                 report.pushed, report.media_uploaded, report.pulled, report.media_downloaded
@@ -124,12 +147,104 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
                 "  angewendet: {}, schon bekannt: {}, Ort fehlt noch: {}",
                 report.applied.applied, report.applied.stale, report.applied.missing
             );
+            if let Some(expires_at) = report.cloud_expires_at {
+                println!(
+                    "  Cloud-Daten bleiben bis {} erhalten.",
+                    date(expires_at as u64)
+                );
+            }
             for problem in &report.applied.failed {
                 println!("  ! nicht angewendet: {problem}");
             }
             for problem in &report.quarantined {
                 println!("  ! in Quarantäne: {problem}");
             }
+            Ok(())
+        }
+        CloudCommand::Retention => {
+            let state = signed_in(&data)?;
+            let retention = cloud::retention(&state)?;
+            println!("Cloud-Status: {}", retention.state);
+            println!(
+                "Letzter erfolgreicher Sync: {}",
+                date(retention.last_successful_sync_at as u64)
+            );
+            println!("Cloud-Löschung ab: {}", date(retention.expires_at as u64));
+            println!("Sync-Generation: {}", retention.generation);
+            Ok(())
+        }
+        CloudCommand::Rebuild => {
+            let mut state = signed_in(&data)?;
+            let remote = cloud::retention(&state)?;
+            match remote.state.as_str() {
+                "expired" => {
+                    cloud::begin_rebuild(&state, remote.generation)?;
+                }
+                "rebuilding" => {}
+                "active" if remote.generation != state.sync_generation => {}
+                _ => bail!("Kein abgelaufener Cloud-Bestand zum Neuaufbau vorhanden"),
+            }
+            let app = crate::app::App::open(Some(&data))?;
+            app.store.set_sync_cursor("push", 0)?;
+            app.store.set_sync_cursor("pull", 0)?;
+            state.sync_generation = remote.generation;
+            cloud::save(&data, &state)?;
+            println!(
+                "Sync-Cursor zurückgesetzt. Jetzt `locora cloud sync` mit vollständigen lokalen Daten ausführen."
+            );
+            Ok(())
+        }
+        CloudCommand::Encrypt(EncryptCommand::Setup) => {
+            let state = signed_in(&data)?;
+            if cloud::get_keys(&state)?.is_some() {
+                bail!("Die Verschlüsselung ist schon eingerichtet");
+            }
+            let first = read_password("Neues Verschlüsselungs-Passwort (mind. 12 Zeichen): ")?;
+            let again = read_password("Wiederholen: ")?;
+            if first != again {
+                bail!("Die Passwörter stimmen nicht überein");
+            }
+            let account = locora_crypto::create(&first).map_err(|e| anyhow::anyhow!("{e}"))?;
+            cloud::create_keys(&state, &account.bundle)?;
+            println!("✓ Verschlüsselung eingerichtet.");
+            println!();
+            println!("  Wiederherstellungsschlüssel (nur jetzt angezeigt, sicher aufbewahren):");
+            println!("  {}", account.recovery_key);
+            println!();
+            println!(
+                "  Ohne Passwort und ohne diesen Schlüssel sind die synchronisierten Daten nicht mehr lesbar."
+            );
+            Ok(())
+        }
+        CloudCommand::Encrypt(EncryptCommand::Recover) => {
+            let state = signed_in(&data)?;
+            let bundle = cloud::get_keys(&state)?.ok_or_else(|| {
+                anyhow::anyhow!("Die Verschlüsselung ist noch nicht eingerichtet")
+            })?;
+            let recovery = read_password("Wiederherstellungsschlüssel: ")?;
+            let dek = locora_crypto::unlock_with_recovery(&bundle, &recovery)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let first = read_password("Neues Verschlüsselungs-Passwort (mind. 12 Zeichen): ")?;
+            let again = read_password("Wiederholen: ")?;
+            if first != again {
+                bail!("Die Passwörter stimmen nicht überein");
+            }
+            let new_bundle = locora_crypto::rewrap(&dek, &recovery, &first)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            cloud::replace_keys(&state, &new_bundle)?;
+            println!(
+                "✓ Neues Verschlüsselungs-Passwort gesetzt. Der Wiederherstellungsschlüssel bleibt gültig."
+            );
+            Ok(())
+        }
+        CloudCommand::Xp => {
+            let state = signed_in(&data)?;
+            let xp = cloud::xp(&state)?;
+            println!("XP auf dem Server: {}", xp.xp_total);
+            println!(
+                "Abgeschlossene Journeys: {} · offen: {}",
+                xp.journeys_finished, xp.journeys_open
+            );
             Ok(())
         }
         CloudCommand::Ranking { friends } => {
@@ -194,6 +309,34 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// The cloud session for timed journeys, if the account has a subscription.
+/// Practice then reports each answer to the server. Offline or without a subscription
+/// the journeys are local only, and a challenge is refused.
+pub fn live_session(
+    data: &Path,
+    challenge: Option<String>,
+) -> Result<Option<crate::practice::Live>> {
+    let state = match cloud::load(data)? {
+        Some(state)
+            if state.account.subscription != locora_cloud_api::api::SubscriptionState::None =>
+        {
+            state
+        }
+        _ if challenge.is_some() => {
+            bail!("Challenges brauchen ein Abo und eine Anmeldung: `locora cloud login`")
+        }
+        _ => return Ok(None),
+    };
+    if cloud::access(&state, cloud::now_secs()).is_none() {
+        if challenge.is_some() {
+            bail!("Keine gültige Freischaltung: `locora cloud refresh` ausführen");
+        }
+        println!("(Freischaltung abgelaufen: diese Journeys werden nicht auf dem Server gewertet)");
+        return Ok(None);
+    }
+    Ok(Some(crate::practice::Live { state, challenge }))
 }
 
 fn signed_in(data: &Path) -> Result<CloudState> {

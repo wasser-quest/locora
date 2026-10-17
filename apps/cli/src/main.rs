@@ -135,6 +135,9 @@ enum Command {
         /// Höchstens so viele neue Loci (mit --due; Standard: was vom Tageslimit übrig ist)
         #[arg(long)]
         new: Option<usize>,
+        /// Die Journey zählt für diese Challenge (Abo und Anmeldung nötig)
+        #[arg(long)]
+        challenge: Option<String>,
         #[command(flatten)]
         modes: practice::Modes,
     },
@@ -403,8 +406,10 @@ fn main() -> Result<()> {
             palace,
             due,
             new,
+            challenge,
             modes,
         } => {
+            let live = cloud::live_session(&app::data_dir(data)?, challenge)?;
             let mut app = app::App::open(data)?;
             let daily_limit = new.is_none() && due;
             let new = match new {
@@ -416,6 +421,7 @@ fn main() -> Result<()> {
                 &mut app,
                 Some(&palace),
                 practice::Options {
+                    live,
                     due_only: due,
                     new,
                     daily_limit,
@@ -434,6 +440,7 @@ fn main() -> Result<()> {
                 &mut app,
                 palace.as_deref(),
                 practice::Options {
+                    live: cloud::live_session(&app::data_dir(data)?, None)?,
                     due_only: true,
                     new,
                     daily_limit,

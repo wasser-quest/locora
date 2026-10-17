@@ -12,6 +12,7 @@ anyhow.workspace = true
 dirs = "6"
 locora-api.workspace = true
 locora-cloud-api = { path = "../locora-cloud-api" }
+locora-crypto = { path = "../locora-crypto" }
 locora-signing = { path = "../locora-signing" }
 locora-host.workspace = true
 locora-format = { path = "../locora-format" }
@@ -25,4 +26,5 @@ serde_json = "1"
 ureq = { version = "3", features = ["json"] }
 sha2.workspace = true
 percent-encoding = "2"
+base64 = "0.22"
 
