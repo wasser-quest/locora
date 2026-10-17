@@ -10,7 +10,7 @@ mod tauri;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, NotificationView,
+    CMD_FORMULA_GUIDE, CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, NotificationView,
     PalaceCard, PalaceView, UiAssets, HighlightRequest, TourAction, CMD_TOUR,
 };
 use serde::Serialize;
@@ -450,6 +450,16 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSi
             }
         });
     };
+    let start_formula_guide = move |_| {
+        if busy.get_untracked() { return; }
+        busy.set(true);
+        spawn_local(async move {
+            match call::<String>(CMD_FORMULA_GUIDE, tauri::NoArgs {}).await {
+                Ok(id) => screen.set(Screen::Palace(id)),
+                Err(error) => { busy.set(false); message.set(error); }
+            }
+        });
+    };
     let start_tour = move |_| {
         if busy.get_untracked() { return; }
         busy.set(true);
@@ -481,6 +491,7 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSi
             Some(Ok(home)) => {
                 let waiting = home.due + home.fresh;
                 let tutorial = home.tutorial;
+                let formula_guide = home.formula_guide;
                 if let Some(simo) = home.welcome.clone() {
                     return view! {
                         <section class="card welcome">
@@ -507,6 +518,9 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSi
                                     </button>
                                     <button disabled=move || busy.get() on:click=pick_media>
                                         "Eigener Palast aus Bild/Video…"
+                                    </button>
+                                    <button disabled=move || busy.get() on:click=start_formula_guide>
+                                        "Formel-Guide öffnen"
                                     </button>
                                 </div>
                             </div>
@@ -575,6 +589,20 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSi
                                     </div>
                                     <button disabled=move || busy.get() on:click=start_tutorial>
                                         "Tutorial anlegen"
+                                    </button>
+                                </section>
+                            }
+                        })}
+                    {(!formula_guide)
+                        .then(|| {
+                            view! {
+                                <section class="card weiter">
+                                    <div class="text">
+                                        <div class="count">"Formeln verstehen"</div>
+                                        <div class="meta">"Variablen, Tabellen und Bindungen in einem eigenen Palast üben."</div>
+                                    </div>
+                                    <button disabled=move || busy.get() on:click=start_formula_guide>
+                                        "Formel-Guide anlegen"
                                     </button>
                                 </section>
                             }

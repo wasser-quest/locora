@@ -20,6 +20,7 @@ pub const CMD_HOME: &str = "home";
 pub const CMD_HOME_PICK_MEDIA: &str = "home_pick_media";
 pub const CMD_PALACE: &str = "palace";
 pub const CMD_TUTORIAL: &str = "tutorial";
+pub const CMD_FORMULA_GUIDE: &str = "formula_guide";
 pub const CMD_TOUR: &str = "tour";
 pub use locora_api::tutorial::TourAction;
 pub use locora_api::ui::HighlightRequest;
@@ -154,6 +155,9 @@ pub struct Home {
     pub fresh: u32,
     /// Is the tutorial palace there?
     pub tutorial: bool,
+    /// Is the separate formula guide palace there?
+    #[serde(default)]
+    pub formula_guide: bool,
     /// Problems while opening the profile (plugins that did not load).
     pub notes: Vec<String>,
     /// The latest tile of every loaded plugin (`ui.tile`).

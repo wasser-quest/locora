@@ -1,8 +1,8 @@
 //! `locora`: memory palaces from the command line, and plugin development.
 
 mod app;
-mod palace;
 mod notify;
+mod palace;
 mod plugin;
 mod practice;
 mod settings;
@@ -15,8 +15,8 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use notify::NotifyCommand;
 use locora_store::LocusPatch;
+use notify::NotifyCommand;
 
 #[derive(Parser)]
 #[command(
@@ -181,6 +181,12 @@ enum Command {
     /// Tutorial-Palast „Locora lernen“ anlegen (Locora mit der Loci-Methode lernen)
     Tutorial {
         /// Vorhandenes Tutorial neu anlegen (sein Wiederholungsplan geht verloren)
+        #[arg(long)]
+        reset: bool,
+    },
+    /// Formel-Guide als eigenen Palast anlegen und üben
+    FormulaGuide {
+        /// Vorhandenen Guide neu anlegen (sein Wiederholungsplan geht verloren)
         #[arg(long)]
         reset: bool,
     },
@@ -440,6 +446,9 @@ fn main() -> Result<()> {
             reset,
         } => palace::marker(&mut app::App::open(data)?, &palace, file.as_deref(), reset),
         Command::Tutorial { reset } => tutorial::run(&mut app::App::open(data)?, reset),
+        Command::FormulaGuide { reset } => {
+            tutorial::run_formula_guide(&mut app::App::open(data)?, reset)
+        }
         Command::Due => palace::due(&mut app::App::open(data)?),
         Command::Notify { command } => notify::run(command, &mut app::App::open(data)?),
         Command::Export {

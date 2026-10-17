@@ -92,7 +92,7 @@ Stand: 17.10.2026
 - [x] Tutorial-Palast „Locora lernen“ mit `.sply` an jedem Ort (`locora tutorial`)
 - [x] Erste App-Tour: offizielles `tutorial`-Plugin, geprüfter Host-Dienst `ui.highlight@1`, drei Startseiten-Schritte mit Simo, Weiter/Schließen und gespeichertem Schrittstand
 - [ ] Tour auf Palastansicht, Editor und Journey ausdehnen; fehlende Ziele und Fokusführung nativ prüfen
-- [ ] Formel-Guide als Palast mit `.sply`-Bildern
+- [x] Formel-Guide „Formeln verstehen“ als eigener Palast mit sechs `.sply`-Orten und ausführbaren Beispiel-Bindungen (`locora formula-guide` und App)
 
 ## Phase 5 – Gamification und Locora Cloud
 

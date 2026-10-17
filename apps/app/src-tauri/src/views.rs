@@ -54,6 +54,7 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
     let reported = profile.report();
     let mut home = Home {
         tutorial: locora_runtime::tutorial::find(profile)?.is_some(),
+        formula_guide: locora_runtime::formula_guide::find(profile)?.is_some(),
         notes: profile.notes.iter().cloned().chain(reported).collect(),
         tiles: profile
             .tiles()?

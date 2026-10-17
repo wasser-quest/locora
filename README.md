@@ -127,6 +127,8 @@ Simo is Locora's mascot, named after **Simonides**, who is credited with inventi
 
 The whole app is MIT-licensed and free, including the `core`, `review`, `notify`, `tutorial` and `gamification` plugins and the CLI. Gamification (XP, trophies, daily challenges) works fully offline. Only the optional **Locora Cloud** web service (leaderboards, friends, shared challenges, sync across devices) is a paid, proprietary service at an affordable price.
 
+The bundled formula guide is a separate six-locus palace with animated `.sply` illustrations and working formula bindings. Open it from the app home screen or run `locora formula-guide` (`--reset` recreates it).
+
 ## License
 
 [MIT](LICENSE)

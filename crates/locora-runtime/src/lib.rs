@@ -23,6 +23,7 @@ use locora_api::review::{CardState, Schedule, ScheduleRequest};
 use locora_host::{ApprovalReceipt, HostEvent, KvStore, Level, Manifest, PluginHost};
 use locora_store::{PalaceTree, Store};
 
+pub mod formula_guide;
 pub mod journey;
 pub mod settings;
 pub mod transfer;

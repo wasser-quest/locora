@@ -663,6 +663,10 @@ eine erste App-Tour über den berechtigungsgeprüften Host-Dienst `ui.highlight@
 der Startseite mit Simo, Weiter/Schließen und gespeichertem Schrittstand. Tour-Schritte für Palast,
 Editor und Journey folgen.
 
+Der Formel-Guide „Formeln verstehen“ ist als eigener Palast mit sechs `.sply`-Orten umgesetzt.
+Eingaben, `Integer`, `Major` und Bindungen werden mit echten Workbook-Formeln gezeigt;
+`locora formula-guide [--reset]` und die Startseite legen ihn an.
+
 **Antworten und Abfragen (erledigt, aus dem Abgleich mit mnemodim):** Quiz mit bis zu 30 Optionen, pro Frage alle
 richtigen und drei zufällige falsche, gemischt (`Answer::quiz_selection`); Guess vergleicht ohne Groß-/Kleinschreibung,
 Satzzeichen und doppelte Leerzeichen (`normalize`) und nimmt weitere Antworten an (`accept`, `--accept`); Merkhilfe

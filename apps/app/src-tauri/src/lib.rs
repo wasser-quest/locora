@@ -351,6 +351,17 @@ async fn tour(
     b.profile.tour(action).map_err(err)
 }
 
+/// Open the existing formula guide or build it once.
+#[tauri::command]
+async fn formula_guide(state: State<'_, Shared>) -> Result<String, String> {
+    let mut b = lock(&state)?;
+    if let Some(existing) = locora_runtime::formula_guide::find(&b.profile).map_err(err)? {
+        return Ok(existing.id);
+    }
+    let (tree, _) = locora_runtime::formula_guide::install(&mut b.profile).map_err(err)?;
+    Ok(tree.palace.id)
+}
+
 /// Everything that may be shown now (quiet hours, muting and the daily
 /// per-channel limit were already applied by the plugin).
 #[tauri::command]
@@ -675,6 +686,7 @@ pub fn run() {
             editor_import_drop,
             tutorial,
             tour,
+            formula_guide,
             journey_inputs,
             settings,
             ui_assets,

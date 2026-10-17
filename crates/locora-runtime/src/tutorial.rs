@@ -85,17 +85,27 @@ pub fn find(profile: &Profile) -> Result<Option<locora_store::Palace>> {
 /// Build the tutorial palace, replacing an existing one. Returns the new
 /// palace and messages from plugins.
 pub fn install(profile: &mut Profile) -> Result<(PalaceTree, Vec<String>)> {
+    install_files(profile, NAME, FILES, FILES[0].0)
+}
+
+/// Import one bundled palace and its local media assets.
+pub(crate) fn install_files(
+    profile: &mut Profile,
+    name: &str,
+    files: &[(&str, &[u8])],
+    source: &str,
+) -> Result<(PalaceTree, Vec<String>)> {
     let dir = tempfile::tempdir().context("Temporären Ordner anlegen")?;
-    for (path, bytes) in FILES {
+    for (path, bytes) in files {
         let target = dir.path().join(path);
         fs::create_dir_all(target.parent().expect("files live in folders"))?;
         fs::write(&target, bytes)?;
     }
-    let source_file = dir.path().join(FILES[0].0);
+    let source_file = dir.path().join(source);
     let source = locora_source::parse(&fs::read_to_string(&source_file)?)?;
     let plan = locora_source::check(&source, source_file.parent().unwrap_or(Path::new(".")))?;
     let mut notes = Vec::new();
-    if let Some(old) = find(profile)? {
+    if let Some(old) = profile.store.find_palace(name)? {
         profile.store.delete_palace(&old.id)?;
         notes.extend(profile.publish(&PalaceDeleted { palace_id: old.id })?);
     }
