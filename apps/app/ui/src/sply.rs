@@ -336,6 +336,7 @@ pub fn VideoBackdrop(
     #[prop(optional, into)] controls: MaybeProp<bool>,
     #[prop(default = true)] muted: bool,
     #[prop(default = "auto".into())] preload: String,
+    #[prop(default = false)] autoplay: bool,
     #[prop(optional, into)] node_ref: NodeRef<leptos::html::Video>,
     #[prop(optional)] on_loaded: Option<Box<dyn Fn() + Send + Sync>>,
     #[prop(optional)] on_error: Option<Box<dyn Fn() + Send + Sync>>,
@@ -359,6 +360,7 @@ pub fn VideoBackdrop(
     let class = StoredValue::new(class);
     let preload = StoredValue::new(preload);
     let muted = StoredValue::new(muted);
+    let autoplay = StoredValue::new(autoplay);
     view! {
         <Show when=move || source.get().is_ok()>
             <video
@@ -367,6 +369,7 @@ pub fn VideoBackdrop(
                 controls=move || controls.get().unwrap_or(true)
                 muted=muted.with_value(|value| *value)
                 preload=preload.with_value(|value| value.clone())
+                autoplay=autoplay.with_value(|value| *value)
                 src=move || source.get().expect("checked by Show")
                 on:loadedmetadata=move |_| loaded.with_value(|callback| if let Some(cb) = callback { cb(); })
                 on:timeupdate=move |_| ticked.with_value(|callback| if let Some(cb) = callback { cb(); })

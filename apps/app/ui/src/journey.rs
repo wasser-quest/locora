@@ -424,6 +424,7 @@ fn VideoAtLocus(
             controls=MaybeProp::derive(move || Some(matches!(phase.get(), Phase::Judged(_))))
             muted=true
             preload="auto".to_string()
+            autoplay=true
             node_ref=player
             on_loaded=Box::new(move || on_metadata(player, time, phase, progress, key, ready, (error, fallback)))
             on_timeupdate=Box::new(stop_at_locus)

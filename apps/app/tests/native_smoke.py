@@ -286,8 +286,8 @@ class Scenario:
         assert stage.grab_focus()
         time.sleep(2)
         self.x("key", "--clearmodifiers", "l")
-        second = self.until(lambda: self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id = l.room_id JOIN palaces p ON p.id = r.palace_id WHERE p.name=?", (video.stem,)))
-        assert second[0][0] == 2, second
+        second = self.until(lambda: self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id = l.room_id JOIN palaces p ON p.id = r.palace_id WHERE p.name=?", (video.stem,))[0][0] == 2 or None)
+        assert second
         buttons = self.until(lambda: timeline() if len(timeline()) == 2 else None)
         labels = [b.get_name() for b in buttons]
         assert labels == sorted(labels), labels
@@ -298,6 +298,55 @@ class Scenario:
         assert not any((n.get_name() or "").strip() and "konnte nicht" in n.get_name() for n in walk(self.app))
         self.shot("video-timeline")
         self.record("video-timeline-navigation", buttons=2, chronological=True)
+
+        # Video journey: play muted to each locus, hold there, keyboard reveal/grade.
+        self.click("←")
+        self.until(lambda: self.find("Bild/Video wählen…", "button"))
+        self.click("Native E2E video", prefix=True)
+        self.until(lambda: self.find("▶ Route ablaufen", "button"))
+        clicks = self.clicks
+        self.click("▶ Route ablaufen")
+        self.until(lambda: self.find("Aufdecken", "button", True) or self.find("Weiter", "button", True) or self.find("Zur Übersicht", "button"))
+        self.record("video-journey-starts-holding-at-locus", clicks=1, budget=1)
+        # Both loci: reveal (space), grade (3), advance (space).
+        for _ in range(2):
+            if self.find("Zur Übersicht", "button") and any(n.get_role_name() == "paragraph" and "gewusst" in (n.get_name() or "") for n in walk(self.app)):
+                break
+            # The video must reach the locus before answers unlock (video_ready).
+            self.until(lambda: (lambda b: b and b.get_state_set().contains(Atspi.StateType.ENABLED))(self.find("Aufdecken", "button", True)))
+            self.x("key", "--clearmodifiers", "space")
+            self.until(lambda: self.find("Gut", "button", True) or self.find("Leicht", "button", True))
+            self.x("key", "--clearmodifiers", "3")
+            self.until(lambda: self.find("Weiter", "button", True) or self.find("Zur Übersicht", "button"))
+            self.x("key", "--clearmodifiers", "space")
+        self.until(lambda: self.find("Zur Übersicht", "button") and self.find("Geschafft", "image"))
+        assert self.clicks == clicks + 1
+        self.record("video-journey-keyboard-through-loci", extra_clicks=0)
+        self.shot("video-journey-summary")
+
+        # Reverse direction: same journey, prompt and answer swap.
+        self.click("Zur Übersicht")
+        self.until(lambda: self.find("Bild/Video wählen…", "button"))
+        self.click("Native E2E video", prefix=True)
+        self.until(lambda: self.find("Rückwärts (Inhalt → Ort)", "check box"))
+        self.click("Rückwärts (Inhalt → Ort)", "check box")
+        self.click("▶ Route ablaufen")
+        # The video must reach the locus before answers unlock (video_ready).
+        self.until(lambda: (lambda b: b and b.get_state_set().contains(Atspi.StateType.ENABLED))(self.find("Aufdecken", "button", True)))
+        self.x("key", "--clearmodifiers", "space")
+        self.until(lambda: self.find("Gut", "button", True) or self.find("Leicht", "button", True))
+        self.x("key", "--clearmodifiers", "3")
+        self.until(lambda: self.find("Weiter", "button", True) or self.find("Zur Übersicht", "button"))
+        self.x("key", "--clearmodifiers", "space")
+        self.until(lambda: (lambda b: b and b.get_state_set().contains(Atspi.StateType.ENABLED))(self.find("Aufdecken", "button", True)))
+        self.x("key", "--clearmodifiers", "space")
+        self.until(lambda: self.find("Gut", "button", True) or self.find("Leicht", "button", True))
+        self.x("key", "--clearmodifiers", "3")
+        self.until(lambda: self.find("Weiter", "button", True) or self.find("Zur Übersicht", "button"))
+        self.x("key", "--clearmodifiers", "space")
+        self.until(lambda: self.find("Zur Übersicht", "button") and self.find("Geschafft", "image"))
+        self.record("video-journey-reverse-direction")
+        self.shot("video-journey-reverse-summary")
 
         # Persistence is checked from SQLite, not merely optimistic UI text.
         self.record("no-runtime-start-error", checked_views="welcome, tutorial room, first recall")
