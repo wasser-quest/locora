@@ -66,7 +66,10 @@ pub fn serve(
         .header(header::CONTENT_TYPE, mime)
         .header(header::ACCEPT_RANGES, "bytes")
         .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
-        .header("X-Content-Type-Options", "nosniff");
+        .header("X-Content-Type-Options", "nosniff")
+        // The WebView reads videos over XHR to hand them to <video> as a blob;
+        // its page origin differs from this scheme, so allow reading.
+        .header("Access-Control-Allow-Origin", "*");
     let (start, count) = match selected {
         Err(()) => {
             return Ok(builder

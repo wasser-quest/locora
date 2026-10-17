@@ -2,7 +2,7 @@
 //! sandboxed frame (scripts only, no access to the app); state changes reach
 //! it as messages (see `src-tauri/src/sply.rs`).
 
-use leptos::html::Iframe;
+use leptos::{html::Iframe, task::spawn_local};
 use leptos::prelude::*;
 use locora_app_api::{Media, MediaKind};
 
@@ -317,8 +317,64 @@ pub fn Shown(media: Media, #[prop(optional, into)] class: String) -> impl IntoVi
         MediaKind::Sply => view! { <Sply media=media class=class/> }.into_any(),
         MediaKind::Image => view! { <img class=class src=url(&media) alt=""/> }.into_any(),
         MediaKind::Video => {
-            view! { <video class=class src=url(&media) controls=true muted=true></video> }
+            view! { <VideoBackdrop media=media class=class controls=true muted=true/> }
                 .into_any()
         }
+    }
+}
+
+/// A stored video, played from a blob URL (see `tauri::video_url`): WebKitGTK's
+/// media player refuses custom schemes, so the bytes are fetched over the
+/// custom scheme and handed to `<video>` as a blob. `node_ref` receives the
+/// element; `on_loaded`/`on_error` wrap the DOM events of the same name;
+/// `on_timeupdate` runs on the periodic video clock. All callbacks may fire more
+/// than once if the source changes.
+#[component]
+pub fn VideoBackdrop(
+    media: Media,
+    #[prop(optional, into)] class: String,
+    #[prop(optional, into)] controls: MaybeProp<bool>,
+    #[prop(default = true)] muted: bool,
+    #[prop(default = "auto".into())] preload: String,
+    #[prop(optional, into)] node_ref: NodeRef<leptos::html::Video>,
+    #[prop(optional)] on_loaded: Option<Box<dyn Fn() + Send + Sync>>,
+    #[prop(optional)] on_error: Option<Box<dyn Fn() + Send + Sync>>,
+    #[prop(optional)] on_timeupdate: Option<Box<dyn Fn() + Send + Sync>>,
+) -> impl IntoView {
+    let source = RwSignal::new(Err("Video lädt…".to_string()));
+    spawn_local(async move {
+        let result = crate::tauri::video_url(&media).await;
+        source.set(result);
+    });
+    on_cleanup(move || {
+        // Revoke the object URL once the component is gone.
+        if let Some(Ok(object)) = source.try_get_untracked() {
+            crate::tauri::revoke_object_url(&object);
+        }
+    });
+    let loaded = StoredValue::new(on_loaded);
+    let failed = StoredValue::new(on_error);
+    let ticked = StoredValue::new(on_timeupdate);
+    let player = node_ref;
+    let class = StoredValue::new(class);
+    let preload = StoredValue::new(preload);
+    let muted = StoredValue::new(muted);
+    view! {
+        <Show when=move || source.get().is_ok()>
+            <video
+                node_ref=player
+                class=class.with_value(|value| value.clone())
+                controls=move || controls.get().unwrap_or(true)
+                muted=muted.with_value(|value| *value)
+                preload=preload.with_value(|value| value.clone())
+                src=move || source.get().expect("checked by Show")
+                on:loadedmetadata=move |_| loaded.with_value(|callback| if let Some(cb) = callback { cb(); })
+                on:timeupdate=move |_| ticked.with_value(|callback| if let Some(cb) = callback { cb(); })
+                on:error=move |_| failed.with_value(|callback| if let Some(cb) = callback { cb(); })
+            ></video>
+        </Show>
+        <Show when=move || source.get().is_err()>
+            <p class="notes" role="alert">{move || source.get().unwrap_err()}</p>
+        </Show>
     }
 }

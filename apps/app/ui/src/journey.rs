@@ -12,7 +12,7 @@ use locora_app_api::{
 };
 use serde::Serialize;
 
-use crate::sply::{Shown, Sply};
+use crate::sply::{Shown, Sply, VideoBackdrop};
 use crate::tauri::{NoArgs, call};
 use crate::{Answer, Screen};
 
@@ -418,43 +418,17 @@ fn VideoAtLocus(
         }
     });
     view! {
-        <video node_ref=player class="backdrop" src=crate::tauri::url(&media)
-            controls=move || matches!(phase.get(), Phase::Judged(_)) muted=true preload="auto"
-            on:loadedmetadata=move |_| {
-                if let Some(player) = player.get_untracked() {
-                    let duration = player.duration();
-                    match time.filter(|t| t.is_finite() && *t >= 0.0
-                        && (!duration.is_finite() || *t <= duration)) {
-                        Some(target) => {
-                            let start = video_segment_start(progress.get_value().as_ref(), &key.get_value(), target);
-                            player.set_current_time(start);
-                            if start == target {
-                                let _ = player.pause();
-                                progress.set_value(Some((key.get_value(), target)));
-                                ready.set(true);
-                                return;
-                            }
-                            let playing = player.play();
-                            spawn_local(async move {
-                                let failed = match playing {
-                                    Ok(promise) => wasm_bindgen_futures::JsFuture::from(promise).await.is_err(),
-                                    Err(_) => true,
-                                };
-                                if failed && player.is_connected() && !ready.get_untracked() {
-                                    let _ = player.pause();
-                                    player.set_current_time(target);
-                                    progress.set_value(Some((key.get_value(), target)));
-                                    fallback.set(true);
-                                    ready.set(true);
-                                }
-                            });
-                        }
-                        None => { error.set(true); ready.set(true); },
-                    }
-                }
-            }
-            on:timeupdate=move |_| stop_at_locus()
-            on:error=move |_| { error.set(true); ready.set(true); } />
+        <VideoBackdrop
+            media=media.clone()
+            class="backdrop"
+            controls=MaybeProp::derive(move || Some(matches!(phase.get(), Phase::Judged(_))))
+            muted=true
+            preload="auto".to_string()
+            node_ref=player
+            on_loaded=Box::new(move || on_metadata(player, time, phase, progress, key, ready, (error, fallback)))
+            on_timeupdate=Box::new(stop_at_locus)
+            on_error=Box::new(move || { error.set(true); ready.set(true); })
+        />
         <Show when=move || error.get()>
             <p class="notes" role="alert">"Video oder gespeicherte Locus-Zeit konnte nicht geladen werden."</p>
         </Show>
@@ -468,6 +442,51 @@ fn video_segment_start(previous: Option<&(String, f64)>, key: &str, target: f64)
     previous
         .filter(|(old_key, t)| old_key == key && t.is_finite() && *t >= 0.0 && *t <= target)
         .map_or(0.0, |(_, t)| *t)
+}
+
+/// Seek to the question's segment once the video's metadata is loaded.
+fn on_metadata(
+    player: NodeRef<leptos::html::Video>,
+    time: Option<f64>,
+    _phase: RwSignal<Phase>,
+    progress: StoredValue<Option<(String, f64)>>,
+    key: StoredValue<String>,
+    ready: RwSignal<bool>,
+    flags: (RwSignal<bool>, RwSignal<bool>),
+) {
+    let (error, fallback) = flags;
+    let Some(player) = player.get_untracked() else {
+        return;
+    };
+    let duration = player.duration();
+    match time.filter(|t| t.is_finite() && *t >= 0.0
+        && (!duration.is_finite() || *t <= duration)) {
+        Some(target) => {
+            let start = video_segment_start(progress.get_value().as_ref(), &key.get_value(), target);
+            player.set_current_time(start);
+            if start == target {
+                let _ = player.pause();
+                progress.set_value(Some((key.get_value(), target)));
+                ready.set(true);
+                return;
+            }
+            let playing = player.play();
+            spawn_local(async move {
+                let failed = match playing {
+                    Ok(promise) => wasm_bindgen_futures::JsFuture::from(promise).await.is_err(),
+                    Err(_) => true,
+                };
+                if failed && player.is_connected() && !ready.get_untracked() {
+                    let _ = player.pause();
+                    player.set_current_time(target);
+                    progress.set_value(Some((key.get_value(), target)));
+                    fallback.set(true);
+                    ready.set(true);
+                }
+            });
+        }
+        None => { error.set(true); ready.set(true); },
+    }
 }
 
 /// CSS transform that scales the room by `zoom` around its top-left corner and

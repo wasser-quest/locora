@@ -27,9 +27,9 @@
         "script-src": "'self' 'wasm-unsafe-eval'",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: locora: http://locora.localhost",
-        "media-src": "'self' locora: http://locora.localhost",
+        "media-src": "'self' locora: http://locora.localhost blob:",
         "frame-src": "locora: http://locora.localhost",
-        "connect-src": "'self' ipc: http://ipc.localhost"
+        "connect-src": "'self' ipc: http://ipc.localhost locora: http://locora.localhost"
       }
     }
   },

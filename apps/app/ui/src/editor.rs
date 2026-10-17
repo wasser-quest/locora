@@ -7,7 +7,7 @@ use locora_app_api::{
 use serde::{Deserialize, Serialize};
 use web_sys::PointerEvent;
 
-use crate::{Answer, sply::Shown, tauri::call};
+use crate::{Answer, sply::{Shown, VideoBackdrop}, tauri::call};
 
 /// Normalize viewport coordinates against the whole stage, not a child target.
 fn stage_point(x: f64, y: f64, left: f64, top: f64, width: f64, height: f64) -> Option<(f64, f64)> {
@@ -985,7 +985,7 @@ fn RoomStage(
         >
             {room.backdrop.map(|media| {
                 if video {
-                    view! { <video node_ref=player class="backdrop" src=crate::tauri::url(&media) controls=true muted=true></video> }.into_any()
+                    view! { <VideoBackdrop media=media class="backdrop" controls=true muted=true node_ref=player/> }.into_any()
                 } else {
                     view! { <Shown media=media class="backdrop" /> }.into_any()
                 }
