@@ -147,6 +147,30 @@ pub mod core {
         const TOPIC: &'static str = "core.journey.locus_answered";
     }
 
+    /// A journey begins for these palaces. Sent after a route was planned.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct JourneyStarted {
+        pub palace_ids: Vec<String>,
+    }
+
+    impl Event for JourneyStarted {
+        const TOPIC: &'static str = "core.journey.started";
+    }
+
+    /// Answer with the profile's local learning day attached by the runtime.
+    /// This additive event leaves the established LocusAnswered ABI intact.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct LearningDayAnswer {
+        pub palace_id: String,
+        pub correct: bool,
+        pub answered_at: u64,
+        pub day_start: u64,
+    }
+
+    impl Event for LearningDayAnswer {
+        const TOPIC: &'static str = "core.journey.learning_day_answer";
+    }
+
     /// A journey was finished.
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     pub struct JourneyCompleted {
@@ -179,6 +203,56 @@ pub mod core {
 
     impl Event for LocusDeleted {
         const TOPIC: &'static str = "core.locus.deleted";
+    }
+}
+
+/// Local, offline progress supplied by the gamification plugin.
+pub mod gamification {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Trophy {
+        FirstJourney,
+        PerfectJourney,
+        HundredXp,
+        SevenDayStreak,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct TrophyUnlocked {
+        pub trophy: Trophy,
+    }
+
+    impl Event for TrophyUnlocked {
+        const TOPIC: &'static str = "gamification.trophy.unlocked";
+    }
+
+    pub struct Status;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct StatusRequest {
+        /// Start of the current learning day, calculated by the native runtime.
+        pub day_start: u64,
+        /// The runtime's local-time streak (zero without review history).
+        pub streak: u32,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct StatusResponse {
+        pub xp: u64,
+        pub combo: u32,
+        pub max_combo: u32,
+        pub hearts: u8,
+        pub trophies: Vec<Trophy>,
+        pub daily_correct: u32,
+        pub daily_goal: u32,
+        pub streak: u32,
+    }
+
+    impl Service for Status {
+        const NAME: &'static str = "gamification.status@1";
+        type Request = StatusRequest;
+        type Response = StatusResponse;
     }
 }
 

@@ -128,6 +128,7 @@ pub fn optimize_command(app: &mut App, dry_run: bool, reset: bool) -> Result<()>
 pub fn stats(app: &mut App) -> Result<()> {
     review_required(app)?;
     let stats = app.stats()?.unwrap_or_default();
+    let game = app.gamification_status()?;
     app.report();
     println!("Antworten insgesamt:   {}", stats.answers);
     println!(
@@ -153,6 +154,19 @@ pub fn stats(app: &mut App) -> Result<()> {
         "Geplante Loci:         {} (davon {} fällig)",
         stats.scheduled, stats.due
     );
+    if let Some(game) = game {
+        println!(
+            "Erfolge:               {} XP, Combo {}, {} Herzen, {} Trophäen",
+            game.xp,
+            game.combo,
+            game.hearts,
+            game.trophies.len()
+        );
+        println!(
+            "Tages-Challenge:       {}/{} richtige Antworten",
+            game.daily_correct, game.daily_goal
+        );
+    }
     let (usable, worth) = app.optimize_hint()?;
     if worth {
         println!(
