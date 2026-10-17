@@ -1,9 +1,11 @@
 //! `locora`: memory palaces from the command line, and plugin development.
 
 mod app;
+mod cloud;
 mod notify;
 mod palace;
 mod plugin;
+mod plugin_sign;
 mod practice;
 mod settings;
 mod source;
@@ -262,6 +264,9 @@ enum Command {
     /// Plugins erstellen, entwickeln und testen
     #[command(subcommand)]
     Plugin(plugin::PluginCommand),
+    /// Locora Cloud: Konto, Abo und Freischaltung
+    #[command(subcommand)]
+    Cloud(cloud::CloudCommand),
 }
 
 fn main() -> Result<()> {
@@ -269,6 +274,7 @@ fn main() -> Result<()> {
     let data = cli.data.as_deref();
     match cli.command {
         Command::Plugin(cmd) => plugin::run(cmd, data),
+        Command::Cloud(cmd) => cloud::run(cmd, data),
         Command::Table(cmd) => workbook::table(&mut app::App::open(data)?, cmd),
         Command::Bind {
             palace,

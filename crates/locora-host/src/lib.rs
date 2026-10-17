@@ -51,6 +51,9 @@ pub struct Manifest {
 pub struct ApprovalReceipt {
     pub manifest: Manifest,
     pub sha256: String,
+    /// Publisher key (base64) that signed the approved bytes, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signer: Option<String>,
 }
 
 impl ApprovalReceipt {
@@ -58,7 +61,14 @@ impl ApprovalReceipt {
         Self {
             manifest,
             sha256: format!("{:x}", Sha256::digest(bytes)),
+            signer: None,
         }
+    }
+
+    /// Records who signed the approved bytes.
+    pub fn signed_by(mut self, publisher: String) -> Self {
+        self.signer = Some(publisher);
+        self
     }
 
     pub fn matches(&self, manifest: &Manifest, bytes: &[u8]) -> bool {
@@ -248,7 +258,10 @@ impl host::Host for PluginState {
                 .map_err(|e| format!("Ungültiger Tour-Schritt: {e}"))?;
             if !step.target.starts_with("tour-")
                 || step.target.len() > 64
-                || !step.target.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+                || !step
+                    .target
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'-')
                 || step.title.trim().is_empty()
                 || step.title.chars().count() > 80
                 || step.text.trim().is_empty()
@@ -421,7 +434,12 @@ impl PluginHost {
         }
         let component = self.compile(bytes)?;
         let manifest = self.inspect_component(&component)?;
-        if !allow_reload && matches!(manifest.id.as_str(), "core" | "review" | "notify" | "tutorial" | "gamification") {
+        if !allow_reload
+            && matches!(
+                manifest.id.as_str(),
+                "core" | "review" | "notify" | "tutorial" | "gamification"
+            )
+        {
             bail!("Eingebaute Plugin-ID `{}` ist geschützt", manifest.id);
         }
         if approved.is_some_and(|approved| !approved.matches(&manifest, bytes)) {

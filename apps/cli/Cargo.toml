@@ -15,11 +15,14 @@ path = "src/main.rs"
 anyhow.workspace = true
 locora-formula = { path = "../../crates/locora-formula" }
 locora-format = { path = "../../crates/locora-format" }
+locora-cloud-api = { path = "../../crates/locora-cloud-api" }
+locora-signing = { path = "../../crates/locora-signing" }
 locora-runtime = { path = "../../crates/locora-runtime" }
 locora-source = { path = "../../crates/locora-source" }
 locora-store = { path = "../../crates/locora-store" }
 clap.workspace = true
 dirs = "6"
+rpassword = "7"
 locora-api.workspace = true
 locora-host.workspace = true
 notify.workspace = true

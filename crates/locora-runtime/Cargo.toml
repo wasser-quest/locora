@@ -11,6 +11,8 @@ rust-version.workspace = true
 anyhow.workspace = true
 dirs = "6"
 locora-api.workspace = true
+locora-cloud-api = { path = "../locora-cloud-api" }
+locora-signing = { path = "../locora-signing" }
 locora-host.workspace = true
 locora-format = { path = "../locora-format" }
 locora-fsrs = { path = "../locora-fsrs" }
@@ -20,4 +22,6 @@ locora-store = { path = "../locora-store" }
 tempfile = "3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+ureq = { version = "3", features = ["json"] }
+sha2.workspace = true
 

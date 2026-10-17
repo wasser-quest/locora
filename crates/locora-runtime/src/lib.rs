@@ -9,6 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 
 use anyhow::{Context, Result, bail};
+use locora_api::Service as _;
 use locora_api::core::{Grade, JourneyScore, LearningDayAnswer, LocusAnswered, Score};
 use locora_api::gamification::{
     Status as GamificationStatus, StatusRequest as GamificationStatusRequest,
@@ -16,10 +17,9 @@ use locora_api::gamification::{
 };
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
 use locora_api::notify::{Due, DueRequest, Message};
-use locora_api::ui::Tile;
-use locora_api::ui::HighlightRequest;
 use locora_api::tutorial::{Tour, TourAction};
-use locora_api::Service as _;
+use locora_api::ui::HighlightRequest;
+use locora_api::ui::Tile;
 
 /// Latest `ui.tile` per plugin, kept in the profile (reserved id `host`).
 const TILES: &str = "tiles";
@@ -27,8 +27,11 @@ use locora_api::review::{CardState, Schedule, ScheduleRequest};
 use locora_host::{ApprovalReceipt, HostEvent, KvStore, Level, Manifest, PluginHost};
 use locora_store::{PalaceTree, Store};
 
+pub mod cloud;
+pub mod cloud_sync;
 pub mod formula_guide;
 pub mod journey;
+pub mod publishers;
 pub mod settings;
 pub mod transfer;
 pub mod tutorial;
@@ -157,7 +160,12 @@ impl Profile {
                 }
             }
         }
-        let mut profile = Self { store, host, notes, highlight: None };
+        let mut profile = Self {
+            store,
+            host,
+            notes,
+            highlight: None,
+        };
         let reported = profile.report();
         profile.notes.extend(reported);
         Ok(profile)
@@ -221,28 +229,25 @@ impl Profile {
         body: &str,
         action: &str,
     ) -> Result<()> {
-        self.host.call::<locora_api::notify::Send>(&locora_api::notify::SendRequest {
-            channel: channel.to_owned(),
-            priority: 0,
-            title: title.to_owned(),
-            body: body.to_owned(),
-            action: action.to_owned(),
-        })?;
+        self.host
+            .call::<locora_api::notify::Send>(&locora_api::notify::SendRequest {
+                channel: channel.to_owned(),
+                priority: 0,
+                title: title.to_owned(),
+                body: body.to_owned(),
+                action: action.to_owned(),
+            })?;
         Ok(())
     }
 
     /// The plugin's history, newest last; empty without `notify`.
     /// `limit` 0 lets the plugin choose (its cap).
-    pub fn notification_history(
-        &mut self,
-        limit: u32,
-    ) -> Result<Vec<locora_api::notify::Message>> {
+    pub fn notification_history(&mut self, limit: u32) -> Result<Vec<locora_api::notify::Message>> {
         if !self.has_notify() {
             return Ok(Vec::new());
         }
-        self.host.call::<locora_api::notify::History>(
-            &locora_api::notify::HistoryRequest { limit },
-        )
+        self.host
+            .call::<locora_api::notify::History>(&locora_api::notify::HistoryRequest { limit })
     }
 
     /// Publish an event; returns plugin problems it caused.
@@ -384,7 +389,10 @@ impl Profile {
             elapsed_ms: request.elapsed_ms,
             answered_at,
         })?);
-        if self.host.plugin_provides("gamification", GamificationStatus::NAME) {
+        if self
+            .host
+            .plugin_provides("gamification", GamificationStatus::NAME)
+        {
             let day_start = self.day_clock()?.day_start(answered_at);
             notes.extend(self.publish(&LearningDayAnswer {
                 palace_id: request.palace_id.to_owned(),
@@ -409,7 +417,10 @@ impl Profile {
 
     /// Local game progress, using the same learning-day boundary as review.
     pub fn gamification_status(&mut self) -> Result<Option<GamificationStatusResponse>> {
-        if !self.host.plugin_provides("gamification", GamificationStatus::NAME) {
+        if !self
+            .host
+            .plugin_provides("gamification", GamificationStatus::NAME)
+        {
             return Ok(None);
         }
         let day_start = self.day_clock()?.day_start(now());
@@ -487,7 +498,11 @@ mod tile_tests {
         assert_eq!(tiles.iter().filter(|(p, _)| p == "entfernt").count(), 0);
         drop(profile);
         let again = Profile::open(Some(dir.path())).unwrap();
-        assert_eq!(review_tile(&again.tiles().unwrap()), Some(tile("2 fällig")), "kept across restarts");
+        assert_eq!(
+            review_tile(&again.tiles().unwrap()),
+            Some(tile("2 fällig")),
+            "kept across restarts"
+        );
 
         again.store.kv_set("host", TILES, b"kaputt").unwrap();
         assert!(again.tiles().unwrap().is_empty());
@@ -515,8 +530,12 @@ mod notify_tests {
         assert!(profile.notifications().unwrap().is_empty());
 
         // Send two messages on one channel and one on another.
-        profile.send_notification("test.hello", "Titel", "Erste", "").unwrap();
-        profile.send_notification("test.hello", "Titel", "Zweite", "").unwrap();
+        profile
+            .send_notification("test.hello", "Titel", "Erste", "")
+            .unwrap();
+        profile
+            .send_notification("test.hello", "Titel", "Zweite", "")
+            .unwrap();
         profile
             .send_notification("test.other", "Andere", "Dritte", "review.start@P")
             .unwrap();
@@ -568,7 +587,10 @@ mod notify_tests {
         // directly with a late `day_seconds`.
         let queued = profile
             .host
-            .call::<locora_api::notify::Due>(&DueRequest { now: 1, day_seconds: 20 * 3600 })
+            .call::<locora_api::notify::Due>(&DueRequest {
+                now: 1,
+                day_seconds: 20 * 3600,
+            })
             .unwrap();
         assert_eq!(queued.len(), 1);
         assert_eq!(queued[0].title, "Abendlernen");
@@ -587,7 +609,10 @@ mod notify_tests {
         assert!(
             profile
                 .host
-                .call::<locora_api::notify::Due>(&DueRequest { now: 3, day_seconds: 20 * 3600 })
+                .call::<locora_api::notify::Due>(&DueRequest {
+                    now: 3,
+                    day_seconds: 20 * 3600
+                })
                 .unwrap()
                 .is_empty(),
             "shown messages are gone until the next day"
@@ -598,7 +623,9 @@ mod notify_tests {
     fn quiet_hours_hold_messages() {
         let dir = tempfile::tempdir().unwrap();
         let mut profile = Profile::open(Some(dir.path())).unwrap();
-        profile.send_notification("test.night", "Nachts", "Spät", "").unwrap();
+        profile
+            .send_notification("test.night", "Nachts", "Spät", "")
+            .unwrap();
         // Quiet hours 22:00–08:00.
         profile
             .host
@@ -609,12 +636,18 @@ mod notify_tests {
             .unwrap();
         let due = profile
             .host
-            .call::<locora_api::notify::Due>(&DueRequest { now: 1, day_seconds: 23 * 3600 })
+            .call::<locora_api::notify::Due>(&DueRequest {
+                now: 1,
+                day_seconds: 23 * 3600,
+            })
             .unwrap();
         assert!(due.is_empty(), "quiet: {due:?}");
         let due = profile
             .host
-            .call::<locora_api::notify::Due>(&DueRequest { now: 2, day_seconds: 9 * 3600 })
+            .call::<locora_api::notify::Due>(&DueRequest {
+                now: 2,
+                day_seconds: 9 * 3600,
+            })
             .unwrap();
         assert_eq!(due.len(), 1, "after quiet hours");
         // Muting drops the channel entirely.
@@ -627,7 +660,10 @@ mod notify_tests {
             .unwrap();
         let due = profile
             .host
-            .call::<locora_api::notify::Due>(&DueRequest { now: 3, day_seconds: 9 * 3600 })
+            .call::<locora_api::notify::Due>(&DueRequest {
+                now: 3,
+                day_seconds: 9 * 3600,
+            })
             .unwrap();
         assert!(due.is_empty(), "muted: {due:?}");
     }
