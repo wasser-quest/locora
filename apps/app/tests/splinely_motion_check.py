@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Native release animation check (AT-SPI + screenshots, no injected app API).
 
-Use run_motion.sh after building the app. Each revealed tutorial picture is
+Use run_smoke.sh --motion after building the app. Each revealed tutorial picture is
 cropped separately, so moving markers/backgrounds cannot hide a static picture.
 Screenshots and measurements are evidence of rendering, not runtime internals.
 """
@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -210,9 +211,15 @@ def main():
         scenario.run()
     except Exception as error:
         scenario.record("failed", error=str(error))
-        scenario.shot("failure")
-        (artifacts / "accessibility.txt").write_text("\n".join(
-            f"{n.get_role_name()}: {n.get_name()}" for n in walk(scenario.app)))
+        try:
+            scenario.shot("failure")
+        except Exception as diagnostic_error:
+            print(f"Failure screenshot failed: {diagnostic_error}", file=sys.stderr)
+        try:
+            (artifacts / "accessibility.txt").write_text("\n".join(
+                f"{n.get_role_name()}: {n.get_name()}" for n in walk(scenario.app)))
+        except Exception as diagnostic_error:
+            print(f"Accessibility dump failed: {diagnostic_error}", file=sys.stderr)
         raise
     finally:
         scenario.close()

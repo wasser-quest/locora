@@ -11,11 +11,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use locora_cloud_api::api::{
-    Account, AnswerDto, Challenge, CreateChallenge, EntitlementReply, ErrorBody, Friend,
-    FriendRequest, Login, Ranking, Register, ScoreReply, Session, SubmitJourney, SubscriptionState,
+    Account, Challenge, CreateChallenge, EntitlementReply, ErrorBody, Friend, FriendRequest, Login,
+    Ranking, Register, Session, SubscriptionState,
 };
 use locora_cloud_api::entitlement::{Access, Claims, parse_public_key, verify};
-use locora_store::Journey;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// Public half of the entitlement signing key (base64). The private key only
@@ -202,6 +201,7 @@ pub fn create_challenge(state: &CloudState, name: &str, ends_at: u64) -> Result<
 }
 
 pub fn join_challenge(state: &CloudState, id: &str) -> Result<Challenge> {
+    let id = percent_encoding::utf8_percent_encode(id, percent_encoding::NON_ALPHANUMERIC);
     post(
         &state.server,
         &format!("/v1/challenges/{id}/join"),
@@ -211,33 +211,12 @@ pub fn join_challenge(state: &CloudState, id: &str) -> Result<Challenge> {
 }
 
 pub fn challenge_ranking(state: &CloudState, id: &str) -> Result<Ranking> {
+    let id = percent_encoding::utf8_percent_encode(id, percent_encoding::NON_ALPHANUMERIC);
     get(
         &state.server,
         &format!("/v1/challenges/{id}/ranking"),
         &state.token,
     )
-}
-
-/// Sends one finished journey to the server, to score it (for a challenge if given).
-pub fn submit_journey(
-    state: &CloudState,
-    journey: &Journey,
-    challenge: Option<&str>,
-) -> Result<ScoreReply> {
-    let body = SubmitJourney {
-        journey_id: journey.id.clone(),
-        challenge_id: challenge.map(str::to_owned),
-        palace: journey.palace_name.clone(),
-        answers: journey
-            .answers
-            .iter()
-            .map(|a| AnswerDto {
-                correct: a.correct,
-                at_ms: a.at_ms,
-            })
-            .collect(),
-    };
-    post(&state.server, "/v1/scores", Some(&state.token), &body)
 }
 
 /// Ends the server session (best effort) and forgets the local one.
@@ -280,6 +259,7 @@ fn agent(timeout: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_global(Some(timeout))
         .http_status_as_error(false)
+        .max_redirects(0)
         .build()
         .into()
 }
@@ -387,6 +367,76 @@ fn read<T: DeserializeOwned>(mut response: ureq::http::Response<ureq::Body>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::io::{BufRead, BufReader};
+    use std::net::TcpListener;
+    use std::thread;
+
+    fn fixture(response: String) -> (CloudState, thread::JoinHandle<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let server = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut reader = BufReader::new(&mut socket);
+            let mut request = String::new();
+            reader.read_line(&mut request).unwrap();
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line == "\r\n" || line.is_empty() {
+                    break;
+                }
+            }
+            socket.write_all(response.as_bytes()).unwrap();
+            request
+        });
+        let state = CloudState {
+            server,
+            token: "synthetic-test-token".into(),
+            entitlement: None,
+            account: Account {
+                id: "local".into(),
+                email: "test@example.invalid".into(),
+                display_name: "Test".into(),
+                subscription: SubscriptionState::None,
+                plan: None,
+                period_end: None,
+            },
+        };
+        (state, worker)
+    }
+
+    #[test]
+    fn challenge_ids_stay_in_one_path_segment() {
+        let id = "../a/b?x=#% Grüße";
+        let segment = "%2E%2E%2Fa%2Fb%3Fx%3D%23%25%20Gr%C3%BC%C3%9Fe";
+        let (state, worker) = fixture("HTTP/1.1 200 OK\r\nContent-Length: 33\r\nConnection: close\r\n\r\n{\"id\":\"x\",\"name\":\"X\",\"ends_at\":1}".into());
+        join_challenge(&state, id).unwrap();
+        assert_eq!(
+            worker.join().unwrap(),
+            format!("POST /v1/challenges/{segment}/join HTTP/1.1\r\n")
+        );
+        let (state, worker) = fixture(
+            "HTTP/1.1 200 OK\r\nContent-Length: 14\r\nConnection: close\r\n\r\n{\"entries\":[]}"
+                .into(),
+        );
+        challenge_ranking(&state, id).unwrap();
+        assert_eq!(
+            worker.join().unwrap(),
+            format!("GET /v1/challenges/{segment}/ranking HTTP/1.1\r\n")
+        );
+    }
+
+    #[test]
+    fn redirects_reach_response_handling() {
+        let (state, worker) = fixture("HTTP/1.1 302 Found\r\nLocation: /redirected\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into());
+        let error = get::<serde_json::Value>(&state.server, "/original", &state.token).unwrap_err();
+        assert!(error.to_string().contains("302"), "{error:#}");
+        assert!(worker.join().unwrap().starts_with("GET /original "));
+    }
 
     #[test]
     fn only_https_or_localhost_is_accepted() {

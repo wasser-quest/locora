@@ -7,7 +7,7 @@
 //! schedules that already fired today), `shown/<day>` (per-channel counters),
 //! `settings` (quiet hours, muted channels), `history` (shown messages).
 use locora_sdk::api::notify::{
-    Configure, Due, Displayed, History, Message, Plan, Queued, Schedule, ScheduleEntry, Send,
+    Configure, Displayed, Due, History, Message, Plan, Queued, Schedule, ScheduleEntry, Send,
     Settings,
 };
 use locora_sdk::prelude::*;
@@ -36,7 +36,10 @@ fn settings(ctx: &mut Ctx) -> Result<Settings> {
 
 /// How often one channel was shown on `day` (days since the Unix epoch).
 fn shown(ctx: &mut Ctx, day: u64) -> Result<Vec<(String, u32)>> {
-    Ok(ctx.store().get(&format!("shown/{day}"))?.unwrap_or_default())
+    Ok(ctx
+        .store()
+        .get(&format!("shown/{day}"))?
+        .unwrap_or_default())
 }
 
 /// Bundle same-channel messages queued within [`BUNDLE_WINDOW`] seconds:
@@ -44,10 +47,9 @@ fn shown(ctx: &mut Ctx, day: u64) -> Result<Vec<(String, u32)>> {
 fn bundle(queue: Vec<Queued>) -> Vec<Queued> {
     let mut out: Vec<Queued> = Vec::new();
     for message in queue {
-        match out
-            .iter_mut()
-            .find(|m| m.channel == message.channel && message.queued_at - m.queued_at <= BUNDLE_WINDOW)
-        {
+        match out.iter_mut().find(|m| {
+            m.channel == message.channel && message.queued_at.abs_diff(m.queued_at) <= BUNDLE_WINDOW
+        }) {
             Some(bundle) => {
                 bundle.body = format!("{} · {}", bundle.body, message.body);
                 bundle.priority = bundle.priority.max(message.priority);
@@ -118,7 +120,7 @@ impl Plugin for Notify {
                 title: request.title,
                 body: request.body,
                 action: request.action,
-                queued_at: 0,
+                queued_at: request.now,
             });
             set_queue(ctx, &queue)?;
             Ok(true)
@@ -220,8 +222,8 @@ impl Plugin for Notify {
                     && parts.contains(&queued.body.as_str()))
             });
             set_queue(ctx, &queue)?;
-            note_shown(ctx, day, &message.channel)?;
             if queue.len() < before {
+                note_shown(ctx, day, &message.channel)?;
                 push_history(ctx, message)?;
             }
             Ok(())
@@ -306,6 +308,22 @@ mod tests {
         ]);
         assert_eq!(bundled.len(), 1);
         assert_eq!(bundled[0].body, "12 Loci · 14 Loci");
+    }
+
+    #[test]
+    fn bundling_handles_reverse_timestamps_without_underflow() {
+        assert_eq!(
+            bundle(vec![queued("test", "new", 200), queued("test", "old", 100)]).len(),
+            1
+        );
+        assert_eq!(
+            bundle(vec![
+                queued("test", "new", u64::MAX),
+                queued("test", "old", 0)
+            ])
+            .len(),
+            2
+        );
     }
 
     #[test]

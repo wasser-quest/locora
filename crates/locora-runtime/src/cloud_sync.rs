@@ -95,10 +95,15 @@ fn pull(state: &CloudState, store: &Store, report: &mut SyncReport) -> Result<()
         }
         if !ops.is_empty() {
             let applied = store.apply_remote(&ops)?;
+            let retry = applied.missing > 0 || !applied.failed.is_empty();
             report.applied.applied += applied.applied;
             report.applied.stale += applied.stale;
             report.applied.missing += applied.missing;
             report.applied.failed.extend(applied.failed);
+            if retry {
+                // Replay this page on the next sync; already applied ops are stale.
+                return Ok(());
+            }
         }
         after = page.cursor;
         store.set_sync_cursor("pull", after)?;
@@ -163,5 +168,136 @@ fn wire(op: &Op) -> WireOp {
         entity_id: op.entity_id.clone(),
         op: op.op.clone(),
         data: op.data.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use locora_cloud_api::api::{Account, SubscriptionState};
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    fn pages(pages: Vec<PullReply>) -> (CloudState, thread::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let server = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            pages
+                .into_iter()
+                .map(|page| {
+                    let (mut socket, _) = listener.accept().unwrap();
+                    socket
+                        .set_read_timeout(Some(Duration::from_secs(5)))
+                        .unwrap();
+                    let mut reader = BufReader::new(&mut socket);
+                    let mut request = String::new();
+                    reader.read_line(&mut request).unwrap();
+                    loop {
+                        let mut line = String::new();
+                        reader.read_line(&mut line).unwrap();
+                        if line == "\r\n" || line.is_empty() {
+                            break;
+                        }
+                    }
+                    let body = serde_json::to_string(&page).unwrap();
+                    write!(
+                        socket,
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .unwrap();
+                    request
+                })
+                .collect()
+        });
+        (
+            CloudState {
+                server,
+                token: "synthetic-test-token".into(),
+                entitlement: None,
+                account: Account {
+                    id: "local".into(),
+                    email: "test@example.invalid".into(),
+                    display_name: "Test".into(),
+                    subscription: SubscriptionState::None,
+                    plan: None,
+                    period_end: None,
+                },
+            },
+            worker,
+        )
+    }
+
+    #[test]
+    fn missing_and_failed_ops_keep_the_page_available_for_retry() {
+        for missing in [true, false] {
+            let dir = tempfile::tempdir().unwrap();
+            let store = Store::open(dir.path()).unwrap();
+            let op = PulledOp {
+                seq: 8,
+                device: "remote".into(),
+                op: WireOp {
+                    hlc: "0000000000000001-000000-remote".into(),
+                    entity: "room".into(),
+                    entity_id: "room".into(),
+                    op: "create".into(),
+                    data: Some(
+                        serde_json::json!({"palace_id": "palace", "name": "Room", "kind": "blank", "position": 0}),
+                    ),
+                },
+            };
+            let mut retry = op.clone();
+            if !missing {
+                retry.op.data = Some(serde_json::json!({"kind": "invalid"}));
+            }
+            store.set_sync_cursor("pull", 7).unwrap();
+            let page = PullReply {
+                ops: vec![retry],
+                cursor: 8,
+            };
+            let (state, worker) = pages(vec![page.clone(), page]);
+            for _ in 0..2 {
+                let mut report = SyncReport::default();
+                pull(&state, &store, &mut report).unwrap();
+                assert_eq!(store.sync_cursor("pull").unwrap(), 7);
+                if missing {
+                    assert_eq!(report.applied.missing, 1);
+                } else {
+                    assert_eq!(report.applied.failed.len(), 1);
+                }
+            }
+            for request in worker.join().unwrap() {
+                assert!(request.contains("after=7&"), "{request}");
+            }
+            if missing {
+                let parent = RemoteOp {
+                    hlc: "0000000000000000-000000-remote".into(),
+                    entity: "palace".into(),
+                    entity_id: "palace".into(),
+                    op: "create".into(),
+                    data: Some(serde_json::json!({"name": "Palace"})),
+                };
+                assert_eq!(store.apply_remote(&[parent]).unwrap().applied, 1);
+                let (state, worker) = pages(vec![
+                    PullReply {
+                        ops: vec![op],
+                        cursor: 8,
+                    },
+                    PullReply {
+                        ops: vec![],
+                        cursor: 8,
+                    },
+                ]);
+                let mut report = SyncReport::default();
+                pull(&state, &store, &mut report).unwrap();
+                assert_eq!(report.applied.applied, 1);
+                assert_eq!(store.sync_cursor("pull").unwrap(), 8);
+                let requests = worker.join().unwrap();
+                assert!(requests[0].contains("after=7&"));
+                assert!(requests[1].contains("after=8&"));
+            }
+        }
     }
 }

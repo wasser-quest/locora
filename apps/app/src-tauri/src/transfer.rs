@@ -60,22 +60,6 @@ fn import_source(profile: &mut Profile, path: &Path) -> Result<ImportResult> {
         plan.tables.len() <= locora_format::limits::TABLE_ROWS,
         "Zu viele Tabellenzeilen"
     );
-    let media = plan
-        .marker
-        .iter()
-        .chain(plan.rooms.iter().filter_map(|r| r.media.as_ref()))
-        .chain(
-            plan.rooms
-                .iter()
-                .flat_map(|r| r.loci.iter().filter_map(|(_, _, image)| image.as_ref())),
-        );
-    for (path, _) in media {
-        let metadata = std::fs::metadata(path)?;
-        ensure!(
-            metadata.is_file() && metadata.len() <= 64 << 20,
-            "Medien müssen reguläre Dateien mit höchstens 64 MiB sein"
-        );
-    }
     let original_name = plan.name.clone();
     let mut n = 2;
     while profile.store.find_palace(&plan.name)?.is_some() {

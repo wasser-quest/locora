@@ -165,8 +165,45 @@ fn unsigned_installs_cannot_be_updated_and_keys_stay_private() {
     let text = refused(&["--data", data_s, "plugin", "update", s(&v2), "--yes"]);
     assert!(text.contains("nicht signiert installiert"), "{text}");
 
-    // Key files readable by others are not used for signing.
-    fs::set_permissions(&key, std::os::unix::fs::PermissionsExt::from_mode(0o644)).unwrap();
-    let text = refused(&["plugin", "sign", s(&v2), "--key", s(&key)]);
-    assert!(text.contains("chmod 600"), "{text}");
+    // Key files readable by others are not used for signing on Unix.
+    #[cfg(unix)]
+    {
+        fs::set_permissions(&key, std::os::unix::fs::PermissionsExt::from_mode(0o644)).unwrap();
+        let text = refused(&["plugin", "sign", s(&v2), "--key", s(&key)]);
+        assert!(text.contains("chmod 600"), "{text}");
+    }
+}
+
+#[test]
+fn update_refuses_a_changed_missing_or_nonregular_installed_component() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    let data = d.join("profile");
+    let (key, _) = publisher_key(d, "publisher.key");
+    let v1 = version(d, "probe.wasm", "0.1.0");
+    ok(&["plugin", "sign", s(&v1), "--key", s(&key)]);
+    ok(&["--data", s(&data), "plugin", "install", s(&v1), "--yes"]);
+    let v2 = version(d, "probe-2.wasm", "0.2.0");
+    ok(&["plugin", "sign", s(&v2), "--key", s(&key)]);
+    let destination = data.join("plugins/install-probe.wasm");
+    let receipt = destination.with_extension("wasm.json");
+    let approved = fs::read(&receipt).unwrap();
+    fs::write(&destination, b"changed").unwrap();
+    let text = refused(&["--data", s(&data), "plugin", "update", s(&v2), "--yes"]);
+    assert!(text.contains("passt nicht zur Freigabe"), "{text}");
+    assert_eq!(fs::read(&destination).unwrap(), b"changed");
+    fs::remove_file(&destination).unwrap();
+    refused(&["--data", s(&data), "plugin", "update", s(&v2), "--yes"]);
+    fs::create_dir(&destination).unwrap();
+    let text = refused(&["--data", s(&data), "plugin", "update", s(&v2), "--yes"]);
+    assert!(text.contains("Keine reguläre Plugin-Datei"), "{text}");
+    fs::remove_dir(&destination).unwrap();
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&v1, &destination).unwrap();
+        let text = refused(&["--data", s(&data), "plugin", "update", s(&v2), "--yes"]);
+        assert!(text.contains("Keine reguläre Plugin-Datei"), "{text}");
+        assert_eq!(fs::read(&destination).unwrap(), fs::read(&v1).unwrap());
+    }
+    assert_eq!(fs::read(&receipt).unwrap(), approved);
 }

@@ -2947,6 +2947,7 @@ dependencies = [
  "locora-signing",
  "locora-source",
  "locora-store",
+ "percent-encoding",
  "serde",
  "serde_json",
  "sha2",

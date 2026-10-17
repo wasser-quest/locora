@@ -7,7 +7,7 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use ed25519_dalek::{Signature, Signer, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 pub use ed25519_dalek::SigningKey;
@@ -60,7 +60,7 @@ pub fn verify(bytes: &[u8], file: &SignatureFile) -> Result<String, SignatureErr
         .and_then(|raw| Signature::from_slice(&raw).ok())
         .ok_or(SignatureError::Malformed)?;
     public
-        .verify(bytes, &signature)
+        .verify_strict(bytes, &signature)
         .map_err(|_| SignatureError::Mismatch)?;
     Ok(file.publisher.clone())
 }
@@ -129,6 +129,23 @@ mod tests {
         assert_eq!(
             verify(b"x", &future),
             Err(SignatureError::UnsupportedVersion(2))
+        );
+    }
+
+    #[test]
+    fn weak_identity_key_and_signature_are_rejected() {
+        let mut identity = [0; 32];
+        identity[0] = 1;
+        let mut signature = [0; 64];
+        signature[0] = 1;
+        let file = SignatureFile {
+            v: FORMAT_VERSION,
+            publisher: STANDARD.encode(identity),
+            signature: STANDARD.encode(signature),
+        };
+        assert_eq!(
+            verify(b"forged component", &file),
+            Err(SignatureError::Mismatch)
         );
     }
 

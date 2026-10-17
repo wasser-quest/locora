@@ -45,7 +45,7 @@ pub enum CloudCommand {
     /// Gemeinsame Challenges
     #[command(subcommand)]
     Challenge(ChallengeCommand),
-    /// Lokale Journeys mit Kennung (für `challenge submit`)
+    /// Lokale Journeys mit Kennung anzeigen
     Journeys,
     /// Abmelden und die lokale Sitzung löschen
     Logout,
@@ -64,13 +64,6 @@ pub enum ChallengeCommand {
     Join { id: String },
     /// Rangliste einer Challenge
     Ranking { id: String },
-    /// Eine lokale Journey für die Challenge werten lassen (Standard: letzte Journey)
-    Submit {
-        id: String,
-        /// Kennung der Journey (`locora cloud journeys`); Standard: die letzte
-        #[arg(long)]
-        journey: Option<String>,
-    },
 }
 
 pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
@@ -229,22 +222,6 @@ fn challenge(command: ChallengeCommand, data: &Path) -> Result<()> {
         }
         ChallengeCommand::Ranking { id } => {
             print_ranking(&cloud::challenge_ranking(&state, &id)?);
-        }
-        ChallengeCommand::Submit { id, journey } => {
-            let app = crate::app::App::open(Some(data))?;
-            let journeys = app.store.journeys(200)?;
-            let chosen = match journey {
-                Some(prefix) => journeys.iter().find(|j| j.id.starts_with(&prefix)),
-                None => journeys.first(),
-            };
-            let Some(journey) = chosen else {
-                bail!("Keine passende Journey gefunden (siehe `locora cloud journeys`)");
-            };
-            let score = cloud::submit_journey(&state, journey, Some(&id))?;
-            println!(
-                "✓ Gewertet: {} von {} richtig, {} XP",
-                score.correct, score.total, score.xp
-            );
         }
     }
     Ok(())

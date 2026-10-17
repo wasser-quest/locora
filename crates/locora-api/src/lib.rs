@@ -111,7 +111,6 @@ pub mod ui {
         type Request = HighlightRequest;
         type Response = bool;
     }
-
 }
 
 pub mod tutorial {
@@ -339,6 +338,8 @@ pub mod notify {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct SendRequest {
+        /// Host-provided queue time in seconds since the Unix epoch.
+        pub now: u64,
         pub channel: String,
         pub priority: u8,
         pub title: String,

@@ -220,8 +220,15 @@ symlinks or pipes; removal unlinks a component/approval symlink without followin
 its target. The profile's `plugins` entry must be a real directory, not a symlink;
 this is checked before opening the profile database.
 Existing components, destinations and duplicate manifest IDs under other filenames
-are refused. Broken unrelated files do not block installation. No upgrades,
-packages, signatures, registry or network downloads are implemented.
+are refused. Broken unrelated files do not block installation. Packages,
+a registry and network downloads are not implemented.
+
+`plugin sign FILE.wasm --key KEY` creates `FILE.wasm.sig`, a JSON signature
+file containing the Ed25519 public key and a signature over the exact component
+bytes. `plugin keygen KEY` creates a private signing key; keep it secret.
+`plugin trust PUBLIC_KEY --name NAME` records a publisher in the profile's
+`plugin-publishers.json` trust store. Installation verifies any supplied signature
+and records its signer in the approval receipt; an unknown signer requires consent.
 
 Installation does **not** activate even after approval; activation is deferred to
 the next normal profile command. `PluginHost::inspect_bytes` instantiates with no
@@ -245,11 +252,19 @@ cleanup. Only profile files/approval are removed; palace data and plugin KV
 survive. Embedded Core/Review remain protected, even in builds without them;
 extraneous profile files named `core.wasm`/`review.wasm` can be cleaned up. An
 interrupted installation may leave an orphan `.wasm.json`; remove its ID before
-retrying. For updates, remove then reinstall and review the warning again.
+retrying.
 
-The profile directory and approval files are trusted local user data, not signed
-artifacts; a local process with write access can change them. Fuel is not a memory,
-compilation-time or host-buffer quota: inspection is not a resource-exhaustion
+`plugin update FILE.wasm` requires an installation approved with a signature,
+a valid signature from the same signer, and a numerically greater dotted version
+(e.g. `1.2.4` after `1.2.3`). It checks the installed component against its approval
+before replacing it, displays permission changes, and asks for consent again
+(or requires `--yes` without a terminal). Unsigned installations cannot be updated
+this way.
+
+The signature authenticates the component bytes; the approval receipt records
+local consent and the signer. The profile directory, approval receipts and trust
+store are trusted local user data; a local process with write access can change
+them. Fuel is not a memory, compilation-time or host-buffer quota: inspection is not a resource-exhaustion
 boundary for hostile WASM. Development `dev/run` deliberately execute untrusted
 code in ephemeral storage and are not installation approval.
 

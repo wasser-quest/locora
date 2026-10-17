@@ -4,31 +4,31 @@
 
 ## Project Overview
 
-A Claude Flow powered project
+A Claude Flow-powered project
 
-**Tech Stack**: TypeScript, Node.js
+**Tech Stack**: Rust (Cargo workspace), WebAssembly plugins, Tauri/Leptos app
 **Architecture**: Domain-Driven Design with bounded contexts
 
 ## Quick Start
 
 ### Installation
 ```bash
-npm install
+cargo fetch --locked
 ```
 
 ### Build
 ```bash
-npm run build
+cargo build --workspace
 ```
 
 ### Test
 ```bash
-npm test
+cargo test --workspace
 ```
 
 ### Development
 ```bash
-npm run dev
+cargo run -p locora -- --help
 ```
 
 ## Agent Coordination
@@ -158,9 +158,11 @@ Use MCP tools for coordination, then keep coding:
 ## Code Standards
 
 ### File Organization
-- **NEVER** save to root folder
-- `/src` - Source code files
-- `/tests` - Test files
+- **NEVER** save source or generated files to the root folder. Required root-level documentation, manifests, and configuration may be updated.
+- `/apps` - CLI and app workspaces
+- `/crates` - Shared Rust crates
+- `/plugins` - WebAssembly plugins (separate Cargo workspace)
+- Package-local `src/` and `tests/` - Source code and tests
 - `/docs` - Documentation
 - `/config` - Configuration files
 

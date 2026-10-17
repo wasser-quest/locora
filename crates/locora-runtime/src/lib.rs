@@ -231,6 +231,7 @@ impl Profile {
     ) -> Result<()> {
         self.host
             .call::<locora_api::notify::Send>(&locora_api::notify::SendRequest {
+                now: now(),
                 channel: channel.to_owned(),
                 priority: 0,
                 title: title.to_owned(),
@@ -240,7 +241,7 @@ impl Profile {
         Ok(())
     }
 
-    /// The plugin's history, newest last; empty without `notify`.
+    /// The plugin's history, newest first; empty without `notify`.
     /// `limit` 0 lets the plugin choose (its cap).
     pub fn notification_history(&mut self, limit: u32) -> Result<Vec<locora_api::notify::Message>> {
         if !self.has_notify() {
@@ -561,6 +562,41 @@ mod notify_tests {
         assert!(history.iter().any(|m| m.body == "Erste · Zweite"));
         assert!(history.iter().any(|m| m.action == "review.start@P"));
         assert!(history.iter().all(|m| m.plugin == "notify"));
+    }
+
+    #[test]
+    fn sends_use_host_time_and_duplicate_acknowledgments_do_not_use_daily_quota() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let before = now();
+        profile
+            .send_notification("test", "Title", "First", "")
+            .unwrap();
+        let queued: Vec<locora_api::notify::Queued> = profile
+            .host
+            .call::<Due>(&DueRequest {
+                now: now(),
+                day_seconds: 0,
+            })
+            .unwrap();
+        assert_eq!(queued.len(), 1);
+        assert!((before..=now()).contains(&queued[0].queued_at));
+        let message = profile.notifications().unwrap().remove(0);
+        for _ in 0..10 {
+            profile.shown_notification(&message).unwrap();
+        }
+        assert_eq!(profile.notification_history(0).unwrap().len(), 1);
+        profile
+            .send_notification("test", "Title", "Second", "")
+            .unwrap();
+        let due = profile.notifications().unwrap();
+        assert_eq!(
+            due.len(),
+            1,
+            "duplicate acknowledgments must not exhaust quota"
+        );
+        profile.shown_notification(&due[0]).unwrap();
+        assert_eq!(profile.notification_history(1).unwrap()[0].body, "Second");
     }
 
     #[test]

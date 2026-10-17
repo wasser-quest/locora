@@ -23,6 +23,7 @@ pub mod places;
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use locora_api::journey::{Answer, AnswerKind, QuizOption};
@@ -675,6 +676,30 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
 
 // ---------------------------------------------------------------- building
 
+const MEDIA_BYTES: u64 = 64 << 20;
+
+fn read_media(path: &Path) -> Result<Vec<u8>> {
+    let read = || -> std::io::Result<Vec<u8>> {
+        let file = fs::File::open(path)?;
+        if !file.metadata()?.is_file() {
+            return Err(std::io::Error::other(
+                "Medium muss eine reguläre Datei sein",
+            ));
+        }
+        let mut bytes = Vec::new();
+        file.take(MEDIA_BYTES + 1).read_to_end(&mut bytes)?;
+        Ok(bytes)
+    };
+    let bytes = read().map_err(|e| SourceError::File(path.display().to_string(), e))?;
+    if bytes.len() as u64 > MEDIA_BYTES {
+        return Err(invalid(format!(
+            "{}: Medium ist größer als 64 MiB",
+            path.display()
+        )));
+    }
+    Ok(bytes)
+}
+
 /// Write a checked plan into the store as a new palace. If anything fails
 /// half-way, the partly built palace is removed again.
 pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
@@ -687,8 +712,7 @@ pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
     let palace = store.create_palace(&plan.name)?;
     let result = (|| -> Result<()> {
         if let Some((path, media_type)) = &plan.marker {
-            let bytes =
-                fs::read(path).map_err(|e| SourceError::File(path.display().to_string(), e))?;
+            let bytes = read_media(path)?;
             let hash = store.put_media(&bytes, media_type)?.hash;
             store.set_marker(&palace.id, Some(&hash))?;
         }
@@ -698,8 +722,7 @@ pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
         for room in &plan.rooms {
             let media = match &room.media {
                 Some((path, media_type)) => {
-                    let bytes = fs::read(path)
-                        .map_err(|e| SourceError::File(path.display().to_string(), e))?;
+                    let bytes = read_media(path)?;
                     Some(store.put_media(&bytes, media_type)?.hash)
                 }
                 None => None,
@@ -708,8 +731,7 @@ pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
             for (locus, bindings, picture) in &room.loci {
                 let mut locus = locus.clone();
                 if let Some((path, media_type)) = picture {
-                    let bytes = fs::read(path)
-                        .map_err(|e| SourceError::File(path.display().to_string(), e))?;
+                    let bytes = read_media(path)?;
                     locus.image = Some(store.put_media(&bytes, media_type)?.hash);
                 }
                 let new = store.add_locus(&created.id, locus)?;

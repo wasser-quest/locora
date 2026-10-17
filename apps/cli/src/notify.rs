@@ -14,7 +14,7 @@ pub enum NotifyCommand {
     /// Verlauf der gezeigten Erinnerungen (neueste zuerst, ohne etwas zu ändern)
     Show {
         /// Höchstens so viele Einträge (Standard 20)
-        #[arg(long)]
+        #[arg(long, default_value_t = 20)]
         limit: u32,
     },
     /// Nachricht an mich selbst schicken (Kanal, Titel, Text)
@@ -37,7 +37,11 @@ fn at(seconds: u64) -> String {
     let days = seconds / 86_400;
     let secs = seconds % 86_400;
     let (y, m, d) = civil_from_days(days as i64);
-    format!("{y:04}-{m:02}-{d:02} {:02}:{:02}", secs / 3600, secs % 3600 / 60)
+    format!(
+        "{y:04}-{m:02}-{d:02} {:02}:{:02}",
+        secs / 3600,
+        secs % 3600 / 60
+    )
 }
 
 /// Days since the Unix epoch to a civil date (Howard Hinnant's algorithm).
@@ -75,9 +79,8 @@ pub fn run(command: NotifyCommand, app: &mut App) -> Result<()> {
             app.report();
         }
         NotifyCommand::Show { limit } => {
-            let mut history = app.notification_history(limit)?;
+            let history = app.notification_history(limit)?;
             app.report();
-            history.reverse(); // newest first
             for message in &history {
                 println!(
                     "{} [{}] {} — {}",
@@ -88,12 +91,19 @@ pub fn run(command: NotifyCommand, app: &mut App) -> Result<()> {
                 );
             }
         }
-        NotifyCommand::Send { channel, title, body } => {
+        NotifyCommand::Send {
+            channel,
+            title,
+            body,
+        } => {
             app.send_notification(&channel, &title, &body, "")?;
             let messages = app.notifications()?;
             app.report();
             for message in messages {
-                println!("Gesendet: [{}] {} — {}", message.channel, message.title, message.body);
+                println!(
+                    "Gesendet: [{}] {} — {}",
+                    message.channel, message.title, message.body
+                );
                 app.shown_notification(&message)?;
             }
             app.report();

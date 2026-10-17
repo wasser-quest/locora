@@ -95,6 +95,12 @@ pub fn update(file: &Path, data: &Path, yes: bool) -> Result<()> {
         &fs::read(&approval_path)
             .with_context(|| format!("Plugin {:?} ist nicht installiert", manifest.id))?,
     )?;
+    if !fs::symlink_metadata(&destination)?.file_type().is_file() {
+        bail!("Keine reguläre Plugin-Datei: {}", destination.display());
+    }
+    if !installed.matches_bytes(&fs::read(&destination)?) {
+        bail!("Installierte Plugin-Datei passt nicht zur Freigabe");
+    }
     let Some(old_signer) = installed.signer.clone() else {
         bail!(
             "Plugin {:?} wurde nicht signiert installiert; ein Update ist nicht möglich",
@@ -205,11 +211,16 @@ fn create_private_public(path: &Path, text: &str) -> Result<()> {
 }
 
 fn write_new(path: &Path, text: &str, mode: u32) -> Result<()> {
-    use std::os::unix::fs::OpenOptionsExt;
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(mode)
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(mode);
+    }
+    #[cfg(not(unix))]
+    let _ = mode;
+    let mut file = options
         .open(path)
         .with_context(|| format!("{} kann nicht neu angelegt werden", path.display()))?;
     file.write_all(text.as_bytes())?;
