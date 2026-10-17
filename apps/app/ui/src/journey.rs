@@ -408,7 +408,10 @@ fn GameStatus(status: RwSignal<Option<GamificationStatus>>, art: RwSignal<Option
                         </span>
                     </div>
                     <div class="game-daily">
-                        <label for="game-daily-progress">{format!("Tagesziel: {} von {} richtig · {} Tage in Folge", game.daily_correct, game.daily_goal, game.streak)}</label>
+                        <div class="game-daily-label">
+                            {icons.clone().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.streak /></span> })}
+                            <label for="game-daily-progress">{format!("Tagesziel: {} von {} richtig · {} Tage in Folge", game.daily_correct, game.daily_goal, game.streak)}</label>
+                        </div>
                         <progress id="game-daily-progress" max=goal value=game.daily_correct.min(goal)></progress>
                     </div>
                     {(!game.trophies.is_empty()).then(|| view! {

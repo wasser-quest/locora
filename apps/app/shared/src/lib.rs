@@ -46,6 +46,7 @@ pub struct UiAssets {
     pub heart: Media,
     pub combo: Media,
     pub trophy: Media,
+    pub streak: Media,
     /// Room kinds (tabs): no picture, picture, video.
     pub room_blank: Media,
     pub room_image: Media,

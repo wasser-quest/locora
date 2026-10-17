@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the three small Journey progress symbols in Locora's cel-shaded style.
+"""Build the small Journey progress symbols in Locora's cel-shaded style.
 
 Usage: SPLINELY_CLI=splinely-cli python3 assets/ui/src/gamification.py [OUTPUT_DIR]
 """
@@ -55,7 +55,21 @@ def pokal():
     s.finish("Ein goldener Pokal mit einem leuchtenden Locus für erreichte Ziele.")
 
 
+def serie():
+    s = Scene("serie", 96, 96, "Lernserie")
+    disc = s.add("circle", "disc", x=48, y=48, radius=34, fill=t.INDIGO, pivot="center")
+    s.crescent(disc, -6, -6, t.INDIGO_SH)
+    s.crescent(disc, 4, 4, t.INDIGO_HI)
+    days = []
+    for i, (x, y) in enumerate(((25, 57), (32, 45), (40, 58), (48, 39), (56, 58), (64, 45), (71, 57))):
+        s.glow(f"day-glow-{i}", x, y, 8, 0.45)
+        s.light(f"day-{i}", x, y, 3)
+        days.append([f"day-glow-{i}", f"day-{i}"])
+    s.sequence("days", days, step=0.22, hold=1.8, cycle=3.6, low=0.3)
+    s.finish("Sieben aufleuchtende Loci stehen für Lerntage in Folge.")
+
+
 if __name__ == "__main__":
     os.makedirs(t.OUT, exist_ok=True)
-    for build in (herz, combo, pokal):
+    for build in (herz, combo, pokal, serie):
         build()
