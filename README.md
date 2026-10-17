@@ -85,7 +85,7 @@ there is no update command. Remove first to reinstall; plugin KV/palaces are ret
 Removal by ID resolves renamed components and refuses ambiguous IDs; an explicit
 `.wasm` filename removes broken files without probing them. The `plugins` directory
 itself must not be a symlink.
-Embedded `core`/`review` cannot be replaced or removed; broken profile copies can be
+Embedded `core`/`review`/`notify`/`tutorial` cannot be replaced or removed; broken profile copies can be
 removed without loading them. See the SDK guide for trust and sandbox limitations.
 
 ## Repository layout

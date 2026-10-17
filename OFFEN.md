@@ -90,7 +90,8 @@ Stand: 17.10.2026
 ## Phase 4 – Tutorial-Plugin
 
 - [x] Tutorial-Palast „Locora lernen“ mit `.sply` an jedem Ort (`locora tutorial`)
-- [ ] Touren durch die App über `ui.highlight@1`, Simo als Begleiter
+- [x] Erste App-Tour: offizielles `tutorial`-Plugin, geprüfter Host-Dienst `ui.highlight@1`, drei Startseiten-Schritte mit Simo, Weiter/Schließen und gespeichertem Schrittstand
+- [ ] Tour auf Palastansicht, Editor und Journey ausdehnen; fehlende Ziele und Fokusführung nativ prüfen
 - [ ] Formel-Guide als Palast mit `.sply`-Bildern
 
 ## Phase 5 – Gamification und Locora Cloud

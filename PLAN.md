@@ -214,7 +214,8 @@ Ein zur Laufzeit geladenes Plugin kann keine Leptos-Komponenten in die fertig ko
 
 **Fremde Plugins auf dem Handy: Warnung, dann auf eigene Verantwortung**
 
-Die offiziellen Plugins (`core`, `review`, `notify`, `tutorial`, `gamification`) sind signiert und kommen mit der App.
+Die offiziellen Plugins (`core`, `review`, `notify`, `tutorial`, `gamification`) kommen mit der App.
+Ed25519-Signaturen sind für die Plugin-Pakete vorgesehen und noch nicht umgesetzt.
 Für alle anderen Plugins gilt auf **Android und iOS** (auf Desktop in Kurzform, siehe unten):
 
 ```text
@@ -657,7 +658,10 @@ und erneut installiert werden. Ed25519-Signaturen und Plugin-Updates bleiben off
 `assets/tutorial/src/tutorial.py`, Simo und Glühwürmchen aus `assets/mascot/`. In die CLI eingebaut: `locora tutorial
 [--reset]`. Dafür neu: Medientyp `application/vnd.splinely` (`.sply`) für Raum-Hintergründe und Bilder an Orten,
 Locus-Bilder in Store (Migration 5), `.locora` (Version 2) und `locora.toml` (`image`), `locora add/edit --image`.
-Noch offen: Bilder im Palast-Dienst `core.palaces@1`; das Tutorial-Plugin (Touren über `ui.highlight@1`) folgt mit der App.
+Bild-Hashes im Palast-Dienst `core.palaces@1` sind umgesetzt. Das offizielle `tutorial`-Plugin bietet
+eine erste App-Tour über den berechtigungsgeprüften Host-Dienst `ui.highlight@1`: drei Schritte auf
+der Startseite mit Simo, Weiter/Schließen und gespeichertem Schrittstand. Tour-Schritte für Palast,
+Editor und Journey folgen.
 
 **Antworten und Abfragen (erledigt, aus dem Abgleich mit mnemodim):** Quiz mit bis zu 30 Optionen, pro Frage alle
 richtigen und drei zufällige falsche, gemischt (`Answer::quiz_selection`); Guess vergleicht ohne Groß-/Kleinschreibung,

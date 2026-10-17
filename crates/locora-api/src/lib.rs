@@ -61,6 +61,8 @@ pub mod permission {
     pub const PALACES_WRITE: &str = "palaces:write";
     /// Send and schedule notifications.
     pub const NOTIFY: &str = "notify";
+    /// Highlight a named app control during an interactive tour.
+    pub const UI_HIGHLIGHT: &str = "ui:highlight";
 }
 
 /// Events published by the host itself.
@@ -89,6 +91,45 @@ pub mod ui {
 
     impl Event for Tile {
         const TOPIC: &'static str = "ui.tile";
+    }
+
+    /// A short, declarative tour step. The app locates `target` by its stable
+    /// element ID; no HTML or CSS selector is accepted from a plugin.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct HighlightRequest {
+        pub target: String,
+        pub title: String,
+        pub text: String,
+        pub step: u8,
+        pub total: u8,
+    }
+
+    pub struct Highlight;
+
+    impl Service for Highlight {
+        const NAME: &'static str = "ui.highlight@1";
+        type Request = HighlightRequest;
+        type Response = bool;
+    }
+
+}
+
+pub mod tutorial {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum TourAction {
+        Start,
+        Next,
+        Skip,
+    }
+
+    pub struct Tour;
+
+    impl Service for Tour {
+        const NAME: &'static str = "tutorial.tour@1";
+        type Request = TourAction;
+        type Response = bool;
     }
 }
 

@@ -358,7 +358,7 @@ fn check(file: &Path) -> Result<()> {
 }
 
 // These identities remain reserved even in builds without embedded components.
-const BUILT_INS: &[&str] = &["core", "review"];
+const BUILT_INS: &[&str] = &["core", "review", "notify", "tutorial"];
 
 fn validate_install(manifest: &Manifest) -> Result<()> {
     let id = &manifest.id;
@@ -381,10 +381,10 @@ fn validate_install(manifest: &Manifest) -> Result<()> {
     for permission in &manifest.permissions {
         if !matches!(
             permission.as_str(),
-            "storage" | "palaces:read" | "palaces:write"
+            "storage" | "palaces:read" | "palaces:write" | "ui:highlight"
         ) {
             bail!(
-                "Nicht unterstützte Berechtigung {permission:?}; unterstützt: storage, palaces:read, palaces:write"
+                "Nicht unterstützte Berechtigung {permission:?}; unterstützt: storage, palaces:read, palaces:write, ui:highlight"
             );
         }
     }
@@ -599,6 +599,9 @@ fn list(data: &Path) -> Result<()> {
 fn print_events(host: &mut PluginHost) {
     for event in host.drain_events() {
         match event {
+            HostEvent::Highlighted { plugin, step } => {
+                println!("[{plugin}] App-Tour: {} ({}/{})", step.title, step.step, step.total);
+            }
             HostEvent::Loaded(m) => println!("✓ geladen: {} {} ({})", m.name, m.version, m.id),
             HostEvent::Reloaded(m) => {
                 println!("↻ neu geladen: {} {} ({})", m.name, m.version, m.id)

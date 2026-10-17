@@ -190,7 +190,9 @@ activation. Native `host.call::<palaces::Palaces>(...)` callers are trusted and 
 not need guest capabilities. `new`/`with_kv` remain usable without
 a palace backend; calls then fail explicitly. Plugins cannot override the native
 service with `provide`, even when its backend is absent. `provides` reports the
-service only when a backend is attached.
+palace service only when a backend is attached. The reserved `ui.highlight@1`
+service accepts short plain-text tour steps with stable element IDs and requires
+`ui:highlight`; a guest event cannot bypass this check.
 
 The CLI application attaches the selected profile's persistent store. In
 contrast, `plugin dev/run` use isolated in-memory palace and plugin storage.
@@ -205,7 +207,7 @@ German warning, identity and requested permissions. Interactive consent defaults
 to **cancel**; EOF/anything except `j`/`ja` refuses. Non-terminal stdin always
 requires explicit `--yes` (piped `ja` is not consent). Even `--yes` displays the
 warning and cannot bypass validation. Supported permissions are exactly
-`storage`, `palaces:read`, `palaces:write`; SDK `notify` is recognized but not yet
+`storage`, `palaces:read`, `palaces:write`, `ui:highlight`; SDK `notify` is recognized but not yet
 implemented and is refused, as are `network` and unknown permissions.
 
 Installation stores the reviewed bytes in `<data>/plugins/<id>.wasm` and the

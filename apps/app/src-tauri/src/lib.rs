@@ -342,6 +342,15 @@ async fn tutorial(state: State<'_, Shared>) -> Result<String, String> {
     Ok(tree.palace.id)
 }
 
+#[tauri::command]
+async fn tour(
+    state: State<'_, Shared>,
+    action: locora_app_api::TourAction,
+) -> Result<Option<locora_app_api::HighlightRequest>, String> {
+    let mut b = lock(&state)?;
+    b.profile.tour(action).map_err(err)
+}
+
 /// Everything that may be shown now (quiet hours, muting and the daily
 /// per-channel limit were already applied by the plugin).
 #[tauri::command]
@@ -665,6 +674,7 @@ pub fn run() {
             home_import_drop,
             editor_import_drop,
             tutorial,
+            tour,
             journey_inputs,
             settings,
             ui_assets,

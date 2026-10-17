@@ -11,7 +11,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, NotificationView,
-    PalaceCard, PalaceView, UiAssets,
+    PalaceCard, PalaceView, UiAssets, HighlightRequest, TourAction, CMD_TOUR,
 };
 use serde::Serialize;
 
@@ -32,9 +32,78 @@ fn main() {
     mount_to_body(App);
 }
 
+#[derive(Serialize)]
+struct TourArgs {
+    action: TourAction,
+}
+
+fn tour_action(
+    active: RwSignal<Option<HighlightRequest>>,
+    busy: RwSignal<bool>,
+    error: RwSignal<String>,
+    action: TourAction,
+) {
+    if busy.get_untracked() { return; }
+    busy.set(true);
+    spawn_local(async move {
+        match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action }).await {
+            Ok(step) => { active.set(step); error.set(String::new()); }
+            Err(message) => error.set(message),
+        }
+        busy.set(false);
+    });
+}
+
+#[component]
+fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Screen>) -> impl IntoView {
+    let busy = RwSignal::new(false);
+    let error = RwSignal::new(String::new());
+    Effect::new(move |_| {
+        let on_home = screen.get() == Screen::Home;
+        let current = active.get();
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else { return; };
+        for id in ["tour-home-media", "tour-home-import", "tour-home-settings"] {
+            if let Some(node) = document.get_element_by_id(id) {
+                let _ = node.remove_attribute("data-tour-active");
+            }
+        }
+        if !on_home && current.is_some() {
+            active.set(None);
+            return;
+        }
+        if let Some(step) = current
+            && let Some(node) = document.get_element_by_id(&step.target) {
+                let _ = node.set_attribute("data-tour-active", "true");
+            }
+    });
+    view! {
+        <Show when=move || active.get().is_some()>
+            {move || active.get().map(|step| view! {
+                <aside class="tour-panel card" role="dialog" aria-label="App-Tour" aria-live="polite">
+                    <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
+                    <div class="tour-copy">
+                        <small>{format!("Schritt {} von {}", step.step, step.total)}</small>
+                        <h2>{step.title}</h2>
+                        <p>{step.text}</p>
+                        <p class="notes" role="status">{move || error.get()}</p>
+                        <div class="row">
+                            <button disabled=move || busy.get() on:click=move |_| tour_action(active, busy, error, TourAction::Skip)>"Schließen"</button>
+                            <button class="primary" disabled=move || busy.get()
+                                on:click=move |_| tour_action(active, busy, error, TourAction::Next)>
+                                {if step.step == step.total { "Fertig" } else { "Weiter" }}
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+            })}
+        </Show>
+    }
+}
+
 #[component]
 fn App() -> impl IntoView {
     let screen = RwSignal::new(Screen::Home);
+    let tour = RwSignal::new(None::<HighlightRequest>);
     let editing = palette::Editing(RwSignal::new(false));
     provide_context(editing);
     // The app's own animations (assets/ui), loaded once for every screen.
@@ -89,10 +158,11 @@ fn App() -> impl IntoView {
     view! {
         <palette::Palette screen=screen editing=editing />
         <Notifications screen=screen />
+        <TourOverlay active=tour screen=screen />
         <main>
             {move || match screen.get() {
                 Screen::Home => view! {
-                    <HomeView screen=screen offset_revision=offset_revision/>
+                    <HomeView screen=screen offset_revision=offset_revision tour=tour/>
                 }.into_any(),
 
                 Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
@@ -284,7 +354,7 @@ fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
 }
 
 #[component]
-fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl IntoView {
+fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSignal<Option<HighlightRequest>>) -> impl IntoView {
     let home = RwSignal::new(None::<Result<Home, String>>);
     Effect::new(move |_| {
         let revision = offset_revision.get();
@@ -380,14 +450,26 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>) -> impl In
             }
         });
     };
+    let start_tour = move |_| {
+        if busy.get_untracked() { return; }
+        busy.set(true);
+        spawn_local(async move {
+            match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Start }).await {
+                Ok(step) => tour.set(step),
+                Err(error) => message.set(error),
+            }
+            busy.set(false);
+        });
+    };
     view! {
         <header class="bar">
             <h1>"Locora"</h1>
-            <button disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
-            <button disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei oder locora.toml">
+            <button id="tour-home-media" disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
+            <button id="tour-home-import" disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei oder locora.toml">
                 "Importieren…"
             </button>
-            <button title="Einstellungen & Statistik" on:click=move |_| screen.set(Screen::Settings)>
+            <button disabled=move || busy.get() on:click=start_tour>"App-Tour"</button>
+            <button id="tour-home-settings" title="Einstellungen & Statistik" on:click=move |_| screen.set(Screen::Settings)>
                 "⚙"
             </button>
         </header>

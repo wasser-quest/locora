@@ -13,6 +13,8 @@ use locora_api::core::{Grade, JourneyScore, LocusAnswered, Score};
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
 use locora_api::notify::{Due, DueRequest, Message};
 use locora_api::ui::Tile;
+use locora_api::ui::HighlightRequest;
+use locora_api::tutorial::{Tour, TourAction};
 use locora_api::Service as _;
 
 /// Latest `ui.tile` per plugin, kept in the profile (reserved id `host`).
@@ -101,6 +103,8 @@ pub struct Profile {
     pub host: PluginHost,
     /// Problems noticed while opening (plugins that did not load).
     pub notes: Vec<String>,
+    /// Latest tour highlight, consumed by the app command.
+    pub highlight: Option<HighlightRequest>,
 }
 
 impl Profile {
@@ -148,7 +152,7 @@ impl Profile {
                 }
             }
         }
-        let mut profile = Self { store, host, notes };
+        let mut profile = Self { store, host, notes, highlight: None };
         let reported = profile.report();
         profile.notes.extend(reported);
         Ok(profile)
@@ -247,6 +251,9 @@ impl Profile {
         let events = self.host.drain_events();
         let mut notes = Vec::new();
         for event in &events {
+            if let HostEvent::Highlighted { step, .. } = event {
+                self.highlight = Some(step.clone());
+            }
             if let HostEvent::Published {
                 plugin,
                 topic,
@@ -281,6 +288,18 @@ impl Profile {
             _ => None,
         }));
         notes
+    }
+
+    /// Advance the official tutorial tour and return its next declarative step.
+    pub fn tour(&mut self, action: TourAction) -> Result<Option<HighlightRequest>> {
+        if !self.host.plugin_provides("tutorial", Tour::NAME) {
+            bail!("Die App-Tour ist in diesem Build nicht verfügbar");
+        }
+        self.highlight = None;
+        self.host.call_plugin::<Tour>("tutorial", &action)?;
+        let notes = self.report();
+        self.notes.extend(notes);
+        Ok(self.highlight.take())
     }
 
     /// The latest tile of every loaded plugin, in plugin order (`ui.tile`).
