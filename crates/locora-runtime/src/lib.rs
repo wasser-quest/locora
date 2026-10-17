@@ -11,7 +11,9 @@ use std::{env, fs};
 use anyhow::{Context, Result, bail};
 use locora_api::core::{Grade, JourneyScore, LocusAnswered, Score};
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
+use locora_api::notify::{Due, DueRequest, Message};
 use locora_api::ui::Tile;
+use locora_api::Service as _;
 
 /// Latest `ui.tile` per plugin, kept in the profile (reserved id `host`).
 const TILES: &str = "tiles";
@@ -148,6 +150,87 @@ impl Profile {
         let reported = profile.report();
         profile.notes.extend(reported);
         Ok(profile)
+    }
+
+    /// Seconds past local midnight now (daily notification plans fire at
+    /// or after this; the offset comes from the recorded UTC offsets).
+    fn day_seconds(&self) -> Result<u32> {
+        let offset = self.day_clock()?.utc_offset_minutes();
+        let now = now();
+        Ok(((now + offset as u64 * 60) % 86_400) as u32)
+    }
+
+    /// Whether the `notify` plugin is loaded (notifications and schedules).
+    pub fn has_notify(&self) -> bool {
+        self.host.provides(Due::NAME)
+    }
+
+    /// Everything that may be shown now: due schedules plus queued messages,
+    /// already filtered and bundled by the plugin (quiet hours, muting, the
+    /// daily per-channel limit). Empty without the `notify` plugin.
+    pub fn notifications(&mut self) -> Result<Vec<Message>> {
+        if !self.has_notify() {
+            return Ok(Vec::new());
+        }
+        let shown_at = now();
+        let queued = self.host.call::<Due>(&DueRequest {
+            now: shown_at,
+            day_seconds: self.day_seconds()?,
+        })?;
+        Ok(queued
+            .into_iter()
+            .map(|queued| Message {
+                plugin: "notify".into(),
+                channel: queued.channel,
+                priority: queued.priority,
+                title: queued.title,
+                body: queued.body,
+                action: queued.action,
+                shown_at,
+            })
+            .collect())
+    }
+
+    /// Tell the plugin that `message` was shown, so the queue drops it and
+    /// the history keeps it (quiet hours, daily limit, bundling all apply
+    /// again on the next [`Profile::notifications`]).
+    pub fn shown_notification(&mut self, message: &Message) -> Result<Vec<String>> {
+        self.publish(&locora_api::notify::Displayed {
+            message: message.clone(),
+        })
+    }
+
+    /// Queue a message on a channel without showing it (for the CLI and
+    /// tests; the app taps `notify.send@1` through the plugin service).
+    pub fn send_notification(
+        &mut self,
+        channel: &str,
+        title: &str,
+        body: &str,
+        action: &str,
+    ) -> Result<()> {
+        self.host.call::<locora_api::notify::Send>(&locora_api::notify::SendRequest {
+            channel: channel.to_owned(),
+            priority: 0,
+            title: title.to_owned(),
+            body: body.to_owned(),
+            action: action.to_owned(),
+        })?;
+        Ok(())
+    }
+
+    /// The plugin's history, newest last; empty without `notify`.
+    /// `limit` 0 lets the plugin choose (its cap).
+    pub fn notification_history(
+        &mut self,
+        limit: u32,
+    ) -> Result<Vec<locora_api::notify::Message>> {
+        if !self.has_notify() {
+            return Ok(Vec::new());
+        }
+        self.host.call::<locora_api::notify::History>(
+            &locora_api::notify::HistoryRequest { limit },
+        )
     }
 
     /// Publish an event; returns plugin problems it caused.
@@ -330,7 +413,13 @@ mod tile_tests {
     fn tiles_are_kept_per_loaded_plugin() {
         let dir = tempfile::tempdir().unwrap();
         let profile = Profile::open(Some(dir.path())).unwrap();
-        assert!(profile.tiles().unwrap().is_empty());
+        let review_tile = |tiles: &[(String, Tile)]| {
+            tiles
+                .iter()
+                .find(|(plugin, _)| plugin == "review")
+                .map(|(_, tile)| tile.clone())
+        };
+        assert!(review_tile(&profile.tiles().unwrap()).is_none());
         let tile = |text: &str| Tile {
             title: "Wiederholung".into(),
             text: text.into(),
@@ -339,10 +428,11 @@ mod tile_tests {
         profile.keep_tile("review", tile("2 fällig")).unwrap();
         profile.keep_tile("entfernt", tile("alt")).unwrap();
         let tiles = profile.tiles().unwrap();
-        assert_eq!(tiles, [("review".to_owned(), tile("2 fällig"))]);
+        assert_eq!(review_tile(&tiles), Some(tile("2 fällig")));
+        assert_eq!(tiles.iter().filter(|(p, _)| p == "entfernt").count(), 0);
         drop(profile);
         let again = Profile::open(Some(dir.path())).unwrap();
-        assert_eq!(again.tiles().unwrap().len(), 1, "kept across restarts");
+        assert_eq!(review_tile(&again.tiles().unwrap()), Some(tile("2 fällig")), "kept across restarts");
 
         again.store.kv_set("host", TILES, b"kaputt").unwrap();
         assert!(again.tiles().unwrap().is_empty());
@@ -352,6 +442,139 @@ mod tile_tests {
             b"kaputt",
             "not overwritten"
         );
+    }
+}
+
+#[cfg(test)]
+mod notify_tests {
+    use super::*;
+    use locora_api::notify::{Plan, ScheduleRequest};
+
+    #[test]
+    fn messages_flow_send_due_shown_history() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        assert!(profile.has_notify(), "notify is built in");
+
+        // Nothing scheduled, nothing queued.
+        assert!(profile.notifications().unwrap().is_empty());
+
+        // Send two messages on one channel and one on another.
+        profile.send_notification("test.hello", "Titel", "Erste", "").unwrap();
+        profile.send_notification("test.hello", "Titel", "Zweite", "").unwrap();
+        profile
+            .send_notification("test.other", "Andere", "Dritte", "review.start@P")
+            .unwrap();
+        let due = profile.notifications().unwrap();
+        assert_eq!(due.len(), 2, "bundled per channel: {due:?}");
+        assert_eq!(due[0].channel, "test.hello");
+        assert_eq!(due[0].body, "Erste · Zweite", "bodies are bundled");
+        assert_eq!(due[0].plugin, "notify");
+        assert_eq!(due[1].channel, "test.other");
+        assert_eq!(due[1].action, "review.start@P");
+
+        // Both again until they are shown …
+        assert_eq!(profile.notifications().unwrap().len(), 2);
+        for message in &due {
+            profile.shown_notification(message).unwrap();
+        }
+        // … then the queue is empty and the history keeps them.
+        assert!(profile.notifications().unwrap().is_empty());
+        let history = profile.notification_history(0).unwrap();
+        let notes = profile.report();
+        assert!(notes.is_empty(), "plugin problems: {notes:?}");
+        assert_eq!(history.len(), 2);
+        assert!(history.iter().any(|m| m.body == "Erste · Zweite"));
+        assert!(history.iter().any(|m| m.action == "review.start@P"));
+        assert!(history.iter().all(|m| m.plugin == "notify"));
+    }
+
+    #[test]
+    fn daily_plans_fire_and_burn_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        profile
+            .host
+            .call::<locora_api::notify::Schedule>(&ScheduleRequest {
+                key: "evening".into(),
+                channel: "test.daily".into(),
+                priority: 1,
+                title: "Abendlernen".into(),
+                body: "5 Loci warten".into(),
+                action: String::new(),
+                plan: Some(Plan::Daily { seconds: 19 * 3600 }),
+            })
+            .unwrap();
+
+        // Before the time of day: nothing.
+        let due = profile.notifications().unwrap();
+        assert!(due.is_empty(), "{due:?}");
+        // The runtime does not fake time, so this test drives the service
+        // directly with a late `day_seconds`.
+        let queued = profile
+            .host
+            .call::<locora_api::notify::Due>(&DueRequest { now: 1, day_seconds: 20 * 3600 })
+            .unwrap();
+        assert_eq!(queued.len(), 1);
+        assert_eq!(queued[0].title, "Abendlernen");
+        // A second call at a later time of day fires again (the plan is
+        // daily), but showing drops the message.
+        let message = Message {
+            plugin: "notify".into(),
+            channel: queued[0].channel.clone(),
+            priority: queued[0].priority,
+            title: queued[0].title.clone(),
+            body: queued[0].body.clone(),
+            action: queued[0].action.clone(),
+            shown_at: 2,
+        };
+        profile.shown_notification(&message).unwrap();
+        assert!(
+            profile
+                .host
+                .call::<locora_api::notify::Due>(&DueRequest { now: 3, day_seconds: 20 * 3600 })
+                .unwrap()
+                .is_empty(),
+            "shown messages are gone until the next day"
+        );
+    }
+
+    #[test]
+    fn quiet_hours_hold_messages() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        profile.send_notification("test.night", "Nachts", "Spät", "").unwrap();
+        // Quiet hours 22:00–08:00.
+        profile
+            .host
+            .call::<locora_api::notify::Configure>(&locora_api::notify::ConfigureRequest {
+                quiet: Some("22:00-08:00".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        let due = profile
+            .host
+            .call::<locora_api::notify::Due>(&DueRequest { now: 1, day_seconds: 23 * 3600 })
+            .unwrap();
+        assert!(due.is_empty(), "quiet: {due:?}");
+        let due = profile
+            .host
+            .call::<locora_api::notify::Due>(&DueRequest { now: 2, day_seconds: 9 * 3600 })
+            .unwrap();
+        assert_eq!(due.len(), 1, "after quiet hours");
+        // Muting drops the channel entirely.
+        profile
+            .host
+            .call::<locora_api::notify::Configure>(&locora_api::notify::ConfigureRequest {
+                muted: Some(vec!["test.night".into()]),
+                ..Default::default()
+            })
+            .unwrap();
+        let due = profile
+            .host
+            .call::<locora_api::notify::Due>(&DueRequest { now: 3, day_seconds: 9 * 3600 })
+            .unwrap();
+        assert!(due.is_empty(), "muted: {due:?}");
     }
 }
 
@@ -398,13 +621,16 @@ mod review_tile_tests {
             })
             .unwrap();
         let tiles = profile.tiles().unwrap();
-        let (plugin, tile) = &tiles[0];
-        assert_eq!(plugin, "review");
+        let (plugin, tile) = tiles
+            .iter()
+            .find(|(plugin, _)| plugin == "review")
+            .expect("the review plugin published its tile");
         assert_eq!(tile.title, "Wiederholung");
         assert!(
             tile.text.starts_with("1 Locus · fällig ab "),
             "{}",
             tile.text
         );
+        let _ = plugin;
     }
 }

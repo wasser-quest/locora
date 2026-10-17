@@ -16,8 +16,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use locora_app_api::{
-    ActionDone, Feedback, Home, ImportResult, InputField, JourneyStart, PalaceView, Question,
-    Reply, Revealed, SettingsChange, SettingsView, Step, Summary,
+    ActionDone, Feedback, Home, ImportResult, InputField, JourneyStart, NotificationView,
+    PalaceView, Question, Reply, Revealed, SettingsChange, SettingsView, Step, Summary,
 };
 use locora_runtime::Profile;
 use locora_store::SPLINELY;
@@ -342,6 +342,47 @@ async fn tutorial(state: State<'_, Shared>) -> Result<String, String> {
     Ok(tree.palace.id)
 }
 
+/// Everything that may be shown now (quiet hours, muting and the daily
+/// per-channel limit were already applied by the plugin).
+#[tauri::command]
+async fn notifications(state: State<'_, Shared>) -> Result<Vec<NotificationView>, String> {
+    let mut b = lock(&state)?;
+    let messages = b.profile.notifications().map_err(err)?;
+    Ok(messages
+        .into_iter()
+        .map(|message| NotificationView {
+            channel: message.channel,
+            priority: message.priority,
+            title: message.title,
+            body: message.body,
+            action: message.action,
+        })
+        .collect())
+}
+
+/// Confirm that a notification was shown, so the queue drops it.
+#[tauri::command]
+async fn notification_shown(
+    state: State<'_, Shared>,
+    notification: NotificationView,
+) -> Result<(), String> {
+    let mut b = lock(&state)?;
+    b.profile
+        .shown_notification(&locora_api::notify::Message {
+            plugin: "notify".into(),
+            channel: notification.channel,
+            priority: notification.priority,
+            title: notification.title,
+            body: notification.body,
+            action: notification.action,
+            // The plugin reads only channel/priority/title/body, but the
+            // full message travels for the history.
+            shown_at: locora_runtime::now(),
+        })
+        .map_err(err)?;
+    Ok(())
+}
+
 #[tauri::command]
 async fn journey_start(state: State<'_, Shared>, start: JourneyStart) -> Result<Step, String> {
     let mut b = lock(&state)?;
@@ -616,6 +657,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             home,
             palace,
+            notifications,
+            notification_shown,
             editor_change,
             editor_pick_picture,
             home_pick_media,

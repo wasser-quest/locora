@@ -20,6 +20,8 @@ pub const CMD_HOME: &str = "home";
 pub const CMD_HOME_PICK_MEDIA: &str = "home_pick_media";
 pub const CMD_PALACE: &str = "palace";
 pub const CMD_TUTORIAL: &str = "tutorial";
+pub const CMD_NOTIFICATIONS: &str = "notifications";
+pub const CMD_NOTIFICATION_SHOWN: &str = "notification_shown";
 pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
@@ -166,6 +168,18 @@ pub struct TileView {
     pub text: String,
     #[serde(default)]
     pub icon: Option<Media>,
+}
+
+/// A notification to show now. `action` names what a tap runs,
+/// e.g. `review.start@Planeten` (start a journey through that palace).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NotificationView {
+    pub channel: String,
+    /// `0` = informational, `1` = time-sensitive, `2` = urgent.
+    pub priority: u8,
+    pub title: String,
+    pub body: String,
+    pub action: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

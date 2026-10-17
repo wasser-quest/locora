@@ -154,4 +154,13 @@ dl.stats dd { margin: 0; font-weight: 600; }
   z-index: 10; display: flex; align-items: center; gap: .8rem; padding: .6rem .8rem .6rem 1rem;
   border-radius: 12px; background: var(--indigo-deep); color: #fff; box-shadow: 0 6px 24px rgb(0 0 0 / .25); }
 .toast button { background: transparent; color: inherit; border: 1px solid currentColor; }
+.notifications { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
+  z-index: 40; display: grid; gap: .5rem; width: min(24rem, calc(100vw - 24px)); }
+.notification { display: flex; align-items: stretch; border-radius: 12px; background: var(--indigo-deep);
+  color: #fff; box-shadow: 0 6px 24px rgb(0 0 0 / .25); }
+.notification .tap { display: grid; gap: .15rem; flex: 1; padding: .6rem .8rem; text-align: left;
+  background: transparent; color: inherit; }
+.notification .tap span { color: rgb(255 255 255 / .85); }
+.notification .close { background: transparent; color: inherit; padding: 0 .6rem; }
+.notification[data-priority="2"] { outline: 2px solid var(--lime); }
 .options kbd { display: inline-block; min-width: 1.4em; margin-right: .4em; padding: 0 .3em; border: 1px solid var(--line); border-radius: 4px; font: inherit; font-size: .8rem; text-align: center; color: var(--muted); }

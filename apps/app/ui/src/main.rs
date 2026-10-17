@@ -10,8 +10,8 @@ mod tauri;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, PalaceCard,
-    PalaceView, UiAssets,
+    CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, NotificationView,
+    PalaceCard, PalaceView, UiAssets,
 };
 use serde::Serialize;
 
@@ -88,6 +88,7 @@ fn App() -> impl IntoView {
     });
     view! {
         <palette::Palette screen=screen editing=editing />
+        <Notifications screen=screen />
         <main>
             {move || match screen.get() {
                 Screen::Home => view! {
@@ -179,6 +180,106 @@ fn loci_text(n: u32) -> String {
         "1 Locus".into()
     } else {
         format!("{n} Loci")
+    }
+}
+
+/// A tap on a notification runs its action, e.g. `review.start@Planeten`.
+fn notification_action(
+    notification: &NotificationView,
+    screen: RwSignal<Screen>,
+) {
+    if let Some(palace) = notification.action.strip_prefix("review.start@") {
+        screen.set(Screen::Journey(JourneyStart {
+            palace_id: Some(palace.to_owned()),
+            due_only: true,
+            ..Default::default()
+        }));
+    } else if let Some(palace) = notification.action.strip_prefix("review.open@") {
+        screen.set(Screen::Palace(palace.to_owned()));
+    }
+}
+
+/// Due reminders as small cards on top of everything, from the `notify`
+/// plugin. Fetching more acknowledges the ones on screen, so each message
+/// shows until it is handled (tap or dismiss).
+#[component]
+fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
+    let shown = RwSignal::new(Vec::<NotificationView>::new());
+    let busy = StoredValue::new(false);
+    let poll = move || {
+        if busy.get_value() {
+            return;
+        }
+        busy.set_value(true);
+        spawn_local(async move {
+            if let Ok(due) = call::<Vec<NotificationView>>(
+                locora_app_api::CMD_NOTIFICATIONS,
+                tauri::NoArgs {},
+            )
+            .await
+            {
+                shown.set(due);
+            }
+            busy.set_value(false);
+        });
+    };
+    poll();
+    let every = set_interval_with_handle(poll, std::time::Duration::from_secs(15 * 60)).ok();
+    on_cleanup(move || {
+        if let Some(handle) = every {
+            handle.clear();
+        }
+    });
+    let dismiss = move |notification: NotificationView, seen: bool| {
+        shown.update(|list| list.retain(|n| n != &notification));
+        if seen {
+            spawn_local(async move {
+                let _ = call::<()>(
+                    locora_app_api::CMD_NOTIFICATION_SHOWN,
+                    NotificationArgs { notification },
+                )
+                .await;
+            });
+        }
+    };
+    view! {
+        <div class="notifications" role="region" aria-label="Erinnerungen">
+            <For
+                each=move || shown.get()
+                key=|n| (n.channel.clone(), n.title.clone(), n.body.clone())
+                let:notification
+            >
+                {move || {
+                    let notification = StoredValue::new(notification.clone());
+                    view! {
+                        <div class="notification" role="status" data-priority=move || notification.get_value().priority>
+                            <button
+                                class="tap"
+                                on:click=move |_| {
+                                    notification_action(&notification.get_value(), screen);
+                                    dismiss(notification.get_value().clone(), true);
+                                }
+                            >
+                                {move || {
+                                    let n = notification.get_value();
+                                    view! {
+                                        <strong>{n.title.clone()}</strong>
+                                        <span>{n.body.clone()}</span>
+                                    }
+                                }}
+                            </button>
+                            <button
+                                class="close"
+                                aria-label="Erinnerung schließen"
+                                on:click=move |_| dismiss(notification.get_value().clone(), true)
+                            >
+                                "✕"
+                            </button>
+                        </div>
+                    }
+                }}
+            </For>
+        </div>
     }
 }
 
@@ -519,6 +620,11 @@ fn guard_palette(blocked: RwSignal<bool>) {
 #[derive(Serialize)]
 struct OffsetArgs {
     offset: locora_app_api::UtcOffset,
+}
+
+#[derive(Serialize)]
+struct NotificationArgs {
+    notification: NotificationView,
 }
 
 #[derive(Serialize)]

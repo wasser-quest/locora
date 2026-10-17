@@ -2,6 +2,7 @@
 
 mod app;
 mod palace;
+mod notify;
 mod plugin;
 mod practice;
 mod settings;
@@ -14,6 +15,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use notify::NotifyCommand;
 use locora_store::LocusPatch;
 
 #[derive(Parser)]
@@ -145,6 +147,11 @@ enum Command {
     },
     /// Was ist heute fällig?
     Due,
+    /// Benachrichtigungen des notify-Plugins zeigen oder schicken
+    Notify {
+        #[command(subcommand)]
+        command: NotifyCommand,
+    },
     /// Einstellungen anzeigen oder ändern
     Settings {
         #[command(subcommand)]
@@ -434,6 +441,7 @@ fn main() -> Result<()> {
         } => palace::marker(&mut app::App::open(data)?, &palace, file.as_deref(), reset),
         Command::Tutorial { reset } => tutorial::run(&mut app::App::open(data)?, reset),
         Command::Due => palace::due(&mut app::App::open(data)?),
+        Command::Notify { command } => notify::run(command, &mut app::App::open(data)?),
         Command::Export {
             palaces,
             all,
