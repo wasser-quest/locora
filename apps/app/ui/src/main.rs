@@ -10,7 +10,8 @@ mod tauri;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_FORMULA_GUIDE, CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS, Home, JourneyStart, Media, NotificationView,
+    CMD_FORMULA_GUIDE, CMD_GAMIFICATION_STATUS, CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS,
+    GamificationStatus, Home, JourneyStart, Media, NotificationView,
     PalaceCard, PalaceView, UiAssets, HighlightRequest, TourAction, CMD_TOUR,
 };
 use serde::Serialize;
@@ -694,18 +695,37 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSi
 /// Plugin tiles (`ui.tile`), on the welcome screen as well as the overview.
 #[component]
 fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
+    let streak = RwSignal::new(None::<u32>);
+    if tiles.iter().any(|tile| tile.plugin == "gamification") {
+        spawn_local(async move {
+            if let Ok(Some(status)) = call::<Option<GamificationStatus>>(
+                CMD_GAMIFICATION_STATUS,
+                tauri::NoArgs {},
+            ).await {
+                streak.set(Some(status.streak));
+            }
+        });
+    }
+    let art = art();
     (!tiles.is_empty()).then(|| {
         view! {
             <section class="tiles" aria-label="Plugins">
                 {tiles
                     .into_iter()
                     .map(|t| {
+                        let gamification = t.plugin == "gamification";
                         view! {
                             <article class="card tile" title=t.plugin>
                                 {t.icon.map(|m| view! { <div class="icon"><Sply media=m /></div> })}
                                 <div class="text">
                                     <span class="meta">{t.title}</span>
                                     <span class="count">{t.text}</span>
+                                    {gamification.then(|| view! {
+                                        <span class="tile-streak">
+                                            {move || art.get().map(|assets| view! { <span class="game-icon" aria-hidden="true"><Sply media=assets.streak /></span> })}
+                                            {move || streak.get().map(|days| format!("{days} Tage in Folge"))}
+                                        </span>
+                                    })}
                                 </div>
                             </article>
                         }

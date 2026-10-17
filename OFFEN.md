@@ -106,7 +106,7 @@ Stand: 17.10.2026
 - [x] Herzen und Combo während der Journey zeigen: Rückmeldung nach jeder Antwort (`Feedback.game`); nativ geprüft (`recall-keyboard-reveal-and-grade`)
 - [x] Combo, Herzen und Trophäen als `.sply`-Grafiken in der Journey darstellen
 - [x] Lernserie mit eigener `.sply`-Grafik in der Journey darstellen
-- [ ] Lernserie auch in der Gamification-Kachel auf der Startseite darstellen
+- [x] Lernserie auch in der Gamification-Kachel auf der Startseite darstellen
 - [x] Privates Repo `locora-cloud` (axum + Postgres, `wasser-quest/locora-cloud`): Konten, Sitzungen, Ranglisten, Freunde, Challenges, Sync, Medien; Tests gegen PostgreSQL
 - [ ] Zahlungsanbieter anbinden: Merchant of Record (Desktop) und In-App-Kauf (iOS/Android); der Webhook ist anbieterneutral, Verträge und Konten fehlen
 - [x] Ed25519-Entitlements mit 14 Tagen Offline-Kulanz: der Server stellt sie aus, `locora cloud status` prüft sie ohne Netz
