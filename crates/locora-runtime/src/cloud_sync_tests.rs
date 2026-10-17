@@ -3,6 +3,7 @@ use locora_cloud_api::api::{Account, SubscriptionState};
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
+use std::sync::OnceLock;
 use std::thread;
 use std::time::Duration;
 
@@ -35,6 +36,7 @@ fn responses(replies: Vec<(u16, Value)>) -> (CloudState, thread::JoinHandle<Vec<
         CloudState {
             server,
             token: "synthetic-test-token".into(),
+            sync_generation: 0,
             entitlement: None,
             account: Account {
                 id: "local".into(),
@@ -49,9 +51,24 @@ fn responses(replies: Vec<(u16, Value)>) -> (CloudState, thread::JoinHandle<Vec<
     )
 }
 
+fn dek() -> &'static Dek {
+    static KEY: OnceLock<Dek> = OnceLock::new();
+    KEY.get_or_init(|| locora_crypto::create("test passphrase for sync").unwrap().dek)
+}
+
 fn op(seq: i64, entity: &str, id: &str, action: &str, data: Value) -> Value {
-    json!({"seq": seq, "device": "remote", "hlc": format!("{seq:016}-000000-remote"),
-        "entity": entity, "entity_id": id, "op": action, "data": data})
+    let hlc = format!("{seq:016}-000000-remote");
+    let op_id = dek().op_id(&hlc);
+    let plain = Plain {
+        hlc,
+        entity: entity.into(),
+        entity_id: id.into(),
+        op: action.into(),
+        data: Some(data),
+    };
+    let sealed = dek().seal_op("local", &op_id, &serde_json::to_vec(&plain).unwrap());
+    json!({"seq": seq, "device": "remote", "op_id": op_id,
+        "payload": STANDARD.encode(sealed)})
 }
 
 fn room() -> Value {
@@ -80,7 +97,7 @@ fn missing_op_does_not_block_later_parent_and_recovers_after_restart() {
         page(9, vec![]),
     ]);
     let mut report = SyncReport::default();
-    pull(&state, &store, &mut report).unwrap();
+    pull(&state, &store, dek(), &mut report).unwrap();
     assert_eq!(store.sync_cursor("pull").unwrap(), 9);
     assert_eq!(report.pulled, 2);
     assert_eq!(report.applied.applied, 1);
@@ -93,7 +110,7 @@ fn missing_op_does_not_block_later_parent_and_recovers_after_restart() {
     let store = Store::open(dir.path()).unwrap();
     let (state, worker) = responses(vec![page(9, vec![])]);
     let mut report = SyncReport::default();
-    pull(&state, &store, &mut report).unwrap();
+    pull(&state, &store, dek(), &mut report).unwrap();
     assert_eq!(report.applied.applied, 1);
     assert_eq!(report.pulled, 0);
     assert!(store.pending_pull().unwrap().is_empty());
@@ -120,7 +137,7 @@ fn pending_retry_waits_for_successful_pages_and_a_later_parent() {
         (503, json!({"error": "temporarily unavailable"})),
     ]);
     let mut report = SyncReport::default();
-    assert!(pull(&state, &store, &mut report).is_err());
+    assert!(pull(&state, &store, dek(), &mut report).is_err());
     assert_eq!(store.sync_cursor("pull").unwrap(), 9);
     assert!(report.quarantined.is_empty());
     let pending = store.pending_pull().unwrap();
@@ -132,7 +149,7 @@ fn pending_retry_waits_for_successful_pages_and_a_later_parent() {
     let parent = op(10, "palace", "palace", "create", json!({"name": "Palace"}));
     let (state, worker) = responses(vec![page(10, vec![parent]), page(10, vec![])]);
     let mut report = SyncReport::default();
-    pull(&state, &store, &mut report).unwrap();
+    pull(&state, &store, dek(), &mut report).unwrap();
     assert_eq!(report.applied.applied, 2);
     assert_eq!(report.applied.missing, 0);
     assert!(report.quarantined.is_empty());
@@ -146,13 +163,13 @@ fn invalid_wire_and_payload_are_quarantined_without_blocking_later_pages() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).unwrap();
     let mut malformed = room();
-    malformed["hlc"] = json!(42);
+    malformed["op_id"] = json!(42);
     let invalid = op(9, "palace", "invalid", "create", json!({"name": ""}));
     let invalid_locus = op(10, "locus", "locus", "create", json!({"id": "locus"}));
     let invalid_update = op(11, "locus", "unknown", "update", json!({"x": "bad"}));
     let mut invalid_room = room();
     invalid_room["seq"] = json!(12);
-    invalid_room["data"]["kind"] = json!("invalid");
+    invalid_room["payload"] = json!("not base64");
     let valid = op(13, "palace", "palace", "create", json!({"name": "Palace"}));
     let (state, worker) = responses(vec![
         page(
@@ -169,7 +186,7 @@ fn invalid_wire_and_payload_are_quarantined_without_blocking_later_pages() {
         page(13, vec![]),
     ]);
     let mut report = SyncReport::default();
-    pull(&state, &store, &mut report).unwrap();
+    pull(&state, &store, dek(), &mut report).unwrap();
     assert_eq!(store.sync_cursor("pull").unwrap(), 13);
     assert_eq!(report.quarantined.len(), 5);
     assert_eq!(report.applied.failed.len(), 5);
@@ -179,7 +196,7 @@ fn invalid_wire_and_payload_are_quarantined_without_blocking_later_pages() {
 
     let (state, worker) = responses(vec![page(13, vec![])]);
     let mut report = SyncReport::default();
-    pull(&state, &store, &mut report).unwrap();
+    pull(&state, &store, dek(), &mut report).unwrap();
     assert!(report.quarantined.is_empty());
     assert!(report.applied.failed.is_empty());
     worker.join().unwrap();
@@ -218,7 +235,7 @@ fn missing_and_media_failures_are_quarantined_after_three_attempts() {
             }
             let (state, worker) = responses(replies);
             let mut report = SyncReport::default();
-            pull(&state, &store, &mut report).unwrap();
+            pull(&state, &store, dek(), &mut report).unwrap();
             assert_eq!(store.sync_cursor("pull").unwrap(), 8);
             assert_eq!(report.quarantined.len(), usize::from(attempt == 3));
             let pending = store.pending_pull().unwrap();
@@ -236,37 +253,30 @@ fn missing_and_media_failures_are_quarantined_after_three_attempts() {
 }
 
 #[test]
-fn invalid_media_is_quarantined_immediately_and_own_operations_advance_cursor() {
+fn invalid_ciphertext_is_quarantined_and_own_operations_advance_cursor() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).unwrap();
-    let invalid = op(
+    let mut invalid = op(
         8,
         "palace",
         "palace",
         "update",
         json!({"marker": "../invalid"}),
     );
-    let mismatch = op(
-        9,
-        "palace",
-        "palace",
-        "update",
-        json!({"marker": "a".repeat(64)}),
-    );
+    invalid["payload"] = json!("not base64");
     let mut own = room();
     own["seq"] = json!(10);
     own["device"] = json!(store.node_id());
     let (state, worker) = responses(vec![
-        page(10, vec![invalid, mismatch, own]),
-        (200, json!("wrong media bytes")),
+        page(10, vec![invalid, own]),
         page(10, vec![]),
     ]);
     let mut report = SyncReport::default();
-    pull(&state, &store, &mut report).unwrap();
-    assert_eq!(report.pulled, 2);
-    assert_eq!(report.quarantined.len(), 2);
+    pull(&state, &store, dek(), &mut report).unwrap();
+    assert_eq!(report.pulled, 1);
+    assert_eq!(report.quarantined.len(), 1);
     assert_eq!(report.media_downloaded, 0);
     assert!(store.pending_pull().unwrap().is_empty());
     assert_eq!(store.sync_cursor("pull").unwrap(), 10);
-    assert_eq!(worker.join().unwrap().len(), 3);
+    assert_eq!(worker.join().unwrap().len(), 2);
 }

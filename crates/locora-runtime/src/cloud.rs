@@ -321,7 +321,6 @@ pub fn xp(state: &CloudState) -> Result<XpState> {
     get(&state.server, "/v1/game/xp", &state.token)
 }
 
->>>>>>> 7472bab (update)
 /// Ends the server session (best effort) and forgets the local one.
 pub fn logout(data: &Path, state: &CloudState) -> Result<()> {
     let _ = send(
@@ -512,6 +511,7 @@ mod tests {
         let state = CloudState {
             server,
             token: "synthetic-test-token".into(),
+            sync_generation: 0,
             entitlement: None,
             account: Account {
                 id: "local".into(),

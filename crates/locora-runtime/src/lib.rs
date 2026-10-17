@@ -616,8 +616,14 @@ mod notify_tests {
             })
             .unwrap();
 
-        // Before the time of day: nothing.
-        let due = profile.notifications().unwrap();
+        // Drive the clock explicitly: wall-clock time can be past 19:00.
+        let due: Vec<locora_api::notify::Queued> = profile
+            .host
+            .call::<locora_api::notify::Due>(&DueRequest {
+                now: 0,
+                day_seconds: 0,
+            })
+            .unwrap();
         assert!(due.is_empty(), "{due:?}");
         // The runtime does not fake time, so this test drives the service
         // directly with a late `day_seconds`.

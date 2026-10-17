@@ -104,7 +104,6 @@ struct PullPage {
 }
 
 fn pull(state: &CloudState, store: &Store, dek: &Dek, report: &mut SyncReport) -> Result<()> {
-    let account = &state.account.id;
     let pending = store.pending_pull()?;
     let mut after = store.sync_cursor("pull")?;
     loop {

@@ -489,8 +489,15 @@ fn VideoAtLocus(
         }
     };
     // timeupdate alone can lag by hundreds of milliseconds. Poll near frame
-    // cadence too; background WebViews may still throttle timers.
+    // cadence only while approaching this locus, then stop the interval.
     let timer = set_interval_with_handle(stop_at_locus, std::time::Duration::from_millis(16)).ok();
+    Effect::new(move |_| {
+        if ready.get() {
+            if let Some(timer) = timer {
+                timer.clear();
+            }
+        }
+    });
     on_cleanup(move || {
         if let Some(timer) = timer {
             timer.clear();

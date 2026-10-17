@@ -813,8 +813,10 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    wird mit Hinweis direkt zum Locus gesprungen. Nach Bewertung werden manuelle Videokontrollen freigegeben.
    Die Editor-Zeitleiste markiert Ortszeiten proportional zur geladenen Videodauer; Orte nach dem
    Videoende werden gekennzeichnet und nicht angesprungen. Die native Sichtprüfung dieser Skala,
-   eine Start-Vorschau und Timer-Drosselung bleiben offen. Die Zeitgrenze wird per 16-ms-Timer
-   und `timeupdate` geprüft; keine Garantie für framegenauen Halt bei gedrosselter WebView.
+   eine Start-Vorschau und `requestVideoFrameCallback` bleiben offen. Die Zeitgrenze wird per
+   16-ms-Timer und `timeupdate` geprüft; der Timer endet, sobald der Locus erreicht oder ein
+   Ladefehler gemeldet wird. Bei gedrosselter WebView gibt es weiter keine Garantie für
+   framegenauen Halt.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
 9. **Später:** Ton beim Aufdecken über Audio im `.sply`.

@@ -88,21 +88,24 @@ Stand: 17.10.2026
 - [ ] Visuelle WebView-Prüfung der Stickfight-Animationen (Backend-Test beweist keine Wiedergabe)
 
 - [x] Video-Journey: Locus-Zeit im IPC; stumm bis zum Locus abspielen, dort bis Bewertung halten; Antworten während der Wiedergabe sperren; Autoplay-Fallback und Fehleranzeige
-- [x] Video-Journey nativ geprüft (2 Loci, Rückwärtsrichtung, Autoplay, Tastatur durch alle Phasen); Start-Vorschau und Timer-Drosselung bleiben offen
+- [x] Video-Journey nativ geprüft (2 Loci, Rückwärtsrichtung, Autoplay, Tastatur durch alle Phasen); 16-ms-Prüftimer endet nach Erreichen des Locus
+- [ ] Video-Journey: Vorschau aller Orte bei Zeit 0 und framegenaue Erkennung über `requestVideoFrameCallback` mit `timeupdate`-Fallback
 - [x] Plugin `notify`: lokale Benachrichtigungen, Ruhezeiten, Bündelung, Tipp öffnet die passende Stelle (send/schedule/due/configure/history; App-Toasts mit Aktion `review.start@…`, CLI `locora notify ls|show|send`; plugin→plugin-Aufrufe wie review→notify bleiben ein Host-Thema für Phase 5)
 
 ## Phase 4 – Tutorial-Plugin
 
 - [x] Tutorial-Palast „Locora lernen“ mit `.sply` an jedem Ort (`locora tutorial`)
 - [x] Erste App-Tour: offizielles `tutorial`-Plugin, geprüfter Host-Dienst `ui.highlight@1`, drei Startseiten-Schritte mit Simo, Weiter/Schließen und gespeichertem Schrittstand
-- [ ] Tour auf Palastansicht, Editor und Journey ausdehnen; fehlende Ziele und Fokusführung nativ prüfen
+- [x] Tour auf Palastansicht, Editor und Journey ausgedehnt
+- [ ] Tour: fehlende Ziele und Fokusführung nativ prüfen
 - [x] Formel-Guide „Formeln verstehen“ als eigener Palast mit sechs `.sply`-Orten und ausführbaren Beispiel-Bindungen (`locora formula-guide` und App)
 
 ## Phase 5 – Gamification und Locora Cloud
 
 - [x] Plugin `gamification` (lokal, kostenlos): XP, Combos, Herzen, vier Trophäen, Tagesziel und Streak; Status in CLI und App-Kachel
 - [x] Herzen und Combo während der Journey zeigen: Rückmeldung nach jeder Antwort (`Feedback.game`); nativ geprüft (`recall-keyboard-reveal-and-grade`)
-- [ ] Erfolge visuell mit `.sply`-Grafiken in App und Journey darstellen (Trophäen, Streak)
+- [x] Combo, Herzen und Trophäen als `.sply`-Grafiken in der Journey darstellen
+- [ ] Streak visuell mit einer `.sply`-Grafik in App und Journey darstellen
 - [x] Privates Repo `locora-cloud` (axum + Postgres, `wasser-quest/locora-cloud`): Konten, Sitzungen, Ranglisten, Freunde, Challenges, Sync, Medien; Tests gegen PostgreSQL
 - [ ] Zahlungsanbieter anbinden: Merchant of Record (Desktop) und In-App-Kauf (iOS/Android); der Webhook ist anbieterneutral, Verträge und Konten fehlen
 - [x] Ed25519-Entitlements mit 14 Tagen Offline-Kulanz: der Server stellt sie aus, `locora cloud status` prüft sie ohne Netz
