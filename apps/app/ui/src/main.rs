@@ -39,6 +39,7 @@ struct TourArgs {
 
 fn tour_action(
     active: RwSignal<Option<HighlightRequest>>,
+    screen: RwSignal<Screen>,
     busy: RwSignal<bool>,
     error: RwSignal<String>,
     action: TourAction,
@@ -47,35 +48,76 @@ fn tour_action(
     busy.set(true);
     spawn_local(async move {
         match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action }).await {
-            Ok(step) => { active.set(step); error.set(String::new()); }
+            Ok(step) => {
+                active.set(step.clone());
+                match route_tour_step(step, screen).await {
+                    Ok(()) => error.set(String::new()),
+                    Err(message) => error.set(message),
+                }
+            }
             Err(message) => error.set(message),
         }
         busy.set(false);
     });
 }
 
+/// Route only the official, known tour targets. An existing tutorial palace is
+/// reused so moving between steps never replaces edits or review progress.
+async fn route_tour_step(step: Option<HighlightRequest>, screen: RwSignal<Screen>) -> Result<(), String> {
+    let Some(step) = step else { return Ok(()); };
+    match step.target.as_str() {
+        "tour-home-media" | "tour-home-import" | "tour-home-settings" => screen.set(Screen::Home),
+        "tour-palace-route" | "tour-editor-toggle" | "tour-journey-prompt" => {
+            let home = call::<Home>(CMD_HOME, tauri::NoArgs {}).await?;
+            let id = if let Some(palace) = home.palaces.iter().find(|p| p.name == "Locora lernen") {
+                palace.id.clone()
+            } else {
+                call::<String>(CMD_TUTORIAL, tauri::NoArgs {}).await?
+            };
+            if step.target == "tour-journey-prompt" {
+                screen.set(Screen::Journey(JourneyStart {
+                    palace_id: Some(id),
+                    ..Default::default()
+                }));
+            } else {
+                screen.set(Screen::Palace(id));
+            }
+        }
+        _ => return Err("Unbekanntes Ziel der App-Tour".into()),
+    }
+    Ok(())
+}
+
 #[component]
 fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Screen>) -> impl IntoView {
     let busy = RwSignal::new(false);
     let error = RwSignal::new(String::new());
-    Effect::new(move |_| {
-        let on_home = screen.get() == Screen::Home;
-        let current = active.get();
+    let focused = StoredValue::new(None::<(u8, String)>);
+    let highlight = move || {
+        let current = active.get_untracked();
         let Some(document) = web_sys::window().and_then(|window| window.document()) else { return; };
-        for id in ["tour-home-media", "tour-home-import", "tour-home-settings"] {
+        for id in ["tour-home-media", "tour-home-import", "tour-home-settings", "tour-palace-route", "tour-editor-toggle", "tour-journey-prompt"] {
             if let Some(node) = document.get_element_by_id(id) {
                 let _ = node.remove_attribute("data-tour-active");
             }
         }
-        if !on_home && current.is_some() {
-            active.set(None);
-            return;
-        }
         if let Some(step) = current
             && let Some(node) = document.get_element_by_id(&step.target) {
                 let _ = node.set_attribute("data-tour-active", "true");
+                let key = (step.step, step.target);
+                if focused.get_value().as_ref() != Some(&key) {
+                    node.scroll_into_view_with_bool(false);
+                    if let Some(element) = wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(&node) {
+                        let _ = element.focus();
+                    }
+                    focused.set_value(Some(key));
+                }
             }
-    });
+        if active.get_untracked().is_none() { focused.set_value(None); }
+    };
+    highlight();
+    let timer = set_interval_with_handle(highlight, std::time::Duration::from_millis(150)).ok();
+    on_cleanup(move || { if let Some(timer) = timer { timer.clear(); } });
     view! {
         <Show when=move || active.get().is_some()>
             {move || active.get().map(|step| view! {
@@ -87,10 +129,10 @@ fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Scre
                         <p>{step.text}</p>
                         <p class="notes" role="status">{move || error.get()}</p>
                         <div class="row">
-                            <button disabled=move || busy.get() on:click=move |_| tour_action(active, busy, error, TourAction::Skip)>"Schließen"</button>
+                            <button disabled=move || busy.get() on:click=move |_| tour_action(active, screen, busy, error, TourAction::Skip)>"Schließen"</button>
                             <button class="primary" disabled=move || busy.get()
-                                on:click=move |_| tour_action(active, busy, error, TourAction::Next)>
-                                {if step.step == step.total { "Fertig" } else { "Weiter" }}
+                                on:click=move |_| tour_action(active, screen, busy, error, if error.get_untracked().is_empty() { TourAction::Next } else { TourAction::Resume })>
+                                {move || if !error.get().is_empty() { "Erneut versuchen" } else if step.step == step.total { "Fertig" } else { "Weiter" }}
                             </button>
                         </div>
                     </div>
@@ -104,6 +146,12 @@ fn TourOverlay(active: RwSignal<Option<HighlightRequest>>, screen: RwSignal<Scre
 fn App() -> impl IntoView {
     let screen = RwSignal::new(Screen::Home);
     let tour = RwSignal::new(None::<HighlightRequest>);
+    spawn_local(async move {
+        if let Ok(step) = call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Resume }).await {
+            tour.set(step.clone());
+            let _ = route_tour_step(step, screen).await;
+        }
+    });
     let editing = palette::Editing(RwSignal::new(false));
     provide_context(editing);
     // The app's own animations (assets/ui), loaded once for every screen.
@@ -465,7 +513,10 @@ fn HomeView(screen: RwSignal<Screen>, offset_revision: RwSignal<u64>, tour: RwSi
         busy.set(true);
         spawn_local(async move {
             match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Start }).await {
-                Ok(step) => tour.set(step),
+                Ok(step) => {
+                    tour.set(step.clone());
+                    if let Err(error) = route_tour_step(step, screen).await { message.set(error); }
+                }
                 Err(error) => message.set(error),
             }
             busy.set(false);
@@ -815,7 +866,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
                 }>
                 "TOML exportieren…"
             </button>
-            <button class="primary" disabled=move || blocked.get() on:click=move |_| start(false)>
+            <button id="tour-palace-route" class="primary" disabled=move || blocked.get() on:click=move |_| start(false)>
                 "▶ Route ablaufen"
             </button>
         </header>

@@ -605,7 +605,7 @@ pub fn Rooms(
             }
         }>
         <div class="modes">
-            <label><input type="checkbox" prop:checked=move || editing.get()
+            <label><input id="tour-editor-toggle" type="checkbox" prop:checked=move || editing.get()
                 disabled=move || busy.get() || dirty.get() || dragging.get()
                 on:change=move |ev| { editing.set(event_target_checked(&ev)); adding.set(false); } />"Bearbeiten"</label>
             <Show when=move || editing.get()>
