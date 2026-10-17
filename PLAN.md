@@ -552,7 +552,9 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 
 Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI geprüft.
 
-**Stand (16.10.2026):** Phase 0 erledigt, Phase 1 fast fertig. Details und alle offenen Aufgaben: Abschnitt 13.
+**Stand (17.10.2026):** Phasen 0 und 1 sind abgeschlossen. Die App, Video-Journeys,
+Tutorial-Palast, erste App-Tour, Formel-Guide und lokale Gamification sind umgesetzt.
+Offene Arbeiten und native Prüfungen stehen in [`OFFEN.md`](OFFEN.md).
 
 ---
 
@@ -580,13 +582,14 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 
 ## 13. Handout für den nächsten Agenten
 
-Stand: 16.10.2026. Dieser Abschnitt ist die Übergabe: was es gibt, wie man arbeitet und was noch gebaut werden muss.
+Stand: 17.10.2026. Dieser Abschnitt enthält auch historische Implementierungsschritte.
+Für den aktuellen Arbeitsstand gilt [`OFFEN.md`](OFFEN.md).
 
 ### 13.1 Arbeitsweise und Vorgaben des Nutzers
 
 - **Kommunikation auf Deutsch.** Code, Kommentare, Commit-Messages und README auf Englisch; `PLAN.md`, `assets/STIL.md`
   und alle Texte, die Nutzer sehen (CLI, App), auf Deutsch.
-- **Alles in Rust**, möglichst schnell. UI später mit Tauri 2 + Leptos.
+- **Alles in Rust**, möglichst schnell. Die UI nutzt Tauri 2 + Leptos.
 - **Alle Grafiken mit `splinely-cli` als `.sply`** (Installation unter `~/.local/opt/splinely-v0.5.2-x86_64-linux/bin`,
   Version 0.5.2, installiert am 16.10.2026). Für jede neue Idee mit Bildbedarf sofort eine `.sply`
   unter `assets/` anlegen, bevorzugt per Bauskript unter `assets/**/src/`; die Splinely-Runtime soll sie später rendern.
@@ -598,18 +601,22 @@ Stand: 16.10.2026. Dieser Abschnitt ist die Übergabe: was es gibt, wie man arbe
 - Lizenz MIT; Gamification kostenlos, nur Locora Cloud kostet (9,99 €/Jahr oder 1,49 €/Monat).
 - Fremde Plugins: Warnung „gefährlich, auf eigene Verantwortung“ auf Android/iOS, kurze Warnung auf Desktop. Wird das
   Laden auf Mobile schwierig, darf es dort abgeschaltet werden.
-- **Git:** Push per SSH (`~/.ssh/id_ed25519`, im Repo als `core.sshCommand` gesetzt). Commit-Messages enden mit
-  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Die GitHub-API meldet für das Repo derzeit „Not Found“
-  (vermutlich privat); CI-Ergebnisse deshalb nur über die Weboberfläche oder mit Token sichtbar.
+- **Git:** Push per SSH. Commit-Messages folgen den Repository-Vorgaben; kein `Co-Authored-By`-Trailer
+  ohne ausdrückliche Autorisierung. Das Repository ist privat; CI-Ergebnisse benötigen GitHub-Zugriff.
 
 ### 13.2 Was es schon gibt
 
 | Baustein | Stand |
 |---|---|
-| `crates/locora-api` | Events (`core.*`, `host.started`, `ui.tile`), Services (`review.schedule@1`, `core.palaces@1`, `core.journey.evaluate@1`), typisierte Antworten und Hooks (`core.journey.score`), API-Version 0.4 |
+| `crates/locora-api` | Typisierte Events, Services und Hooks für Core, Review, Notify, Tutorial und Gamification; API-Version 0.6 |
 | `crates/locora-sdk` + `-macros` | `#[locora_plugin]`, `ctx.on/emit/provide/filter/call_host/palaces`, `ctx.store()`, `ctx.tile`, WIT in `wit/plugin.wit`; Anleitung: `crates/locora-sdk/README.md` |
 | `crates/locora-host` | wasmtime-Komponenten, Hot-Reload, Fuel-Limit, Absturz-Isolation, Kompilat-Cache, Berechtigungen (`storage`, `palaces:read/write`), Filter-Ketten, native Palastdienste, austauschbarer `KvStore` |
-| `crates/locora-store` | SQLite (Migrationen 1–4), Paläste → Räume → Loci (`place`, `item`, `x`, `y`, `time`, `answer`), Medien nach SHA-256, Tabellen (lokal/gemeinsam), Bindungen, Plugin-KV, Op-Log mit HLC |
+| `crates/locora-store` | SQLite (Migrationen 1–12), Paläste → Räume → Loci, Medien nach SHA-256, Tabellen, Bindungen, Plugin-KV, Op-Log mit HLC, Sync (Feldzeiten, Grabsteine, Anwenden von Remote-Ops), Journeys |
+| `crates/locora-scoring` | Journey-XP-Regel und Journey-Replay (Plugin `gamification` und Locora Cloud) |
+| `crates/locora-cloud-api` | Typen der Locora-Cloud-API und signierte Entitlements (Ed25519, 14 Tage Kulanz) |
+| `crates/locora-signing` | Ed25519-Signaturen für Plugins (`<datei>.sig`) |
+| `locora-runtime`: `cloud`, `cloud_sync`, `publishers` | Sitzung und Freischaltung, Sync mit Locora Cloud, vertrauenswürdige Plugin-Herausgeber |
+| `locora-cloud` (eigenes privates Repo `wasser-quest/locora-cloud`) | Konten, Abo-Webhook, Ranglisten, Freunde, Challenges, Sync-Server, Medien; Tests gegen PostgreSQL |
 | `crates/locora-fsrs` | FSRS-5 mit Standardgewichten |
 | `crates/locora-formula` | vollständiger Port der mnemodim-Formelsprache + `workbook::Run` (Eingaben, Aktionen `set/reveal/reset`, Bindungen `place/item/x/y/visible/active`, `View.reveal`) |
 | `crates/locora-format` | `.locora` v1/v2 (siehe `format/README.md`) inkl. Tabellen, Bindungen und Antwortarten; Recall-only bleibt v1 |
@@ -676,9 +683,10 @@ Journey stehen noch aus.
 richtigen und drei zufällige falsche, gemischt (`Answer::quiz_selection`); Guess vergleicht ohne Groß-/Kleinschreibung,
 Satzzeichen und doppelte Leerzeichen (`normalize`) und nimmt weitere Antworten an (`accept`, `--accept`); Merkhilfe
 `note` pro Locus (Migration 7, `.locora` v2, `locora.toml`, `--note`), nach dem Aufdecken gezeigt; Übungsarten
-`--reverse` (Inhalt → Ort), `--numbers` („Ort 7 · Raum“) und `--shuffle`. Plugin-API 0.5 (neues Postcard-Layout).
+`--reverse` (Inhalt → Ort), `--numbers` („Ort 7 · Raum“) und `--shuffle`. Plugin-API inzwischen 0.6.
 
-Nächster Schritt: Phase 2, die App (13.4). Die App spielt die `.sply`-Bilder der Orte mit der Splinely-Runtime ab.
+Die App spielt `.sply`-Bilder der Orte mit der Splinely-Runtime ab. Die nächsten
+Schritte stehen in [`OFFEN.md`](OFFEN.md).
 
 Behoben: Beim palastübergreifenden Review bekam jeder Palast die gesamte Laufzeit gemeldet (`lernzeit` zählte doppelt);
 jetzt zählt nur die Zeit an den eigenen Loci. Die CLI-Tests waren gelegentlich rot, wenn ein Prozess vor dem Lesen der
