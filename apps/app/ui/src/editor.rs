@@ -7,7 +7,11 @@ use locora_app_api::{
 use serde::{Deserialize, Serialize};
 use web_sys::PointerEvent;
 
-use crate::{Answer, sply::{Shown, VideoBackdrop}, tauri::call};
+use crate::{
+    Answer,
+    sply::{Shown, VideoBackdrop},
+    tauri::call,
+};
 
 /// Normalize viewport coordinates against the whole stage, not a child target.
 fn stage_point(x: f64, y: f64, left: f64, top: f64, width: f64, height: f64) -> Option<(f64, f64)> {
@@ -846,6 +850,7 @@ fn RoomStage(
     let paste_editor = editor.clone();
     let video = room.video;
     let player = NodeRef::<html::Video>::new();
+    let video_duration = RwSignal::new(None::<f64>);
     let mut timeline: Vec<_> = room
         .loci
         .iter()
@@ -856,6 +861,7 @@ fn RoomStage(
         })
         .collect();
     timeline.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.cmp(&b.2)));
+    let timeline_marks = timeline.clone();
     let timeline_editor = StoredValue::new(editor.clone());
     let timed_editor = editor.clone();
     let create_at_playhead = StoredValue::new_local(move || {
@@ -899,17 +905,40 @@ fn RoomStage(
         {if video {
             Some(view! {
                 <nav class="video-timeline" aria-label="Video-Orte nach Zeit">
+                    <Show when=move || video_duration.get().is_some()>
+                        <div class="video-timeline-scale" aria-hidden="true">
+                            {timeline_marks.clone().into_iter().map(|(time, _, _, _)| view! {
+                                <span class="video-timeline-mark"
+                                    class:invalid=move || video_duration.get().is_some_and(|duration| time > duration)
+                                    style:left=move || video_duration.get()
+                                        .map(|duration| format!("{}%", (time / duration * 100.0).clamp(0.0, 100.0)))
+                                        .unwrap_or_default()
+                                ></span>
+                            }).collect_view()}
+                        </div>
+                        <div class="video-timeline-ends" aria-hidden="true">
+                            <span>"0 s"</span>
+                            <span>{move || format!("{:.2} s", video_duration.get().unwrap_or_default())}</span>
+                        </div>
+                    </Show>
+                    <div class="video-timeline-loci">
                     {timeline.into_iter().map(|(time, id, number, place)| {
                         let selected_id = id.clone();
                         view! {
                             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
                                 class:on=move || timeline_editor.with_value(|e| e.selected.get().as_ref() == Some(&selected_id))
+                                class:invalid=move || video_duration.get().is_some_and(|duration| time > duration)
                                 on:click=move |_| {
                                     let editor = timeline_editor.get_value();
                                     if busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) { return; }
                                     let Some(player) = player.get() else { return; };
                                     if player.ready_state() == 0 {
                                         editor.message.set("Das Video ist noch nicht geladen".into());
+                                        return;
+                                    }
+                                    let duration = player.duration();
+                                    if duration.is_finite() && time > duration {
+                                        editor.message.set("Der Ort liegt hinter dem Ende des Videos".into());
                                         return;
                                     }
                                     if player.pause().is_err() {
@@ -924,6 +953,7 @@ fn RoomStage(
                             </button>
                         }
                     }).collect_view()}
+                    </div>
                 </nav>
             })
         } else { None }}
@@ -985,7 +1015,12 @@ fn RoomStage(
         >
             {room.backdrop.map(|media| {
                 if video {
-                    view! { <VideoBackdrop media=media class="backdrop" controls=true muted=true node_ref=player/> }.into_any()
+                    view! { <VideoBackdrop media=media class="backdrop" controls=true muted=true node_ref=player
+                        on_loaded=Box::new(move || {
+                            video_duration.set(player.get_untracked().map(|video| video.duration())
+                                .filter(|duration| duration.is_finite() && *duration > 0.0));
+                        })
+                    /> }.into_any()
                 } else {
                     view! { <Shown media=media class="backdrop" /> }.into_any()
                 }

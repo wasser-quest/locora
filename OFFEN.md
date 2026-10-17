@@ -42,6 +42,7 @@ Stand: 17.10.2026
 - [x] Videozeit aus Wiedergabe übernehmen: Knopf und Taste L auf der fokussierten Bühne, pausiert vor dem Anlegen
 - [x] Video-Ortsnavigation im Editor: chronologische Zeitknöpfe, pausieren/spulen/auswählen, aktive Auswahl
 - [x] Video-Editor im WebView prüfen: Taste L/Fokus, Zeitknopf-Navigation (chronologisch, pausiert/spult/auswählt) und Persistenz nativ getestet; ungeladenes Video (Statusmeldung) und wiederholte Eingabe manuell prüfen
+- [x] Video-Zeitleiste im Editor zeigt Ortszeiten proportional zur geladenen Videodauer; Orte hinter dem Videoende sind markiert und können nicht angesprungen werden
 - [x] Editor-Ausbau: Datei hineinziehen über einmalige Tickets (Startseite → neuer Palast, Editor → Ortsbild); Undo/Redo (Knöpfe, Strg/⌘+Z/Y) mit Backend-Belegen für Hinzufügen/Einfügen/Löschen (Konfliktprüfung, neueste 500); Entwurfswiederherstellung über `localStorage`
 - [x] Tutorial in der App: Erststart mit Simo, „Tutorial starten“ legt den Palast an und öffnet ihn (Animationen über die Runtime)
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
@@ -82,7 +83,7 @@ Stand: 17.10.2026
 - [ ] Visuelle WebView-Prüfung der Stickfight-Animationen (Backend-Test beweist keine Wiedergabe)
 
 - [x] Video-Journey: Locus-Zeit im IPC; stumm bis zum Locus abspielen, dort bis Bewertung halten; Antworten während der Wiedergabe sperren; Autoplay-Fallback und Fehleranzeige
-- [x] Video-Journey nativ geprüft (2 Loci, Rückwärtsrichtung, Autoplay, Tastatur durch alle Phasen); maßstäbliche Zeitleiste/Start-Vorschau und Timer-Drosselung bleiben offen
+- [x] Video-Journey nativ geprüft (2 Loci, Rückwärtsrichtung, Autoplay, Tastatur durch alle Phasen); Start-Vorschau und Timer-Drosselung bleiben offen
 - [x] Plugin `notify`: lokale Benachrichtigungen, Ruhezeiten, Bündelung, Tipp öffnet die passende Stelle (send/schedule/due/configure/history; App-Toasts mit Aktion `review.start@…`, CLI `locora notify ls|show|send`; plugin→plugin-Aufrufe wie review→notify bleiben ein Host-Thema für Phase 5)
 
 ## Phase 4 – Tutorial-Plugin

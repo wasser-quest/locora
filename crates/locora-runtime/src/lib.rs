@@ -157,7 +157,8 @@ impl Profile {
     fn day_seconds(&self) -> Result<u32> {
         let offset = self.day_clock()?.utc_offset_minutes();
         let now = now();
-        Ok(((now + offset as u64 * 60) % 86_400) as u32)
+        let local = i128::from(now) + i128::from(offset) * 60;
+        Ok(local.rem_euclid(86_400) as u32)
     }
 
     /// Whether the `notify` plugin is loaded (notifications and schedules).

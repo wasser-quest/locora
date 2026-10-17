@@ -785,7 +785,9 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Während der Wiedergabe sind Antworten und Workbook-Aktionen gesperrt (auch per Tastatur).
    Ungültige Zeiten/Ladefehler werden angezeigt und geben die Antwort frei. Bei verweigertem Autoplay
    wird mit Hinweis direkt zum Locus gesprungen. Nach Bewertung werden manuelle Videokontrollen freigegeben.
-   WebView-Smoke-Test und maßstäbliche Zeitleiste bleiben offen. Die Zeitgrenze wird per 16-ms-Timer
+   Die Editor-Zeitleiste markiert Ortszeiten proportional zur geladenen Videodauer; Orte nach dem
+   Videoende werden gekennzeichnet und nicht angesprungen. Die native Sichtprüfung dieser Skala,
+   eine Start-Vorschau und Timer-Drosselung bleiben offen. Die Zeitgrenze wird per 16-ms-Timer
    und `timeupdate` geprüft; keine Garantie für framegenauen Halt bei gedrosselter WebView.
 8. **Mobil und CI:** Android-/iOS-Builds (`cargo tauri android|ios init`), Linux-Pakete in CI, E2E-Tests der
    Klick-Budgets (6.3), Barrierefreiheit (Tastatur, Screenreader-Beschriftungen) prüfen.
