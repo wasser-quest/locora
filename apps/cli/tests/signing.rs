@@ -73,9 +73,9 @@ fn version(dir: &Path, name: &str, version: &str) -> PathBuf {
     path
 }
 
-fn publisher_key(dir: &Path, name: &str) -> (PathBuf, String) {
+fn publisher_key(dir: &Path, name: &str, data: &Path) -> (PathBuf, String) {
     let key = dir.join(name);
-    let text = ok(&["plugin", "keygen", s(&key)]);
+    let text = ok(&["--data", s(data), "plugin", "keygen", s(&key)]);
     let public = text
         .lines()
         .find_map(|line| line.strip_prefix("  Öffentlicher Schlüssel: "))
@@ -91,10 +91,10 @@ fn signed_plugins_install_trust_and_update_only_from_their_publisher() {
     let d = dir.path();
     let data = d.join("profile");
     let data_s = s(&data);
-    let (key, public) = publisher_key(d, "publisher.key");
-    let (other_key, _) = publisher_key(d, "other.key");
+    let (key, public) = publisher_key(d, "publisher.key", &data);
+    let (other_key, _) = publisher_key(d, "other.key", &data);
     let v1 = version(d, "probe.wasm", "0.1.0");
-    ok(&["plugin", "sign", s(&v1), "--key", s(&key)]);
+    ok(&["--data", data_s, "plugin", "sign", s(&v1), "--key", s(&key)]);
     assert!(d.join("probe.wasm.sig").exists());
 
     // Unknown publisher: possible only with explicit consent.
@@ -122,18 +122,34 @@ fn signed_plugins_install_trust_and_update_only_from_their_publisher() {
 
     // A newer version from the same publisher updates the installed plugin.
     let v2 = version(d, "probe-2.wasm", "0.2.0");
-    ok(&["plugin", "sign", s(&v2), "--key", s(&key)]);
+    ok(&["--data", data_s, "plugin", "sign", s(&v2), "--key", s(&key)]);
     assert!(ok(&["--data", data_s, "plugin", "update", s(&v2), "--yes"]).contains("aktualisiert"));
     let receipt = fs::read_to_string(data.join("plugins/install-probe.wasm.json")).unwrap();
     assert!(receipt.contains("0.2.0"));
 
     // Same version again, a foreign signature, and no signature are all refused.
     let same = version(d, "probe-same.wasm", "0.2.0");
-    ok(&["plugin", "sign", s(&same), "--key", s(&key)]);
+    ok(&[
+        "--data",
+        data_s,
+        "plugin",
+        "sign",
+        s(&same),
+        "--key",
+        s(&key),
+    ]);
     let text = refused(&["--data", data_s, "plugin", "update", s(&same), "--yes"]);
     assert!(text.contains("nicht neuer"), "{text}");
     let foreign = version(d, "probe-foreign.wasm", "0.3.0");
-    ok(&["plugin", "sign", s(&foreign), "--key", s(&other_key)]);
+    ok(&[
+        "--data",
+        data_s,
+        "plugin",
+        "sign",
+        s(&foreign),
+        "--key",
+        s(&other_key),
+    ]);
     let text = refused(&["--data", data_s, "plugin", "update", s(&foreign), "--yes"]);
     assert!(text.contains("anderen Herausgeber"), "{text}");
     let unsigned = version(d, "probe-unsigned.wasm", "0.3.0");
@@ -157,11 +173,11 @@ fn unsigned_installs_cannot_be_updated_and_keys_stay_private() {
     let d = dir.path();
     let data = d.join("profile");
     let data_s = s(&data);
-    let (key, _) = publisher_key(d, "publisher.key");
+    let (key, _) = publisher_key(d, "publisher.key", &data);
     let v1 = version(d, "probe.wasm", "0.1.0");
     ok(&["--data", data_s, "plugin", "install", s(&v1), "--yes"]);
     let v2 = version(d, "probe-2.wasm", "0.2.0");
-    ok(&["plugin", "sign", s(&v2), "--key", s(&key)]);
+    ok(&["--data", data_s, "plugin", "sign", s(&v2), "--key", s(&key)]);
     let text = refused(&["--data", data_s, "plugin", "update", s(&v2), "--yes"]);
     assert!(text.contains("nicht signiert installiert"), "{text}");
 
@@ -169,7 +185,7 @@ fn unsigned_installs_cannot_be_updated_and_keys_stay_private() {
     #[cfg(unix)]
     {
         fs::set_permissions(&key, std::os::unix::fs::PermissionsExt::from_mode(0o644)).unwrap();
-        let text = refused(&["plugin", "sign", s(&v2), "--key", s(&key)]);
+        let text = refused(&["--data", data_s, "plugin", "sign", s(&v2), "--key", s(&key)]);
         assert!(text.contains("chmod 600"), "{text}");
     }
 }
@@ -179,12 +195,13 @@ fn update_refuses_a_changed_missing_or_nonregular_installed_component() {
     let dir = tempfile::tempdir().unwrap();
     let d = dir.path();
     let data = d.join("profile");
-    let (key, _) = publisher_key(d, "publisher.key");
+    let data_s = s(&data);
+    let (key, _) = publisher_key(d, "publisher.key", &data);
     let v1 = version(d, "probe.wasm", "0.1.0");
-    ok(&["plugin", "sign", s(&v1), "--key", s(&key)]);
+    ok(&["--data", data_s, "plugin", "sign", s(&v1), "--key", s(&key)]);
     ok(&["--data", s(&data), "plugin", "install", s(&v1), "--yes"]);
     let v2 = version(d, "probe-2.wasm", "0.2.0");
-    ok(&["plugin", "sign", s(&v2), "--key", s(&key)]);
+    ok(&["--data", data_s, "plugin", "sign", s(&v2), "--key", s(&key)]);
     let destination = data.join("plugins/install-probe.wasm");
     let receipt = destination.with_extension("wasm.json");
     let approved = fs::read(&receipt).unwrap();

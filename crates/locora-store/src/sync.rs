@@ -37,7 +37,7 @@ pub struct ApplyReport {
     pub failed: Vec<String>,
 }
 
-enum Outcome {
+pub(crate) enum Outcome {
     Applied,
     Stale,
     Missing,
@@ -113,7 +113,7 @@ pub(crate) fn record(
     Ok(())
 }
 
-fn apply_one(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
+pub(crate) fn apply_one(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
     if tombstoned(conn, &op.entity, &op.entity_id, &op.hlc)? {
         return Ok(Outcome::Stale);
     }
@@ -194,13 +194,16 @@ fn palace_update(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
 fn room_create(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
     let fields = object(op)?;
     let palace_id = text_field(op, "palace_id")?;
+    let position = number_field(op, "position")?;
+    let name = text_field(op, "name")?;
+    let kind = RoomKind::parse(text_field(op, "kind")?)?;
+    let media = optional_text(fields.get("media").unwrap_or(&Value::Null))?;
     if !exists(conn, "palaces", palace_id)? {
         return Ok(Outcome::Missing);
     }
     if exists(conn, "rooms", &op.entity_id)? {
         return Ok(Outcome::Stale);
     }
-    let media = optional_text(fields.get("media").unwrap_or(&Value::Null))?;
     if let Some(hash) = &media {
         require_media(conn, hash)?;
     }
@@ -209,9 +212,9 @@ fn room_create(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
         params![
             op.entity_id,
             palace_id,
-            number_field(op, "position")?,
-            text_field(op, "name")?,
-            RoomKind::parse(text_field(op, "kind")?)?.as_str(),
+            position,
+            name,
+            kind.as_str(),
             media,
         ],
     )?;
@@ -264,11 +267,11 @@ fn locus_create(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
 }
 
 fn locus_update(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
+    let patch: LocusPatch = serde_json::from_value(op.data.clone().unwrap_or(Value::Null))
+        .map_err(|e| StoreError::Invalid(format!("Änderung ist ungültig: {e}")))?;
     if !exists(conn, "loci", &op.entity_id)? {
         return Ok(Outcome::Missing);
     }
-    let patch: LocusPatch = serde_json::from_value(op.data.clone().unwrap_or(Value::Null))
-        .map_err(|e| StoreError::Invalid(format!("Änderung ist ungültig: {e}")))?;
     let mut changes: Vec<(&str, SqlValue)> = Vec::new();
     if let Some(v) = patch.image_size {
         changes.push(("image_size", SqlValue::Real(v)));

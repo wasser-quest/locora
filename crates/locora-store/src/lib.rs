@@ -20,7 +20,9 @@ use sha2::{Digest, Sha256};
 pub use locora_api::journey::{Answer, AnswerKind, QuizOption};
 
 mod history;
+mod pull_queue;
 mod sync;
+pub use pull_queue::{PullAttempt, PullRetry};
 pub use sync::{ApplyReport, RemoteOp, media_refs};
 
 /// One graded answer of a finished journey. `at_ms` counts from the start of

@@ -96,6 +96,13 @@ const MIGRATIONS: &[&str] = &[
         palace_name TEXT NOT NULL,
         answers TEXT NOT NULL,
         recorded_at INTEGER NOT NULL);",
+    // 13: durable pull inbox; quarantined entries retain their payload and reason.
+    "CREATE TABLE sync_pull_retry(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        error TEXT,
+        quarantined INTEGER NOT NULL DEFAULT 0 CHECK(quarantined IN (0, 1)));",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {

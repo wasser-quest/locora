@@ -127,6 +127,9 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             for problem in &report.applied.failed {
                 println!("  ! nicht angewendet: {problem}");
             }
+            for problem in &report.quarantined {
+                println!("  ! in Quarantäne: {problem}");
+            }
             Ok(())
         }
         CloudCommand::Ranking { friends } => {
