@@ -119,6 +119,7 @@ pub mod tutorial {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     pub enum TourAction {
         Start,
+        Resume,
         Next,
         Skip,
     }

@@ -23,6 +23,21 @@ const STEPS: &[(&str, &str, &str)] = &[
         "Lernen nach deinem Rhythmus",
         "Stelle Tageslimit und Behaltensrate ein und sieh dir deine Lernstatistik an.",
     ),
+    (
+        "tour-palace-route",
+        "Deine Route",
+        "Im Tutorial-Palast startest du hier den Weg durch die Orte. Die App-Tour öffnet dafür den Beispielpalast.",
+    ),
+    (
+        "tour-editor-toggle",
+        "Orte bearbeiten",
+        "Aktiviere Bearbeiten, um Orte im Raum zu setzen und ihre Inhalte zu ändern.",
+    ),
+    (
+        "tour-journey-prompt",
+        "Am Ort erinnern",
+        "Die Journey fragt einen Ort nach dem anderen ab. Zeige die Antwort und bewerte danach, wie gut du sie wusstest.",
+    ),
 ];
 
 fn show(ctx: &mut Ctx, index: u8) -> Result<bool> {
@@ -44,6 +59,7 @@ impl Plugin for Tutorial {
             let index: u8 = ctx.store().get("tour_step")?.unwrap_or(STEPS.len() as u8);
             let next = match action {
                 TourAction::Start => 0,
+                TourAction::Resume => index,
                 TourAction::Next => index.saturating_add(1).min(STEPS.len() as u8),
                 TourAction::Skip => STEPS.len() as u8,
             };

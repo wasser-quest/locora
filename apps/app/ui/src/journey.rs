@@ -217,6 +217,12 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 
     // Keyboard: Space/Enter reveal or continue, 1–4 rate a recall.
     let keys = window_event_listener(ev::keydown, move |e| {
+        if e.target()
+            .and_then(|target| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(target).ok())
+            .is_some_and(|element| element.closest(".tour-panel").ok().flatten().is_some())
+        {
+            return;
+        }
         let typing = e
             .target()
             .and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlInputElement>(t).ok())
@@ -281,7 +287,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 <Stage question=q.clone() phase=phase />
                 <section class="card panel">
                     <div class="progress">{q.room.clone()}</div>
-                    <div class="prompt">{q.prompt.clone()}</div>
+                    <div id="tour-journey-prompt" class="prompt" tabindex="-1">{q.prompt.clone()}</div>
                     {q
                         .picture
                         .clone()
