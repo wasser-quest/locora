@@ -37,7 +37,7 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK and NDK
         run: |
-          sdkmanager "platform-tools" "platforms;android-37" "build-tools;37.0.0" "ndk;29.0.13846066"
+          sdkmanager "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" "ndk;29.0.13846066"
           echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.13846066" >> "$GITHUB_ENV"
       - name: Install Rust targets
         run: rustup target add wasm32-unknown-unknown wasm32-wasip2 aarch64-linux-android
@@ -52,11 +52,9 @@ jobs:
           cargo install trunk --version "=$TRUNK_VERSION" --locked
       - name: Build official plugins
         run: cargo build --locked --manifest-path ../../plugins/Cargo.toml --release --target wasm32-wasip2 -p core -p review
-      # Generated projects are disposable: init uses the pinned CLI templates.
-      - name: Generate Android project
-        run: cargo tauri android init --ci --skip-targets-install
+      # Generated projects are disposable: the script uses the pinned CLI templates.
       - name: Build debug APK (includes Trunk frontend)
-        run: cargo tauri android build --ci --debug --target aarch64 --apk
+        run: ./scripts/build-android.sh
       - uses: actions/upload-artifact@v4
         with:
           name: locora-android-arm64-debug
