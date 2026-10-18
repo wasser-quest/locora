@@ -9,7 +9,7 @@ use web_sys::PointerEvent;
 
 use crate::{
     Answer,
-    sply::{Shown, Sply, TimedCommand, VideoBackdrop},
+    sply::{Shown, Sply, TimedCommand, VideoBackdrop, fit_stage},
     tauri::call,
 };
 
@@ -1214,6 +1214,9 @@ fn RoomStage(
                         on_loaded=Box::new(move || {
                             video_duration.set(player.get_untracked().map(|video| video.duration())
                                 .filter(|duration| duration.is_finite() && *duration > 0.0));
+                            if let Some(video) = player.get_untracked() {
+                                fit_stage(video.as_ref(), f64::from(video.video_width()), f64::from(video.video_height()));
+                            }
                         })
                         on_timeupdate=Box::new(move || {
                             if let Some(video) = player.get_untracked() {

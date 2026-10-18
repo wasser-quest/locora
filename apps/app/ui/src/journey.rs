@@ -13,7 +13,7 @@ use locora_app_api::{
 };
 use serde::Serialize;
 
-use crate::sply::{Shown, Sply, TimedCommand, VideoBackdrop};
+use crate::sply::{Shown, Sply, TimedCommand, VideoBackdrop, fit_stage};
 use crate::tauri::{NoArgs, call};
 use crate::{Answer, Screen};
 
@@ -143,6 +143,45 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         }
     });
 
+    // Quick mode: continue straight to the next question after reveal or answer.
+    let prefs = crate::locus_display::signal();
+    let next = move || {
+        // Not while an action on the answered question is still running.
+        if busy.get_untracked() {
+            return;
+        }
+        let Phase::Judged(feedback) = phase.get_untracked() else {
+            return;
+        };
+        match feedback.next {
+            Step::Question(q) => {
+                question.set(Some(q));
+                phase.set(Phase::Asking);
+            }
+            Step::Done(s) => summary.set(Some(s)),
+        }
+    };
+    let reply = move |reply: Reply| {
+        if busy.get_untracked() || !video_ready.get_untracked() {
+            return;
+        }
+        busy.set(true);
+        spawn_local(async move {
+            let mut judged = false;
+            match call::<Feedback>(CMD_JOURNEY_ANSWER, ReplyArgs { reply }).await {
+                Ok(f) => {
+                    phase.set(Phase::Judged(Box::new(f)));
+                    refresh_game(game);
+                    judged = true;
+                }
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+            if judged && prefs.get_untracked().quick_next {
+                next();
+            }
+        });
+    };
     let reveal = move || {
         if busy.get_untracked()
             || !video_ready.get_untracked()
@@ -152,27 +191,19 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         }
         busy.set(true);
         spawn_local(async move {
+            let mut revealed = false;
             match call::<Revealed>(CMD_JOURNEY_REVEAL, NoArgs {}).await {
-                Ok(r) => phase.set(Phase::Revealed(r)),
-                Err(e) => error.set(Some(e)),
-            }
-            busy.set(false);
-        });
-    };
-    let reply = move |reply: Reply| {
-        if busy.get_untracked() || !video_ready.get_untracked() {
-            return;
-        }
-        busy.set(true);
-        spawn_local(async move {
-            match call::<Feedback>(CMD_JOURNEY_ANSWER, ReplyArgs { reply }).await {
-                Ok(f) => {
-                    phase.set(Phase::Judged(Box::new(f)));
-                    refresh_game(game);
+                Ok(r) => {
+                    phase.set(Phase::Revealed(r));
+                    revealed = true;
                 }
                 Err(e) => error.set(Some(e)),
             }
             busy.set(false);
+            // Quick mode grades a recall as „gut“ at once.
+            if revealed && prefs.get_untracked().quick_next {
+                reply(Reply::Recall(3));
+            }
         });
     };
     // A workbook action on the current question; „reveal“ actions show the answer.
@@ -222,22 +253,6 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 }
             }
         });
-    };
-    let next = move || {
-        // Not while an action on the answered question is still running.
-        if busy.get_untracked() {
-            return;
-        }
-        let Phase::Judged(feedback) = phase.get_untracked() else {
-            return;
-        };
-        match feedback.next {
-            Step::Question(q) => {
-                question.set(Some(q));
-                phase.set(Phase::Asking);
-            }
-            Step::Done(s) => summary.set(Some(s)),
-        }
     };
 
     // Keyboard: Space/Enter reveal or continue, 1–4 rate a recall.
@@ -482,7 +497,8 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                             style:display=move || {
                                 let prefs = display.get();
                                 let lead = leads.get().get(&id).copied().unwrap_or(prefs.video_lead);
-                                let visible = crate::locus_display::visible(offset, prefs.previous, prefs.next)
+                                let visible = (crate::locus_display::visible(offset, prefs.previous, prefs.next)
+                                    || (prefs.keep_previous && offset < 0))
                                     && !(offset == 0 && phase.get().stage_answer().is_some() && prefs.hide_revealed)
                                     && (!timed || crate::locus_display::at_video_time(time, video_position.get(), lead));
                                 if visible { "block" } else { "none" }
@@ -599,6 +615,9 @@ fn VideoAtLocus(
             autoplay=true
             node_ref=player
             on_loaded=Box::new(move || {
+                if let Some(video) = player.get_untracked() {
+                    fit_stage(video.as_ref(), f64::from(video.video_width()), f64::from(video.video_height()));
+                }
                 on_metadata(player, time, phase, progress, key, ready, (error, fallback));
                 if !ready.get_untracked()
                     && let Some(video) = player.get_untracked()

@@ -5,8 +5,23 @@
 use leptos::{html::Iframe, task::spawn_local};
 use leptos::prelude::*;
 use locora_app_api::{Media, MediaKind};
+use wasm_bindgen::JsCast;
 
 use crate::tauri::url;
+
+/// Give the enclosing room stage the picture's own proportions. Markers are placed in
+/// stage percentages, so the stage must be exactly as large as the visible picture.
+pub fn fit_stage(picture: &web_sys::Element, width: f64, height: f64) {
+    if !(width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0) {
+        return;
+    }
+    let Ok(Some(stage)) = picture.closest(".stage") else {
+        return;
+    };
+    if let Ok(stage) = stage.dyn_into::<web_sys::HtmlElement>() {
+        let _ = stage.style().set_property("--stage-ratio", &(width / height).to_string());
+    }
+}
 
 fn send(frame: &web_sys::HtmlIFrameElement, machine: &str, event: &str) {
     let Some(window) = frame.content_window() else {
@@ -404,7 +419,15 @@ pub fn MarkerLayer(media: Media, loci: Signal<Vec<MarkerLocus>>) -> impl IntoVie
 pub fn Shown(media: Media, #[prop(optional, into)] class: String) -> impl IntoView {
     match media.kind {
         MediaKind::Sply => view! { <Sply media=media class=class/> }.into_any(),
-        MediaKind::Image => view! { <img class=class src=url(&media) alt=""/> }.into_any(),
+        MediaKind::Image => view! {
+            <img class=class src=url(&media) alt="" on:load=move |ev| {
+                let image = ev.target().and_then(|target| target.dyn_into::<web_sys::HtmlImageElement>().ok());
+                if let Some(image) = image {
+                    fit_stage(image.as_ref(), f64::from(image.natural_width()), f64::from(image.natural_height()));
+                }
+            }/>
+        }
+        .into_any(),
         MediaKind::Video => {
             view! { <VideoBackdrop media=media class=class controls=true muted=true/> }
                 .into_any()
@@ -468,5 +491,52 @@ pub fn VideoBackdrop(
         <Show when=move || source.get().is_err()>
             <p class="notes" role="alert">{move || source.get().unwrap_err()}</p>
         </Show>
+    }
+}
+
+/// A video's first frame as a palace thumbnail. A paused video often paints nothing
+/// until something repaints it, so the frame is copied to a canvas, which always shows.
+#[component]
+pub fn VideoThumb(media: Media, #[prop(optional, into)] class: String) -> impl IntoView {
+    let player = NodeRef::<leptos::html::Video>::new();
+    let canvas = NodeRef::<leptos::html::Canvas>::new();
+    let drawn = StoredValue::new(false);
+    view! {
+        <VideoBackdrop
+            media=media
+            class="palace-thumb-source"
+            controls=false
+            muted=true
+            autoplay=false
+            preload="auto".to_string()
+            node_ref=player
+            on_loaded=Box::new(move || {
+                // Seeking past the first frame makes WebViews decode it.
+                if let Some(video) = player.get_untracked() {
+                    video.set_current_time(0.1);
+                }
+            })
+            on_timeupdate=Box::new(move || {
+                if drawn.get_value() {
+                    return;
+                }
+                let (Some(video), Some(target)) = (player.get_untracked(), canvas.get_untracked()) else {
+                    return;
+                };
+                if video.ready_state() < 2 || video.video_width() == 0 {
+                    return;
+                }
+                target.set_width(video.video_width());
+                target.set_height(video.video_height());
+                let context = target.get_context("2d").ok().flatten()
+                    .and_then(|context| context.dyn_into::<web_sys::CanvasRenderingContext2d>().ok());
+                if let Some(context) = context
+                    && context.draw_image_with_html_video_element(&video, 0.0, 0.0).is_ok()
+                {
+                    drawn.set_value(true);
+                }
+            })
+        />
+        <canvas node_ref=canvas class=format!("palace-thumb {class}")></canvas>
     }
 }

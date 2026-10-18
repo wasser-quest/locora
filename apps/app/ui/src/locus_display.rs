@@ -13,6 +13,10 @@ pub struct Preferences {
     pub next: u8,
     pub numbers: bool,
     pub hide_revealed: bool,
+    /// Keep every locus before the current one on the stage.
+    pub keep_previous: bool,
+    /// Grade a recall right after revealing it, and move on after an answer.
+    pub quick_next: bool,
     pub video_lead: f64,
 }
 
@@ -21,8 +25,10 @@ impl Default for Preferences {
         Self {
             previous: 0,
             next: 0,
-            numbers: false,
-            hide_revealed: true,
+            numbers: true,
+            hide_revealed: false,
+            keep_previous: false,
+            quick_next: false,
             video_lead: 0.0,
         }
     }
@@ -73,6 +79,8 @@ pub fn load() -> Preferences {
             next: value.next.min(10),
             numbers: value.numbers,
             hide_revealed: value.hide_revealed,
+            keep_previous: value.keep_previous,
+            quick_next: value.quick_next,
             video_lead: if value.video_lead.is_finite() {
                 value.video_lead.clamp(0.0, 30.0)
             } else {

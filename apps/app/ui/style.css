@@ -68,7 +68,8 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .palace .row .meta { flex: 1; }
 .palace-cover { position: relative; height: 120px; overflow: hidden; border-radius: 10px; background: var(--surface, #1b1b2b); }
 .palace-cover-media { width: 100%; height: 100%; object-fit: cover; }
-.palace-video-preview { display: grid; place-items: center; width: 100%; height: 100%; }
+/* The canvas shows the first frame; the hidden-behind video only supplies it. */
+.palace-thumb-source, .palace-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .palace-cover-open { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border: 0; background: transparent; cursor: pointer; }
 .palace-cover-change { position: absolute; z-index: 2; right: .4rem; bottom: .4rem; max-width: calc(100% - .8rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .play { border-radius: 50%; width: 2.4rem; height: 2.4rem; padding: 0; }
@@ -92,9 +93,14 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .video-timeline button.on { background: var(--indigo); color: #fff; }
 .video-timeline button.invalid { border-color: var(--again); }
 .tabs button.on { background: var(--indigo); color: #fff; }
-.stage { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
+/* The ratio follows the picture (`fit_stage`), so stage percentages match what is shown.
+   Height is capped so the question below stays on screen. */
+.stage { position: relative; width: min(100%, calc(58vh * var(--stage-ratio, 1.3333))); margin: 0 auto;
+  aspect-ratio: var(--stage-ratio, 1.3333); border-radius: 14px; overflow: hidden;
   background: linear-gradient(160deg, var(--indigo-deep), var(--indigo)); }
 .stage .backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; }
+/* Only the small button in the control bar; the large centre button hides loci. */
+video::-webkit-media-controls-overlay-play-button { display: none !important; }
 .locus-picture { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .locus-picture > img { display: block; width: 100%; height: auto; }
 .locus-picture > iframe.sply { display: block; width: 100%; aspect-ratio: 1; height: auto; }

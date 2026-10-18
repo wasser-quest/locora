@@ -20,7 +20,7 @@ use locora_app_api::{
 };
 use serde::Serialize;
 
-use crate::sply::{Shown, Sply};
+use crate::sply::{Shown, Sply, VideoThumb};
 use crate::tauri::call;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -921,7 +921,8 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                 view! {
                 <div class="palace-cover">
                     {if preview.media.kind == locora_app_api::MediaKind::Video {
-                        view! { <div class="palace-video-preview"><RoomIcon backdrop=Some(preview.media) /></div> }.into_any()
+                        // The first frame is the thumbnail: paused, muted, no controls.
+                        view! { <VideoThumb media=preview.media class="palace-cover-media" /> }.into_any()
                     } else {
                         view! { <Shown media=preview.media class="palace-cover-media" /> }.into_any()
                     }}
