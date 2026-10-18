@@ -38,7 +38,7 @@ LOCORA_DATA=/tmp/locora-test cargo tauri dev
 
 ## Mobile builds (Tauri 2)
 
-[Mobile builds](../../.github/workflows/mobile.yml) runs Android on pushes to `main`,
+[Mobile builds](../../.github/workflows/mobile.yml) runs Android on pushes to `main` and `testing`,
 pull requests and manual dispatch; iOS (macOS runner) only on manual dispatch to save
 Actions minutes. Both jobs build the Trunk frontend and the official
 Core/Review WASI plugins, then compile the native app. No Node toolchain is needed.
@@ -118,9 +118,13 @@ and macOS/Xcode builds. Dependency, SDK and generated Gradle downloads require
 network access.
 
 The dialog plugin has no folder picker on mobile, so TOML export (`dump_pick`)
-returns an explicit error there; `.locora` export works. Mobile file pickers do not
-yet support content URIs. The plugin host currently uses Wasmtime/Cranelift JIT; simulator compilation
-does not demonstrate compatibility with iOS device executable-memory restrictions.
+returns an explicit error there; `.locora` export works. Picked Android `content://`
+files and iOS security-scoped files are streamed through the native filesystem
+plugin into bounded private temporary files. A TOML import with relative media
+paths still needs a `.locora` archive because document providers do not grant
+access to sibling files. The plugin host selects Wasmtime/Pulley on iOS to avoid
+JIT executable-memory restrictions; actual device operation still needs a signed
+build and hardware test.
 No release or device-readiness claim is implied by an uploaded build artifact.
 
 ## How it fits together

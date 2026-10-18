@@ -35,9 +35,9 @@ Stand: 18.10.2026
 - [x] Workbook-Aktionen auch nach dem Bewerten (wie `locora practice`), auch nach der letzten Frage
 - [x] Liste = Route: Strg/⌘+V auf der fokussierten Bühne oder Textfeld/Knopf im Editor, 1–100 Begriffe, Schlangenroute, atomarer Batch mit Validierung und Op-Log (keine Video-Räume)
 - [x] Locus-Mediendatei-Auswahl: nativer Dialog, Bild wählen/entfernen, Raster-MIME-/`.sply`-Validierung, Scope-Prüfung und Fehleranzeige ohne freie Pfad-IPC (64 MiB)
-- [ ] Nativen Locus-Dateipicker im WebView manuell prüfen (Auswahl, Abbruch, Fehler, Entfernen, Neustart); mobile URI-Auswahl noch nicht unterstützt
+- [ ] Nativen Locus-Dateipicker im WebView manuell prüfen (Auswahl, Abbruch, Fehler, Entfernen, Neustart); mobile URI-Auswahl implementiert, Gerätetest offen
 - [x] Startknopf „Bild/Video wählen…“: nativer Dialog, gemeinsame Signaturprüfung (64 MiB), atomarer neuer Palast + passender Raum + Medienmetadaten/Op-Log, Dateiname mit Kollisionssuffix, direkt Editor öffnen; Zurück aktualisiert Home
-- [ ] Start-Dateipicker im WebView manuell prüfen (Bild/Video, Abbruch, Fehler, Editor, Zurück, Neustart); lokale Dateien, keine mobilen Content-URIs
+- [ ] Start-Dateipicker im WebView manuell prüfen (Bild/Video, Abbruch, Fehler, Editor, Zurück, Neustart); mobile Content-URIs implementiert, Gerätetest offen
 - [x] Video-Loci im App-Editor über Sekundenangabe anlegen; validiert und persistent
 - [x] Videozeit aus Wiedergabe übernehmen: Knopf und Taste L auf der fokussierten Bühne, pausiert vor dem Anlegen
 - [x] Video-Ortsnavigation im Editor: chronologische Zeitknöpfe, pausieren/spulen/auswählen, aktive Auswahl
@@ -62,7 +62,7 @@ Stand: 18.10.2026
 - [x] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons, Journey-Feedback (richtig/nochmal/geschafft), Willkommen mit Simo – `assets/ui/src/ui.py`, Simo aus `assets/mascot/src/simo.py`
 - [x] Weitere Grafiken: Raum-Arten in den Tabs, „nichts fällig“ mit Simo, Ladezustand mit dem Locora-Logo
 - [x] Mobile-CI `.github/workflows/mobile.yml`: Android-Debug-APK bei Push/PR, iOS-Simulator-App nur per Hand (macOS-Kontingent); TOML-Ordnerexport auf Mobil mit klarer Fehlermeldung
-- [ ] Mobile-Workflow einmal remote laufen lassen (noch nie ausgeführt); Wasmtime-JIT auf iOS-Geräten klären
+- [ ] Mobile-Workflow nach Push auf `testing` remote prüfen; iOS verwendet Pulley statt JIT, Gerätetest und Signierung offen
 - [x] Mobile Befehlspalette per Abwärtswisch vom oberen Rand und sichtbarem „Befehle“-Knopf öffnen; WASM-Check und Gestenlogik-Test bestanden, reales Touchgerät noch zu prüfen
 - [x] Einstellung „Direkt in Core starten“ (PLAN 6.1): Gerätepräferenz, direkte Palastübersicht und wechselbares Raumvorschaubild auf Karten (Video mit Raum-Icon statt geladenem Film)
 - [x] Core-Startpräferenz und Bildwechsel nach App-Neustart im nativen WebView geprüft (`native_smoke.py --only-core`); `LOCORA_DATA` isoliert jetzt auch den WebKit-Speicher

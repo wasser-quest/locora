@@ -6,6 +6,9 @@ mod drops;
 mod editor;
 mod journey;
 mod media;
+#[cfg(any(mobile, test))]
+#[cfg_attr(not(mobile), allow(dead_code))]
+mod mobile_files;
 mod settings;
 mod sply;
 mod transfer;
@@ -122,8 +125,10 @@ async fn editor_pick_picture(
         editor::picture_target(&b.profile.store, &target).map_err(err)?;
     }
     // Blocking native dialog off the main thread, without holding the profile lock.
+    let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
+        picker_app
+            .dialog()
             .file()
             .set_title("Bild am Ort wählen")
             .add_filter(
@@ -137,6 +142,11 @@ async fn editor_pick_picture(
     let Some(selected) = selected else {
         return Ok(None);
     };
+    #[cfg(mobile)]
+    let staged = mobile_files::stage(&app, selected, mobile_files::Kind::Picture)?;
+    #[cfg(mobile)]
+    let path = staged.path().to_path_buf();
+    #[cfg(desktop)]
     let path = selected
         .into_path()
         .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())?;
@@ -158,8 +168,10 @@ async fn home_pick_media(
     state: State<'_, Shared>,
 ) -> Result<Option<PalaceView>, String> {
     use tauri_plugin_dialog::DialogExt;
+    let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
+        picker_app
+            .dialog()
             .file()
             .set_title("Neuen Palast aus Bild oder Video anlegen")
             .add_filter(
@@ -173,6 +185,13 @@ async fn home_pick_media(
     })
     .await
     .map_err(|e| format!("Dateiauswahl fehlgeschlagen: {e}"))?;
+    #[cfg(mobile)]
+    let staged = selected
+        .map(|s| mobile_files::stage(&app, s, mobile_files::Kind::Media))
+        .transpose()?;
+    #[cfg(mobile)]
+    let path = staged.as_ref().map(|s| s.path());
+    #[cfg(desktop)]
     let path = selected
         .map(|s| {
             s.into_path()
@@ -180,6 +199,9 @@ async fn home_pick_media(
         })
         .transpose()?;
     let b = lock(&state)?;
+    #[cfg(mobile)]
+    let tree = editor::import_palace(&b.profile.store, path).map_err(err)?;
+    #[cfg(desktop)]
     let tree = editor::import_palace(&b.profile.store, path.as_deref()).map_err(err)?;
     // New rooms contain no loci: no fallible plugin call after committing.
     Ok(tree.map(|tree| {
@@ -241,8 +263,10 @@ async fn import_pick(
     state: State<'_, Shared>,
 ) -> Result<Option<ImportResult>, String> {
     use tauri_plugin_dialog::DialogExt;
+    let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
+        picker_app
+            .dialog()
             .file()
             .set_title("Paläste importieren")
             .add_filter("Locora-Paläste", &["locora", "toml"])
@@ -253,6 +277,11 @@ async fn import_pick(
     let Some(selected) = selected else {
         return Ok(None);
     };
+    #[cfg(mobile)]
+    let staged = mobile_files::stage(&app, selected, mobile_files::Kind::Archive)?;
+    #[cfg(mobile)]
+    let path = staged.path().to_path_buf();
+    #[cfg(desktop)]
     let path = selected
         .into_path()
         .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())?;
@@ -274,8 +303,10 @@ async fn export_pick(
         let b = lock(&state)?;
         transfer::suggested_name(&b.profile, &id).map_err(err)?
     };
+    let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
+        picker_app
+            .dialog()
             .file()
             .set_title("Palast exportieren")
             .set_file_name(suggested)
@@ -287,10 +318,26 @@ async fn export_pick(
     let Some(selected) = selected else {
         return Ok(None);
     };
+    #[cfg(mobile)]
+    {
+        let staged = tempfile::Builder::new()
+            .suffix(".locora")
+            .tempfile()
+            .map_err(|e| format!("Export vorbereiten: {e}"))?;
+        {
+            let mut b = lock(&state)?;
+            transfer::export_path(&mut b.profile, &id, staged.path()).map_err(err)?;
+        }
+        mobile_files::save(&app, selected, staged.path())?;
+        return Ok(Some("Palast als .locora exportiert".to_owned()));
+    }
+    #[cfg(desktop)]
     let path = selected
         .into_path()
         .map_err(|_| "Dieses Ziel ist keine lokale Datei".to_owned())?;
+    #[cfg(desktop)]
     let mut b = lock(&state)?;
+    #[cfg(desktop)]
     transfer::export_path(&mut b.profile, &id, &transfer::with_extension(path))
         .map(Some)
         .map_err(err)
@@ -720,6 +767,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(DropInbox::default())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let backend = open(app).map_err(|e| format!("Profil öffnen: {e:#}"))?;
             app.manage::<Shared>(Mutex::new(backend));
