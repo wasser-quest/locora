@@ -27,6 +27,65 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
     if (timedTicker) { clearInterval(timedTicker); timedTicker = null; }
     if (svg.splinely) svg.splinely.timeline.pause();
   }
+  // The app forwards the pointer as coordinates. These helpers rebuild the DOM sequence
+  // a browser would produce: enter/leave along the ancestor chain, a press on one element,
+  // moves to that element while pressed, and a click on the nearest common ancestor.
+  var hovered = null, pressed = null;
+  function chainOf(node) {
+    var out = [];
+    for (var n = node; n && n !== svg; n = n.parentNode) out.push(n);
+    return out;
+  }
+  function targetAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    return el && el !== svg && svg.contains(el) ? el : null;
+  }
+  function pointerEvent(type, x, y, bubbles) {
+    return new PointerEvent(type, {
+      clientX: x, clientY: y, bubbles: bubbles, cancelable: true,
+      pointerType: 'mouse', isPrimary: true, button: 0, buttons: pressed ? 1 : 0
+    });
+  }
+  function setHover(next, x, y) {
+    if (next === hovered) return;
+    var before = hovered ? chainOf(hovered) : [], after = next ? chainOf(next) : [];
+    if (hovered) {
+      before.forEach(function (n) {
+        if (after.indexOf(n) < 0) n.dispatchEvent(pointerEvent('pointerleave', x, y, false));
+      });
+      hovered.dispatchEvent(pointerEvent('pointerout', x, y, true));
+    }
+    if (next) {
+      next.dispatchEvent(pointerEvent('pointerover', x, y, true));
+      after.slice().reverse().forEach(function (n) {
+        if (before.indexOf(n) < 0) n.dispatchEvent(pointerEvent('pointerenter', x, y, false));
+      });
+    }
+    hovered = next;
+  }
+  function moveTo(x, y) {
+    var el = targetAt(x, y);
+    setHover(el, x, y);
+    var receiver = pressed || el;
+    if (receiver) receiver.dispatchEvent(pointerEvent('pointermove', x, y, true));
+  }
+  function pressAt(x, y) {
+    var el = targetAt(x, y);
+    setHover(el, x, y);
+    if (!el) return;
+    pressed = el;
+    el.dispatchEvent(pointerEvent('pointerdown', x, y, true));
+  }
+  function releaseAt(x, y) {
+    var start = pressed, el = targetAt(x, y);
+    pressed = null;
+    setHover(el, x, y);
+    if (!start) return;
+    start.dispatchEvent(pointerEvent('pointerup', x, y, true));
+    var shared = null, others = el ? chainOf(el) : [];
+    chainOf(start).some(function (n) { if (others.indexOf(n) >= 0) { shared = n; return true; } return false; });
+    if (shared) shared.dispatchEvent(new MouseEvent('click', { clientX: x, clientY: y, bubbles: true, cancelable: true, button: 0 }));
+  }
   // document.currentScript can be null for SVG scripts in WebViews. The
   // bundled runtime may therefore be loaded without its auto-bootstrap.
   if (!svg.splinely && window.SplinelyRuntime) {
@@ -97,22 +156,25 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
       return;
     }
     if (d.pointer && Number.isFinite(d.pointer.x) && Number.isFinite(d.pointer.y)) {
+      // Pointer followers read the root; hover and drags use the element underneath.
       svg.dispatchEvent(new PointerEvent('pointermove', {
         clientX: d.pointer.x, clientY: d.pointer.y, bubbles: true,
         pointerType: 'mouse', isPrimary: true
       }));
+      moveTo(d.pointer.x, d.pointer.y);
       return;
     }
-    if (d.click && Number.isFinite(d.click.x) && Number.isFinite(d.click.y)) {
-      var target = document.elementFromPoint(d.click.x, d.click.y);
-      if (target && svg.contains(target)) {
-        target.dispatchEvent(new MouseEvent('click', {
-          clientX: d.click.x, clientY: d.click.y, bubbles: true, button: 0
-        }));
-      }
+    if (d.pointerDown && Number.isFinite(d.pointerDown.x) && Number.isFinite(d.pointerDown.y)) {
+      pressAt(d.pointerDown.x, d.pointerDown.y);
+      return;
+    }
+    if (d.pointerUp && Number.isFinite(d.pointerUp.x) && Number.isFinite(d.pointerUp.y)) {
+      releaseAt(d.pointerUp.x, d.pointerUp.y);
       return;
     }
     if (d.pointerLeave) {
+      pressed = null;
+      setHover(null, 0, 0);
       svg.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
       return;
     }

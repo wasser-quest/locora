@@ -122,7 +122,8 @@ pub fn Sply(
         }
     });
     let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
-        if !ready.get_untracked() || event.pointer_type() != "mouse" {
+        // Touch and pen move the eyes too; they only send moves while they touch the screen.
+        if !ready.get_untracked() {
             return;
         }
         let Some(frame) = frame.get_untracked() else {
@@ -150,7 +151,10 @@ pub fn Sply(
         let _ = js_sys::Reflect::set(&message, &"pointer".into(), &point);
         let _ = window.post_message(&message, "*");
     });
-    let clicks = window_event_listener(leptos::ev::click, move |event| {
+    // Presses and releases travel as coordinates; the frame turns them into the same
+    // pointer sequence a browser sends, so hover, clicks and drags behave alike.
+    let pressed = StoredValue::new(false);
+    let presses = window_event_listener(leptos::ev::pointerdown, move |event| {
         use wasm_bindgen::JsCast;
         if !ready.get_untracked() || event.button() != 0 {
             return;
@@ -196,8 +200,50 @@ pub fn Sply(
         );
         let message = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
-        let _ = js_sys::Reflect::set(&message, &"click".into(), &point);
+        let _ = js_sys::Reflect::set(&message, &"pointerDown".into(), &point);
         let _ = window.post_message(&message, "*");
+        pressed.set_value(true);
+    });
+    // A press that started in the frame ends there, even when the pointer has left it.
+    let releases = window_event_listener(leptos::ev::pointerup, move |event| {
+        if !pressed.get_value() {
+            return;
+        }
+        pressed.set_value(false);
+        let Some(frame) = frame.get_untracked() else {
+            return;
+        };
+        let Some(window) = frame.content_window() else {
+            return;
+        };
+        let rect = frame.get_bounding_client_rect();
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return;
+        }
+        let x = f64::from(event.client_x()) - rect.left();
+        let y = f64::from(event.client_y()) - rect.top();
+        let point = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(
+            &point,
+            &"x".into(),
+            &(x * f64::from(frame.client_width()) / rect.width()).into(),
+        );
+        let _ = js_sys::Reflect::set(
+            &point,
+            &"y".into(),
+            &(y * f64::from(frame.client_height()) / rect.height()).into(),
+        );
+        let message = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+        let _ = js_sys::Reflect::set(&message, &"pointerUp".into(), &point);
+        let _ = window.post_message(&message, "*");
+        // A finger leaves no hover behind once it lifts.
+        if event.pointer_type() != "mouse" {
+            let leave = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&leave, &"locora".into(), &1.into());
+            let _ = js_sys::Reflect::set(&leave, &"pointerLeave".into(), &true.into());
+            let _ = window.post_message(&leave, "*");
+        }
     });
     let blur = window_event_listener(leptos::ev::blur, move |_| {
         if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
@@ -210,7 +256,8 @@ pub fn Sply(
     on_cleanup(move || {
         messages.remove();
         pointer.remove();
-        clicks.remove();
+        presses.remove();
+        releases.remove();
         blur.remove();
     });
     let push = move || {
@@ -350,7 +397,8 @@ pub fn MarkerLayer(media: Media, loci: Signal<Vec<MarkerLocus>>) -> impl IntoVie
         }
     });
     let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
-        if !ready.get_untracked() || event.pointer_type() != "mouse" {
+        // Touch and pen move the eyes too; they only send moves while they touch the screen.
+        if !ready.get_untracked() {
             return;
         }
         let Some(el) = frame.get_untracked() else {
