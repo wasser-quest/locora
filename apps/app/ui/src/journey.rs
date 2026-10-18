@@ -492,13 +492,16 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                     let id = locus.id.clone();
                     let offset = locus.offset;
                     let time = locus.time;
+                    let (x, y, size) = (locus.x, locus.y, locus.image_size);
+                    let picture = locus.picture.clone();
                     view! {
                         <div class="marker"
                             style:display=move || {
                                 let prefs = display.get();
                                 let lead = leads.get().get(&id).copied().unwrap_or(prefs.video_lead);
-                                let visible = (crate::locus_display::visible(offset, prefs.previous, prefs.next)
-                                    || (prefs.keep_previous && offset < 0))
+                                // Earlier loci show their revealed picture instead of a marker.
+                                let visible = crate::locus_display::visible(offset, prefs.previous, prefs.next)
+                                    && !(prefs.keep_previous && offset < 0)
                                     && !(offset == 0 && phase.get().stage_answer().is_some() && prefs.hide_revealed)
                                     && (!timed || crate::locus_display::at_video_time(time, video_position.get(), lead));
                                 if visible { "block" } else { "none" }
@@ -510,6 +513,13 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                             <Sply media=marker.clone() state=Signal::stored("faellig") />
                             <span class="num" aria-hidden="true" style:display=move || if display.get().numbers { "grid" } else { "none" }>{locus.number}</span>
                         </div>
+                        {move || {
+                            let prefs = display.get();
+                            if !(prefs.keep_previous && offset < 0) { return None; }
+                            picture.clone().map(|media| view! {
+                                <crate::LocusPicture media=media x=x y=y size=size />
+                            })
+                        }}
                     }
                 }).collect_view()}
             </div>

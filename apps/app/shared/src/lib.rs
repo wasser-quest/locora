@@ -584,6 +584,10 @@ pub struct NearbyLocus {
     pub x: f64,
     pub y: f64,
     pub time: Option<f64>,
+    /// The locus picture, shown on the stage once the locus is revealed.
+    pub picture: Option<Media>,
+    /// Picture width as a fraction of the room width.
+    pub image_size: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -266,6 +266,8 @@ impl Journey {
                     x: locus.x,
                     y: locus.y,
                     time: locus.time,
+                    picture: locus.image.as_deref().and_then(|h| media(&profile.store, h)),
+                    image_size: locus.image_size,
                 })
             }).collect(),
             x: locus.x,

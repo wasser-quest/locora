@@ -90,7 +90,7 @@ fn LocusDisplay() -> impl IntoView {
             <label><input type="checkbox" prop:checked=move || settings.get().hide_revealed
                 on:change=move |event| { settings.update(|p| p.hide_revealed = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Aktuellen Ort nach dem Aufdecken ausblenden"</label>
             <label><input type="checkbox" prop:checked=move || settings.get().keep_previous
-                on:change=move |event| { settings.update(|p| p.keep_previous = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Bereits durchlaufene Orte weiter anzeigen"</label>
+                on:change=move |event| { settings.update(|p| p.keep_previous = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Aufgedeckte Bilder bereits durchlaufener Orte weiter anzeigen"</label>
             <label><input type="checkbox" prop:checked=move || settings.get().quick_next
                 on:change=move |event| { settings.update(|p| p.quick_next = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Schnell weiter: nach dem Aufdecken oder der Eingabe direkt zum nächsten Ort"</label>
             <label>"Video: Marker frühestens vor dem Stopp (Sekunden) "

@@ -13,7 +13,7 @@ pub struct Preferences {
     pub next: u8,
     pub numbers: bool,
     pub hide_revealed: bool,
-    /// Keep every locus before the current one on the stage.
+    /// Keep the revealed pictures of earlier loci on the stage, in place of their markers.
     pub keep_previous: bool,
     /// Grade a recall right after revealing it, and move on after an answer.
     pub quick_next: bool,
