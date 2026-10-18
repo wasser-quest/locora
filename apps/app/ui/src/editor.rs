@@ -1000,6 +1000,22 @@ fn RoomStage(
                         </div>
                     </Show>
                     <p class="notes video-playhead">{move || format!("Position {:.2} s", playhead.get())}</p>
+                    <div class="video-transport" role="group" aria-label="Wiedergabe">
+                        <button type="button" disabled=move || video_duration.get().is_none()
+                            on:click=move |_| {
+                                if let Some(video) = player.get_untracked() {
+                                    let _ = video.play();
+                                }
+                            }>"▶ Abspielen"</button>
+                        <button type="button" disabled=move || video_duration.get().is_none()
+                            on:click=move |_| {
+                                if let Some(video) = player.get_untracked() {
+                                    let _ = video.pause();
+                                    video.set_current_time(0.0);
+                                    playhead.set(0.0);
+                                }
+                            }>"■ Stopp"</button>
+                    </div>
                     <label class="video-seek">"Zeitpunkt wählen"
                         <input type="range" min="0" step="0.01"
                             max=move || video_duration.get().unwrap_or(0.0).to_string()
@@ -1210,7 +1226,8 @@ fn RoomStage(
         >
             {room.backdrop.map(|media| {
                 if video {
-                    view! { <VideoBackdrop media=media class="backdrop" controls=true muted=true node_ref=player
+                    // No native controls or click-to-toggle here: the transport buttons above drive playback.
+                    view! { <VideoBackdrop media=media class="backdrop editor-video" controls=false muted=true node_ref=player
                         on_loaded=Box::new(move || {
                             video_duration.set(player.get_untracked().map(|video| video.duration())
                                 .filter(|duration| duration.is_finite() && *duration > 0.0));

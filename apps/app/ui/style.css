@@ -86,6 +86,9 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .video-timeline-locus { display: flex; flex: 0 0 11rem; flex-direction: column; gap: .25rem; }
 .video-timeline-locus input[type="range"] { width: 100%; }
 .video-seek { display: flex; gap: .75rem; align-items: center; }
+.video-transport { display: flex; gap: .5rem; margin: .25rem 0 .5rem; }
+/* The editor's picture takes no clicks: loci are placed on the stage, not on a playing frame. */
+.editor-video { pointer-events: none; }
 .video-seek input { flex: 1; min-width: 8rem; }
 .video-start-preview { padding: .5rem .75rem; border-bottom: 1px solid var(--line); }
 .video-start-preview ul { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: .25rem 0 0; padding-left: 1.25rem; }
