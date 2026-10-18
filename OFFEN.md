@@ -52,7 +52,7 @@ Stand: 18.10.2026
 - [x] App-Tour: Zurück-Knopf; aufeinanderfolgende Schritte derselben Ansicht lassen die Ansicht und Simo geladen, statt sie neu aufzubauen
 - [x] App-Tour im nativen WebView: alle sechs Schritte vorwärts und rückwärts sowie Schließen geprüft (`native_smoke.py --only-tour`)
 - [ ] App-Tour auf sichtbares Flackern und erhaltenen Journey-Stand bei Routenwechseln prüfen
-- [x] Locus-Anzeige auf diesem Gerät einstellbar: vorherige/nächste Route-Orte (0–10), Nummern, aktuellen Marker nach Aufdecken ausblenden, Video-Vorlauf global und pro Ort
+- [x] Locus-Anzeige auf diesem Gerät einstellbar: vorherige/nächste Route-Orte (0–10), Nummern direkt im Markerpunkt, aktuellen Marker nach Aufdecken ausblenden, Video-Vorlauf global und pro Ort
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
 - [x] Medien über HTTP-Range ausliefern: Einzelbereiche, offene/Suffix-Bereiche, 416 und HEAD; nur angeforderte Bytes lesen

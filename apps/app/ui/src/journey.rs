@@ -492,7 +492,7 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                             style:transform=format!("translate(-50%, -50%) scale({})", 1.0 / zoom)
                         >
                             <Sply media=marker.clone() state=Signal::stored("faellig") />
-                            <span class="num" style:display=move || if display.get().numbers { "block" } else { "none" }>{locus.number}</span>
+                            <span class="num" aria-hidden="true" style:display=move || if display.get().numbers { "grid" } else { "none" }>{locus.number}</span>
                         </div>
                     }
                 }).collect_view()}

@@ -93,11 +93,14 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .locus-picture { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .locus-picture > img { display: block; width: 100%; height: auto; }
 .locus-picture > iframe.sply { display: block; width: 100%; aspect-ratio: 1; height: auto; }
-.marker { z-index: 1; position: absolute; width: 56px; height: 56px; transform: translate(-50%, -50%); }
+.marker { z-index: 2; position: absolute; width: 56px; height: 56px; transform: translate(-50%, -50%); }
 .marker iframe { width: 100%; height: 100%; border: 0; pointer-events: none; background: transparent; }
 .marker button { position: absolute; inset: 0; border: 0; background: transparent; border-radius: 50%; padding: 0; }
-.marker .num { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); font-size: .75rem;
-  color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; pointer-events: none; }
+.marker .num { position: absolute; z-index: 1; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: grid; place-items: center; box-sizing: border-box; min-width: 23px; height: 23px;
+  padding: 0 3px; border: 1px solid #ddf76a; border-radius: 999px;
+  background: #23245e; color: #fff; font-size: .68rem; font-weight: 800;
+  line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
 /* Animations are pictures: clicks go to the stage below (editor, markers) and the
    frame never takes keyboard focus away from the app's shortcuts. */
 iframe.sply { border: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; }

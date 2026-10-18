@@ -86,7 +86,7 @@ fn LocusDisplay() -> impl IntoView {
                     } />
             </label>
             <label><input type="checkbox" prop:checked=move || settings.get().numbers
-                on:change=move |event| { settings.update(|p| p.numbers = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Ortsnummern anzeigen"</label>
+                on:change=move |event| { settings.update(|p| p.numbers = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Ortsnummern im Markerpunkt anzeigen"</label>
             <label><input type="checkbox" prop:checked=move || settings.get().hide_revealed
                 on:change=move |event| { settings.update(|p| p.hide_revealed = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Aktuellen Ort nach dem Aufdecken ausblenden"</label>
             <label>"Video: Marker frühestens vor dem Stopp (Sekunden) "

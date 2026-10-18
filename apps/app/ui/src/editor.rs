@@ -1309,7 +1309,7 @@ fn RoomStage(
                                 }
                             }
                         ></button>
-                        <span class="num" style:display=move || if editing.get() || display.get().numbers { "block" } else { "none" }>{locus.number}</span>
+                        <span class="num" aria-hidden="true" style:display=move || if editing.get() || display.get().numbers { "grid" } else { "none" }>{locus.number}</span>
                     </div>
                 }
             }).collect_view()}
