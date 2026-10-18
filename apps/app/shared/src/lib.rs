@@ -151,6 +151,8 @@ pub struct SettingsView {
     /// Personal FSRS weights (from `locora optimize`) are in use.
     pub personal_weights: bool,
     pub stats: Option<StatsView>,
+    #[serde(default)]
+    pub reminders: RemindersView,
     /// Reviews at least a day apart (what fitting weights learns from) and
     /// how many it needs at least.
     #[serde(default)]
@@ -196,6 +198,28 @@ pub struct SettingsChange {
     pub retention: Option<String>,
     #[serde(default)]
     pub day_start_hour: Option<u8>,
+    #[serde(default)]
+    pub reminders: Option<RemindersChange>,
+}
+
+/// Daily reminders as typed: times „HH:MM“, local time.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RemindersChange {
+    pub enabled: bool,
+    pub start: String,
+    pub end: String,
+    pub every: u8,
+}
+
+/// Daily reminders as the settings screen shows them.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct RemindersView {
+    pub enabled: bool,
+    pub start: String,
+    pub end: String,
+    pub every: u8,
+    /// The day's reminder times, „HH:MM“, oldest first; empty when off.
+    pub times: Vec<String>,
 }
 pub const CMD_JOURNEY_ACTION: &str = "journey_action";
 

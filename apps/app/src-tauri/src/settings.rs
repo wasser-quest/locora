@@ -2,9 +2,11 @@
 
 use anyhow::{Result, bail};
 use locora_api::review::ConfigureRequest;
-use locora_app_api::{OptimizeDone, SettingsChange, SettingsView, StatsView};
+use locora_app_api::{OptimizeDone, RemindersView, SettingsChange, SettingsView, StatsView};
 use locora_runtime::Profile;
-use locora_runtime::settings::{MAX_NEW_PER_DAY, parse_retention};
+use locora_runtime::settings::{
+    MAX_NEW_PER_DAY, Reminders, format_clock, parse_clock, parse_retention,
+};
 
 fn count(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)
@@ -28,7 +30,25 @@ pub fn view(profile: &mut Profile) -> Result<SettingsView> {
     });
     let (usable, hint) = profile.optimize_hint()?;
     let clock = profile.day_clock()?;
+    let reminders = profile.reminders()?;
+    let reminder_view = RemindersView {
+        enabled: reminders.enabled,
+        start: format_clock(reminders.start),
+        end: format_clock(reminders.end),
+        every: reminders.every,
+        times: if reminders.enabled {
+            reminders
+                .times()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|seconds| format_clock((seconds / 60) as u16))
+                .collect()
+        } else {
+            Vec::new()
+        },
+    };
     Ok(SettingsView {
+        reminders: reminder_view,
         day_start_hour: clock.start_hour,
         day_start: clock.describe(),
         usable_reviews: count(usable),
@@ -80,6 +100,14 @@ pub fn change(profile: &mut Profile, change: SettingsChange) -> Result<SettingsV
     if let Some(h) = change.day_start_hour {
         profile.set_day_start_hour(h)?;
     }
+    if let Some(r) = change.reminders {
+        profile.set_reminders(Reminders {
+            enabled: r.enabled,
+            start: parse_clock(&r.start)?,
+            end: parse_clock(&r.end)?,
+            every: r.every,
+        })?;
+    }
     view(profile)
 }
 
@@ -108,6 +136,7 @@ mod tests {
                 new_per_day: Some(15),
                 retention: Some("85 %".into()),
                 day_start_hour: Some(6),
+                reminders: None,
             },
         )
         .unwrap();
@@ -134,6 +163,7 @@ mod tests {
                     retention: Some("viel".into()),
                     new_per_day: Some(3),
                     day_start_hour: None,
+                    reminders: None,
                 }
             )
             .is_err()
@@ -143,6 +173,7 @@ mod tests {
                 retention: Some(bad.into()),
                 new_per_day: Some(4),
                 day_start_hour: None,
+                reminders: None,
             };
             assert!(change(&mut profile, attempt).is_err(), "{bad}");
         }

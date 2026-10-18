@@ -3,8 +3,8 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_SETTINGS, CMD_SETTINGS_OPTIMIZE, CMD_SETTINGS_SET, OptimizeDone, SettingsChange,
-    SettingsView, StatsView,
+    CMD_SETTINGS, CMD_SETTINGS_OPTIMIZE, CMD_SETTINGS_SET, OptimizeDone, RemindersChange,
+    RemindersView, SettingsChange, SettingsView, StatsView,
 };
 use serde::Serialize;
 
@@ -38,7 +38,14 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
         {move || match data.get() {
             None => view! { <crate::Loading /> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
-            Some(Ok(v)) => view! { <Form view=v data=data message=message /> }.into_any(),
+            Some(Ok(v)) => {
+                let reminders = v.reminders.clone();
+                view! {
+                    <Form view=v data=data message=message />
+                    <Reminders view=reminders data=data message=message />
+                }
+                .into_any()
+            }
         }}
         <crate::cloud_settings::CloudSettings />
     }
@@ -105,6 +112,80 @@ fn LocusDisplay() -> impl IntoView {
     }
 }
 
+/// Daily reminders: on or off, the first and last time of the day, and the gap between
+/// them. The times saved last are listed; the reminders appear while the app runs.
+#[component]
+fn Reminders(
+    view: RemindersView,
+    data: RwSignal<Option<Result<SettingsView, String>>>,
+    message: RwSignal<Option<Result<String, String>>>,
+) -> impl IntoView {
+    let enabled = RwSignal::new(view.enabled);
+    let start = RwSignal::new(view.start.clone());
+    let end = RwSignal::new(view.end.clone());
+    let every = RwSignal::new(view.every.to_string());
+    let busy = RwSignal::new(false);
+    let saved = if view.times.is_empty() {
+        "Keine Erinnerung eingeschaltet.".to_owned()
+    } else {
+        format!("Erinnerungen um {}", view.times.join(" · "))
+    };
+    let save = move || {
+        let Ok(hours) = every.get_untracked().parse::<u8>() else {
+            message.set(Some(Err("Abstand: ganze Stunden von 1 bis 12".into())));
+            return;
+        };
+        let reminders = RemindersChange {
+            enabled: enabled.get_untracked(),
+            start: start.get_untracked(),
+            end: end.get_untracked(),
+            every: hours,
+        };
+        let change = SettingsChange {
+            reminders: Some(reminders),
+            ..Default::default()
+        };
+        busy.set(true);
+        message.set(None);
+        spawn_local(async move {
+            match call::<SettingsView>(CMD_SETTINGS_SET, ChangeArgs { change }).await {
+                Ok(v) => {
+                    message.set(Some(Ok("Erinnerungen gespeichert.".into())));
+                    data.set(Some(Ok(v)));
+                }
+                Err(e) => {
+                    message.set(Some(Err(e)));
+                    busy.set(false);
+                }
+            }
+        });
+    };
+    view! {
+        <section class="card panel" aria-label="Tägliche Erinnerungen">
+            <h2>"Tägliche Erinnerungen"</h2>
+            <p class="notes">"Die Erinnerung erscheint in der App, solange sie läuft."</p>
+            <label><input type="checkbox" bind:checked=enabled disabled=move || busy.get() />"Erinnerungen einschalten"</label>
+            <div class="editor-group-body">
+                <label>"Erste Erinnerung "
+                    <input type="time" bind:value=start disabled=move || busy.get() || !enabled.get() />
+                </label>
+                <label>"Letzte Erinnerung "
+                    <input type="time" bind:value=end disabled=move || busy.get() || !enabled.get() />
+                </label>
+                <label>"Abstand "
+                    <select bind:value=every disabled=move || busy.get() || !enabled.get()>
+                        {(1..=12u8).map(|hours| view! {
+                            <option value=hours.to_string()>{format!("{hours} Std.")}</option>
+                        }).collect_view()}
+                    </select>
+                </label>
+            </div>
+            <p class="status">{saved}</p>
+            <button class="primary" disabled=move || busy.get() on:click=move |_| save()>"Erinnerungen speichern"</button>
+        </section>
+    }
+}
+
 #[component]
 fn Form(
     view: SettingsView,
@@ -157,6 +238,7 @@ fn Form(
             new_per_day: Some(count),
             retention: Some(retention.get_untracked())
                 .filter(|text| has_review && *text != shown_retention),
+            reminders: None,
         };
         busy.set(true);
         message.set(None);

@@ -162,6 +162,8 @@ impl Plugin for Notify {
             }
             schedules.sort_by(|a, b| a.key.cmp(&b.key));
             ctx.store().set("schedules", &schedules)?;
+            // The home tile counts the daily reminders, so it follows every change.
+            update_tile(ctx)?;
             Ok(schedules)
         })?;
         ctx.provide::<Due>(|ctx, request| {
