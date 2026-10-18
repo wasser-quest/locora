@@ -123,6 +123,7 @@ pub(crate) fn apply_one(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
         ("palace", "delete") => delete_entity(conn, op, "palaces", &op.entity_id),
         ("room", "create") => room_create(conn, op),
         ("room", "update") => room_update(conn, op),
+        ("room", "delete") => delete_entity(conn, op, "rooms", &op.entity_id),
         ("locus", "create") => locus_create(conn, op),
         ("locus", "update") => locus_update(conn, op),
         ("locus", "delete") => delete_entity(conn, op, "loci", &op.entity_id),

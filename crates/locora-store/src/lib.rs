@@ -906,6 +906,25 @@ impl Store {
         )
     }
 
+    /// Delete a room with its loci. Returns false if it did not exist.
+    pub fn delete_room(&self, room_id: &str) -> Result<bool> {
+        let conn = self.conn();
+        let palace_id: Option<String> = conn
+            .query_row(
+                "SELECT palace_id FROM rooms WHERE id = ?1",
+                [room_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let Some(palace_id) = palace_id else {
+            return Ok(false);
+        };
+        conn.execute("DELETE FROM rooms WHERE id = ?1", [room_id])?;
+        self.touch(&conn, &palace_id)?;
+        self.log(&conn, "room", room_id, "delete", None)?;
+        Ok(true)
+    }
+
     /// Move a room one place left (`-1`) or right (`+1`) in its palace. Moving past the
     /// first or last room changes nothing.
     pub fn move_room(&self, room_id: &str, step: i32) -> Result<()> {

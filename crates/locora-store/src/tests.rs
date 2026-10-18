@@ -703,3 +703,23 @@ fn rooms_and_palaces_can_be_renamed_and_rooms_reordered() {
     store.rename_palace(&palace.id, "Festung").unwrap();
     assert_eq!(store.palace(&palace.id).unwrap().palace.name, "Festung");
 }
+
+#[test]
+fn deleting_a_room_removes_its_loci_and_keeps_the_others() {
+    let store = Store::in_memory().unwrap();
+    let palace = store.create_palace("Haus").unwrap();
+    let kitchen = store
+        .add_room(&palace.id, "Küche", RoomKind::Blank, None)
+        .unwrap();
+    store
+        .add_room(&palace.id, "Flur", RoomKind::Blank, None)
+        .unwrap();
+    store.add_locus(&kitchen.id, locus("Herd", "Topf", 0.5)).unwrap();
+
+    assert!(store.delete_room(&kitchen.id).unwrap());
+    let tree = store.palace(&palace.id).unwrap();
+    assert_eq!(tree.rooms.len(), 1);
+    assert_eq!(tree.rooms[0].room.name, "Flur");
+    assert_eq!(tree.route().count(), 0);
+    assert!(!store.delete_room(&kitchen.id).unwrap(), "already gone");
+}

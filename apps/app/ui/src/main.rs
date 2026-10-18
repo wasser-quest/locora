@@ -1012,6 +1012,8 @@ struct IdArgs {
 
 #[component]
 fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
+    // The editor may delete the palace it shows and must then leave this screen.
+    provide_context(screen);
     let palace = load(call::<PalaceView>(CMD_PALACE, IdArgs { id: id.clone() }));
     let blocked = RwSignal::new(false);
     guard_palette(blocked);

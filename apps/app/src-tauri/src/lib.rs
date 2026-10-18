@@ -121,6 +121,31 @@ async fn room_rename(
     views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
 }
 
+/// Delete a room with its loci; the reply is the palace without it.
+#[tauri::command]
+async fn room_delete(
+    state: State<'_, Shared>,
+    palace_id: String,
+    room_id: String,
+) -> Result<PalaceView, String> {
+    let mut b = lock(&state)?;
+    if !b.profile.store.delete_room(&room_id).map_err(|e| e.to_string())? {
+        return Err("Der Raum ist nicht mehr vorhanden".into());
+    }
+    let marker = b.default_marker.clone();
+    views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
+}
+
+/// Delete a palace with its rooms and loci.
+#[tauri::command]
+async fn palace_delete(state: State<'_, Shared>, palace_id: String) -> Result<(), String> {
+    let b = lock(&state)?;
+    if !b.profile.store.delete_palace(&palace_id).map_err(|e| e.to_string())? {
+        return Err("Der Palast ist nicht mehr vorhanden".into());
+    }
+    Ok(())
+}
+
 /// Move a room one place left (`-1`) or right (`1`) in its palace.
 #[tauri::command]
 async fn room_move(
@@ -894,6 +919,8 @@ pub fn run() {
             palace_rename,
             room_rename,
             room_move,
+            room_delete,
+            palace_delete,
             editor_pick_picture,
             home_pick_media,
             home_import_drop,

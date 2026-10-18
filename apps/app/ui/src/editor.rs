@@ -547,6 +547,10 @@ fn palace_command(
                 {
                     editor.room.set(index);
                 }
+                let last = palace.rooms.len().saturating_sub(1);
+                if editor.room.get_untracked() > last {
+                    editor.room.set(last);
+                }
                 editor.data.set(palace);
                 editor.message.set(String::new());
             }
@@ -556,9 +560,47 @@ fn palace_command(
     });
 }
 
-/// Palace name, then the rooms in route order: rename by typing, move with the arrows.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DeleteRoomArgs {
+    palace_id: String,
+    room_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PalaceIdArgs {
+    palace_id: String,
+}
+
+/// Deleting the palace leaves the editor for the start screen.
+fn delete_palace(editor: Editor, screen: Option<RwSignal<crate::Screen>>, palace_id: String) {
+    if editor.busy.get_untracked() || editor.dirty.get_untracked() {
+        return;
+    }
+    editor.busy.set(true);
+    spawn_local(async move {
+        match call::<()>("palace_delete", PalaceIdArgs { palace_id }).await {
+            Ok(()) => {
+                if let Some(screen) = screen {
+                    screen.set(crate::start_screen());
+                }
+            }
+            Err(error) => {
+                editor.message.set(error);
+                editor.busy.set(false);
+            }
+        }
+    });
+}
+
+/// Palace name, then the rooms in route order: rename by typing, move with the arrows,
+/// delete with a second press. Deleting the palace takes a second press as well.
 #[component]
 fn PalaceNames(editor: Editor) -> impl IntoView {
+    // What the next press on a delete button removes: `room:<id>` or `palace`.
+    let pending = RwSignal::new(None::<String>);
+    let screen = use_context::<RwSignal<crate::Screen>>();
     view! {
         {move || {
             let palace = editor.data.get();
@@ -569,6 +611,7 @@ fn PalaceNames(editor: Editor) -> impl IntoView {
             let last = rooms.len().saturating_sub(1);
             let rows = rooms.into_iter().enumerate().map(|(index, room)| {
                 let room_id = room.id.clone();
+                let key = format!("room:{room_id}");
                 let rename_editor = editor.clone();
                 let rename_palace = palace_id.clone();
                 let rename_room = room_id.clone();
@@ -578,6 +621,11 @@ fn PalaceNames(editor: Editor) -> impl IntoView {
                 let right_editor = editor.clone();
                 let right_palace = palace_id.clone();
                 let right_room = room_id.clone();
+                let delete_editor = editor.clone();
+                let delete_palace_id = palace_id.clone();
+                let delete_room_id = room_id.clone();
+                let delete_key = key.clone();
+                let label_key = key.clone();
                 view! {
                     <li class="room-row">
                         <button type="button" title="Raum nach links" aria-label="Raum nach links"
@@ -594,9 +642,20 @@ fn PalaceNames(editor: Editor) -> impl IntoView {
                             on:click=move |_| palace_command(right_editor.clone(), "room_move",
                                 MoveRoomArgs { palace_id: right_palace.clone(), room_id: right_room.clone(), step: 1 },
                                 Some(right_room.clone()))>"→"</button>
+                        <button type="button" title="Raum löschen"
+                            on:click=move |_| {
+                                if pending.get_untracked().as_deref() == Some(delete_key.as_str()) {
+                                    pending.set(None);
+                                    palace_command(delete_editor.clone(), "room_delete",
+                                        DeleteRoomArgs { palace_id: delete_palace_id.clone(), room_id: delete_room_id.clone() }, None);
+                                } else {
+                                    pending.set(Some(delete_key.clone()));
+                                }
+                            }>{move || if pending.get().as_deref() == Some(label_key.as_str()) { "Endgültig?" } else { "Löschen" }}</button>
                     </li>
                 }
             }).collect_view();
+            let palace_editor = editor.clone();
             view! {
                 <label>"Palastname"
                     <input type="text" prop:value=palace.name.clone()
@@ -604,6 +663,14 @@ fn PalaceNames(editor: Editor) -> impl IntoView {
                             RenamePalaceArgs { palace_id: name_id.clone(), name: event_target_value(&ev) }, None)/>
                 </label>
                 <ol class="room-order">{rows}</ol>
+                <button type="button" on:click=move |_| {
+                    if pending.get_untracked().as_deref() == Some("palace") {
+                        pending.set(None);
+                        delete_palace(palace_editor.clone(), screen, palace_id.clone());
+                    } else {
+                        pending.set(Some("palace".into()));
+                    }
+                }>{move || if pending.get().as_deref() == Some("palace") { "Palast endgültig löschen?" } else { "Palast löschen" }}</button>
             }
         }}
     }
@@ -670,6 +737,18 @@ pub fn Rooms(
             p.rooms
                 .get(video_editor.room.get())
                 .is_some_and(|r| r.video || r.backdrop.as_ref().is_some_and(|m| m.kind == locora_app_api::MediaKind::Sply))
+        })
+    });
+    // What the stage (and its video) depends on: the room itself, not its loci. An edit
+    // to a locus must not remount the picture, or a playing video restarts.
+    let identity_data = editor.data;
+    let identity_room = editor.room;
+    let identity = Memo::new(move |_| {
+        let index = identity_room.get();
+        identity_data.with(|p| {
+            p.rooms
+                .get(index)
+                .map(|r| (index, r.id.clone(), r.video, r.backdrop.clone()))
         })
     });
     let video_time = RwSignal::new(String::from("0"));
@@ -770,7 +849,7 @@ pub fn Rooms(
                         </div>
                     </details>
                 </Show>
-                <details class="editor-group">
+                <details class="editor-group" open>
                     <summary>"Palast und Räume"</summary>
                     <div class="editor-group-body"><PalaceNames editor=editor.clone() /></div>
                 </details>
@@ -803,13 +882,16 @@ pub fn Rooms(
         </div>
         <div class="stage-wrap">
         {move || {
-            // Only rebuild the stage on room changes / committed mutations, never on pointer moves.
+            // Rebuilt only when the room changes; locus edits reach the markers through `live`.
+            identity.get();
             let stage = stage.clone();
-            let data = stage.data.get();
-            let Some(room) = data.rooms.get(stage.room.get()).cloned() else {
+            let index = stage.room.get_untracked();
+            let Some(room) = stage.data.with_untracked(|p| p.rooms.get(index).cloned()) else {
                 return view! { <p class="empty">"Dieser Palast hat noch keine Räume."</p> }.into_any();
             };
-            view! { <RoomStage editor=stage room=room editing=editing adding=adding revealed=revealed playhead=playhead /> }.into_any()
+            let data = stage.data;
+            let live = Signal::derive(move || data.with(|p| p.rooms.get(index).cloned()));
+            view! { <RoomStage editor=stage room=room live=live editing=editing adding=adding revealed=revealed playhead=playhead /> }.into_any()
         }}
         </div>
         <p role="status" class="notes">{move || message.get()}</p>
@@ -892,6 +974,8 @@ fn ListPaste(editor: Editor) -> impl IntoView {
 fn RoomStage(
     editor: Editor,
     room: locora_app_api::RoomView,
+    /// The same room as the palace holds it now (loci included).
+    live: Signal<Option<locora_app_api::RoomView>>,
     editing: RwSignal<bool>,
     adding: RwSignal<bool>,
     revealed: RwSignal<bool>,
@@ -1392,7 +1476,7 @@ fn RoomStage(
                     </div>
                 })
             }}
-            {room.loci.into_iter().map(|locus| {
+            {move || live.get().map(|r| r.loci).unwrap_or_default().into_iter().map(|locus| {
                 let editor = pick_editor.clone();
                 let keyboard_editor = editor.clone();
                 let selected = editor.selected;
