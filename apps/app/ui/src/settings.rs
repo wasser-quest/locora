@@ -10,6 +10,7 @@ use serde::Serialize;
 
 use crate::tauri::{NoArgs, call};
 use crate::{Screen, load};
+use crate::locus_display;
 
 #[derive(Serialize)]
 struct ChangeArgs {
@@ -37,12 +38,54 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
             </button>
             <h1>"Einstellungen & Statistik"</h1>
         </header>
+        <LocusDisplay />
         {move || match data.get() {
             None => view! { <crate::Loading /> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
             Some(Ok(v)) => view! { <Form view=v data=data message=message /> }.into_any(),
         }}
         <CloudSync />
+    }
+}
+
+#[component]
+fn LocusDisplay() -> impl IntoView {
+    let settings = locus_display::signal();
+    view! {
+        <section class="card panel" aria-label="Locus-Anzeige">
+            <h2>"Loci anzeigen"</h2>
+            <p class="notes">"Die Auswahl gilt für dieses Gerät. Der aktuelle Ort ist immer sichtbar, bis du ihn aufdeckst."</p>
+            <label>"Vorherige Orte "
+                <input type="number" min="0" max="10" prop:value=move || settings.get().previous.to_string()
+                    on:change=move |event| {
+                        if let Ok(value) = event_target_value(&event).parse::<u8>() {
+                            settings.update(|p| p.previous = value.min(10));
+                            locus_display::save(settings.get_untracked());
+                        }
+                    } />
+            </label>
+            <label>"Nächste Orte "
+                <input type="number" min="0" max="10" prop:value=move || settings.get().next.to_string()
+                    on:change=move |event| {
+                        if let Ok(value) = event_target_value(&event).parse::<u8>() {
+                            settings.update(|p| p.next = value.min(10));
+                            locus_display::save(settings.get_untracked());
+                        }
+                    } />
+            </label>
+            <label><input type="checkbox" prop:checked=move || settings.get().numbers
+                on:change=move |event| { settings.update(|p| p.numbers = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Ortsnummern anzeigen"</label>
+            <label><input type="checkbox" prop:checked=move || settings.get().hide_revealed
+                on:change=move |event| { settings.update(|p| p.hide_revealed = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Aktuellen Ort nach dem Aufdecken ausblenden"</label>
+            <label>"Video: Marker frühestens vor dem Stopp (Sekunden) "
+                <input type="number" min="0" max="30" step="0.1" prop:value=move || settings.get().video_lead.to_string()
+                    on:change=move |event| {
+                        if let Ok(value) = event_target_value(&event).parse::<f64>() {
+                            if value.is_finite() { settings.update(|p| p.video_lead = value.clamp(0.0, 30.0)); locus_display::save(settings.get_untracked()); }
+                        }
+                    } />
+            </label>
+        </section>
     }
 }
 

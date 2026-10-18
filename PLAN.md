@@ -797,6 +797,11 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
    Multipart/fehlerhafte Bereiche fallen auf die vollständige Antwort zurück. Backend-getestet;
    Video-Spulen in der nativen WebView noch manuell prüfen.
 7. **Video-Räume** (Phase 3): am Locus anhalten, Zeitleiste.
+   Die App-Zeitleiste hat nun einen freien Suchregler; ein Bühnenklick kann einen zeitgebundenen Ort
+   an der Bildposition setzen. Marker erscheinen ab einem einstellbaren Vorlauf vor ihrer Locus-Zeit;
+   der Vorlauf kann je Ort im Editor überschrieben werden. Video- und animierte `.sply`-Orte wurden
+   nach freiem Spulen per Bühnenklick in der nativen WebView platziert. Das `.sply`-Markerfenster
+   wurde dort vor und am Locus-Zeitpunkt geprüft; Video-Markerfenster und pro-Ort-Vorlauf bleiben offen.
    **Erster Editor-Schnitt umgesetzt:** Video-Orte über eine nichtnegative Sekundenangabe anlegen,
    inkl. Backend-Validierung (endlich, Video-Raum) und Persistenztest. Normales Ortsetzen bleibt
    in Video-Räumen deaktiviert. **Wiedergabezeit übernehmen umgesetzt:** „Ort an aktueller Videozeit“

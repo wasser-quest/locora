@@ -50,14 +50,18 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
         }
         if (d.timed.action === 'init') {
           timedClips = runtime.sourceProject.clips.filter(function (clip) {
-            return runtime.clip(clip.id).playing;
+            return clip.autoplay || runtime.clip(clip.id).playing;
           }).map(function (clip) { return clip.id; });
           if (!timedClips.length) {
-            timedReply('timedError', 'Keine aktive Splinely-Animation');
+            timedClips = runtime.sourceProject.clips.map(function (clip) { return clip.id; });
+          }
+          if (!timedClips.length) {
+            timedReply('timedError', 'Keine Splinely-Animation vorhanden');
             return;
           }
           timed = true;
           pauseTimed();
+          timedClips.forEach(function (id) { runtime.clip(id).seek(0); });
           runtime.timeline.seek(0);
           timedReply('timedReady', duration);
         } else if (timed && (d.timed.action === 'seek' || d.timed.action === 'playTo')) {

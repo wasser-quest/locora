@@ -567,6 +567,9 @@ pub fn Rooms(
         })
     });
     let video_time = RwSignal::new(String::from("0"));
+    let playhead = RwSignal::new(0.0_f64);
+    let display = crate::locus_display::signal();
+    let leads = crate::locus_display::leads();
     let create_video = StoredValue::new(editor.clone());
     let shortcuts = editor.clone();
     let layer = editor.clone();
@@ -626,7 +629,7 @@ pub fn Rooms(
                 disabled=move || busy.get() || dirty.get() || dragging.get()
                 on:change=move |ev| { editing.set(event_target_checked(&ev)); adding.set(false); } />"Bearbeiten"</label>
             <Show when=move || editing.get()>
-                <label><input type="checkbox" bind:checked=adding disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get() />"Ort setzen (Bühne anklicken)"</label>
+                <label><input type="checkbox" bind:checked=adding disabled=move || busy.get() || dirty.get() || dragging.get() />"Ort setzen (Bühne anklicken)"</label>
                 <button disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get()
                     on:click={let editor = editor.clone(); move |_| {
                         revealed.set(false);
@@ -683,7 +686,7 @@ pub fn Rooms(
             let Some(room) = data.rooms.get(stage.room.get()).cloned() else {
                 return view! { <p class="empty">"Dieser Palast hat noch keine Räume."</p> }.into_any();
             };
-            view! { <RoomStage editor=stage room=room editing=editing adding=adding revealed=revealed /> }.into_any()
+            view! { <RoomStage editor=stage room=room editing=editing adding=adding revealed=revealed playhead=playhead /> }.into_any()
         }}
         // Outside the rebuilt stage: autosave rebuilds it per keystroke, and
         // churning a frame per rebuild left new marker frames unloaded.
@@ -694,7 +697,17 @@ pub fn Rooms(
                 let preview = layer.gesture.get();
                 layer.data.with(|p| {
                     p.rooms.get(layer.room.get()).map(|room| {
-                        room.loci.iter().map(|locus| {
+                        let timed = room.video || room.backdrop.as_ref().is_some_and(|m| m.kind == locora_app_api::MediaKind::Sply);
+                        let prefs = display.get();
+                        let overrides = leads.get();
+                        let at = playhead.get();
+                        let selected = layer.selected.get();
+                        let hide_selected = !editing.get() && revealed.get() && prefs.hide_revealed;
+                        room.loci.iter().filter(|locus| {
+                            (!timed || crate::locus_display::at_video_time(locus.time, at,
+                                overrides.get(&locus.id).copied().unwrap_or(prefs.video_lead)))
+                                && !(hide_selected && selected.as_ref() == Some(&locus.id))
+                        }).map(|locus| {
                             let (x, y) = preview_position(locus, preview.as_ref());
                             crate::sply::MarkerLocus { id: locus.id.clone(), x, y, status: locus.status.event() }
                         }).collect::<Vec<_>>()
@@ -787,7 +800,10 @@ fn RoomStage(
     editing: RwSignal<bool>,
     adding: RwSignal<bool>,
     revealed: RwSignal<bool>,
+    playhead: RwSignal<f64>,
 ) -> impl IntoView {
+    // The media element starts at zero after a committed edit remounts this stage.
+    playhead.set(0.0);
     let node = NodeRef::<html::Div>::new();
     let busy = editor.busy;
     let dirty = editor.dirty;
@@ -868,9 +884,10 @@ fn RoomStage(
     let video = room.video;
     let timed_sply = !video && room.backdrop.as_ref().is_some_and(|media| media.kind == locora_app_api::MediaKind::Sply);
     let timed = video || timed_sply;
+    let display = crate::locus_display::signal();
+    let leads = crate::locus_display::leads();
     let player = NodeRef::<html::Video>::new();
     let video_duration = RwSignal::new(None::<f64>);
-    let playhead = RwSignal::new(0.0_f64);
     let sply_command = RwSignal::new(TimedCommand { serial: 0, time: 0.0, start: None, play: false });
     let mut timeline: Vec<_> = room
         .loci
@@ -957,7 +974,7 @@ fn RoomStage(
     });
     view! {
         <Show when=move || editing.get() && timed>
-            <p class="notes">{if video { "Video: An die gewünschte Stelle spulen und einen Ort hinzufügen. Taste L funktioniert auf der Bühne; , und . springen einen Frame." } else { "Splinely: Zur gewünschten Zeit springen oder die Animation abspielen und einen Ort an der aktuellen Zeit hinzufügen." }}</p>
+            <p class="notes">{if video { "Video: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken. Taste L setzt einen Ort in der Mitte; , und . springen einen Frame." } else { "Splinely: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken." }}</p>
             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
                 on:click=move |_| create_at_playhead.with_value(|create| create())>
                 "Ort an aktueller Zeit"
@@ -983,6 +1000,25 @@ fn RoomStage(
                         </div>
                     </Show>
                     <p class="notes video-playhead">{move || format!("Position {:.2} s", playhead.get())}</p>
+                    <label class="video-seek">"Zeitpunkt wählen"
+                        <input type="range" min="0" step="0.01"
+                            max=move || video_duration.get().unwrap_or(0.0).to_string()
+                            prop:value=move || playhead.get().to_string()
+                            disabled=move || video_duration.get().is_none_or(|d| !d.is_finite() || d <= 0.0)
+                            on:input=move |ev| {
+                                let Ok(time) = event_target_value(&ev).parse::<f64>() else { return; };
+                                let Some(duration) = video_duration.get_untracked() else { return; };
+                                if !time.is_finite() || !(0.0..=duration).contains(&time) { return; }
+                                if timed_sply {
+                                    sply_command.update(|command| { command.serial += 1; command.time = time; command.start = None; command.play = false; });
+                                } else if let Some(video) = player.get_untracked() {
+                                    let _ = video.pause();
+                                    video.set_current_time(time);
+                                }
+                                playhead.set(time);
+                            }
+                        />
+                    </label>
                     {timed_sply.then(|| view! {
                         <div class="row">
                             <button disabled=move || video_duration.get().is_none()
@@ -1012,6 +1048,8 @@ fn RoomStage(
                     {timeline.into_iter().map(|(time, id, number, place)| {
                         let selected_id = id.clone();
                         let retime_id = id.clone();
+                        let lead_id = id.clone();
+                        let lead_write_id = id.clone();
                         view! {
                             <div class="video-timeline-locus">
                             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
@@ -1070,6 +1108,18 @@ fn RoomStage(
                                     editor.change(EditorAction::Retime { id: retime_id.clone(), time });
                                 }
                             />
+                            <label>"Marker vorher (s)"
+                                <input type="number" min="0" max="30" step="0.1"
+                                    prop:value=move || leads.get().get(&lead_id).copied().unwrap_or(display.get().video_lead).to_string()
+                                    on:change=move |ev| {
+                                        if let Ok(value) = event_target_value(&ev).parse::<f64>() {
+                                            if value.is_finite() && (0.0..=30.0).contains(&value) {
+                                                leads.update(|values| { values.insert(lead_write_id.clone(), value); });
+                                                crate::locus_display::save_leads(&leads.get_untracked());
+                                            }
+                                        }
+                                    } />
+                            </label>
                             </div>
                         }
                     }).collect_view()}
@@ -1112,7 +1162,7 @@ fn RoomStage(
                 }
             }
             on:pointerdown=move |ev| {
-                if editing.get() && adding.get() && !timed { begin.with_value(|begin| begin(ev, DragKind::Create)); }
+                if editing.get() && adding.get() { begin.with_value(|begin| begin(ev, DragKind::Create)); }
             }
             on:pointermove=move |ev| { if !busy.get_untracked() { update(&ev); } }
             on:pointerup=move |ev| {
@@ -1121,7 +1171,26 @@ fn RoomStage(
                 let Some(g) = gesture.get_untracked().filter(|g| g.pointer == ev.pointer_id()) else { return; };
                 if let Some(stage) = node.get() { let _ = stage.release_pointer_capture(g.pointer); }
                 let action = match g.kind {
-                    DragKind::Create if !g.moved => { revealed.set(false); Some(EditorAction::Create { x: g.point.0, y: g.point.1 }) }
+                    DragKind::Create if !g.moved => {
+                        revealed.set(false);
+                        if timed {
+                            let time = if timed_sply {
+                                let time = playhead.get_untracked();
+                                sply_command.update(|command| { command.serial += 1; command.time = time; command.start = None; command.play = false; });
+                                time
+                            } else if let Some(video) = player.get_untracked() {
+                                let _ = video.pause();
+                                video.current_time()
+                            } else { playhead.get_untracked() };
+                            playhead.set(time);
+                            if video_duration.get_untracked().is_none() {
+                                finish.message.set("Zeitgesteuertes Medium ist noch nicht geladen".into());
+                                None
+                            } else {
+                                Some(EditorAction::CreateTimed { time, x: g.point.0, y: g.point.1 })
+                            }
+                        } else { Some(EditorAction::Create { x: g.point.0, y: g.point.1 }) }
+                    }
                     DragKind::Move(ref l) if g.moved => {
                         let (x, y) = preview_position(l, Some(&g));
                         Some(EditorAction::Move { id: l.id.clone(), x, y })
@@ -1198,10 +1267,19 @@ fn RoomStage(
             {room.loci.into_iter().map(|locus| {
                 let editor = pick_editor.clone();
                 let keyboard_editor = editor.clone();
+                let selected = editor.selected;
                 let l = StoredValue::new(locus.clone());
                 let fixed = locus.is_bound("x") || locus.is_bound("y");
                 view! {
                     <div class="marker"
+                        style:display=move || {
+                            let locus = l.get_value();
+                            let lead = leads.get().get(&locus.id).copied().unwrap_or(display.get().video_lead);
+                            let visible_at_time = !timed || crate::locus_display::at_video_time(locus.time, playhead.get(), lead);
+                            let hide_revealed = !editing.get() && revealed.get() && display.get().hide_revealed
+                                && selected.get().as_ref() == Some(&locus.id);
+                            if visible_at_time && !hide_revealed { "block" } else { "none" }
+                        }
                         style:left=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).0 * 100.0)
                         style:top=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).1 * 100.0)
                     >
@@ -1231,7 +1309,7 @@ fn RoomStage(
                                 }
                             }
                         ></button>
-                        <span class="num">{locus.number}</span>
+                        <span class="num" style:display=move || if editing.get() || display.get().numbers { "block" } else { "none" }>{locus.number}</span>
                     </div>
                 }
             }).collect_view()}

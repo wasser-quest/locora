@@ -43,8 +43,16 @@ Stand: 18.10.2026
 - [x] Video-Ortsnavigation im Editor: chronologische Zeitknöpfe, pausieren/spulen/auswählen, aktive Auswahl
 - [x] Video-Editor im WebView prüfen: Taste L/Fokus, Zeitknopf-Navigation (chronologisch, pausiert/spult/auswählt) und Persistenz nativ getestet; ungeladenes Video (Statusmeldung) und wiederholte Eingabe manuell prüfen
 - [x] Video-Zeitleiste im Editor zeigt Ortszeiten proportional zur geladenen Videodauer; Orte hinter dem Videoende sind markiert und können nicht angesprungen werden
+- [x] Freier Suchregler in Video- und Splinely-Zeitleiste; Bühnenklick setzt einen zeitgebundenen Ort an der angeklickten Position; Marker erscheinen erst im eingestellten Zeitfenster
+- [x] Freier Suchregler und Bühnenklick platzieren Video- und animierte `.sply`-Orte im nativen WebView an Zeit und Bildposition (`native_smoke.py`, Stickfight-Fixture)
+- [x] `.sply`-Marker im nativen WebView vor dem Locus-Zeitpunkt verborgen und am Zeitpunkt sichtbar (`--only-sply`)
+- [ ] Video-Markerfenster und pro-Ort-Vorlauf im nativen WebView sichtbar prüfen
 - [x] Editor-Ausbau: Datei hineinziehen über einmalige Tickets (Startseite → neuer Palast, Editor → Ortsbild); Undo/Redo (Knöpfe, Strg/⌘+Z/Y) mit Backend-Belegen für Hinzufügen/Einfügen/Löschen (Konfliktprüfung, neueste 500); Entwurfswiederherstellung über `localStorage`
 - [x] Tutorial in der App: Erststart mit Simo, „Tutorial starten“ legt den Palast an und öffnet ihn (Animationen über die Runtime)
+- [x] App-Tour: Zurück-Knopf; aufeinanderfolgende Schritte derselben Ansicht lassen die Ansicht und Simo geladen, statt sie neu aufzubauen
+- [x] App-Tour im nativen WebView: alle sechs Schritte vorwärts und rückwärts sowie Schließen geprüft (`native_smoke.py --only-tour`)
+- [ ] App-Tour auf sichtbares Flackern und erhaltenen Journey-Stand bei Routenwechseln prüfen
+- [x] Locus-Anzeige auf diesem Gerät einstellbar: vorherige/nächste Route-Orte (0–10), Nummern, aktuellen Marker nach Aufdecken ausblenden, Video-Vorlauf global und pro Ort
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
 - [x] Medien über HTTP-Range ausliefern: Einzelbereiche, offene/Suffix-Bereiche, 416 und HEAD; nur angeforderte Bytes lesen
@@ -85,7 +93,7 @@ Stand: 18.10.2026
 ## Phase 3 – Video-Räume in der App und Benachrichtigungen
 
 - [x] Echte Animationsdateien backend-geprüft: `~/tester/cyber-stickfight/cyber-fight.gif` (252 Frames, 12,6 s), `~/tester/stickfight/fight.sply` und testweise MP4-Konvertierung; optionaler Fixture-Test ohne Dateien im Repo
-- [x] `.sply`-Animationsräume mit Zeitsteuerung über die Splinely-Runtime in Editor und Journey; UI-Check und Bridge-Syntaxprüfung bestanden, native Sichtprüfung offen
+- [x] `.sply`-Animationsräume mit Zeitsteuerung über die Splinely-Runtime in Editor und Journey; Editor-Suchregler und Platzierung mit Stickfight-Fixture nativ bestanden, Journey-Sichtprüfung offen
 - [ ] GIF-Animationsräume brauchen steuerbare Wiedergabe statt `<img>`
 - [x] Editor: Frame-Schritte per , und . auf der fokussierten Bühne, Positionsanzeige; nativ geprüft (`video-frame-steps`, 0,03 s je Schritt)
 - [x] Video-Journey: Vorschau aller Orte bei Zeit 0 (PLAN 7.2); Editor: Zeitpunkte per Regler ziehen (`Retime`-Aktion mit Raum- und Zeitvalidierung)

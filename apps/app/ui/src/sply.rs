@@ -217,6 +217,25 @@ pub fn Sply(
             }
         }
     });
+    // Leptos may reuse an already loaded iframe after an editor save. Ask that
+    // frame for its runtime state even when no new DOM load event fires.
+    Effect::new(move |_| {
+        if let Some(element) = frame.get()
+            && let Some(window) = element.content_window()
+        {
+            let request = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
+            let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());
+            let _ = window.post_message(&request, "*");
+        }
+    });
+    Effect::new(move |_| {
+        if ready.get() && !timed_ready.get() && timed.is_some()
+            && let Some(element) = frame.get_untracked()
+        {
+            send_timed(&element, "init", None, None);
+        }
+    });
     Effect::new(move |_| {
         if failed.get() && timed.is_some() {
             timed_error_callback.with_value(|callback| {
@@ -234,14 +253,10 @@ pub fn Sply(
             // A focused frame would swallow every key (Ctrl/⌘+K, Space, 1–4).
             tabindex="-1"
             on:load=move |_| {
+                ready.set(false);
                 timed_ready.set(false);
                 push();
                 if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
-                    if timed.is_some() {
-                        if let Some(element) = frame.get_untracked() {
-                            send_timed(&element, "init", None, None);
-                        }
-                    }
                     let request = js_sys::Object::new();
                     let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
                     let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());

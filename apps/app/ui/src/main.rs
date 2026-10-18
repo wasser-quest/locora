@@ -2,6 +2,7 @@
 
 mod editor;
 mod journey;
+mod locus_display;
 mod palette;
 mod settings;
 mod sply;
@@ -62,8 +63,6 @@ fn tour_action(
         }
     }
     busy.set(true);
-    route_ready.set(false);
-    target_ready.set(false);
     spawn_local(async move {
         match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action }).await {
             Ok(step) => {
@@ -87,7 +86,9 @@ fn tour_action(
 async fn route_tour_step(step: Option<HighlightRequest>, screen: RwSignal<Screen>) -> Result<(), String> {
     let Some(step) = step else { return Ok(()); };
     match step.target.as_str() {
-        "tour-home-media" | "tour-home-import" | "tour-home-settings" => screen.set(Screen::Home),
+        "tour-home-media" | "tour-home-import" | "tour-home-settings" => {
+            if !matches!(screen.get_untracked(), Screen::Home) { screen.set(Screen::Home); }
+        }
         "tour-palace-route" | "tour-editor-toggle" | "tour-journey-prompt" => {
             let home = call::<Home>(CMD_HOME, tauri::NoArgs {}).await?;
             let id = if let Some(palace) = home.palaces.iter().find(|p| p.name == "Locora lernen") {
@@ -96,12 +97,13 @@ async fn route_tour_step(step: Option<HighlightRequest>, screen: RwSignal<Screen
                 call::<String>(CMD_TUTORIAL, tauri::NoArgs {}).await?
             };
             if step.target == "tour-journey-prompt" {
-                screen.set(Screen::Journey(JourneyStart {
-                    palace_id: Some(id),
-                    ..Default::default()
-                }));
+                if !matches!(screen.get_untracked(), Screen::Journey(ref start) if start.palace_id.as_ref() == Some(&id)) {
+                    screen.set(Screen::Journey(JourneyStart { palace_id: Some(id), ..Default::default() }));
+                }
             } else {
-                screen.set(Screen::Palace(id));
+                if !matches!(screen.get_untracked(), Screen::Palace(ref current) if current == &id) {
+                    screen.set(Screen::Palace(id));
+                }
             }
         }
         _ => return Err("Unbekanntes Ziel der App-Tour".into()),
@@ -168,13 +170,12 @@ fn TourOverlay(
     on_cleanup(move || { if let Some(timer) = timer { timer.clear(); } });
     view! {
         <Show when=move || active.get().is_some()>
-            {move || active.get().map(|step| view! {
                 <aside class="tour-panel card" role="region" aria-label="App-Tour" aria-live="polite">
                     <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
                     <div class="tour-copy">
-                        <small>{format!("Schritt {} von {}", step.step, step.total)}</small>
-                        <h2>{step.title}</h2>
-                        <p>{step.text}</p>
+                        <small>{move || active.get().map(|step| format!("Schritt {} von {}", step.step, step.total)).unwrap_or_default()}</small>
+                        <h2>{move || active.get().map(|step| step.title).unwrap_or_default()}</h2>
+                        <p>{move || active.get().map(|step| step.text).unwrap_or_default()}</p>
                         <p class="notes" role="status">{move || {
                             let message = error.get();
                             if !message.is_empty() { message }
@@ -184,15 +185,16 @@ fn TourOverlay(
                         }}</p>
                         <div class="row">
                             <button disabled=move || busy.get() on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Skip)>"Schließen"</button>
+                            <button disabled=move || busy.get() || active.get().is_none_or(|step| step.step <= 1)
+                                on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Previous)>"Zurück"</button>
                             <button class="primary" disabled=move || busy.get()
                                 on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready,
                                     if route_ready.get_untracked() && target_ready.get_untracked() { TourAction::Next } else { TourAction::Resume })>
-                                {move || if !route_ready.get() || !target_ready.get() { "Erneut versuchen" } else if step.step == step.total { "Fertig" } else { "Weiter" }}
+                                {move || if !route_ready.get() || !target_ready.get() { "Erneut versuchen" } else if active.get().is_some_and(|step| step.step == step.total) { "Fertig" } else { "Weiter" }}
                             </button>
                         </div>
                     </div>
                 </aside>
-            })}
         </Show>
     }
 }
@@ -217,6 +219,8 @@ fn App() -> impl IntoView {
     });
     let editing = palette::Editing(RwSignal::new(false));
     provide_context(editing);
+    provide_context(locus_display::DisplaySettings(RwSignal::new(locus_display::load())));
+    provide_context(locus_display::LeadOverrides(RwSignal::new(locus_display::load_leads())));
     // The app's own animations (assets/ui), loaded once for every screen.
     let art = Art(RwSignal::new(None));
     provide_context(art);

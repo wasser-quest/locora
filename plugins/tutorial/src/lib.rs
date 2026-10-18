@@ -60,6 +60,7 @@ impl Plugin for Tutorial {
             let next = match action {
                 TourAction::Start => 0,
                 TourAction::Resume => index,
+                TourAction::Previous => index.saturating_sub(1),
                 TourAction::Next => index.saturating_add(1).min(STEPS.len() as u8),
                 TourAction::Skip => STEPS.len() as u8,
             };

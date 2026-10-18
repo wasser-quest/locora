@@ -120,6 +120,7 @@ pub mod tutorial {
     pub enum TourAction {
         Start,
         Resume,
+        Previous,
         Next,
         Skip,
     }

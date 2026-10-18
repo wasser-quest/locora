@@ -9,7 +9,7 @@ use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{Answer, AnswerKind as Kind, Submission};
 use locora_app_api::{
     ActionDone, AnswerKind, Feedback, GameView, InputField, JourneyStart, Media, Question, Reply,
-    Revealed, Step, Summary, VideoPreviewItem,
+    Revealed, Step, Summary, VideoPreviewItem, NearbyLocus,
 };
 use locora_formula::workbook::{ActionOutcome, Run};
 use locora_runtime::journey::{PlanOptions, Stop, plan, resolve_text};
@@ -256,6 +256,18 @@ impl Journey {
             video_preview,
             backdrop: room.media.as_deref().and_then(|h| media(&profile.store, h)),
             marker: marker(&profile.store, tree, default_marker),
+            nearby: self.stops.iter().enumerate().filter_map(|(index, nearby)| {
+                if nearby.palace != stop.palace || nearby.room != stop.room { return None; }
+                let locus = nearby.locus(&self.trees);
+                Some(NearbyLocus {
+                    id: locus.id.clone(),
+                    offset: index as i32 - self.at as i32,
+                    number: nearby.number as u32,
+                    x: locus.x,
+                    y: locus.y,
+                    time: locus.time,
+                })
+            }).collect(),
             x: locus.x,
             y: locus.y,
             zoom: locus.zoom,
@@ -591,6 +603,9 @@ mod tests {
         }).unwrap().unwrap();
         let question = journey.question(&profile, "marker");
         assert_eq!(question.time, Some(0.0));
+        assert_eq!(question.nearby.len(), 3);
+        assert_eq!(question.nearby[0].offset, 0);
+        assert_eq!(question.nearby[1].offset, 1);
         assert_eq!(question.video_preview.iter().map(|item| item.place.as_str()).collect::<Vec<_>>(), vec!["Tor", "Fenster"]);
     }
 

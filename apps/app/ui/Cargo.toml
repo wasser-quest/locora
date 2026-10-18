@@ -13,7 +13,8 @@ js-sys = "0.3"
 leptos = { version = "0.8.22", features = ["csr"] }
 locora-app-api.workspace = true
 serde.workspace = true
+serde_json = "1"
 serde-wasm-bindgen = "0.6"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["HtmlIFrameElement", "HtmlMediaElement", "HtmlVideoElement", "Window", "Request", "Response", "RequestInit", "Blob", "Url", "XmlHttpRequest", "XmlHttpRequestResponseType", "Event", "EventTarget", "KeyboardEvent", "MessageEvent", "BeforeUnloadEvent", "ClipboardEvent", "DataTransfer", "PointerEvent", "Element", "DomRect", "Document", "HtmlElement"] }
+web-sys = { version = "0.3", features = ["HtmlIFrameElement", "HtmlMediaElement", "HtmlVideoElement", "Window", "Storage", "Request", "Response", "RequestInit", "Blob", "Url", "XmlHttpRequest", "XmlHttpRequestResponseType", "Event", "EventTarget", "KeyboardEvent", "MessageEvent", "BeforeUnloadEvent", "ClipboardEvent", "DataTransfer", "PointerEvent", "Element", "DomRect", "Document", "HtmlElement"] }

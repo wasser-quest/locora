@@ -349,6 +349,11 @@ pub enum EditorAction {
     CreateVideo {
         time: f64,
     },
+    CreateTimed {
+        time: f64,
+        x: f64,
+        y: f64,
+    },
     Paste {
         items: Vec<String>,
     },
@@ -513,6 +518,9 @@ pub struct Question {
     pub video_preview: Vec<VideoPreviewItem>,
     pub backdrop: Option<Media>,
     pub marker: Media,
+    /// Route markers in the same room, relative to this question.
+    #[serde(default)]
+    pub nearby: Vec<NearbyLocus>,
     pub x: f64,
     pub y: f64,
     /// The stage zooms in on the locus by this factor (1 = whole room).
@@ -527,6 +535,16 @@ pub struct Question {
     /// Workbook actions of this palace, run with `journey_action`.
     #[serde(default)]
     pub actions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NearbyLocus {
+    pub id: String,
+    pub offset: i32,
+    pub number: u32,
+    pub x: f64,
+    pub y: f64,
+    pub time: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

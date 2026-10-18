@@ -68,7 +68,7 @@ pub fn apply_with_history(
             room.loci.push(locus);
             return Ok((tree, Some(id), Some(receipt)));
         }
-        EditorAction::CreateVideo { time } => {
+        EditorAction::CreateVideo { time } | EditorAction::CreateTimed { time, .. } => {
             ensure!(
                 timed_room,
                 "Zeitangaben sind nur für Video- und Splinely-Räume"
@@ -77,14 +77,20 @@ pub fn apply_with_history(
                 time.is_finite() && *time >= 0.0,
                 "Zeit muss eine nichtnegative, endliche Sekundenzahl sein"
             );
+            let (x, y) = match &change.action {
+                EditorAction::CreateTimed { x, y, .. } => (*x, *y),
+                _ => (0.5, 0.5),
+            };
+            ensure!(x.is_finite() && y.is_finite() && (0.0..=1.0).contains(&x) && (0.0..=1.0).contains(&y),
+                "Position muss innerhalb des Raums liegen");
             let (mut loci, receipt) = store.editor_add_loci(
                 &change.palace_id,
                 &room.room.id,
                 vec![NewLocus {
                     place: "Neuer Ort".into(),
                     item: String::new(),
-                    x: 0.5,
-                    y: 0.5,
+                    x,
+                    y,
                     time: Some(*time),
                     answer: Default::default(),
                     image: None,
@@ -180,8 +186,8 @@ pub fn apply_with_history(
         }
         EditorAction::Retime { time, .. } => {
             ensure!(
-                room.room.kind == RoomKind::Video,
-                "Zeitpunkte gibt es nur in Video-Räumen"
+                timed_room,
+                "Zeitpunkte gibt es nur in zeitgebundenen Räumen"
             );
             ensure!(
                 time.is_finite() && *time >= 0.0,
@@ -203,6 +209,7 @@ pub fn apply_with_history(
         }
         EditorAction::Create { .. }
         | EditorAction::CreateVideo { .. }
+        | EditorAction::CreateTimed { .. }
         | EditorAction::Paste { .. }
         | EditorAction::Restore { .. } => unreachable!(),
     };
@@ -359,6 +366,13 @@ mod tests {
         let (tree, selected) = apply(&store, &change(EditorAction::CreateVideo { time: 1.25 })).unwrap();
         assert_eq!(tree.rooms[0].loci[0].time, Some(1.25));
         assert!(selected.is_some());
+        let (tree, placed) = apply(&store, &change(EditorAction::CreateTimed { time: 2.0, x: 0.2, y: 0.8 })).unwrap();
+        assert_eq!((tree.rooms[0].loci[1].x, tree.rooms[0].loci[1].y), (0.2, 0.8));
+        assert_eq!(tree.rooms[0].loci[1].time, Some(2.0));
+        let (tree, _) = apply(&store, &change(EditorAction::Retime { id: placed.unwrap(), time: 3.0 })).unwrap();
+        assert_eq!(tree.rooms[0].loci[1].time, Some(3.0));
+        assert!(apply(&store, &change(EditorAction::CreateTimed { time: 2.0, x: -0.1, y: 0.8 })).is_err());
+        assert!(apply(&store, &change(EditorAction::CreateTimed { time: 2.0, x: f64::NAN, y: 0.8 })).is_err());
         assert!(apply(&store, &change(EditorAction::CreateVideo { time: f64::NAN })).is_err());
         assert!(apply(&store, &change(EditorAction::Create { x: 0.5, y: 0.5 })).is_err());
 
@@ -366,7 +380,7 @@ mod tests {
         assert!(apply(&store, &EditorChange {
             palace_id: static_image.palace.id,
             room_id: static_image.rooms[0].room.id.clone(),
-            action: EditorAction::CreateVideo { time: 1.0 },
+            action: EditorAction::CreateTimed { time: 1.0, x: 0.2, y: 0.8 },
         }).is_err());
     }
 

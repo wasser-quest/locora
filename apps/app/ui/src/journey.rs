@@ -62,6 +62,9 @@ struct VideoProgress(StoredValue<Option<(String, f64)>>);
 #[derive(Clone, Copy)]
 struct VideoReady(RwSignal<bool>);
 
+#[derive(Clone, Copy)]
+struct VideoPosition(RwSignal<f64>);
+
 fn refresh_game(status: RwSignal<Option<GamificationStatus>>) {
     spawn_local(async move {
         if let Ok(value) =
@@ -77,6 +80,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     provide_context(VideoProgress(StoredValue::new(None)));
     let video_ready = RwSignal::new(true);
     provide_context(VideoReady(video_ready));
+    provide_context(VideoPosition(RwSignal::new(0.0)));
     let question = RwSignal::new(None::<Question>);
     let phase = RwSignal::new(Phase::Asking);
     let summary = RwSignal::new(None::<Summary>);
@@ -436,6 +440,12 @@ fn GameStatus(
 #[component]
 fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
     expect_context::<VideoReady>().0.set(true);
+    let video_position = expect_context::<VideoPosition>().0;
+    let display = crate::locus_display::signal();
+    let leads = crate::locus_display::leads();
+    let timed = question.time.is_some();
+    let nearby = question.nearby.clone();
+    let marker = question.marker.clone();
     let zoom = question.zoom.clamp(1.0, 4.0);
     view! {
         <div class="stage">
@@ -463,14 +473,29 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                         <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
                     }))
                 }}
-                <div
-                    class="marker"
-                    style:left=format!("{}%", question.x * 100.0)
-                    style:top=format!("{}%", question.y * 100.0)
-                    style:transform=format!("translate(-50%, -50%) scale({})", 1.0 / zoom)
-                >
-                    <Sply media=question.marker.clone() state=Signal::stored("faellig") />
-                </div>
+                {nearby.into_iter().map(|locus| {
+                    let id = locus.id.clone();
+                    let offset = locus.offset;
+                    let time = locus.time;
+                    view! {
+                        <div class="marker"
+                            style:display=move || {
+                                let prefs = display.get();
+                                let lead = leads.get().get(&id).copied().unwrap_or(prefs.video_lead);
+                                let visible = crate::locus_display::visible(offset, prefs.previous, prefs.next)
+                                    && !(offset == 0 && phase.get().stage_answer().is_some() && prefs.hide_revealed)
+                                    && (!timed || crate::locus_display::at_video_time(time, video_position.get(), lead));
+                                if visible { "block" } else { "none" }
+                            }
+                            style:left=format!("{}%", locus.x * 100.0)
+                            style:top=format!("{}%", locus.y * 100.0)
+                            style:transform=format!("translate(-50%, -50%) scale({})", 1.0 / zoom)
+                        >
+                            <Sply media=marker.clone() state=Signal::stored("faellig") />
+                            <span class="num" style:display=move || if display.get().numbers { "block" } else { "none" }>{locus.number}</span>
+                        </div>
+                    }
+                }).collect_view()}
             </div>
         </div>
     }
@@ -482,6 +507,7 @@ fn SplyAtLocus(media: locora_app_api::Media, time: Option<f64>) -> impl IntoView
     let ready = expect_context::<VideoReady>().0;
     ready.set(false);
     let progress = expect_context::<VideoProgress>().0;
+    let position = expect_context::<VideoPosition>().0;
     let error = RwSignal::new(false);
     let target = time.unwrap_or(0.0);
     let key = media.hash.clone();
@@ -489,7 +515,9 @@ fn SplyAtLocus(media: locora_app_api::Media, time: Option<f64>) -> impl IntoView
     let command = RwSignal::new(TimedCommand { serial: 0, time: target, start: Some(start), play: true });
     view! {
         <Sply media=media class="backdrop" timed=command
+            on_timed_position=Box::new(move |time| position.set(time))
             on_timed_at=Box::new(move |time| {
+                position.set(time);
                 progress.set_value(Some((key.clone(), time)));
                 ready.set(true);
             })
@@ -517,9 +545,11 @@ fn VideoAtLocus(
     let ready = expect_context::<VideoReady>().0;
     ready.set(false);
     let progress = expect_context::<VideoProgress>().0;
+    let position = expect_context::<VideoPosition>().0;
     let key = StoredValue::new(media.hash.clone());
     let frame_watch = crate::video_frames::new_id();
     let stop_at_locus = move || {
+        if let Some(player) = player.get_untracked() { position.set(player.current_time()); }
         if let (Some(player), Some(target)) = (player.get_untracked(), time)
             && player.ready_state() >= 1
             && target.is_finite()
