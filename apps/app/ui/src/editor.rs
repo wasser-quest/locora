@@ -793,7 +793,7 @@ pub fn Rooms(
                         <span class="room-tab">
                             <crate::RoomIcon backdrop=backdrop />
                             <button class:on=move || tabs.room.get() == i disabled=move || busy.get() || dirty.get() || dragging.get()
-                                on:click=move |_| { tabs.history.set(History::default()); tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
+                                on:click=move |_| { tabs.history.set(History::default()); tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); playhead.set(0.0); }>
                                 {name}
                             </button>
                         </span>
@@ -897,8 +897,8 @@ fn RoomStage(
     revealed: RwSignal<bool>,
     playhead: RwSignal<f64>,
 ) -> impl IntoView {
-    // The media element starts at zero after a committed edit remounts this stage.
-    playhead.set(0.0);
+    // A committed edit remounts this stage; the playhead stays where it was and the
+    // new element seeks there (see `on_loaded` below). Room changes reset it instead.
     let node = NodeRef::<html::Div>::new();
     let busy = editor.busy;
     let dirty = editor.dirty;
@@ -1330,12 +1330,17 @@ fn RoomStage(
             {room.backdrop.map(|media| {
                 if video {
                     // No native controls or click-to-toggle here: the transport buttons above drive playback.
-                    view! { <VideoBackdrop media=media class="backdrop editor-video" controls=false muted=true node_ref=player
+                    view! { <VideoBackdrop media=media class="backdrop editor-video" controls=false muted=true autoplay=false node_ref=player
                         on_loaded=Box::new(move || {
                             video_duration.set(player.get_untracked().map(|video| video.duration())
                                 .filter(|duration| duration.is_finite() && *duration > 0.0));
                             if let Some(video) = player.get_untracked() {
                                 fit_stage(video.as_ref(), f64::from(video.video_width()), f64::from(video.video_height()));
+                                // Back where the edit left off, paused; a new room starts at zero.
+                                let at = playhead.get_untracked();
+                                if at > 0.0 && at < video.duration() {
+                                    video.set_current_time(at);
+                                }
                             }
                         })
                         on_timeupdate=Box::new(move || {
