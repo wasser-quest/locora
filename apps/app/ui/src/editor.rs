@@ -1102,6 +1102,14 @@ fn RoomStage(
                                     let _ = video.play();
                                 }
                             }>"▶ Abspielen"</button>
+                        // Stop holds the picture where it is; the start button goes back.
+                        <button type="button" disabled=move || video_duration.get().is_none()
+                            on:click=move |_| {
+                                if let Some(video) = player.get_untracked() {
+                                    let _ = video.pause();
+                                    playhead.set(video.current_time());
+                                }
+                            }>"■ Stopp"</button>
                         <button type="button" disabled=move || video_duration.get().is_none()
                             on:click=move |_| {
                                 if let Some(video) = player.get_untracked() {
@@ -1109,7 +1117,7 @@ fn RoomStage(
                                     video.set_current_time(0.0);
                                     playhead.set(0.0);
                                 }
-                            }>"■ Stopp"</button>
+                            }>"⏮ Zum Anfang"</button>
                     </div>
                     <label class="video-seek">"Zeitpunkt wählen"
                         <input type="range" min="0" step="0.01"
