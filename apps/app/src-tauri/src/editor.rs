@@ -29,11 +29,16 @@ pub fn apply_with_history(
         .find(|r| r.room.id == change.room_id)
         .context("Raum gehört nicht zu diesem Palast")?;
     let animated = if room.room.kind == RoomKind::Image {
-        room.room.media.as_deref().map(|hash| store.media(hash))
+        room.room
+            .media
+            .as_deref()
+            .map(|hash| store.media(hash))
             .transpose()?
             .flatten()
             .is_some_and(|media| media.mime == locora_store::SPLINELY)
-    } else { false };
+    } else {
+        false
+    };
     let timed_room = room.room.kind == RoomKind::Video || animated;
     let id = match &change.action {
         EditorAction::Restore { receipt } => {
@@ -81,8 +86,13 @@ pub fn apply_with_history(
                 EditorAction::CreateTimed { x, y, .. } => (*x, *y),
                 _ => (0.5, 0.5),
             };
-            ensure!(x.is_finite() && y.is_finite() && (0.0..=1.0).contains(&x) && (0.0..=1.0).contains(&y),
-                "Position muss innerhalb des Raums liegen");
+            ensure!(
+                x.is_finite()
+                    && y.is_finite()
+                    && (0.0..=1.0).contains(&x)
+                    && (0.0..=1.0).contains(&y),
+                "Position muss innerhalb des Raums liegen"
+            );
             let (mut loci, receipt) = store.editor_add_loci(
                 &change.palace_id,
                 &room.room.id,
@@ -329,11 +339,18 @@ fn read_selected_media(
 
 /// Cancellation is handled before validation or persistence; paths are backend-only.
 pub fn import_palace(store: &Store, path: Option<&std::path::Path>) -> Result<Option<PalaceTree>> {
+    import_palace_named(store, path, None)
+}
+
+pub fn import_palace_named(
+    store: &Store,
+    path: Option<&std::path::Path>,
+    selected_name: Option<&str>,
+) -> Result<Option<PalaceTree>> {
     let Some(path) = path else { return Ok(None) };
     let (kind, mime, bytes) = read_selected_media(path, false)?;
-    let name = path
-        .file_stem()
-        .and_then(|s| s.to_str())
+    let name = selected_name
+        .or_else(|| path.file_stem().and_then(|s| s.to_str()))
         .unwrap_or("")
         .trim();
     let name = if name.is_empty() {
@@ -352,36 +369,96 @@ mod tests {
     fn timed_loci_are_allowed_for_splinely_but_not_static_images() {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open(dir.path()).unwrap();
-        let animated = store.create_media_palace(
-            "Animation", RoomKind::Image,
-            locora_runtime::tutorial::DEFAULT_MARKER,
-            locora_store::SPLINELY,
-        ).unwrap();
+        let animated = store
+            .create_media_palace(
+                "Animation",
+                RoomKind::Image,
+                locora_runtime::tutorial::DEFAULT_MARKER,
+                locora_store::SPLINELY,
+            )
+            .unwrap();
         let room = &animated.rooms[0].room;
         let change = |action| EditorChange {
             palace_id: animated.palace.id.clone(),
             room_id: room.id.clone(),
             action,
         };
-        let (tree, selected) = apply(&store, &change(EditorAction::CreateVideo { time: 1.25 })).unwrap();
+        let (tree, selected) =
+            apply(&store, &change(EditorAction::CreateVideo { time: 1.25 })).unwrap();
         assert_eq!(tree.rooms[0].loci[0].time, Some(1.25));
         assert!(selected.is_some());
-        let (tree, placed) = apply(&store, &change(EditorAction::CreateTimed { time: 2.0, x: 0.2, y: 0.8 })).unwrap();
-        assert_eq!((tree.rooms[0].loci[1].x, tree.rooms[0].loci[1].y), (0.2, 0.8));
+        let (tree, placed) = apply(
+            &store,
+            &change(EditorAction::CreateTimed {
+                time: 2.0,
+                x: 0.2,
+                y: 0.8,
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            (tree.rooms[0].loci[1].x, tree.rooms[0].loci[1].y),
+            (0.2, 0.8)
+        );
         assert_eq!(tree.rooms[0].loci[1].time, Some(2.0));
-        let (tree, _) = apply(&store, &change(EditorAction::Retime { id: placed.unwrap(), time: 3.0 })).unwrap();
+        let (tree, _) = apply(
+            &store,
+            &change(EditorAction::Retime {
+                id: placed.unwrap(),
+                time: 3.0,
+            }),
+        )
+        .unwrap();
         assert_eq!(tree.rooms[0].loci[1].time, Some(3.0));
-        assert!(apply(&store, &change(EditorAction::CreateTimed { time: 2.0, x: -0.1, y: 0.8 })).is_err());
-        assert!(apply(&store, &change(EditorAction::CreateTimed { time: 2.0, x: f64::NAN, y: 0.8 })).is_err());
-        assert!(apply(&store, &change(EditorAction::CreateVideo { time: f64::NAN })).is_err());
+        assert!(
+            apply(
+                &store,
+                &change(EditorAction::CreateTimed {
+                    time: 2.0,
+                    x: -0.1,
+                    y: 0.8
+                })
+            )
+            .is_err()
+        );
+        assert!(
+            apply(
+                &store,
+                &change(EditorAction::CreateTimed {
+                    time: 2.0,
+                    x: f64::NAN,
+                    y: 0.8
+                })
+            )
+            .is_err()
+        );
+        assert!(
+            apply(
+                &store,
+                &change(EditorAction::CreateVideo { time: f64::NAN })
+            )
+            .is_err()
+        );
         assert!(apply(&store, &change(EditorAction::Create { x: 0.5, y: 0.5 })).is_err());
 
-        let static_image = store.create_media_palace("Still", RoomKind::Image, b"bytes", "image/png").unwrap();
-        assert!(apply(&store, &EditorChange {
-            palace_id: static_image.palace.id,
-            room_id: static_image.rooms[0].room.id.clone(),
-            action: EditorAction::CreateTimed { time: 1.0, x: 0.2, y: 0.8 },
-        }).is_err());
+        let static_image = store
+            .create_media_palace("Still", RoomKind::Image, b"bytes", "image/png")
+            .unwrap();
+        assert!(
+            apply(
+                &store,
+                &EditorChange {
+                    palace_id: static_image.palace.id,
+                    room_id: static_image.rooms[0].room.id.clone(),
+                    action: EditorAction::CreateTimed {
+                        time: 1.0,
+                        x: 0.2,
+                        y: 0.8
+                    },
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -444,6 +521,22 @@ mod tests {
         assert!(import_palace(&store, Some(&oversized)).is_err());
         assert!(import_palace(&store, Some(dir.path())).is_err());
         assert_eq!(store.palaces().unwrap().len(), 6);
+    }
+
+    #[test]
+    fn mobile_import_uses_picker_name_or_generic_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let staged = dir.path().join("random-temp-name.png");
+        std::fs::write(&staged, b"\x89PNG\r\n\x1a\n").unwrap();
+        let named = import_palace_named(&store, Some(&staged), Some("Mein Bild"))
+            .unwrap()
+            .unwrap();
+        let generic = import_palace_named(&store, Some(&staged), Some(""))
+            .unwrap()
+            .unwrap();
+        assert_eq!(named.palace.name, "Mein Bild");
+        assert_eq!(generic.palace.name, "Neuer Palast");
     }
     use locora_app_api::{EditorAnswer, EditorAnswerKind, LocusContent, QuizOption};
 

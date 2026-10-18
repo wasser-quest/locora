@@ -80,11 +80,40 @@ pub const CMD_SETTINGS_SET: &str = "settings_set";
 pub const CMD_SETTINGS_OPTIMIZE: &str = "settings_optimize";
 pub const CMD_CLOUD_STATUS: &str = "cloud_status";
 pub const CMD_CLOUD_SYNC: &str = "cloud_sync";
+pub const CMD_CLOUD_CONNECT: &str = "cloud_connect";
+pub const CMD_CLOUD_KEYS_STATUS: &str = "cloud_keys_status";
+pub const CMD_CLOUD_KEYS_SETUP: &str = "cloud_keys_setup";
+pub const CMD_CLOUD_LOGOUT: &str = "cloud_logout";
+pub const CMD_CLOUD_REFRESH: &str = "cloud_refresh";
+
+/// Credentials go directly to the Tauri backend; the UI never persists them.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CloudConnect {
+    pub server: String,
+    pub email: String,
+    pub password: String,
+    pub display_name: Option<String>,
+    pub register: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CloudKeySetup {
+    pub passphrase: String,
+}
+
+/// Returned once after the wrapped account key was stored on the server.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CloudKeyCreated {
+    pub recovery_key: String,
+    pub stored: bool,
+    pub warning: Option<String>,
+}
 
 /// Cloud account saved in this profile; status is available without a network call.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CloudStatus {
     pub account: Option<String>,
+    pub server: Option<String>,
     pub access: bool,
 }
 

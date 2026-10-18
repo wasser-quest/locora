@@ -3,8 +3,8 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_CLOUD_STATUS, CMD_CLOUD_SYNC, CMD_SETTINGS, CMD_SETTINGS_OPTIMIZE, CMD_SETTINGS_SET,
-    CloudStatus, CloudSyncResult, OptimizeDone, SettingsChange, SettingsView, StatsView,
+    CMD_SETTINGS, CMD_SETTINGS_OPTIMIZE, CMD_SETTINGS_SET, OptimizeDone, SettingsChange,
+    SettingsView, StatsView,
 };
 use serde::Serialize;
 
@@ -15,11 +15,6 @@ use crate::{Screen, load, start_screen, startup};
 #[derive(Serialize)]
 struct ChangeArgs {
     change: SettingsChange,
-}
-
-#[derive(Serialize)]
-struct SyncArgs {
-    passphrase: String,
 }
 
 fn percent(v: f64) -> String {
@@ -45,7 +40,7 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
             Some(Ok(v)) => view! { <Form view=v data=data message=message /> }.into_any(),
         }}
-        <CloudSync />
+        <crate::cloud_settings::CloudSettings />
     }
 }
 
@@ -102,76 +97,6 @@ fn LocusDisplay() -> impl IntoView {
                         }
                     } />
             </label>
-        </section>
-    }
-}
-
-#[component]
-fn CloudSync() -> impl IntoView {
-    let status = load(call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}));
-    let passphrase = RwSignal::new(String::new());
-    let busy = RwSignal::new(false);
-    let outcome = RwSignal::new(None::<Result<CloudSyncResult, String>>);
-    let submit = move || {
-        if busy.get_untracked() {
-            return;
-        }
-        let secret = passphrase.get_untracked();
-        if secret.is_empty() {
-            outcome.set(Some(Err("Verschlüsselungs-Passwort eingeben.".into())));
-            return;
-        }
-        passphrase.set(String::new());
-        busy.set(true);
-        outcome.set(None);
-        spawn_local(async move {
-            let result =
-                call::<CloudSyncResult>(CMD_CLOUD_SYNC, SyncArgs { passphrase: secret }).await;
-            outcome.set(Some(result));
-            busy.set(false);
-        });
-    };
-    view! {
-        <section class="card panel" aria-label="Locora Cloud">
-            <h2>"Locora Cloud"</h2>
-            {move || match status.get() {
-                None => view! { <p class="progress">"Cloud-Konto wird geprüft …"</p> }.into_any(),
-                Some(Err(error)) => view! { <p class="notes" role="alert">{error}</p> }.into_any(),
-                Some(Ok(CloudStatus { account: None, .. })) => view! {
-                    <p class="progress">"Noch kein Cloud-Konto angemeldet. Auf diesem Gerät zuerst `locora cloud login` und `locora cloud encrypt setup` ausführen."</p>
-                }.into_any(),
-                Some(Ok(CloudStatus { account: Some(account), access: false })) => view! {
-                    <p class="progress">{format!("Angemeldet als {account}. Keine gültige Cloud-Freischaltung. Abo prüfen oder `locora cloud refresh` ausführen.")}</p>
-                }.into_any(),
-                Some(Ok(CloudStatus { account: Some(account), access: true })) => view! {
-                    <p class="progress">{format!("Angemeldet als {account}. Änderungen werden nur auf Knopfdruck Ende-zu-Ende-verschlüsselt synchronisiert.")}</p>
-                    <form on:submit=move |event| { event.prevent_default(); submit(); }>
-                        <label class="input">
-                            <span>"Verschlüsselungs-Passwort"</span>
-                            <input type="password" autocomplete="off" bind:value=passphrase />
-                        </label>
-                        <button class="primary" type="submit" disabled=move || busy.get()>
-                            {move || if busy.get() { "Synchronisiert …" } else { "Jetzt synchronisieren" }}
-                        </button>
-                    </form>
-                    {move || outcome.get().map(|result| match result {
-                        Ok(report) => view! {
-                            <p class="verdict ok" role="status">{format!(
-                                "Sync abgeschlossen: {} Änderungen gesendet, {} Medien hochgeladen, {} Änderungen empfangen, {} Medien geladen; {} angewendet, {} schon bekannt, {} mit fehlendem Ort.",
-                                report.pushed, report.media_uploaded, report.pulled,
-                                report.media_downloaded, report.applied, report.stale, report.missing,
-                            )}</p>
-                            {(report.failed != 0 || report.quarantined != 0).then(|| view! {
-                                <p class="notes" role="alert">{format!(
-                                    "{} Änderungen konnten nicht angewendet werden, {} wurden in Quarantäne abgelegt. Bitte lokalen Datenbestand prüfen.",
-                                    report.failed, report.quarantined,
-                                )}</p>
-                            })}
-                        }.into_any(),
-                        Err(error) => view! { <p class="notes" role="alert">{error}</p> }.into_any(),
-                    })}
-                }.into_any(),
-            }}
         </section>
     }
 }

@@ -2,6 +2,7 @@
 //! commands and serves media and `.sply` animations over `locora://`.
 
 mod assets;
+mod cloud_setup;
 mod drops;
 mod editor;
 mod journey;
@@ -200,7 +201,12 @@ async fn home_pick_media(
         .transpose()?;
     let b = lock(&state)?;
     #[cfg(mobile)]
-    let tree = editor::import_palace(&b.profile.store, path).map_err(err)?;
+    let tree = editor::import_palace_named(
+        &b.profile.store,
+        path,
+        Some(staged.as_ref().and_then(|s| s.name()).unwrap_or("")),
+    )
+    .map_err(err)?;
     #[cfg(desktop)]
     let tree = editor::import_palace(&b.profile.store, path.as_deref()).map_err(err)?;
     // New rooms contain no loci: no fallible plugin call after committing.
@@ -269,7 +275,14 @@ async fn import_pick(
             .dialog()
             .file()
             .set_title("Paläste importieren")
-            .add_filter("Locora-Paläste", &["locora", "toml"])
+            .add_filter(
+                "Locora-Paläste",
+                if cfg!(mobile) {
+                    &["locora"]
+                } else {
+                    &["locora", "toml"]
+                },
+            )
             .blocking_pick_file()
     })
     .await
@@ -279,6 +292,10 @@ async fn import_pick(
     };
     #[cfg(mobile)]
     let staged = mobile_files::stage(&app, selected, mobile_files::Kind::Archive)?;
+    #[cfg(mobile)]
+    if staged.path().extension().is_none_or(|ext| ext != "locora") {
+        return Err("Auf dem Handy bitte eine .locora-Datei importieren; TOML mit separaten Medien benötigt einen gemeinsamen Ordner".into());
+    }
     #[cfg(mobile)]
     let path = staged.path().to_path_buf();
     #[cfg(desktop)]
@@ -495,6 +512,9 @@ async fn cloud_status(state: State<'_, Shared>) -> Result<locora_app_api::CloudS
     let saved = locora_runtime::cloud::load(&data).map_err(err)?;
     Ok(locora_app_api::CloudStatus {
         account: saved.as_ref().map(|state| state.account.email.clone()),
+        server: saved
+            .as_ref()
+            .and_then(|state| locora_runtime::cloud::check_server(&state.server).ok()),
         access: saved.as_ref().is_some_and(|state| {
             locora_runtime::cloud::access(state, locora_runtime::cloud::now_secs()).is_some()
         }),
@@ -508,6 +528,9 @@ async fn cloud_sync(
     app: tauri::AppHandle,
     passphrase: String,
 ) -> Result<locora_app_api::CloudSyncResult, String> {
+    if !(12..=1024).contains(&passphrase.chars().count()) {
+        return Err("Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen".into());
+    }
     let state = app.state::<Shared>();
     let (data, store, busy) = {
         let backend = lock(&state)?;
@@ -528,6 +551,7 @@ async fn cloud_sync(
             }
         }
         let _reset = Reset(busy);
+        let passphrase = zeroize::Zeroizing::new(passphrase);
         let report = locora_runtime::cloud_sync::sync_with_passphrase(&data, &store, &passphrase)
             .map_err(err)?;
         Ok(locora_app_api::CloudSyncResult {
@@ -826,6 +850,11 @@ pub fn run() {
             settings,
             cloud_status,
             cloud_sync,
+            cloud_setup::cloud_connect,
+            cloud_setup::cloud_keys_status,
+            cloud_setup::cloud_keys_setup,
+            cloud_setup::cloud_logout,
+            cloud_setup::cloud_refresh,
             ui_assets,
             gamification_status,
             import_pick,

@@ -14,11 +14,27 @@ pub enum Kind {
     Archive,
 }
 
-pub fn stage(
-    app: &AppHandle,
-    selected: FilePath,
-    kind: Kind,
-) -> Result<tempfile::NamedTempFile, String> {
+pub struct Staged {
+    file: tempfile::NamedTempFile,
+    name: Option<String>,
+}
+
+impl Staged {
+    pub fn path(&self) -> &Path {
+        self.file.path()
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+}
+
+pub fn stage(app: &AppHandle, selected: FilePath, kind: Kind) -> Result<Staged, String> {
+    let name = if matches!(kind, Kind::Media) {
+        selected_name(&selected)
+    } else {
+        None
+    };
     let mut input = app
         .fs()
         .open(selected.clone(), OpenOptions::new())
@@ -31,7 +47,39 @@ pub fn stage(
             .stop_accessing_security_scoped_resource(selected)
             .map_err(|e| format!("Dateizugriff beenden: {e}"))?;
     }
-    result
+    result.map(|file| Staged { file, name })
+}
+
+fn selected_name(selected: &FilePath) -> Option<String> {
+    let file_name = match selected {
+        FilePath::Path(path) => path.file_name()?.to_str()?.to_owned(),
+        FilePath::Url(url) if url.scheme() == "file" => {
+            url.to_file_path().ok()?.file_name()?.to_str()?.to_owned()
+        }
+        FilePath::Url(url) => {
+            percent_encoding::percent_decode_str(url.path_segments()?.next_back()?)
+                .decode_utf8()
+                .ok()?
+                .into_owned()
+        }
+    };
+    if file_name.contains('/') || file_name.contains('\\') {
+        return None;
+    }
+    let path = Path::new(&file_name);
+    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+    if ![
+        "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "webm", "mov",
+    ]
+    .contains(&extension.as_str())
+    {
+        return None;
+    }
+    let stem = path.file_stem()?.to_str()?.trim();
+    if stem.is_empty() || stem.chars().count() > 100 || stem.chars().any(char::is_control) {
+        return None;
+    }
+    Some(stem.to_owned())
 }
 
 fn stage_open(
@@ -168,6 +216,18 @@ mod tests {
             extension(&uri, b"PK\x03\x04", &Kind::Archive).unwrap(),
             "locora"
         );
+    }
+
+    #[test]
+    fn mobile_name_comes_from_selected_file_not_temporary_copy() {
+        let named = "content://provider/document/Mein%20Bild.png"
+            .parse()
+            .unwrap();
+        let opaque = "content://provider/document/42".parse().unwrap();
+        let local = FilePath::Path("/pictures/Palast.mov".into());
+        assert_eq!(selected_name(&named).as_deref(), Some("Mein Bild"));
+        assert_eq!(selected_name(&opaque), None);
+        assert_eq!(selected_name(&local).as_deref(), Some("Palast"));
     }
 
     #[test]

@@ -112,19 +112,25 @@ pub fn remove(data: &Path) -> Result<()> {
 
 /// Only HTTPS servers, or plain HTTP on the local machine for development.
 pub fn check_server(server: &str) -> Result<String> {
-    let url = server.trim().trim_end_matches('/').to_owned();
-    let local = ["http://127.0.0.1", "http://localhost", "http://[::1]"]
-        .iter()
-        .any(|prefix| {
-            url.strip_prefix(prefix).is_some_and(|rest| {
-                rest.is_empty() || rest.starts_with(':') || rest.starts_with('/')
-            })
-        });
-    if url.starts_with("https://") || local {
-        Ok(url)
-    } else {
+    let parsed = url::Url::parse(server.trim()).context("Ungültige Cloud-Serveradresse")?;
+    if !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || parsed.host().is_none()
+    {
+        bail!("Cloud-Serveradresse darf keine Zugangsdaten, Abfrage oder Fragment enthalten");
+    }
+    let local = match parsed.host() {
+        Some(url::Host::Domain("localhost")) => true,
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        _ => false,
+    };
+    if parsed.scheme() != "https" && !(parsed.scheme() == "http" && local) {
         bail!("Der Server muss https:// verwenden (http nur für localhost)")
     }
+    Ok(parsed.as_str().trim_end_matches('/').to_owned())
 }
 
 /// The entitlement when it is current or inside the offline grace period.
@@ -193,7 +199,9 @@ fn finish_login(server: String, session: Session) -> Result<CloudState> {
         entitlement: None,
     };
     if state.account.subscription != SubscriptionState::None {
-        refresh(&mut state)?;
+        // A valid account session must survive a transient entitlement failure.
+        // Access stays disabled until a later successful refresh.
+        let _ = refresh(&mut state);
     }
     Ok(state)
 }
@@ -407,6 +415,7 @@ fn send<B: Serialize>(
     token: Option<&str>,
     body: Option<&B>,
 ) -> Result<ureq::http::Response<ureq::Body>> {
+    let server = check_server(server)?;
     let url = format!("{server}{path}");
     let mut request = ureq::http::Request::builder().method(method).uri(&url);
     if let Some(token) = token {
@@ -443,11 +452,12 @@ pub(crate) fn media_exists(state: &CloudState, id: &str) -> Result<bool> {
 
 /// Uploads one sealed media file under its keyed id.
 pub(crate) fn put_media(state: &CloudState, id: &str, sealed: Vec<u8>) -> Result<()> {
+    let server = check_server(&state.server)?;
     let request = ureq::http::Request::builder()
         .method(ureq::http::Method::PUT)
         .uri(format!(
             "{}/v1/media/{id}?generation={}",
-            state.server, state.sync_generation
+            server, state.sync_generation
         ))
         .header("authorization", format!("Bearer {}", state.token))
         .header("content-type", "application/octet-stream")
@@ -592,6 +602,24 @@ mod tests {
     }
 
     #[test]
+    fn successful_login_survives_entitlement_refresh_failure() {
+        let (state, worker) = fixture(
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                .into(),
+        );
+        let session = Session {
+            token: state.token.clone(),
+            account: Account {
+                subscription: SubscriptionState::Active,
+                ..state.account
+            },
+        };
+        let signed_in = finish_login(state.server, session).unwrap();
+        assert!(signed_in.entitlement.is_none());
+        assert!(worker.join().unwrap().starts_with("POST /v1/entitlement "));
+    }
+
+    #[test]
     fn only_https_or_localhost_is_accepted() {
         assert_eq!(
             check_server("https://cloud.example/").unwrap(),
@@ -607,6 +635,10 @@ mod tests {
         );
         assert!(check_server("http://cloud.example").is_err());
         assert!(check_server("http://localhost.evil.example").is_err());
+        assert!(check_server("https://user:secret@cloud.example").is_err());
+        assert!(check_server("https://cloud.example?token=secret").is_err());
+        assert!(check_server("https://cloud.example#fragment").is_err());
+        assert!(check_server("https://").is_err());
     }
 
     #[test]

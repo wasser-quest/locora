@@ -20,7 +20,7 @@ Stand: 18.10.2026
 - [ ] Visuelle WebView-Prüfung von Ortsbildern und Pointer-Gesten (`docs/app-editor-testplan.md`)
 - [x] „Weiter“-Zeile mit fälligen Loci; Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik (⚙ auf dem Startbildschirm)
 - [x] Import/Export von `.locora` in der App (Dateidialoge, mit Wiederholungsstand)
-- [x] `locora.toml`-Import in der App: relative Medien, neue Kopien bei Namenskonflikten, Validierung vor dem Bauen
+- [x] `locora.toml`-Import auf Desktop: relative Medien, neue Kopien bei Namenskonflikten, Validierung vor dem Bauen; Mobil importiert `.locora`-Archive
 - [x] TOML-Export (`dump`) in der App: nativer Ordnerdialog, Quelle mit Medien, kein Überschreiben, Roundtrip-Test
 - [ ] TOML-Import/-Export im nativen Dialog prüfen (Auswahl, Abbruch, Medien, Fehler)
 - [x] Plugin-Kacheln (`ui.tile`) auf dem Startbildschirm; letzte Kachel je Plugin bleibt im Profil gespeichert
@@ -128,7 +128,7 @@ Stand: 18.10.2026
 ## Phase 6 und 7
 
 - [x] Sync über das Op-Log (HLC, Last-Writer-Wins pro Feld, Tombstones) mit Locora Cloud: `locora cloud sync`, Medien per Hash, Journeys werden auf dem Server gewertet
-  - Erledigt: manueller, verschlüsselter Sync-Auslöser in den App-Einstellungen mit Kontostatus und Ergebnisanzeige; Ersteinrichtung des Kontos erfolgt noch über die CLI
+  - Erledigt: Cloud-Anmeldung/Registrierung, Schlüsseleinrichtung mit einmalig gezeigtem Wiederherstellungsschlüssel und manueller verschlüsselter Sync in den App-Einstellungen; realen Server- und Gerätedurchlauf noch prüfen
   - Erledigt für neu gebaute Paläste: Tutorial und Formel-Guide erhalten geräteübergreifend feste Kennungen für Palast, Räume und Loci. Bereits vorhandene Profile brauchen einen bewusst ausgelösten Neuaufbau; dieser setzt ihren bisherigen Wiederholungsstand zurück.
   - Offen: Gamification-Fortschritt wird noch als Ganzwert per LWW repliziert. Verlustfreies Zusammenführen braucht eindeutige Fortschrittsereignisse und eine Migration; alte Clients müssten für Sync aktualisiert werden.
 - [ ] Plugin-Verzeichnis, WASM-Plugins von Dritten mit deklarativer UI, Store-Prüfung für iOS/Android

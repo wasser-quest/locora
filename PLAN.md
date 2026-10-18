@@ -841,8 +841,9 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
 
 **Stand 18.10.2026:** `.locora-plugin`-ZIP-Pakete werden mit `locora plugin pack` erstellt und
 bei Prüfung, Installation und Update begrenzt und gegen das eingebettete WASM-Manifest geprüft.
-Der manuelle Cloud-Sync ist in den App-Einstellungen erreichbar; Anmeldung und Schlüsselaufbau
-erfolgen weiter per CLI. Neue Tutorial- und Formel-Guide-Paläste verwenden feste Kennungen über
+Der manuelle Cloud-Sync sowie Anmeldung, Registrierung und Schlüsselaufbau sind in den App-Einstellungen
+erreichbar; der vollständige Durchlauf gegen einen realen Server und auf Mobilgeräten steht noch aus.
+Neue Tutorial- und Formel-Guide-Paläste verwenden feste Kennungen über
 Geräte hinweg. Für vorhandene Paläste ist ein bewusster Neuaufbau nötig, der den bisherigen
 Wiederholungsstand zurücksetzt. Der Gamification-Fortschritt bleibt beim Sync ein LWW-Snapshot;
 eine verlustfreie Zusammenführung erfordert Ereignis-IDs und ein Upgrade-Protokoll für alte Clients.

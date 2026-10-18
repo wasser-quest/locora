@@ -24,6 +24,7 @@ tempfile = "3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ureq = { version = "3", features = ["json"] }
+url = "2"
 sha2.workspace = true
 percent-encoding = "2"
 base64 = "0.22"

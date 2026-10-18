@@ -2952,11 +2952,14 @@ dependencies = [
  "infer",
  "locora-api",
  "locora-app-api",
+ "locora-cloud-api",
+ "locora-crypto",
  "locora-format",
  "locora-formula",
  "locora-runtime",
  "locora-source",
  "locora-store",
+ "percent-encoding",
  "serde",
  "serde_json",
  "splinely_document",
@@ -2965,6 +2968,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tempfile",
+ "zeroize",
 ]
 
 [[package]]
@@ -3068,6 +3072,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "ureq",
+ "url",
 ]
 
 [[package]]

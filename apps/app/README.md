@@ -120,9 +120,9 @@ network access.
 The dialog plugin has no folder picker on mobile, so TOML export (`dump_pick`)
 returns an explicit error there; `.locora` export works. Picked Android `content://`
 files and iOS security-scoped files are streamed through the native filesystem
-plugin into bounded private temporary files. A TOML import with relative media
-paths still needs a `.locora` archive because document providers do not grant
-access to sibling files. The plugin host selects Wasmtime/Pulley on iOS to avoid
+plugin into bounded private temporary files. The mobile import dialog accepts
+`.locora` archives; TOML with relative media needs a shared directory that
+document providers do not grant. The plugin host selects Wasmtime/Pulley on iOS to avoid
 JIT executable-memory restrictions; actual device operation still needs a signed
 build and hardware test.
 No release or device-readiness claim is implied by an uploaded build artifact.

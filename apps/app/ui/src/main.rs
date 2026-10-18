@@ -1,5 +1,6 @@
 //! Locora app UI: start screen, palace with rooms and markers, journeys.
 
+mod cloud_settings;
 mod editor;
 mod journey;
 mod locus_display;

@@ -44,17 +44,12 @@ pub struct SyncReport {
 /// App entry point for the same encrypted sync used by the CLI. The passphrase
 /// stays on this device and is only used to unlock the account key for this run.
 pub fn sync_with_passphrase(data: &Path, store: &Store, passphrase: &str) -> Result<SyncReport> {
-    let state = cloud::load(data)?.ok_or_else(|| {
-        anyhow!("Nicht bei Locora Cloud angemeldet. Zuerst `locora cloud login` ausführen")
-    })?;
+    let state = cloud::load(data)?.ok_or_else(|| anyhow!("Nicht bei Locora Cloud angemeldet"))?;
     if cloud::access(&state, cloud::now_secs()).is_none() {
-        bail!(
-            "Keine gültige Cloud-Freischaltung. Abo prüfen oder `locora cloud refresh` ausführen"
-        );
+        bail!("Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren");
     }
-    let bundle = cloud::get_keys(&state)?.ok_or_else(|| {
-        anyhow!("Verschlüsselung fehlt. Zuerst `locora cloud encrypt setup` ausführen")
-    })?;
+    let bundle = cloud::get_keys(&state)?
+        .ok_or_else(|| anyhow!("Verschlüsselung fehlt. In den Einstellungen einrichten"))?;
     let dek = locora_crypto::unlock(&bundle, passphrase)?;
     sync(&state, store, &dek)
 }
