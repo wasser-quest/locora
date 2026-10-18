@@ -14,6 +14,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Locora",
         "width": 1100,
         "height": 760,

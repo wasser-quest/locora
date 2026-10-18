@@ -51,21 +51,63 @@ work, run `init` once and keep those directories if you customize native setting
 Do not regenerate over native customizations without reviewing the changes.
 The backend already has the mobile entry point and static/dynamic library targets.
 
+### Mobile app icons
+
+The replaceable icon source is [`assets/brand/icon.png`](../../assets/brand/icon.png).
+[`assets/brand/mobile-icon.json`](../../assets/brand/mobile-icon.json) sets the
+iOS background color and the Android adaptive-icon background. After replacing
+the square source image, regenerate the tracked Android and iOS icons with
+Tauri CLI and ImageMagick (`magick`):
+
+```sh
+./apps/app/scripts/generate-mobile-icons.sh
+```
+
+The generated files live in `src-tauri/icons/android` and `src-tauri/icons/ios`.
+The Android build script also copies the tracked icons into an existing local
+Android project. A clean iOS `init` picks up the tracked icons; if an iOS project
+already exists, regenerate or update its `AppIcon.appiconset` after changing them.
+
 ### Android: ARM64 debug APK
 
 Requires JDK **21**, Android SDK command-line tools and accepted SDK licenses.
 Set `JAVA_HOME` and `ANDROID_HOME`; Tauri uses **`NDK_HOME`**, not just
 `ANDROID_NDK_HOME`. With this pinned CLI the templates use Android API **37**,
 build tools **37.0.0**, NDK **29.0.13846066** and Gradle **9.6.1**.
-CI's Android setup action accepts the licenses; locally run `sdkmanager --licenses`.
+CI's Android setup action accepts the licenses. Locally, the build script asks for
+license acceptance, installs the pinned SDK packages and Rust targets, generates
+the Android project on first use, and builds an ARM64 debug APK:
+
+```sh
+./apps/app/scripts/build-android.sh  # from the repository root; no phone needed
+```
+
+Install JDK 21, [Android SDK command-line tools](https://developer.android.com/studio#command-line-tools-only),
+Tauri CLI 2.12.3 and Trunk 0.21.14 first. Put `sdkmanager` on `PATH`, set
+`ANDROID_HOME` to the SDK directory, and set `JAVA_HOME` to the JDK directory.
+The script locates `JAVA_HOME` from `java` and `ANDROID_HOME` from `~/Android/Sdk`
+when possible. The SDK and Gradle downloads require network access in the build
+qube. The generated Android project stays local and is ignored by Git.
+
+In a Qubes TemplateVM, install system packages in the **template**, then restart
+its AppVM; packages installed only in an ordinary AppVM do not persist. Keep the
+Android SDK and Cargo tools in the development AppVM's home directory, or use a
+dedicated development template. For a Fedora 43 template, run
+`sudo dnf install java-21-openjdk-devel android-tools` in the **template**.
+Do not install Android build tools in dom0.
+
+The equivalent manual commands are:
 
 ```sh
 # From the repository root:
 cd apps/app
 cargo install tauri-cli --version '=2.12.3' --locked
 cargo install trunk --version '=0.21.14' --locked
-sdkmanager "platform-tools" "platforms;android-37" "build-tools;37.0.0" "ndk;29.0.13846066"
+sdkmanager "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" "ndk;29.0.13846066"
 export NDK_HOME="$ANDROID_HOME/ndk/29.0.13846066"
+export CC_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+export CXX_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
+export AR_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 rustup target add wasm32-unknown-unknown wasm32-wasip2 aarch64-linux-android
 cargo build --locked --manifest-path ../../plugins/Cargo.toml --release --target wasm32-wasip2 -p core -p review
 cargo tauri android init --ci --skip-targets-install
@@ -76,6 +118,50 @@ CI uploads `locora-android-arm64-debug` from
 `src-tauri/gen/android/app/build/outputs/apk/**/*.apk` (14-day retention).
 This is a debug-key-signed, installable ARM64 APK, not a Play Store release/AAB.
 No emulator, device test or release signing is performed.
+
+#### Qubes: attach an Android phone for testing
+
+Building the APK above does not require USB access. To install or debug it on a
+phone, enable Developer options and USB debugging on the phone. In a **dom0**
+terminal, list USB devices and attach the phone's `BACKEND:DEVID` to the
+development qube (replace `locora-dev` and `sys-usb:2-5` with your actual
+qube name and the ID shown by `qvm-usb`):
+
+```sh
+qvm-usb
+qvm-usb attach locora-dev sys-usb:2-5
+qvm-usb
+```
+
+Inside the **development qube**, run `adb devices` and confirm the phone's RSA
+debugging prompt while it is unlocked. `adb` is part of Android platform-tools.
+Then install the generated APK with `adb install -r <path-to-apk>`. After testing,
+detach the device in **dom0**:
+
+```sh
+qvm-usb detach locora-dev sys-usb:2-5
+```
+
+If `qvm-usb` does not list the phone, inspect the cable/USB mode and whether a
+USB qube exists. Do not create or reassign a USB controller without checking
+Qubes' USB-keyboard guidance first: the only keyboard may share that controller.
+If attaching an Android phone with USB debugging reports `usb-import: line 94:
+echo: write error: Invalid argument`, check that `qvm-usb` lists the phone and
+inspect `journalctl -k -n 80` in both `sys-usb` and the development qube after
+the failed attempt. Qubes tracks this error for Android USB debugging in
+[issue 9654](https://github.com/QubesOS/qubes-issues/issues/9654).
+
+Android 11+ supports wireless debugging without an initial USB connection.
+On the phone, enable **Developer options → Wireless debugging → Pair device
+with pairing code**. In the development qube run `adb pair PHONE_IP:PAIR_PORT`
+and enter the displayed code. Then use the phone's main Wireless debugging
+screen for its potentially different connection port and run
+`adb connect PHONE_IP:CONNECT_PORT`, followed by `adb devices`. The phone and
+development qube must be able to reach each other over the network; pairing
+and connection ports are usually different.
+See the [Qubes USB guide](https://doc.qubes-os.org/en/latest/user/how-to-guides/how-to-use-usb-devices.html),
+[USB-qube setup](https://doc.qubes-os.org/en/latest/user/advanced-topics/usb-qubes.html)
+and [Android adb guide](https://developer.android.com/tools/adb).
 
 ### iOS: unsigned simulator app
 

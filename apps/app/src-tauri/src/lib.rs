@@ -795,6 +795,17 @@ pub fn run() {
         .setup(|app| {
             let backend = open(app).map_err(|e| format!("Profil öffnen: {e:#}"))?;
             app.manage::<Shared>(Mutex::new(backend));
+            // Tauri otherwise creates configured windows before this callback.
+            // On Android the frontend can invoke `home` before Shared exists.
+            let window = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|window| window.label == "main")
+                .ok_or("Fensterkonfiguration 'main' fehlt")?
+                .clone();
+            tauri::WebviewWindowBuilder::from_config(app, &window)?.build()?;
             Ok(())
         })
         // A window's own content webview reports drops as a window event

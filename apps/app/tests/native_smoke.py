@@ -41,13 +41,14 @@ def walk(node, depth=0):
 
 
 class Scenario:
-    def __init__(self, binary, artifacts, sply_video=None, only_sply=False, only_tour=False, only_core=False):
+    def __init__(self, binary, artifacts, sply_video=None, only_sply=False, only_tour=False, only_core=False, only_video_marker=False):
         self.binary = binary
         self.artifacts = artifacts
         self.sply_video = sply_video
         self.only_sply = only_sply
         self.only_tour = only_tour
         self.only_core = only_core
+        self.only_video_marker = only_video_marker
         self.profile = artifacts / "profile"
         self.profile.mkdir()
         self.environment = {**os.environ, "LOCORA_DATA": str(self.profile)}
@@ -208,6 +209,56 @@ class Scenario:
         self.until(lambda: self.find("Ort 1:", "button", True))
         self.record("sply-marker-visible-at-stop-only")
 
+    def check_video_marker(self):
+        video = self.artifacts / "Marker window.webm"
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                        "testsrc=size=320x240:rate=10:duration=3", "-c:v", "libvpx",
+                        "-b:v", "200k", str(video)], check=True)
+        frame = self.until(lambda: self.find("Locora", "frame"))
+        self.drag_file(video.resolve(), frame)
+        stage = self.until(lambda: self.find("Videoraum", "section", True))
+        adding = self.until(lambda: self.find("Ort setzen (Bühne anklicken)", "check box"))
+        if not adding.get_state_set().contains(Atspi.StateType.CHECKED):
+            self.click("Ort setzen (Bühne anklicken)", "check box")
+        slider = self.until(lambda: next((n for n in walk(self.app) if n.get_role_name() == "slider"
+                                         and n.get_state_set().contains(Atspi.StateType.ENABLED)), None))
+        track = slider.get_extents(Atspi.CoordType.SCREEN)
+        def position():
+            for node in walk(self.app):
+                text = node_text(node) if node.get_role_name() == "paragraph" else ""
+                if text.startswith("Position "):
+                    return float(text.split()[1])
+            return None
+        def seek(target):
+            self.x("mousemove", str(round(track.x + track.width * target / 3)),
+                   str(track.y + track.height // 2), "click", "1")
+            self.until(lambda: (lambda value: value is not None and abs(value - target) < .12)(position()))
+        seek(1.8)
+        assert stage.grab_focus()
+        rect = stage.get_extents(Atspi.CoordType.SCREEN)
+        self.x("windowfocus", "--sync", self.window)
+        self.x("mousemove", str(rect.x + rect.width//4), str(rect.y + rect.height*2//5), "click", "1")
+        rows = self.until(lambda: self.sql("SELECT l.time FROM loci l JOIN rooms r ON r.id=l.room_id JOIN palaces p ON p.id=r.palace_id WHERE p.name=?", (video.stem,)) or None)
+        at = rows[0][0]
+        assert 1.65 < at < 1.95, at
+        inputs = [n for n in walk(self.app) if n.get_name() == "Marker vorher (s)"
+                  and n.get_role_name() in ("entry", "spin button")]
+        assert len(inputs) == 1, [(n.get_name(), n.get_role_name()) for n in inputs]
+        assert inputs[0].grab_focus()
+        self.x("key", "--clearmodifiers", "ctrl+a")
+        self.x("type", "--clearmodifiers", "--delay", "1", "--", "0.5")
+        self.x("key", "--clearmodifiers", "Tab")
+        marker = lambda: self.find("Ort 1:", "button", True)
+        seek(at - .8)
+        assert marker() is None, "Video marker appeared before its per-locus lead"
+        self.shot("video-marker-before-lead", settle=.2)
+        seek(at - .25)
+        self.until(marker)
+        self.shot("video-marker-in-lead", settle=.2)
+        seek(at + .7)
+        assert marker() is None, "Video marker stayed visible after the stop window"
+        self.record("video-marker-window-and-per-locus-lead", locus_time=round(at, 2), lead=.5)
+
     def check_tour_all(self):
         titles = ["Ein Bild wird zum Palast", "Vorhandene Paläste mitnehmen",
                   "Lernen nach deinem Rhythmus", "Deine Route", "Orte bearbeiten", "Am Ort erinnern"]
@@ -262,6 +313,9 @@ class Scenario:
             assert self.startup_ms <= self.startup_budget, f"startup {self.startup_ms} ms > {self.startup_budget} ms"
         if self.only_sply:
             self.check_sply()
+            return
+        if self.only_video_marker:
+            self.check_video_marker()
             return
         if self.only_tour:
             self.check_tour_all()
@@ -453,7 +507,7 @@ class Scenario:
         # Video journey: play muted to each locus, hold there, keyboard reveal/grade.
         self.click("←")
         self.until(lambda: self.find("Bild/Video wählen…", "button"))
-        self.click("Native E2E video", prefix=True)
+        self.click("Native E2E video")
         self.until(lambda: self.find("▶ Route ablaufen", "button"))
         clicks = self.clicks
         self.click("▶ Route ablaufen")
@@ -478,7 +532,7 @@ class Scenario:
         # Reverse direction: same journey, prompt and answer swap.
         self.click("Zur Übersicht")
         self.until(lambda: self.find("Bild/Video wählen…", "button"))
-        self.click("Native E2E video", prefix=True)
+        self.click("Native E2E video")
         self.until(lambda: self.find("Rückwärts (Inhalt → Ort)", "check box"))
         self.click("Rückwärts (Inhalt → Ort)", "check box")
         self.click("▶ Route ablaufen")
@@ -501,7 +555,7 @@ class Scenario:
 
         self.click("Zur Übersicht")
         self.until(lambda: self.find("Bild/Video wählen…", "button"))
-        self.click("Native E2E video", prefix=True)
+        self.click("Native E2E video")
         self.until(lambda: self.find("Bearbeiten", "check box"))
         self.click("Bearbeiten", "check box")
         self.click("Ort setzen (Bühne anklicken)", "check box")
@@ -549,6 +603,7 @@ def main():
     parser.add_argument("--only-sply", action="store_true", help="Run only the optional animated .sply checks")
     parser.add_argument("--only-tour", action="store_true", help="Run only the complete app tour forward and back")
     parser.add_argument("--only-core", action="store_true", help="Verify Core start preference across a native restart")
+    parser.add_argument("--only-video-marker", action="store_true", help="Verify a video marker's time window and per-locus lead")
     # PLAN target is 300 ms for a release build on real hardware; CI runs a
     # debug build under Xvfb, so the budget is opt-in.
     parser.add_argument("--startup-budget-ms", type=int)
@@ -559,7 +614,7 @@ def main():
     try:
         scenario = Scenario.__new__(Scenario)
         scenario.startup_budget = args.startup_budget_ms
-        scenario.__init__(args.binary.resolve(), artifacts, args.sply_video.resolve() if args.sply_video else None, args.only_sply, args.only_tour, args.only_core)
+        scenario.__init__(args.binary.resolve(), artifacts, args.sply_video.resolve() if args.sply_video else None, args.only_sply, args.only_tour, args.only_core, args.only_video_marker)
         scenario.run()
     except Exception as error:
         if scenario and hasattr(scenario, "steps"):

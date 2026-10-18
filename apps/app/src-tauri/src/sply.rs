@@ -8,7 +8,7 @@ use splinely_document::Project;
 const RUNTIME: &str = include_str!("../vendor/splinely-0.5.2.js");
 
 /// Fill the frame; listen for state machine events from the app.
-const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !important}</style>
+const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !important;background:transparent !important}</style>
 <script><![CDATA[
 (function () {
   var svg = document.documentElement;
@@ -157,7 +157,7 @@ pub fn to_marker_layer(bytes: &[u8]) -> Result<String> {
     )
     .replace("]]>", "]]]]><![CDATA[>");
     Ok(format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" style=\"width:100%;height:100%;overflow:hidden\"><defs id=\"locora-marker-template\">{template}</defs><script><![CDATA[{script}]]></script></svg>"
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" style=\"width:100%;height:100%;overflow:hidden;background:transparent\"><defs id=\"locora-marker-template\">{template}</defs><script><![CDATA[{script}]]></script></svg>"
     ))
 }
 
