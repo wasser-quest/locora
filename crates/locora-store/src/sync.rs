@@ -122,6 +122,7 @@ pub(crate) fn apply_one(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
         ("palace", "update") => palace_update(conn, op),
         ("palace", "delete") => delete_entity(conn, op, "palaces", &op.entity_id),
         ("room", "create") => room_create(conn, op),
+        ("room", "update") => room_update(conn, op),
         ("locus", "create") => locus_create(conn, op),
         ("locus", "update") => locus_update(conn, op),
         ("locus", "delete") => delete_entity(conn, op, "loci", &op.entity_id),
@@ -220,6 +221,50 @@ fn room_create(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
     )?;
     stamp_all(conn, "room", op)?;
     Ok(Outcome::Applied)
+}
+
+/// Room name and order change field by field, so a rename and a move from two devices both survive.
+fn room_update(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
+    if !exists(conn, "rooms", &op.entity_id)? {
+        return Ok(Outcome::Missing);
+    }
+    let fields = object(op)?;
+    let mut applied = false;
+    for (field, value) in fields {
+        if !wins(conn, "room", &op.entity_id, field, &op.hlc)? {
+            continue;
+        }
+        match field.as_str() {
+            "name" => {
+                let name = as_text(value)?.trim();
+                if name.is_empty() {
+                    return Err(StoreError::Invalid("Der Raum braucht einen Namen".into()));
+                }
+                conn.execute(
+                    "UPDATE rooms SET name = ?1 WHERE id = ?2",
+                    params![name, op.entity_id],
+                )?;
+            }
+            "position" => {
+                let position = value
+                    .as_u64()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .ok_or_else(|| StoreError::Invalid("Feld `position` ist keine Zahl".into()))?;
+                conn.execute(
+                    "UPDATE rooms SET position = ?1 WHERE id = ?2",
+                    params![position, op.entity_id],
+                )?;
+            }
+            _ => continue,
+        }
+        stamp(conn, "room", &op.entity_id, field, &op.hlc)?;
+        applied = true;
+    }
+    Ok(if applied {
+        Outcome::Applied
+    } else {
+        Outcome::Stale
+    })
 }
 
 fn locus_create(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {

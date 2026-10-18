@@ -68,6 +68,17 @@ pub const fn default_zoom() -> f64 {
     1.0
 }
 
+/// The palace a room belongs to; an unknown room is an error.
+fn room_palace(conn: &Connection, room_id: &str) -> Result<String> {
+    conn.query_row(
+        "SELECT palace_id FROM rooms WHERE id = ?1",
+        [room_id],
+        |r| r.get(0),
+    )
+    .optional()?
+    .ok_or_else(|| StoreError::NotFound(format!("Raum {room_id}")))
+}
+
 /// Zoom is finite and from 1 (whole room) to 4.
 pub fn check_zoom(zoom: f64) -> Result<()> {
     if (1.0..=4.0).contains(&zoom) {
@@ -774,10 +785,19 @@ impl Store {
             return Err(StoreError::Invalid("Der Palast braucht einen Namen".into()));
         }
         let conn = self.conn();
-        let changed = conn.execute(
-            "UPDATE palaces SET name = ?1, updated_at = ?2 WHERE id = ?3",
-            params![name, now_secs(), id],
-        )?;
+        let changed = conn
+            .execute(
+                "UPDATE palaces SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                params![name, now_secs(), id],
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::SqliteFailure(f, _)
+                    if f.code == rusqlite::ErrorCode::ConstraintViolation =>
+                {
+                    StoreError::Invalid(format!("Es gibt schon einen Palast namens „{name}“"))
+                }
+                e => e.into(),
+            })?;
         if changed == 0 {
             return Err(StoreError::NotFound(format!("Palast {id}")));
         }
@@ -862,6 +882,84 @@ impl Store {
             Some(serde_json::to_value(&room).expect("serializable")),
         )?;
         Ok(room)
+    }
+
+    /// Rename a room. Room names may repeat across palaces and within one.
+    pub fn rename_room(&self, room_id: &str, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(StoreError::Invalid("Der Raum braucht einen Namen".into()));
+        }
+        let conn = self.conn();
+        let palace_id = room_palace(&conn, room_id)?;
+        conn.execute(
+            "UPDATE rooms SET name = ?1 WHERE id = ?2",
+            params![name, room_id],
+        )?;
+        self.touch(&conn, &palace_id)?;
+        self.log(
+            &conn,
+            "room",
+            room_id,
+            "update",
+            Some(serde_json::json!({ "name": name })),
+        )
+    }
+
+    /// Move a room one place left (`-1`) or right (`+1`) in its palace. Moving past the
+    /// first or last room changes nothing.
+    pub fn move_room(&self, room_id: &str, step: i32) -> Result<()> {
+        if step.abs() != 1 {
+            return Err(StoreError::Invalid(
+                "Räume lassen sich um einen Platz verschieben".into(),
+            ));
+        }
+        let mut conn = self.conn();
+        let palace_id = room_palace(&conn, room_id)?;
+        let position: u32 =
+            conn.query_row("SELECT position FROM rooms WHERE id = ?1", [room_id], |r| {
+                r.get(0)
+            })?;
+        let Some(target) = position.checked_add_signed(step) else {
+            return Ok(());
+        };
+        let neighbour: Option<String> = conn
+            .query_row(
+                "SELECT id FROM rooms WHERE palace_id = ?1 AND position = ?2",
+                params![palace_id, target],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let Some(neighbour) = neighbour else {
+            return Ok(());
+        };
+        // Rooms have no unique position, so the two swaps need no temporary value.
+        let tx = conn.transaction()?;
+        tx.execute(
+            "UPDATE rooms SET position = ?1 WHERE id = ?2",
+            params![target, room_id],
+        )?;
+        tx.execute(
+            "UPDATE rooms SET position = ?1 WHERE id = ?2",
+            params![position, neighbour],
+        )?;
+        self.touch(&tx, &palace_id)?;
+        self.log(
+            &tx,
+            "room",
+            room_id,
+            "update",
+            Some(serde_json::json!({ "position": target })),
+        )?;
+        self.log(
+            &tx,
+            "room",
+            &neighbour,
+            "update",
+            Some(serde_json::json!({ "position": position })),
+        )?;
+        tx.commit()?;
+        Ok(())
     }
 
     // ------------------------------------------------------------ loci

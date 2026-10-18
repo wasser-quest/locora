@@ -94,6 +94,47 @@ async fn palace(state: State<'_, Shared>, id: String) -> Result<PalaceView, Stri
     views::palace(&mut b.profile, &id, &marker).map_err(err)
 }
 
+/// Rename a palace; the reply is the palace as it now reads.
+#[tauri::command]
+async fn palace_rename(
+    state: State<'_, Shared>,
+    palace_id: String,
+    name: String,
+) -> Result<PalaceView, String> {
+    let mut b = lock(&state)?;
+    b.profile.store.rename_palace(&palace_id, &name).map_err(|e| e.to_string())?;
+    let marker = b.default_marker.clone();
+    views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
+}
+
+/// Rename a room of a palace.
+#[tauri::command]
+async fn room_rename(
+    state: State<'_, Shared>,
+    palace_id: String,
+    room_id: String,
+    name: String,
+) -> Result<PalaceView, String> {
+    let mut b = lock(&state)?;
+    b.profile.store.rename_room(&room_id, &name).map_err(|e| e.to_string())?;
+    let marker = b.default_marker.clone();
+    views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
+}
+
+/// Move a room one place left (`-1`) or right (`1`) in its palace.
+#[tauri::command]
+async fn room_move(
+    state: State<'_, Shared>,
+    palace_id: String,
+    room_id: String,
+    step: i32,
+) -> Result<PalaceView, String> {
+    let mut b = lock(&state)?;
+    b.profile.store.move_room(&room_id, step).map_err(|e| e.to_string())?;
+    let marker = b.default_marker.clone();
+    views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
+}
+
 #[tauri::command]
 async fn editor_change(
     state: State<'_, Shared>,
@@ -850,6 +891,9 @@ pub fn run() {
             notifications,
             notification_shown,
             editor_change,
+            palace_rename,
+            room_rename,
+            room_move,
             editor_pick_picture,
             home_pick_media,
             home_import_drop,

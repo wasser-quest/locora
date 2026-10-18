@@ -52,10 +52,6 @@ pub fn on_file_drop(callback: impl Fn(Result<String, String>) + 'static) {
     on_cleanup(move || listener.remove());
 }
 
-pub fn marker_url(media: &Media) -> String {
-    convert_file_src(&format!("markers/{}", media.hash), SCHEME)
-}
-
 /// URL of a stored file (or a `.sply` as interactive SVG).
 pub fn url(media: &Media) -> String {
     convert_file_src(&media.path(), SCHEME)

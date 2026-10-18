@@ -503,6 +503,112 @@ impl Editor {
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RenamePalaceArgs {
+    palace_id: String,
+    name: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RenameRoomArgs {
+    palace_id: String,
+    room_id: String,
+    name: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MoveRoomArgs {
+    palace_id: String,
+    room_id: String,
+    step: i32,
+}
+
+/// Palace and room names and room order apply at once; undo covers loci only. `follow`
+/// keeps the selected tab on a room that moved.
+fn palace_command(
+    editor: Editor,
+    command: &'static str,
+    args: impl Serialize + 'static,
+    follow: Option<String>,
+) {
+    if editor.busy.get_untracked() || editor.dirty.get_untracked() {
+        return;
+    }
+    editor.busy.set(true);
+    spawn_local(async move {
+        match call::<PalaceView>(command, args).await {
+            Ok(palace) => {
+                if let Some(index) = follow
+                    .as_ref()
+                    .and_then(|id| palace.rooms.iter().position(|room| &room.id == id))
+                {
+                    editor.room.set(index);
+                }
+                editor.data.set(palace);
+                editor.message.set(String::new());
+            }
+            Err(error) => editor.message.set(error),
+        }
+        editor.busy.set(false);
+    });
+}
+
+/// Palace name, then the rooms in route order: rename by typing, move with the arrows.
+#[component]
+fn PalaceNames(editor: Editor) -> impl IntoView {
+    view! {
+        {move || {
+            let palace = editor.data.get();
+            let palace_id = palace.id.clone();
+            let name_editor = editor.clone();
+            let name_id = palace_id.clone();
+            let rooms = palace.rooms.clone();
+            let last = rooms.len().saturating_sub(1);
+            let rows = rooms.into_iter().enumerate().map(|(index, room)| {
+                let room_id = room.id.clone();
+                let rename_editor = editor.clone();
+                let rename_palace = palace_id.clone();
+                let rename_room = room_id.clone();
+                let left_editor = editor.clone();
+                let left_palace = palace_id.clone();
+                let left_room = room_id.clone();
+                let right_editor = editor.clone();
+                let right_palace = palace_id.clone();
+                let right_room = room_id.clone();
+                view! {
+                    <li class="room-row">
+                        <button type="button" title="Raum nach links" aria-label="Raum nach links"
+                            disabled=index == 0
+                            on:click=move |_| palace_command(left_editor.clone(), "room_move",
+                                MoveRoomArgs { palace_id: left_palace.clone(), room_id: left_room.clone(), step: -1 },
+                                Some(left_room.clone()))>"←"</button>
+                        <input type="text" aria-label="Raumname" prop:value=room.name.clone()
+                            on:change=move |ev| palace_command(rename_editor.clone(), "room_rename",
+                                RenameRoomArgs { palace_id: rename_palace.clone(), room_id: rename_room.clone(), name: event_target_value(&ev) },
+                                Some(rename_room.clone()))/>
+                        <button type="button" title="Raum nach rechts" aria-label="Raum nach rechts"
+                            disabled=index == last
+                            on:click=move |_| palace_command(right_editor.clone(), "room_move",
+                                MoveRoomArgs { palace_id: right_palace.clone(), room_id: right_room.clone(), step: 1 },
+                                Some(right_room.clone()))>"→"</button>
+                    </li>
+                }
+            }).collect_view();
+            view! {
+                <label>"Palastname"
+                    <input type="text" prop:value=palace.name.clone()
+                        on:change=move |ev| palace_command(name_editor.clone(), "palace_rename",
+                            RenamePalaceArgs { palace_id: name_id.clone(), name: event_target_value(&ev) }, None)/>
+                </label>
+                <ol class="room-order">{rows}</ol>
+            }
+        }}
+    }
+}
+
 #[component]
 pub fn Rooms(
     palace: PalaceView,
@@ -568,11 +674,8 @@ pub fn Rooms(
     });
     let video_time = RwSignal::new(String::from("0"));
     let playhead = RwSignal::new(0.0_f64);
-    let display = crate::locus_display::signal();
-    let leads = crate::locus_display::leads();
     let create_video = StoredValue::new(editor.clone());
     let shortcuts = editor.clone();
-    let layer = editor.clone();
     let toast_editor = editor.clone();
     let marker_data = editor.data;
     let tab_rooms = Memo::new(move |_| {
@@ -583,7 +686,6 @@ pub fn Rooms(
                 .collect::<Vec<_>>()
         })
     });
-    let marker_media = Memo::new(move |_| marker_data.with(|p| p.marker.clone()));
     let drop_message = editor.message;
     let drop_selection = editor.selected;
     crate::tauri::on_file_drop(move |_| {
@@ -628,35 +730,56 @@ pub fn Rooms(
             <label><input id="tour-editor-toggle" type="checkbox" prop:checked=move || editing.get()
                 disabled=move || busy.get() || dirty.get() || dragging.get()
                 on:change=move |ev| { editing.set(event_target_checked(&ev)); adding.set(false); } />"Bearbeiten"</label>
-            <Show when=move || editing.get()>
-                <label><input type="checkbox" bind:checked=adding disabled=move || busy.get() || dirty.get() || dragging.get() />"Ort setzen (Bühne anklicken)"</label>
-                <button disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get()
-                    on:click={let editor = editor.clone(); move |_| {
-                        revealed.set(false);
-                        editor.change(EditorAction::Create { x: 0.5, y: 0.5 });
-                    }}>"Ort in der Mitte hinzufügen"</button>
-                <Show when=move || video_room.get()>
-                    <label>"Zeit in Sekunden "<input type="number" min="0" step="any"
-                        bind:value=video_time disabled=move || busy.get() || dirty.get() || dragging.get() /></label>
-                    <button disabled=move || busy.get() || dirty.get() || dragging.get()
-                        on:click=move |_| {
-                            let editor = create_video.get_value();
-                            match video_time.get_untracked().parse::<f64>() {
-                                Ok(time) if time.is_finite() && time >= 0.0 => {
-                                    revealed.set(false);
-                                    editor.change(EditorAction::CreateVideo { time });
-                                }
-                                _ => editor.message.set("Bitte eine nichtnegative Sekundenzahl eingeben".into()),
-                            }
-                        }>"Zeitgebundenen Ort hinzufügen"</button>
-                </Show>
-                <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.undo.is_empty())}
-                    on:click={let e = editor.clone(); move |_| e.replay(false)}>"Rückgängig"</button>
-                <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.redo.is_empty())}
-                    on:click={let e = editor.clone(); move |_| e.replay(true)}>"Wiederholen"</button>
-                <span>"Marker ziehen (Tastatur: Pfeiltasten) · Änderungen speichern automatisch. Rückgängig (Strg/⌘+Z): Hinzufügen, Löschen, Inhalte/Bilder, Position und Größe; ein Raumwechsel beginnt einen neuen Verlauf."</span>
-            </Show>
         </div>
+        <Show when=move || editing.get()>
+            <div class="editor-groups">
+                <details class="editor-group" open>
+                    <summary>"Orte"</summary>
+                    <div class="editor-group-body">
+                        <label><input type="checkbox" bind:checked=adding disabled=move || busy.get() || dirty.get() || dragging.get() />"Ort setzen (Bühne anklicken)"</label>
+                        <button disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get()
+                            on:click={let editor = editor.clone(); move |_| {
+                                revealed.set(false);
+                                editor.change(EditorAction::Create { x: 0.5, y: 0.5 });
+                            }}>"Ort in der Mitte hinzufügen"</button>
+                        <div class="tabs">
+                            <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.undo.is_empty())}
+                                on:click={let e = editor.clone(); move |_| e.replay(false)}>"Rückgängig"</button>
+                            <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.redo.is_empty())}
+                                on:click={let e = editor.clone(); move |_| e.replay(true)}>"Wiederholen"</button>
+                        </div>
+                    </div>
+                </details>
+                <Show when=move || video_room.get()>
+                    <details class="editor-group" open>
+                        <summary>"Video"</summary>
+                        <div class="editor-group-body">
+                            <label>"Zeit in Sekunden "<input type="number" min="0" step="any"
+                                bind:value=video_time disabled=move || busy.get() || dirty.get() || dragging.get() /></label>
+                            <button disabled=move || busy.get() || dirty.get() || dragging.get()
+                                on:click=move |_| {
+                                    let editor = create_video.get_value();
+                                    match video_time.get_untracked().parse::<f64>() {
+                                        Ok(time) if time.is_finite() && time >= 0.0 => {
+                                            revealed.set(false);
+                                            editor.change(EditorAction::CreateVideo { time });
+                                        }
+                                        _ => editor.message.set("Bitte eine nichtnegative Sekundenzahl eingeben".into()),
+                                    }
+                                }>"Zeitgebundenen Ort hinzufügen"</button>
+                        </div>
+                    </details>
+                </Show>
+                <details class="editor-group">
+                    <summary>"Palast und Räume"</summary>
+                    <div class="editor-group-body"><PalaceNames editor=editor.clone() /></div>
+                </details>
+                <details class="editor-group">
+                    <summary>"Hilfe"</summary>
+                    <p class="notes">"Marker ziehen (Tastatur: Pfeiltasten) · Änderungen speichern automatisch. Rückgängig (Strg/⌘+Z): Hinzufügen, Löschen, Inhalte/Bilder, Position und Größe; ein Raumwechsel beginnt einen neuen Verlauf."</p>
+                </details>
+            </div>
+        </Show>
         <Show when=move || editing.get()>
             <ListPaste editor=paste.clone() />
         </Show>
@@ -687,34 +810,6 @@ pub fn Rooms(
                 return view! { <p class="empty">"Dieser Palast hat noch keine Räume."</p> }.into_any();
             };
             view! { <RoomStage editor=stage room=room editing=editing adding=adding revealed=revealed playhead=playhead /> }.into_any()
-        }}
-        // Outside the rebuilt stage: autosave rebuilds it per keystroke, and
-        // churning a frame per rebuild left new marker frames unloaded.
-        {move || {
-            let layer = layer.clone();
-            let marker = marker_media.get();
-            let loci = Signal::derive(move || {
-                let preview = layer.gesture.get();
-                layer.data.with(|p| {
-                    p.rooms.get(layer.room.get()).map(|room| {
-                        let timed = room.video || room.backdrop.as_ref().is_some_and(|m| m.kind == locora_app_api::MediaKind::Sply);
-                        let prefs = display.get();
-                        let overrides = leads.get();
-                        let at = playhead.get();
-                        let selected = layer.selected.get();
-                        let hide_selected = !editing.get() && revealed.get() && prefs.hide_revealed;
-                        room.loci.iter().filter(|locus| {
-                            (!timed || crate::locus_display::at_video_time(locus.time, at,
-                                overrides.get(&locus.id).copied().unwrap_or(prefs.video_lead)))
-                                && !(hide_selected && selected.as_ref() == Some(&locus.id))
-                        }).map(|locus| {
-                            let (x, y) = preview_position(locus, preview.as_ref());
-                            crate::sply::MarkerLocus { id: locus.id.clone(), x, y, status: locus.status.event() }
-                        }).collect::<Vec<_>>()
-                    }).unwrap_or_default()
-                })
-            });
-            view! { <crate::sply::MarkerLayer media=marker loci=loci /> }
         }}
         </div>
         <p role="status" class="notes">{move || message.get()}</p>
@@ -1438,7 +1533,6 @@ fn ContentForm(
         dirty.set(true);
     }
     let busy = editor.busy;
-    let confirm_delete = RwSignal::new(false);
     let gesture = editor.gesture;
     let dragging = Memo::new(move |_| gesture.with(|g| g.is_some()));
     let save = editor.clone();
@@ -1688,9 +1782,7 @@ fn ContentForm(
             </Show>
             <Show when=move || !storage_error.get().is_empty()><p role="alert">{move || storage_error.get()}</p></Show>
             <Show when=move || locus.bound><p class="notes">{bound_note.clone()}</p></Show>
-            <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get()
-                on:input=move |_| confirm_delete.set(false)
-                on:change=move |_| confirm_delete.set(false)>
+            <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get()>
                 <label>"Ort"<input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
                 <label>"Inhalt"<input type="text" bind:value=item disabled=item_bound /></label>
                 <label>"Merkhilfe"<textarea bind:value=note /></label>
@@ -1719,13 +1811,12 @@ fn ContentForm(
                     last_persisted.set_value(draft.clone());
                     place.set(draft.place); item.set(draft.item); note.set(draft.note); image.set(draft.image); size.set(draft.size); zoom.set(draft.zoom);
                     kind.set(draft.kind); accept.set(draft.accept); quiz.set(draft.quiz);
-                    dirty.set(false); confirm_delete.set(false); cancel.message.set(String::new());
+                    dirty.set(false); cancel.message.set(String::new());
                 }>"Änderungen verwerfen"</button>
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { "Bild verbergen" } else { "Bild aufdecken" }}</button>
-                <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=move |_| {
-                    if confirm_delete.get() { delete.change(EditorAction::Delete { id: id.get_value() }); }
-                    else { confirm_delete.set(true); }
-                }>{move || if confirm_delete.get() { "Endgültig löschen?" } else { "Ort löschen" }}</button>
+                // One click: „Rückgängig“ brings the locus back, so no second confirmation.
+                <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get()
+                    on:click=move |_| delete.change(EditorAction::Delete { id: id.get_value() })>"Ort löschen"</button>
             </div>
             <Show when=move || dirty.get()><p>"Noch nicht gespeichert – ungültige Eingaben korrigieren oder verwerfen, bevor du den Ort wechselst."</p></Show>
         </form>

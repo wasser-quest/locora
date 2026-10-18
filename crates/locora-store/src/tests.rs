@@ -663,3 +663,43 @@ fn zoom_defaults_persists_and_rejects_invalid_changes() {
         2.5
     );
 }
+
+#[test]
+fn rooms_and_palaces_can_be_renamed_and_rooms_reordered() {
+    let store = Store::in_memory().unwrap();
+    let palace = store.create_palace("Burg").unwrap();
+    let first = store
+        .add_room(&palace.id, "Eingang", RoomKind::Blank, None)
+        .unwrap();
+    let second = store
+        .add_room(&palace.id, "Hof", RoomKind::Blank, None)
+        .unwrap();
+    let names = |store: &Store| -> Vec<String> {
+        store
+            .palace(&palace.id)
+            .unwrap()
+            .rooms
+            .iter()
+            .map(|r| r.room.name.clone())
+            .collect()
+    };
+
+    store.move_room(&second.id, -1).unwrap();
+    assert_eq!(names(&store), ["Hof", "Eingang"]);
+    // Past the first room nothing moves; a jump of more than one place is refused.
+    store.move_room(&second.id, -1).unwrap();
+    assert_eq!(names(&store), ["Hof", "Eingang"]);
+    assert!(store.move_room(&second.id, 2).is_err());
+
+    store.rename_room(&first.id, "  Halle  ").unwrap();
+    assert_eq!(names(&store), ["Hof", "Halle"]);
+    assert!(store.rename_room(&first.id, "  ").is_err());
+    assert!(store.rename_room("unbekannt", "x").is_err());
+
+    // Palace names stay unique, case-insensitively, and a clash says so.
+    store.create_palace("Schloss").unwrap();
+    let clash = store.rename_palace(&palace.id, "schloss").unwrap_err();
+    assert!(clash.to_string().contains("schon einen Palast"));
+    store.rename_palace(&palace.id, "Festung").unwrap();
+    assert_eq!(store.palace(&palace.id).unwrap().palace.name, "Festung");
+}
