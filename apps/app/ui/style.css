@@ -61,6 +61,11 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .palace .meta { color: var(--muted); font-size: .9rem; }
 .palace .row { display: flex; align-items: center; gap: .5rem; }
 .palace .row .meta { flex: 1; }
+.palace-cover { position: relative; height: 120px; overflow: hidden; border-radius: 10px; background: var(--surface, #1b1b2b); }
+.palace-cover-media { width: 100%; height: 100%; object-fit: cover; }
+.palace-video-preview { display: grid; place-items: center; width: 100%; height: 100%; }
+.palace-cover-open { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border: 0; background: transparent; cursor: pointer; }
+.palace-cover-change { position: absolute; z-index: 2; right: .4rem; bottom: .4rem; max-width: calc(100% - .8rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .play { border-radius: 50%; width: 2.4rem; height: 2.4rem; padding: 0; }
 .notes { color: var(--again); font-size: .9rem; }
 .empty { text-align: center; color: var(--muted); padding: 2rem 1rem; }

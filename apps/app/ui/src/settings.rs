@@ -8,9 +8,9 @@ use locora_app_api::{
 };
 use serde::Serialize;
 
-use crate::tauri::{NoArgs, call};
-use crate::{Screen, load};
 use crate::locus_display;
+use crate::tauri::{NoArgs, call};
+use crate::{Screen, load, start_screen, startup};
 
 #[derive(Serialize)]
 struct ChangeArgs {
@@ -33,18 +33,35 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
     let message = RwSignal::new(None::<Result<String, String>>);
     view! {
         <header class="bar">
-            <button class="back" title="Zurück" on:click=move |_| screen.set(Screen::Home)>
+            <button class="back" title="Zurück" on:click=move |_| screen.set(start_screen())>
                 "←"
             </button>
             <h1>"Einstellungen & Statistik"</h1>
         </header>
         <LocusDisplay />
+        <StartView />
         {move || match data.get() {
             None => view! { <crate::Loading /> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
             Some(Ok(v)) => view! { <Form view=v data=data message=message /> }.into_any(),
         }}
         <CloudSync />
+    }
+}
+
+#[component]
+fn StartView() -> impl IntoView {
+    let in_core = RwSignal::new(startup::in_core());
+    view! {
+        <section class="card panel" aria-label="Startansicht">
+            <h2>"Startansicht"</h2>
+            <label><input type="checkbox" prop:checked=move || in_core.get()
+                on:change=move |event| {
+                    let value = event_target_checked(&event);
+                    startup::set_in_core(value);
+                    in_core.set(value);
+                } />"Direkt in Core starten"</label>
+        </section>
     }
 }
 

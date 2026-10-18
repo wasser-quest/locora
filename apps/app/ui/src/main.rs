@@ -6,15 +6,16 @@ mod locus_display;
 mod palette;
 mod settings;
 mod sply;
+mod startup;
 mod tauri;
 mod video_frames;
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_FORMULA_GUIDE, CMD_GAMIFICATION_STATUS, CMD_HOME, CMD_PALACE, CMD_TUTORIAL, CMD_UI_ASSETS,
-    GamificationStatus, Home, JourneyStart, Media, NotificationView,
-    PalaceCard, PalaceView, UiAssets, HighlightRequest, TourAction, CMD_TOUR,
+    CMD_FORMULA_GUIDE, CMD_GAMIFICATION_STATUS, CMD_HOME, CMD_PALACE, CMD_TOUR, CMD_TUTORIAL,
+    CMD_UI_ASSETS, GamificationStatus, HighlightRequest, Home, JourneyStart, Media,
+    NotificationView, PalaceCard, PalaceView, TourAction, UiAssets,
 };
 use serde::Serialize;
 
@@ -24,10 +25,19 @@ use crate::tauri::call;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Screen {
     Home,
+    Core,
     Palace(String),
     Imported(PalaceView),
     Journey(JourneyStart),
     Settings,
+}
+
+pub fn start_screen() -> Screen {
+    if startup::in_core() {
+        Screen::Core
+    } else {
+        Screen::Home
+    }
 }
 
 fn main() {
@@ -49,7 +59,9 @@ fn tour_action(
     target_ready: RwSignal<bool>,
     action: TourAction,
 ) {
-    if busy.get_untracked() { return; }
+    if busy.get_untracked() {
+        return;
+    }
     if action == TourAction::Next {
         let exists = active.get_untracked().is_some_and(|step| {
             web_sys::window()
@@ -83,11 +95,18 @@ fn tour_action(
 
 /// Route only the official, known tour targets. An existing tutorial palace is
 /// reused so moving between steps never replaces edits or review progress.
-async fn route_tour_step(step: Option<HighlightRequest>, screen: RwSignal<Screen>) -> Result<(), String> {
-    let Some(step) = step else { return Ok(()); };
+async fn route_tour_step(
+    step: Option<HighlightRequest>,
+    screen: RwSignal<Screen>,
+) -> Result<(), String> {
+    let Some(step) = step else {
+        return Ok(());
+    };
     match step.target.as_str() {
         "tour-home-media" | "tour-home-import" | "tour-home-settings" => {
-            if !matches!(screen.get_untracked(), Screen::Home) { screen.set(Screen::Home); }
+            if !matches!(screen.get_untracked(), Screen::Home) {
+                screen.set(Screen::Home);
+            }
         }
         "tour-palace-route" | "tour-editor-toggle" | "tour-journey-prompt" => {
             let home = call::<Home>(CMD_HOME, tauri::NoArgs {}).await?;
@@ -97,11 +116,16 @@ async fn route_tour_step(step: Option<HighlightRequest>, screen: RwSignal<Screen
                 call::<String>(CMD_TUTORIAL, tauri::NoArgs {}).await?
             };
             if step.target == "tour-journey-prompt" {
-                if !matches!(screen.get_untracked(), Screen::Journey(ref start) if start.palace_id.as_ref() == Some(&id)) {
-                    screen.set(Screen::Journey(JourneyStart { palace_id: Some(id), ..Default::default() }));
+                if !matches!(screen.get_untracked(), Screen::Journey(ref start) if start.palace_id.as_ref() == Some(&id))
+                {
+                    screen.set(Screen::Journey(JourneyStart {
+                        palace_id: Some(id),
+                        ..Default::default()
+                    }));
                 }
             } else {
-                if !matches!(screen.get_untracked(), Screen::Palace(ref current) if current == &id) {
+                if !matches!(screen.get_untracked(), Screen::Palace(ref current) if current == &id)
+                {
                     screen.set(Screen::Palace(id));
                 }
             }
@@ -124,8 +148,17 @@ fn TourOverlay(
     let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
     let highlight = move || {
         let current = active.get_untracked();
-        let Some(document) = web_sys::window().and_then(|window| window.document()) else { return; };
-        for id in ["tour-home-media", "tour-home-import", "tour-home-settings", "tour-palace-route", "tour-editor-toggle", "tour-journey-prompt"] {
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+            return;
+        };
+        for id in [
+            "tour-home-media",
+            "tour-home-import",
+            "tour-home-settings",
+            "tour-palace-route",
+            "tour-editor-toggle",
+            "tour-journey-prompt",
+        ] {
             if let Some(node) = document.get_element_by_id(id) {
                 let _ = node.remove_attribute("data-tour-active");
             }
@@ -146,7 +179,9 @@ fn TourOverlay(
                 let key = (step.step, step.target);
                 if focused.get_value().as_ref() != Some(&key) {
                     node.scroll_into_view_with_bool(false);
-                    if let Some(element) = wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(&node) {
+                    if let Some(element) =
+                        wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(&node)
+                    {
                         let _ = element.focus();
                     }
                     focused.set_value(Some(key));
@@ -167,7 +202,11 @@ fn TourOverlay(
     };
     highlight();
     let timer = set_interval_with_handle(highlight, std::time::Duration::from_millis(150)).ok();
-    on_cleanup(move || { if let Some(timer) = timer { timer.clear(); } });
+    on_cleanup(move || {
+        if let Some(timer) = timer {
+            timer.clear();
+        }
+    });
     view! {
         <Show when=move || active.get().is_some()>
                 <aside class="tour-panel card" role="region" aria-label="App-Tour" aria-live="polite">
@@ -201,12 +240,19 @@ fn TourOverlay(
 
 #[component]
 fn App() -> impl IntoView {
-    let screen = RwSignal::new(Screen::Home);
+    let screen = RwSignal::new(start_screen());
     let tour = RwSignal::new(None::<HighlightRequest>);
     let tour_error = RwSignal::new(String::new());
     let tour_route_ready = RwSignal::new(false);
     spawn_local(async move {
-        match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Resume }).await {
+        match call::<Option<HighlightRequest>>(
+            CMD_TOUR,
+            TourArgs {
+                action: TourAction::Resume,
+            },
+        )
+        .await
+        {
             Ok(step) => {
                 tour.set(step.clone());
                 match route_tour_step(step, screen).await {
@@ -219,8 +265,12 @@ fn App() -> impl IntoView {
     });
     let editing = palette::Editing(RwSignal::new(false));
     provide_context(editing);
-    provide_context(locus_display::DisplaySettings(RwSignal::new(locus_display::load())));
-    provide_context(locus_display::LeadOverrides(RwSignal::new(locus_display::load_leads())));
+    provide_context(locus_display::DisplaySettings(RwSignal::new(
+        locus_display::load(),
+    )));
+    provide_context(locus_display::LeadOverrides(RwSignal::new(
+        locus_display::load_leads(),
+    )));
     // The app's own animations (assets/ui), loaded once for every screen.
     let art = Art(RwSignal::new(None));
     provide_context(art);
@@ -278,7 +328,11 @@ fn App() -> impl IntoView {
             {move || match screen.get() {
                 Screen::Home => view! {
                     <HomeView screen=screen offset_revision=offset_revision tour=tour
-                        tour_error=tour_error tour_route_ready=tour_route_ready/>
+                        tour_error=tour_error tour_route_ready=tour_route_ready core_only=false/>
+                }.into_any(),
+                Screen::Core => view! {
+                    <HomeView screen=screen offset_revision=offset_revision tour=tour
+                        tour_error=tour_error tour_route_ready=tour_route_ready core_only=true/>
                 }.into_any(),
 
                 Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
@@ -370,10 +424,7 @@ fn loci_text(n: u32) -> String {
 }
 
 /// A tap on a notification runs its action, e.g. `review.start@Planeten`.
-fn notification_action(
-    notification: &NotificationView,
-    screen: RwSignal<Screen>,
-) {
+fn notification_action(notification: &NotificationView, screen: RwSignal<Screen>) {
     if let Some(palace) = notification.action.strip_prefix("review.start@") {
         screen.set(Screen::Journey(JourneyStart {
             palace_id: Some(palace.to_owned()),
@@ -398,11 +449,9 @@ fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
         }
         busy.set_value(true);
         spawn_local(async move {
-            if let Ok(due) = call::<Vec<NotificationView>>(
-                locora_app_api::CMD_NOTIFICATIONS,
-                tauri::NoArgs {},
-            )
-            .await
+            if let Ok(due) =
+                call::<Vec<NotificationView>>(locora_app_api::CMD_NOTIFICATIONS, tauri::NoArgs {})
+                    .await
             {
                 shown.set(due);
             }
@@ -476,6 +525,7 @@ fn HomeView(
     tour: RwSignal<Option<HighlightRequest>>,
     tour_error: RwSignal<String>,
     tour_route_ready: RwSignal<bool>,
+    core_only: bool,
 ) -> impl IntoView {
     let home = RwSignal::new(None::<Result<Home, String>>);
     Effect::new(move |_| {
@@ -573,21 +623,35 @@ fn HomeView(
         });
     };
     let start_formula_guide = move |_| {
-        if busy.get_untracked() { return; }
+        if busy.get_untracked() {
+            return;
+        }
         busy.set(true);
         spawn_local(async move {
             match call::<String>(CMD_FORMULA_GUIDE, tauri::NoArgs {}).await {
                 Ok(id) => screen.set(Screen::Palace(id)),
-                Err(error) => { busy.set(false); message.set(error); }
+                Err(error) => {
+                    busy.set(false);
+                    message.set(error);
+                }
             }
         });
     };
     let start_tour = move |_| {
-        if busy.get_untracked() { return; }
+        if busy.get_untracked() {
+            return;
+        }
         busy.set(true);
         tour_route_ready.set(false);
         spawn_local(async move {
-            match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action: TourAction::Start }).await {
+            match call::<Option<HighlightRequest>>(
+                CMD_TOUR,
+                TourArgs {
+                    action: TourAction::Start,
+                },
+            )
+            .await
+            {
                 Ok(step) => {
                     tour.set(step.clone());
                     match route_tour_step(step, screen).await {
@@ -608,7 +672,10 @@ fn HomeView(
     };
     view! {
         <header class="bar">
-            <h1>"Locora"</h1>
+            <h1>{if core_only { "Core" } else { "Locora" }}</h1>
+            <button on:click=move |_| screen.set(if core_only { Screen::Home } else { Screen::Core })>
+                {if core_only { "Startseite" } else { "Core" }}
+            </button>
             <button id="tour-home-media" disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
             <button id="tour-home-import" disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei oder locora.toml">
                 "Importieren…"
@@ -627,7 +694,7 @@ fn HomeView(
                 let waiting = home.due + home.fresh;
                 let tutorial = home.tutorial;
                 let formula_guide = home.formula_guide;
-                if let Some(simo) = home.welcome.clone() {
+                if let Some(simo) = home.welcome.clone().filter(|_| !core_only) {
                     return view! {
                         <section class="card welcome">
                             <div class="simo">
@@ -670,6 +737,7 @@ fn HomeView(
                         .into_any();
                 }
                 view! {
+                    {(!core_only).then(|| view! { <>
                     <section class="card weiter">
                         <div class="text">
                             <div class="count">
@@ -743,6 +811,7 @@ fn HomeView(
                             }
                         })}
                     <Tiles tiles=home.tiles.clone() />
+                    </> })}
                     {if home.palaces.is_empty() {
                         view! {
                             <p class="empty">
@@ -781,10 +850,9 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
     let streak = RwSignal::new(None::<u32>);
     if tiles.iter().any(|tile| tile.plugin == "gamification") {
         spawn_local(async move {
-            if let Ok(Some(status)) = call::<Option<GamificationStatus>>(
-                CMD_GAMIFICATION_STATUS,
-                tauri::NoArgs {},
-            ).await {
+            if let Ok(Some(status)) =
+                call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, tauri::NoArgs {}).await
+            {
                 streak.set(Some(status.streak));
             }
         });
@@ -822,6 +890,7 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
 #[component]
 fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>) -> impl IntoView {
     let id = palace.id.clone();
+    let cover_open_id = palace.id.clone();
     let play_id = palace.id.clone();
     let status = match (palace.due, palace.fresh) {
         (0, 0) => "alles gewusst".to_owned(),
@@ -829,9 +898,52 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
         (0, fresh) => format!("{fresh} neu"),
         (due, fresh) => format!("{due} fällig · {fresh} neu"),
     };
+    let previews = palace.previews.clone();
+    let selected = RwSignal::new(startup::covers().get(&palace.id).cloned());
+    let palace_for_cover = palace.id.clone();
+    let selected_preview = Memo::new(move |_| {
+        let choice = selected.get();
+        previews
+            .iter()
+            .find(|preview| choice.as_deref() == Some(&preview.id))
+            .or_else(|| previews.first())
+            .cloned()
+    });
+    let previews_for_button = palace.previews.clone();
+    let can_change_cover = previews_for_button.len() > 1;
     view! {
         <article class="card palace" aria-disabled=move || busy.get()
             on:click=move |_| { if !busy.get_untracked() { screen.set(Screen::Palace(id.clone())); } }>
+            {move || selected_preview.get().map(|preview| {
+                let choices = previews_for_button.clone();
+                let palace_id = palace_for_cover.clone();
+                view! {
+                <div class="palace-cover">
+                    {if preview.media.kind == locora_app_api::MediaKind::Video {
+                        view! { <div class="palace-video-preview"><RoomIcon backdrop=Some(preview.media) /></div> }.into_any()
+                    } else {
+                        view! { <Shown media=preview.media class="palace-cover-media" /> }.into_any()
+                    }}
+                    <button type="button" class="palace-cover-open" title="Palast öffnen"
+                        disabled=move || busy.get() on:click={
+                            let open_id = cover_open_id.clone();
+                            move |ev| { ev.stop_propagation(); screen.set(Screen::Palace(open_id.clone())); }
+                        }></button>
+                    <button type="button" class="palace-cover-change" title="Raumvorschaubild wechseln"
+                        disabled=!can_change_cover on:click=move |ev| {
+                            ev.stop_propagation();
+                            let Some(current) = selected_preview.get_untracked() else { return; };
+                            let index = choices.iter().position(|item| item.id == current.id).unwrap_or(0);
+                            if let Some(next) = choices.get((index + 1) % choices.len()) {
+                                startup::set_cover(&palace_id, &next.id);
+                                selected.set(Some(next.id.clone()));
+                            }
+                        }>
+                        {format!("{} ↻", preview.name)}
+                    </button>
+                </div>
+                }
+            })}
             <button class="name palace-title" disabled=move || busy.get()>{palace.name.clone()}</button>
             <div class="row">
                 <span class="meta">{format!("{} · {}", loci_text(palace.loci), status)}</span>
@@ -866,7 +978,7 @@ fn ImportedPalace(palace: PalaceView, screen: RwSignal<Screen>) -> impl IntoView
     view! {
         <header class="bar">
             <button class="back" disabled=move || blocked.get()
-                on:click=move |_| screen.set(Screen::Home)>"←"</button>
+                on:click=move |_| screen.set(start_screen())>"←"</button>
             <h1>{palace.name.clone()}</h1>
         </header>
         <editor::Rooms palace=palace blocked=blocked initial_editing=true />
@@ -920,7 +1032,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     };
     view! {
         <header class="bar">
-            <button class="back" title="Zurück" disabled=move || blocked.get() on:click=move |_| screen.set(Screen::Home)>
+            <button class="back" title="Zurück" disabled=move || blocked.get() on:click=move |_| screen.set(start_screen())>
                 "←"
             </button>
             <h1>

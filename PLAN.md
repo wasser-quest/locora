@@ -850,3 +850,12 @@ Die Vorlagen `befehl`, `locus-typ` und `importer` sind als aufrufbare Dienste an
 die automatische Journey-Einbindung eines Locus-Typs und `plugin dev --device` benötigen noch
 zusätzliche Host- und App-Schnittstellen. Zeitgebundene `.sply`-Räume nutzen die Splinely-Runtime
 in Editor und Journey; steuerbare GIF-Räume bleiben offen.
+Die App kann auf diesem Gerät direkt in die Core-Palastübersicht starten. Das Vorschaubild
+einer Palastkarte lässt sich unter den Räumen mit Bild oder `.sply` wechseln; Video-Räume
+zeigen ein Raum-Icon, damit die Übersicht nicht jedes Video vollständig lädt. Locora Cloud
+begrenzt neue Medienuploads pro Konto mit einem atomaren Stundenzähler; Kontenexport und
+-löschung benötigen weiterhin einen Ablauf für S3-Medien und Billing-Ereignisse.
+Core-Start und Raumvorschau wurden im nativen WebKitGTK über App-Neustarts geprüft; ein
+explizites `LOCORA_DATA`-Profil kapselt dafür auch den WebKit-Speicher.
+Angemeldete Nutzer können ihr Cloud-Passwort per API und `locora cloud password` ändern; der Server widerruft danach
+alle Sitzungen. Ein Reset ohne bestehende Anmeldung benötigt noch einen Mail- und Token-Ablauf.

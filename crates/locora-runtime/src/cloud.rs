@@ -166,6 +166,24 @@ pub fn login(server: &str, email: &str, password: &str) -> Result<CloudState> {
     finish_login(server, session)
 }
 
+/// Changes the signed-in account password. The server invalidates this and all
+/// other sessions; callers must remove the local session after success.
+pub fn change_password(state: &CloudState, current: &str, new: &str) -> Result<()> {
+    let body = locora_cloud_api::api::PasswordChange {
+        current_password: current.to_owned(),
+        new_password: new.to_owned(),
+    };
+    let response = send(
+        &state.server,
+        ureq::http::Method::PUT,
+        "/v1/me/password",
+        Some(&state.token),
+        Some(&body),
+    )?;
+    read::<serde_json::Value>(response)?;
+    Ok(())
+}
+
 fn finish_login(server: String, session: Session) -> Result<CloudState> {
     let mut state = CloudState {
         server,
@@ -552,6 +570,25 @@ mod tests {
         let error = get::<serde_json::Value>(&state.server, "/original", &state.token).unwrap_err();
         assert!(error.to_string().contains("302"), "{error:#}");
         assert!(worker.join().unwrap().starts_with("GET /original "));
+    }
+
+    #[test]
+    fn rejected_password_change_is_an_error() {
+        let body = r#"{"error":"Falsches Passwort"}"#;
+        let response = format!(
+            "HTTP/1.1 401 Unauthorized\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let (state, worker) = fixture(response);
+        let error = change_password(&state, "wrong", "new password 12345").unwrap_err();
+        assert!(error.to_string().contains("Falsches Passwort"), "{error:#}");
+        assert!(worker.join().unwrap().starts_with("PUT /v1/me/password "));
+
+        let (state, worker) = fixture(
+            "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+        );
+        change_password(&state, "old", "new password 12345").unwrap();
+        assert!(worker.join().unwrap().starts_with("PUT /v1/me/password "));
     }
 
     #[test]

@@ -64,7 +64,8 @@ Stand: 18.10.2026
 - [x] Mobile-CI `.github/workflows/mobile.yml`: Android-Debug-APK bei Push/PR, iOS-Simulator-App nur per Hand (macOS-Kontingent); TOML-Ordnerexport auf Mobil mit klarer Fehlermeldung
 - [ ] Mobile-Workflow einmal remote laufen lassen (noch nie ausgeführt); Wasmtime-JIT auf iOS-Geräten klären
 - [x] Mobile Befehlspalette per Abwärtswisch vom oberen Rand und sichtbarem „Befehle“-Knopf öffnen; WASM-Check und Gestenlogik-Test bestanden, reales Touchgerät noch zu prüfen
-- [ ] Einstellung „Direkt in Core starten“ (PLAN 6.1): Palastübersicht mit wechselbarem Vorschaubild aus einem Raum; Umsetzung läuft
+- [x] Einstellung „Direkt in Core starten“ (PLAN 6.1): Gerätepräferenz, direkte Palastübersicht und wechselbares Raumvorschaubild auf Karten (Video mit Raum-Icon statt geladenem Film)
+- [x] Core-Startpräferenz und Bildwechsel nach App-Neustart im nativen WebView geprüft (`native_smoke.py --only-core`); `LOCORA_DATA` isoliert jetzt auch den WebKit-Speicher
 - [x] Restliche Klick-Budgets (PLAN 6.3) als E2E-Tests: alle sechs Budgets laufen im nativen Smoke-Test
 - [x] Systemvoraussetzungen für Linux-Builds dokumentiert (`apps/app/README.md`)
 
@@ -135,6 +136,9 @@ Stand: 18.10.2026
 ## Entscheidungen, die noch anstehen
 
 - [ ] Betrieb von Locora Cloud: Hosting, TLS-Proxy, Sicherung der Datenbank, Konto löschen und exportieren (DSGVO), Passwort zurücksetzen; siehe `locora-cloud/README.md`
+- [x] Angemeldete Cloud-Passwortänderung (`PUT /v1/me/password`, `locora cloud password`) mit altem Passwort, 10 Versuchen je Stunde und Widerruf aller Sitzungen; vergessene Passwörter brauchen weiterhin einen E-Mail-Reset
+- [x] Cloud-Medienuploads pro Konto auf 200 neue Versuche je Stunde begrenzen; fertige Uploads lassen sich ohne weiteres Kontingent wiederholen (atomarer PostgreSQL-Zähler)
+- [ ] Cloud-Integrationstest für das Upload-Limit gegen PostgreSQL ausführen (Test kompiliert; hier ist derzeit keine Testdatenbank erreichbar)
 - [ ] Schlüsselverwaltung: Entitlement-Schlüssel und Webhook-Geheimnis liegen lokal in `~/.config/locora-cloud` (nicht im Repo); vor dem Betrieb in einen Secret-Store verlegen und Rotation planen
 - [x] Splinely-Release 0.5.2 lokal installiert; alle Locora-Grafiken bestehen `check` ohne Hinweise
 - [x] Repo privat; PRs und CI-Status über `gh` mit Token. Actions-Kontingent: CI nur noch auf Linux, macOS/Windows per Hand (`workflow_dispatch`)

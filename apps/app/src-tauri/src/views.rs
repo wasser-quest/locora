@@ -87,6 +87,18 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
                 .iter()
                 .find_map(|r| r.room.media.as_deref())
                 .and_then(|hash| media(&profile.store, hash)),
+            previews: tree
+                .rooms
+                .iter()
+                .filter_map(|room| {
+                    let hash = room.room.media.as_deref()?;
+                    Some(locora_app_api::RoomPreview {
+                        id: room.room.id.clone(),
+                        name: room.room.name.clone(),
+                        media: media(&profile.store, hash)?,
+                    })
+                })
+                .collect(),
         });
     }
     home.fresh = fresh_total.min(budget) as u32;

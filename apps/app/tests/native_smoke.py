@@ -41,16 +41,24 @@ def walk(node, depth=0):
 
 
 class Scenario:
-    def __init__(self, binary, artifacts, sply_video=None, only_sply=False, only_tour=False):
+    def __init__(self, binary, artifacts, sply_video=None, only_sply=False, only_tour=False, only_core=False):
+        self.binary = binary
         self.artifacts = artifacts
         self.sply_video = sply_video
         self.only_sply = only_sply
         self.only_tour = only_tour
+        self.only_core = only_core
         self.profile = artifacts / "profile"
         self.profile.mkdir()
+        self.environment = {**os.environ, "LOCORA_DATA": str(self.profile)}
+        for name, directory in (("XDG_DATA_HOME", "xdg-data"), ("XDG_CONFIG_HOME", "xdg-config"),
+                                ("XDG_CACHE_HOME", "xdg-cache")):
+            path = self.profile / directory
+            path.mkdir(exist_ok=True)
+            self.environment[name] = str(path)
         self.log = open(artifacts / "app.log", "w")
         started = time.monotonic()
-        self.process = subprocess.Popen([str(binary)], env={**os.environ, "LOCORA_DATA": str(self.profile)}, stdout=self.log, stderr=self.log)
+        self.process = subprocess.Popen([str(binary)], env=self.environment, stdout=self.log, stderr=self.log)
         self.steps = []
         self.clicks = 0
         self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
@@ -215,6 +223,39 @@ class Scenario:
         self.until(lambda: not self.find("App-Tour", "region"))
         self.record("tour-all-steps-forward-back")
 
+    def check_core_start(self):
+        self.click("⚙")
+        self.until(lambda: self.find("Einstellungen & Statistik", "heading"))
+        option = self.until(lambda: self.find("Direkt in Core starten", "check box"))
+        assert not option.get_state_set().contains(Atspi.StateType.CHECKED)
+        self.click("Direkt in Core starten", "check box")
+        self.until(lambda: self.find("Direkt in Core starten", "check box").get_state_set().contains(Atspi.StateType.CHECKED))
+        self.click("←")
+        self.until(lambda: self.find("Core", "heading"))
+        self.click("Startseite")
+        self.until(lambda: self.find("Tutorial starten", "button"))
+        self.click("Core")
+        self.until(lambda: self.find("Core", "heading"))
+        self.process.terminate()
+        self.process.wait(timeout=8)
+        self.process = subprocess.Popen([str(self.binary)], env=self.environment, stdout=self.log, stderr=self.log)
+        self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
+        self.until(lambda: self.find("Core", "heading"))
+        self.record("core-start-persists-after-restart")
+        self.click("Startseite")
+        self.click("Tutorial starten")
+        self.until(lambda: self.find("▶ Route ablaufen", "button"))
+        self.click("←")
+        self.until(lambda: self.find("Eingangshalle ↻", "button"))
+        self.click("Eingangshalle ↻")
+        self.until(lambda: self.find("Bibliothek ↻", "button"))
+        self.process.terminate()
+        self.process.wait(timeout=8)
+        self.process = subprocess.Popen([str(self.binary)], env=self.environment, stdout=self.log, stderr=self.log)
+        self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
+        self.until(lambda: self.find("Bibliothek ↻", "button"))
+        self.record("palace-room-preview-persists-after-restart")
+
     def run(self):
         self.record("startup-to-interactive", ms=self.startup_ms, budget_ms=self.startup_budget, enforced=self.startup_budget is not None)
         if self.startup_budget is not None:
@@ -224,6 +265,9 @@ class Scenario:
             return
         if self.only_tour:
             self.check_tour_all()
+            return
+        if self.only_core:
+            self.check_core_start()
             return
         self.click("App-Tour")
         self.until(lambda: self.find("Ein Bild wird zum Palast", "heading"))
@@ -504,6 +548,7 @@ def main():
     parser.add_argument("--sply-video", type=Path, help="Optional animated .sply fixture for stage-click placement")
     parser.add_argument("--only-sply", action="store_true", help="Run only the optional animated .sply checks")
     parser.add_argument("--only-tour", action="store_true", help="Run only the complete app tour forward and back")
+    parser.add_argument("--only-core", action="store_true", help="Verify Core start preference across a native restart")
     # PLAN target is 300 ms for a release build on real hardware; CI runs a
     # debug build under Xvfb, so the budget is opt-in.
     parser.add_argument("--startup-budget-ms", type=int)
@@ -514,7 +559,7 @@ def main():
     try:
         scenario = Scenario.__new__(Scenario)
         scenario.startup_budget = args.startup_budget_ms
-        scenario.__init__(args.binary.resolve(), artifacts, args.sply_video.resolve() if args.sply_video else None, args.only_sply, args.only_tour)
+        scenario.__init__(args.binary.resolve(), artifacts, args.sply_video.resolve() if args.sply_video else None, args.only_sply, args.only_tour, args.only_core)
         scenario.run()
     except Exception as error:
         if scenario and hasattr(scenario, "steps"):

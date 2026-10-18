@@ -230,6 +230,16 @@ pub struct PalaceCard {
     pub fresh: u32,
     /// The first room's backdrop, as a thumbnail.
     pub cover: Option<Media>,
+    /// Rooms with a backdrop that can be selected as the card thumbnail.
+    #[serde(default)]
+    pub previews: Vec<RoomPreview>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoomPreview {
+    pub id: String,
+    pub name: String,
+    pub media: Media,
 }
 
 /// A stored file the UI can show.

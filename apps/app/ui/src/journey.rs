@@ -281,7 +281,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 
     view! {
         <header class="bar">
-            <button class="back" title="Beenden" on:click=move |_| screen.set(Screen::Home)>
+            <button class="back" title="Beenden" on:click=move |_| screen.set(crate::start_screen())>
                 "←"
             </button>
             <h1>
@@ -512,7 +512,12 @@ fn SplyAtLocus(media: locora_app_api::Media, time: Option<f64>) -> impl IntoView
     let target = time.unwrap_or(0.0);
     let key = media.hash.clone();
     let start = video_segment_start(progress.get_value().as_ref(), &key, target);
-    let command = RwSignal::new(TimedCommand { serial: 0, time: target, start: Some(start), play: true });
+    let command = RwSignal::new(TimedCommand {
+        serial: 0,
+        time: target,
+        start: Some(start),
+        play: true,
+    });
     view! {
         <Sply media=media class="backdrop" timed=command
             on_timed_position=Box::new(move |time| position.set(time))
@@ -549,7 +554,9 @@ fn VideoAtLocus(
     let key = StoredValue::new(media.hash.clone());
     let frame_watch = crate::video_frames::new_id();
     let stop_at_locus = move || {
-        if let Some(player) = player.get_untracked() { position.set(player.current_time()); }
+        if let Some(player) = player.get_untracked() {
+            position.set(player.current_time());
+        }
         if let (Some(player), Some(target)) = (player.get_untracked(), time)
             && player.ready_state() >= 1
             && target.is_finite()
@@ -902,7 +909,7 @@ fn Done(
                 .into_iter()
                 .map(|n| view! { <p class="notes">{n}</p> })
                 .collect_view()}
-            <button class="primary" on:click=move |_| screen.set(Screen::Home)>
+            <button class="primary" on:click=move |_| screen.set(crate::start_screen())>
                 "Zur Übersicht"
             </button>
         </section>

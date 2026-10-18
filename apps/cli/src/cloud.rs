@@ -26,6 +26,8 @@ pub enum CloudCommand {
         #[arg(long)]
         server: Option<String>,
     },
+    /// Passwort des angemeldeten Kontos ändern; alle Geräte werden abgemeldet
+    Password,
     /// Konto, Abo und Freischaltung ohne Netz anzeigen
     Status,
     /// Cloud-Aufbewahrungsfrist beim Server abfragen (verlängert sie nicht)
@@ -106,6 +108,21 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             cloud::save(&data, &state)?;
             println!("✓ Angemeldet als {}.", state.account.email);
             print_status(&state);
+            Ok(())
+        }
+        CloudCommand::Password => {
+            let state = signed_in(&data)?;
+            let current = read_password("Bisheriges Cloud-Passwort: ")?;
+            let new = read_password("Neues Cloud-Passwort (mind. 10 Zeichen): ")?;
+            let confirmation = read_password("Neues Cloud-Passwort wiederholen: ")?;
+            if new != confirmation {
+                bail!("Die neuen Passwörter stimmen nicht überein");
+            }
+            cloud::change_password(&state, &current, &new)?;
+            cloud::remove(&data)?;
+            println!(
+                "✓ Cloud-Passwort geändert. Alle Geräte wurden abgemeldet; bitte erneut anmelden."
+            );
             Ok(())
         }
         CloudCommand::Status => {

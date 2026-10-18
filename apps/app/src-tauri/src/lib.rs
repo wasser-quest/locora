@@ -702,6 +702,21 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    // A test or explicit alternate profile must also own the WebKit storage.
+    // Otherwise localStorage preferences leak between otherwise isolated DBs.
+    if let Some(data_dir) = std::env::var_os("LOCORA_DATA") {
+        let path = std::path::PathBuf::from(data_dir);
+        let path = if path.is_absolute() {
+            path
+        } else {
+            std::env::current_dir()
+                .expect("Arbeitsverzeichnis bestimmen")
+                .join(path)
+        };
+        context.config_mut().app.app_directories_override =
+            Some(tauri::utils::config::AppDirectoriesOverride::Root(path));
+    }
     tauri::Builder::default()
         .manage(DropInbox::default())
         .plugin(tauri_plugin_dialog::init())
@@ -777,6 +792,6 @@ pub fn run() {
             journey_answer,
             journey_stop
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("Locora konnte nicht starten");
 }
