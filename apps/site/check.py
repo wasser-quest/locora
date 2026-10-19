@@ -7,7 +7,7 @@ import os, re, sys
 from html.parser import HTMLParser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ALLOWED_FILES = {"index.html", "style.css", "_headers", "README.md", "check.py"}
+ALLOWED_FILES = {"index.html", "privacy.html", "style.css", "_headers", "README.md", "check.py"}
 # Only these are allowed to leave the site: the project's own repository, as a plain link.
 ALLOWED_LINKS = ("https://github.com/wasser-quest/locora",)
 FORBIDDEN_TAGS = {"script", "iframe", "frame", "frameset", "object", "embed", "applet", "base", "form",
@@ -45,6 +45,9 @@ class Checker(HTMLParser):
                 if tag == "a" and name == "href":
                     if value.startswith("#") or value.startswith(ALLOWED_LINKS):
                         continue
+                    # Pages of this site, linked by file name only.
+                    if re.match(r"^[\w-]+\.html(#[\w-]+)?$", value) and os.path.exists(os.path.join(HERE, value.split("#")[0])):
+                        continue
                     self.report(f"link to {value[:60]!r} is not an allowed destination")
                 elif tag == "link" and name == "href" and not value.startswith(("style", "#")) and not re.match(r"^[\w.\-/]+\.css$", value):
                     self.report(f"stylesheet {value!r} must be a local .css file")
@@ -68,19 +71,21 @@ def main():
     extra = names - ALLOWED_FILES - {"__pycache__"}
     for name in sorted(extra):
         findings.append(f"unexpected file {name!r} in the static site")
-    for required in ("index.html", "style.css", "_headers"):
+    for required in ("index.html", "privacy.html", "style.css", "_headers"):
         if required not in names:
             findings.append(f"missing {required}")
     if not findings:
-        checker = Checker()
-        checker.feed(open(os.path.join(HERE, "index.html"), encoding="utf-8").read())
-        findings += checker.findings
+        for page in ("index.html", "privacy.html"):
+            checker = Checker()
+            checker.feed(open(os.path.join(HERE, page), encoding="utf-8").read())
+            findings += [f"{page}: {f}" for f in checker.findings]
         findings += check_css(os.path.join(HERE, "style.css"))
         headers = open(os.path.join(HERE, "_headers"), encoding="utf-8").read()
         if CSP_TOKEN not in headers or "Content-Security-Policy:" not in headers:
             findings.append("_headers has no strict Content-Security-Policy")
-        if CSP_TOKEN not in open(os.path.join(HERE, "index.html"), encoding="utf-8").read():
-            findings.append("index.html has no strict Content-Security-Policy meta tag")
+        for page in ("index.html", "privacy.html"):
+            if CSP_TOKEN not in open(os.path.join(HERE, page), encoding="utf-8").read():
+                findings.append(f"{page} has no strict Content-Security-Policy meta tag")
     if findings:
         print("The site is not static:")
         for finding in findings:

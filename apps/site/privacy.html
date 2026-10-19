@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Privacy policy – Locora</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <p class="brand"><a href="index.html">Locora</a></p>
+      <nav aria-label="Sections">
+        <a href="index.html">Home</a>
+        <a href="#your-device">Your device</a>
+        <a href="#account">Account</a>
+        <a href="#rights">Your rights</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1>Privacy policy</h1>
+        <p><strong>Draft.</strong> This text describes how the system is designed. It is not legal advice. Fill in the bracketed parts and have it reviewed before you publish it.</p>
+        <p>Last updated: [date]</p>
+      </section>
+
+      <section id="controller">
+        <h2>Who is responsible</h2>
+        <p>[Operator name and legal form], [postal address], [e-mail for privacy questions]. [Data protection officer, if one is required.]</p>
+      </section>
+
+      <section id="your-device">
+        <h2>What stays on your device</h2>
+        <p>Locora works offline. Your palaces, their pictures and videos, your learning progress and your settings are stored on your device. We do not receive them unless you create an account and use sync or the online features.</p>
+        <p>You own this data. You can export your palaces to a file at any time, and you can delete them in the app.</p>
+      </section>
+
+      <section id="account">
+        <h2>If you create an account</h2>
+        <p>An account is optional. It is needed for sync between your devices, for subscriptions, friends, challenges and rankings.</p>
+        <h3>What we store</h3>
+        <ul>
+          <li><strong>Account:</strong> e-mail address, display name, and a password hash (Argon2id). We never store your password itself.</li>
+          <li><strong>Sessions:</strong> a hash of each sign-in token, with its expiry (90 days). The token itself is shown to your device only once.</li>
+          <li><strong>Subscription:</strong> plan, state and period end, plus the identifiers of payment events, so that payment provider retries are applied once.</li>
+          <li><strong>Social features:</strong> friend connections, challenges you join, and your scores in them. A score contains the answers of a journey and their timing, so that the ranking can be checked.</li>
+          <li><strong>Sync data and media:</strong> encrypted on your device before upload. We store ciphertext and the wrapped key bundle; we cannot read them.</li>
+          <li><strong>Security records:</strong> failed sign-in counts per e-mail address (kept for 15 minutes), request counters per account, and the status of deletion warnings.</li>
+        </ul>
+        <h3>Why we store it</h3>
+        <p>To provide the service you asked for (contract, Art. 6(1)(b) GDPR), to keep accounts secure (legitimate interest, Art. 6(1)(f)), and to send the deletion warnings described below.</p>
+        <h3>Where it is stored</h3>
+        <p>In the European Union: the database and encrypted media are hosted at [hosting provider and region]. Payments are processed by [payment provider]; e-mail is sent through [mail relay].</p>
+        <h3>How long we keep it</h3>
+        <ul>
+          <li>While the account is active.</li>
+          <li>If an account is not synced for six calendar months, we send a warning e-mail one month before deletion. After six months we delete the account, its encrypted media and its sync data. Backups are deleted within [backup period].</li>
+          <li>Sign-in tokens expire after 90 days; failed sign-in counters after 15 minutes.</li>
+        </ul>
+      </section>
+
+      <section id="sharing">
+        <h2>Who receives data</h2>
+        <p>We do not sell data and do not use advertising or tracking. We use service providers only for hosting, payments and e-mail, under written data processing agreements. Your friends and challenge members see your display name and your scores in the challenges you share.</p>
+      </section>
+
+      <section id="security">
+        <h2>Security</h2>
+        <p>Passwords are hashed with Argon2id. Sync and media are encrypted on your device. Subscriptions are checked on the server for every paid request. Payment webhooks must carry a signature. The servers run in containers with read-only file systems, no shell, and no access to each other beyond the connections they need.</p>
+      </section>
+
+      <section id="rights">
+        <h2>Your rights</h2>
+        <p>Under the GDPR you have the right to access your data, to correct it, to delete it, to restrict or object to its processing, and to receive it in a portable format. You can delete your account in the app. For other requests, write to [privacy e-mail]. You may also complain to a supervisory authority, for example [competent authority].</p>
+      </section>
+
+      <section id="children">
+        <h2>Children</h2>
+        <p>Accounts are for people aged [minimum age] and over.</p>
+      </section>
+
+      <section id="changes">
+        <h2>Changes</h2>
+        <p>If this policy changes, the date above changes too, and material changes are announced in the app before they take effect.</p>
+      </section>
+    </main>
+
+    <footer>
+      <p><a href="index.html">Home</a> · <a href="https://github.com/wasser-quest/locora">Source on GitHub</a></p>
+    </footer>
+  </body>
+</html>
