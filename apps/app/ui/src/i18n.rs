@@ -70,6 +70,20 @@ pub fn set_current(lang: Lang) {
     CURRENT.with(|current| current.set(lang));
 }
 
+/// The language as a signal. The app's root watches it and builds the screens again when it changes.
+#[derive(Clone, Copy)]
+pub struct Language(pub leptos::prelude::RwSignal<Lang>);
+
+/// Switch the language on the running app: saved, then every text is looked up again.
+pub fn switch(lang: Lang) {
+    use leptos::prelude::Set;
+    save(lang);
+    set_current(lang);
+    if let Some(Language(signal)) = leptos::prelude::use_context::<Language>() {
+        signal.set(lang);
+    }
+}
+
 /// The saved language; English when nothing is saved or storage is unavailable.
 pub fn load() -> Lang {
     web_sys::window()

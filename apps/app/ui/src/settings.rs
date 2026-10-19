@@ -89,9 +89,7 @@ fn LocusDisplay() -> impl IntoView {
                 on:change=move |event| { crate::locus_display::signal().update(|p| p.gamification = event_target_checked(&event)); crate::locus_display::save(crate::locus_display::signal().get_untracked()); } />{t("Erfahrungspunkte, Combo und Herzen in der Journey anzeigen")}</label>
             <label>{t("Sprache")}
                 <select prop:value=move || crate::i18n::current().code() on:change=move |event| {
-                    // Every text is built at start-up, so a new language takes a reload.
-                    crate::i18n::save(crate::i18n::Lang::from_code(&event_target_value(&event)));
-                    let _ = js_sys::eval("location.reload()");
+                    crate::i18n::switch(crate::i18n::Lang::from_code(&event_target_value(&event)));
                 }>
                     {crate::i18n::Lang::ALL.into_iter().map(|lang| view! {
                         <option value=lang.code()>{lang.name()}</option>

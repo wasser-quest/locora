@@ -57,7 +57,19 @@ fn main() {
     crash::install();
     i18n::set_current(i18n::load());
     theme::apply(theme::current());
-    mount_to_body(App);
+    mount_to_body(Root);
+}
+
+/// The root. It builds the app again when the language changes, so every text is looked up
+/// again; screens keep no state a language switch could leave behind.
+#[component]
+fn Root() -> impl IntoView {
+    let language = RwSignal::new(i18n::current());
+    provide_context(i18n::Language(language));
+    move || {
+        language.get();
+        view! { <App /> }
+    }
 }
 
 #[derive(Serialize)]
@@ -1000,6 +1012,7 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DeletePalaceArgs {
     palace_id: String,
 }
@@ -1112,9 +1125,18 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                             let palace_id = delete_id.clone();
                             let removed_kind = built_in_kind.clone();
                             spawn_local(async move {
-                                let _ = call::<()>("palace_delete", DeletePalaceArgs { palace_id }).await;
-                                remember_removed(&removed_kind);
-                                let _ = js_sys::eval("location.reload()");
+                                match call::<()>("palace_delete", DeletePalaceArgs { palace_id }).await {
+                                    Ok(()) => {
+                                        remember_removed(&removed_kind);
+                                        let _ = js_sys::eval("location.reload()");
+                                    }
+                                    Err(error) => {
+                                        busy.set(false);
+                                        if let Some(window) = web_sys::window() {
+                                            let _ = window.alert_with_message(&error);
+                                        }
+                                    }
+                                }
                             });
                         }>{t("Löschen")}</button>
                     }
