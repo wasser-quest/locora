@@ -18,6 +18,11 @@ struct ConnectArgs {
 }
 
 #[derive(Serialize)]
+struct GuestArgs {
+    server: String,
+}
+
+#[derive(Serialize)]
 struct KeyArgs {
     request: CloudKeySetup,
 }
@@ -228,7 +233,31 @@ fn ConnectForm(
             busy.set(false);
         });
     };
+    // A guest needs no e-mail address or password and gets the access of a trial.
+    let guest = move || {
+        if busy.get_untracked() {
+            return;
+        }
+        let server = server.get_untracked();
+        busy.set(true);
+        message.set(None);
+        spawn_local(async move {
+            match call::<CloudStatus>("cloud_guest", GuestArgs { server }).await {
+                Ok(connected) => status.set(Some(Ok(connected))),
+                Err(error) => {
+                    message.set(Some(Err(error)));
+                    status.set(Some(call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}).await));
+                }
+            }
+            busy.set(false);
+        });
+    };
     view! {
+        <div class="card panel">
+            <h3>"Ohne Konto starten"</h3>
+            <p class="notes">"Als Gast nutzt du Locora Cloud mit dem Zugang einer Testphase, ohne E-Mail und Passwort. Die Cloud kann später etwas kosten; darüber informieren wir vorher."</p>
+            <button type="button" disabled=move || busy.get() on:click=move |_| guest()>"Als Gast nutzen"</button>
+        </div>
         <p class="notes">"Konto und Verschlüsselung lassen sich hier direkt auf diesem Gerät einrichten."</p>
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
             <label class="input"><span>"Cloud-Server (HTTPS)"</span>

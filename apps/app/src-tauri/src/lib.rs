@@ -933,6 +933,7 @@ pub fn run() {
             cloud_status,
             cloud_sync,
             cloud_setup::cloud_connect,
+            cloud_setup::cloud_guest,
             cloud_setup::cloud_keys_status,
             cloud_setup::cloud_keys_setup,
             cloud_setup::cloud_logout,

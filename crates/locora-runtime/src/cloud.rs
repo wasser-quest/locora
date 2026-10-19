@@ -165,6 +165,14 @@ pub fn register(
     finish_login(server, session)
 }
 
+/// A guest session: no e-mail address or password. Guests have the access of a trial
+/// subscription, so the cloud works from the first start.
+pub fn guest(server: &str) -> Result<CloudState> {
+    let server = check_server(server)?;
+    let session: Session = post(&server, "/v1/guests", None, &())?;
+    finish_login(server, session)
+}
+
 pub fn login(server: &str, email: &str, password: &str) -> Result<CloudState> {
     let server = check_server(server)?;
     let body = Login {

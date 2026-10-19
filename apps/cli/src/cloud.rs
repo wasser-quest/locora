@@ -20,6 +20,12 @@ pub enum CloudCommand {
         #[arg(long)]
         server: Option<String>,
     },
+    /// Als Gast nutzen: ohne E-Mail und Passwort, mit dem Zugang einer Testphase
+    Guest {
+        /// Adresse des Servers (Standard: LOCORA_CLOUD_URL, sonst https://locora.cloud)
+        #[arg(long)]
+        server: Option<String>,
+    },
     /// Anmelden; das Passwort wird abgefragt, nicht als Argument übergeben
     Login {
         email: String,
@@ -98,6 +104,14 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             let state = cloud::register(&server, &email, &password, &name)?;
             cloud::save(&data, &state)?;
             println!("✓ Konto angelegt. Angemeldet als {}.", state.account.email);
+            print_status(&state);
+            Ok(())
+        }
+        CloudCommand::Guest { server } => {
+            let server = server_or_default(server, &data)?;
+            let state = cloud::guest(&server)?;
+            cloud::save(&data, &state)?;
+            println!("✓ Als Gast angemeldet. Zugang wie in einer Testphase.");
             print_status(&state);
             Ok(())
         }
@@ -426,7 +440,11 @@ fn read_password(prompt: &str) -> Result<String> {
 
 fn print_status(state: &CloudState) {
     let account = &state.account;
-    println!("Konto: {} ({})", account.display_name, account.email);
+    if account.email.is_empty() {
+        println!("Konto: {} (ohne E-Mail-Adresse)", account.display_name);
+    } else {
+        println!("Konto: {} ({})", account.display_name, account.email);
+    }
     println!("Server: {}", state.server);
     match account.period_end {
         Some(end) if account.subscription != locora_cloud_api::api::SubscriptionState::None => {

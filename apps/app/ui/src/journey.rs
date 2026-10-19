@@ -339,9 +339,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                                 </div>
                             }
                         })}
-                    <Show when=move || !video_ready.get()>
-                        <p role="status">"Video läuft zum nächsten Locus …"</p>
-                    </Show>
+                    // The answers wait for the locus while the video plays; no status text for that.
                     <fieldset disabled=move || !video_ready.get() style="border:0;padding:0;margin:0;min-width:0">
                     {(!q.actions.is_empty())
                         .then(|| {

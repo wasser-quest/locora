@@ -90,6 +90,27 @@ pub async fn cloud_connect(
     .map_err(|e| e.to_string())?
 }
 
+/// Use the cloud as a guest: no e-mail address or password, the access of a trial.
+#[tauri::command]
+pub async fn cloud_guest(app: tauri::AppHandle, server: String) -> Result<CloudStatus, String> {
+    if server.len() > 2048 {
+        return Err("Serveradresse ist zu lang".into());
+    }
+    cloud::check_server(&server).map_err(err)?;
+    let (data, busy) = begin(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _busy = busy;
+        if cloud::load(&data).map_err(err)?.is_some() {
+            return Err("Auf diesem Gerät ist bereits ein Cloud-Konto angemeldet".into());
+        }
+        let state = cloud::guest(&server).map_err(err)?;
+        cloud::save(&data, &state).map_err(err)?;
+        Ok(status(&state))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn cloud_keys_status(app: tauri::AppHandle) -> Result<bool, String> {
     let data = app.state::<Shared>();
