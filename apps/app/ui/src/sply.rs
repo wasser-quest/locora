@@ -123,14 +123,8 @@ pub fn Sply(
             failed.set(true);
         }
     });
-    let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
-        // Touch and pen move the eyes too; they only send moves while they touch the screen.
-        if !ready.get_untracked() {
-            return;
-        }
-        let Some(frame) = frame.get_untracked() else {
-            return;
-        };
+    // Converts a viewport position into the frame and sends it to the runtime.
+    let post_pointer = move |frame: web_sys::HtmlIFrameElement, client_x: f64, client_y: f64| {
         let Some(window) = frame.content_window() else {
             return;
         };
@@ -141,10 +135,8 @@ pub fn Sply(
         // Convert parent viewport coordinates into the iframe viewport, also
         // accounting for CSS-scaled locus pictures. Coordinates may be outside
         // the frame so followers can look toward a cursor elsewhere in the app.
-        let x = (f64::from(event.client_x()) - rect.left()) * f64::from(frame.client_width())
-            / rect.width();
-        let y = (f64::from(event.client_y()) - rect.top()) * f64::from(frame.client_height())
-            / rect.height();
+        let x = (client_x - rect.left()) * f64::from(frame.client_width()) / rect.width();
+        let y = (client_y - rect.top()) * f64::from(frame.client_height()) / rect.height();
         let message = js_sys::Object::new();
         let point = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&point, &"x".into(), &x.into());
@@ -152,6 +144,32 @@ pub fn Sply(
         let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
         let _ = js_sys::Reflect::set(&message, &"pointer".into(), &point);
         let _ = window.post_message(&message, "*");
+    };
+    // Touch and pen send several moves per frame; only the newest position is sent, once per frame.
+    let pending = StoredValue::new(None::<(f64, f64)>);
+    let pointer = window_event_listener(leptos::ev::pointermove, move |event| {
+        // Touch and pen move the eyes too; they only send moves while they touch the screen.
+        if !ready.get_untracked() {
+            return;
+        }
+        let waiting = pending.with_value(Option::is_some);
+        pending.set_value(Some((f64::from(event.client_x()), f64::from(event.client_y()))));
+        if waiting {
+            return;
+        }
+        use wasm_bindgen::JsCast;
+        let frame_task = wasm_bindgen::closure::Closure::once_into_js(move || {
+            let Some((client_x, client_y)) = pending.get_value() else {
+                return;
+            };
+            pending.set_value(None);
+            if let Some(frame) = frame.get_untracked() {
+                post_pointer(frame, client_x, client_y);
+            }
+        });
+        if let Some(window) = web_sys::window() {
+            let _ = window.request_animation_frame(frame_task.unchecked_ref());
+        }
     });
     // Presses and releases travel as coordinates; the frame turns them into the same
     // pointer sequence a browser sends, so hover, clicks and drags behave alike.
@@ -391,12 +409,6 @@ pub fn VideoBackdrop(
     spawn_local(async move {
         let result = crate::tauri::video_url(&media).await;
         source.set(result);
-    });
-    on_cleanup(move || {
-        // Revoke the object URL once the component is gone.
-        if let Some(Ok(object)) = source.try_get_untracked() {
-            crate::tauri::revoke_object_url(&object);
-        }
     });
     let loaded = StoredValue::new(on_loaded);
     let failed = StoredValue::new(on_error);
