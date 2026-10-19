@@ -378,3 +378,17 @@ iframe.sply.medal-art { width: 72px; height: 72px; flex: none; }
 .home-actions .wide { grid-column: 1 / -1; }
 .home-actions .icon { justify-self: end; min-width: 3rem; }
 .modes > summary { cursor: pointer; font-weight: 600; color: var(--muted); margin-bottom: .5rem; }
+
+/* Large screens (1600 by 1000 pixels and up, such as 1920 by 1080): the column uses more of the width,
+   the room takes more of the height, and the question and its answer are set larger. The chrome above
+   and below the room is fixed, so the room only grows where the height allows it. Phones and small
+   windows keep the rules above. */
+@media (min-width: 1400px) {
+  main { max-width: min(1680px, 100%); }
+}
+@media (min-width: 1600px) and (min-height: 1000px) {
+  .stage:not(.editing) { width: min(100%, calc(max(100px, 100vh - 340px - min(110px, 14vh)) * var(--stage-ratio, 1.3333))); }
+  .prompt, .solution { font-size: 1.6rem; }
+  .grades button { font-size: 1.15rem; padding: .6rem .5rem; }
+  .answer .picture { width: min(120px, 12vh); }
+}

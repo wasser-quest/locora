@@ -31,7 +31,17 @@ function run(command, args, cwd) {
 // 1. The UI, the core and the plugins are built by their own tools; this only assembles them.
 // TRUNK_PROFILE=debug keeps function names in the UI for diagnosing a panic; release is the default.
 run('trunk', process.env.TRUNK_PROFILE === 'debug' ? ['build'] : ['build', '--release'], ui);
-run('cargo', ['build', '--release', '--target', 'wasm32-wasip1', '-p', 'locora-web-core'], repo);
+// The core's SQLite is C code: it needs a clang that knows the WASI target. Where none is installed,
+// cargo-zigbuild brings one (zig, from the ziglang package), so `cargo zigbuild` is used instead.
+const hasClang = (() => {
+  try {
+    execFileSync('clang', ['--version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+run('cargo', [hasClang ? 'build' : 'zigbuild', '--release', '--target', 'wasm32-wasip1', '-p', 'locora-web-core'], repo);
 for (const id of ['core', 'notify', 'review', 'tutorial', 'gamification']) {
   if (!existsSync(join(pluginDist, id))) {
     throw new Error(`plugin ${id} is not transpiled: run npm run transpile in apps/web/plugin-host`);
@@ -53,6 +63,9 @@ for (const file of readdirSync(join(shell, 'src'))) {
   if (file.endsWith('.mjs')) copyFileSync(join(shell, 'src', file), join(out, 'shell', file));
 }
 copyFileSync(join(shell, 'graphic.html'), join(out, 'shell', 'graphic.html'));
+// Headers for hosts that read a _headers file (Netlify): the clickjacking guard and the cache rules the
+// app needs for its start page and its service worker. Other hosts ignore the file.
+copyFileSync(join(web, '_headers'), join(out, '_headers'));
 // The splash graphics are Splinely SVGs. They load as their own documents (see graphic.js), not as
 // markup in the page: inside HTML, an SVG script is parsed as HTML and breaks the runtime.
 const splashSource = join(ui, 'splash');
