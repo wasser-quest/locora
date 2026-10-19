@@ -28,14 +28,14 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             // Neighbouring loci and the earlier pictures show by default; the numbers stay off,
-            // so one has to recall what the locus was at that place. quick_next stays off:
-            // it grades a reveal by itself.
+            // so one has to recall what the locus was at that place. quick_next is on: it only
+            // moves on after the user's own grade or answer, it never grades by itself.
             previous: 3,
             next: 3,
             numbers: false,
             hide_revealed: true,
             keep_previous: true,
-            quick_next: false,
+            quick_next: true,
             video_lead: 0.0,
             reverse_radius: 0.1,
             gamification: true,

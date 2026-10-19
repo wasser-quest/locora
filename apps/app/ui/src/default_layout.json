@@ -15,12 +15,12 @@
       },
       {
         "id": "tutorial",
-        "placement": "hidden",
+        "placement": "shown",
         "size": "full"
       },
       {
         "id": "formulas",
-        "placement": "hidden",
+        "placement": "shown",
         "size": "full"
       },
       {
@@ -57,7 +57,7 @@
   },
   {
     "id": "page-1792424908613",
-    "name": "stats",
+    "name": "Stats",
     "entries": [
       {
         "id": "due",
