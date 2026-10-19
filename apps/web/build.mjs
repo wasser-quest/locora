@@ -5,7 +5,7 @@
 // Usage: node apps/web/build.mjs            (needs trunk, and the wasm32-wasip1 C toolchain for the core)
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, copyFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'parse5';
@@ -115,6 +115,24 @@ html = html.replace(
   '<head>',
   `<head>\n    <link rel="manifest" href="manifest.webmanifest" />\n    <meta name="theme-color" content="#16173a" />\n    <link rel="icon" type="image/png" sizes="192x192" href="shell/icons/icon-192.png" />\n    <link rel="apple-touch-icon" href="shell/icons/apple-touch-icon.png" />`,
 );
+
+// The files are copied with the modes of their sources (some are 0600): the server must read them.
+// Type declarations of the plugins are not used in a browser, so they are left out.
+const tidy = (dir) => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      chmodSync(path, 0o755);
+      tidy(path);
+    } else if (entry.name.endsWith('.d.ts')) {
+      rmSync(path);
+    } else {
+      chmodSync(path, 0o644);
+    }
+  }
+};
+chmodSync(out, 0o755);
+tidy(out);
 
 // 5. Offline: the service worker stores every file of this build. Its cache name is a hash of the
 // build's contents, so a new build installs a new cache and the old one is removed.

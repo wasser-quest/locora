@@ -9,8 +9,8 @@ from html.parser import HTMLParser
 HERE = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_FILES = {"index.html", "privacy.html", "style.css", "_headers", "README.md", "check.py", "Dockerfile", "nginx.conf"}
 # Only these are allowed to leave the site: the project's own repository, as a plain link.
-# The forum runs as its own service; set this to its public address when it has one.
-ALLOWED_LINKS = ("https://github.com/wasser-quest/locora", "http://127.0.0.1:8081/")
+# The forum and the browser app run as their own services; set these to their public addresses when they have one.
+ALLOWED_LINKS = ("https://github.com/wasser-quest/locora", "http://127.0.0.1:8081/", "http://127.0.0.1:8082/")
 FORBIDDEN_TAGS = {"script", "iframe", "frame", "frameset", "object", "embed", "applet", "base", "form",
                   "svg", "math", "audio", "video", "source", "track", "style", "noscript", "template"}
 FORBIDDEN_SCHEMES = re.compile(r"^\s*(javascript|vbscript|data|blob|file)\s*:", re.I)

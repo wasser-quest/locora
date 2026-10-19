@@ -12,9 +12,14 @@ let origin;
 let browser;
 
 before(async () => {
-  server = createServer(handler(root));
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  origin = `http://127.0.0.1:${server.address().port}`;
+  // LOCORA_URL tests a running deployment (the app's container) instead of the local build.
+  if (process.env.LOCORA_URL) {
+    origin = process.env.LOCORA_URL.replace(/\/$/, '');
+  } else {
+    server = createServer(handler(root));
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    origin = `http://127.0.0.1:${server.address().port}`;
+  }
   browser = await chromium.launch({ args: ['--no-sandbox'] });
 });
 
