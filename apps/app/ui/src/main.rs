@@ -1133,16 +1133,19 @@ pub fn LocusPicture(media: Media, x: f64, y: f64, size: f64) -> impl IntoView {
 /// the memory aid.
 #[component]
 pub fn Answer(solution: String, note: String, picture: Option<Media>) -> impl IntoView {
+    // The picture sits beside the solution, so the answer takes less height on a phone.
     view! {
-        <div class="solution">{solution}</div>
-        {picture
-            .map(|m| {
-                view! {
-                    <div class="picture">
-                        <Shown media=m />
-                    </div>
-                }
-            })}
+        <div class="answer">
+            <div class="solution">{solution}</div>
+            {picture
+                .map(|m| {
+                    view! {
+                        <div class="picture">
+                            <Shown media=m />
+                        </div>
+                    }
+                })}
+        </div>
         {(!note.is_empty()).then(|| view! { <div class="note">{format!("✎ {note}")}</div> })}
     }
 }

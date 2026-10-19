@@ -337,7 +337,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 return view! { <crate::Loading /> }.into_any();
             };
             view! {
-                <section class="card panel">
+                <section class="card panel" class:revealed=move || !matches!(phase.get(), Phase::Asking)>
                     <div class="progress">{q.room.clone()}</div>
                     <div id="tour-journey-prompt" class="prompt" tabindex="-1">{q.prompt.clone()}</div>
                     {q
