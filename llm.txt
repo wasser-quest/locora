@@ -1,0 +1,71 @@
+# Locora – Anleitung für LLMs
+
+Locora ist ein Lernwerkzeug nach der Loci-Methode (Gedächtnispalast). Du bedienst es über die CLI `locora`.
+Diese Datei ist für dich geschrieben. `locora guide` gibt sie aus.
+
+## Installation (Text für einen Menschen, der dich einrichtet)
+
+> Installiere Locora als Kommandozeilenwerkzeug und lies danach `locora guide`:
+> 1. Rust installieren (rustup), dann das Ziel für Plugins hinzufügen: `rustup target add wasm32-wasip2`.
+> 2. Im Repository: `cargo install --path apps/cli --locked` (installiert `locora`).
+> 3. Prüfen: `locora --version`, dann `locora guide`.
+> 4. Die Daten liegen im Systemordner; mit `--data <ORDNER>` oder `LOCORA_DATA` lässt sich ein anderer Ordner nehmen (zum Testen sinnvoll).
+> Locora läuft lokal und offline. Nur die optionale Cloud braucht Netz.
+
+## Grundbegriffe
+
+- **Palast**: ein Gedächtnispalast, z. B. „Planeten“. Er hat Räume (Bild oder Video als Hintergrund) und Orte.
+- **Locus (Ort)**: ein Ort im Palast mit einem Inhalt („Ort“ = wo, „Inhalt“ = was). Orte haben eine Nummer in Routen-Reihenfolge.
+- **Loci-Route**: die Reihenfolge der Orte; `practice` läuft sie ab.
+- **Fällig**: ein Ort, der heute wiederholt werden sollte (Spaced Repetition, FSRS).
+- **Journey**: eine Übungsrunde über einen Palast.
+
+## Wann was verwenden
+
+| Ziel | Befehl |
+|---|---|
+| Überblick: was ist heute zu tun? | `locora due` |
+| Alle Paläste mit fälligen und neuen Orten | `locora ls` |
+| Einen Palast anschauen (alle Orte) | `locora show <PALAST>` |
+| Neuen Palast mit Inhalten anlegen | `locora new "<NAME>" -- "Inhalt 1" "Inhalt 2" …` |
+| Neuen Palast aus einer Datei | `locora new "<NAME>" --from liste.txt` |
+| Einen Ort anhängen | `locora add <PALAST> "<Inhalt>" --place "<Ort>"` |
+| Einen Ort ändern (Nummer aus `show`) | `locora edit <PALAST> <NR> …` |
+| Einen Palast oder Ort löschen | `locora rm <PALAST>` bzw. `locora rm <PALAST> <NR>` |
+| Einen Palast üben (Route ablaufen) | `locora practice <PALAST>` |
+| Nur das Fällige wiederholen | `locora review <PALAST>` oder `locora review` (alle) |
+| Lernstand und Serie | `locora stats` |
+| Einstellungen anzeigen/ändern | `locora settings` |
+| Palast teilen oder sichern | `locora export <PALAST>`, wieder laden mit `locora import <DATEI>` |
+| Palast aus Text bauen (locora.toml) | `locora build <DATEI>` |
+| Tutorial starten | `locora tutorial` |
+| Cloud | `locora cloud status` (ohne Netz) |
+
+## Ablauf für einen Nutzer, der lernen will
+
+1. `locora due` – zeigt, was heute fällig ist.
+2. `locora practice <PALAST> --due` – nur fällige Orte, in Routen-Reihenfolge.
+3. Antworten bewerten lassen (Nochmal / Schwer / Gut / Leicht), oder mit `--reverse` vom Inhalt auf den Ort schließen.
+4. Neue Paläste: erst `locora new` mit den Inhalten, dann `practice`.
+
+## Wichtige Hinweise
+
+- Befehle mit Leerzeichen in Namen immer in Anführungszeichen setzen.
+- `locora new "Name" -- A B C` legt für jedes Argument einen Ort an, in dieser Reihenfolge.
+- Bilder und Videos: `--image <DATEI>` bei `new` oder `add`; Videos: `--video <DATEI>` (Loci brauchen dann Zeiten wie `1:23=These`).
+- Mit `--data <ORDNER>` ein eigenes Testprofil verwenden; so verändert man nicht die echten Daten.
+- `locora rm` löscht unwiderruflich. Vorher `locora export <PALAST>` als Sicherung anbieten.
+- `locora cloud` (Konto, Sync, Ranglisten) ist optional und kostet später möglicherweise etwas.
+
+## Befehlsübersicht
+
+Vollständige Hilfe: `locora <BEFEHL> --help`.
+
+- `new`, `add`, `edit`, `rm`, `ls`, `show` – Paläste und Orte verwalten
+- `practice`, `review`, `due` – üben und wiederholen
+- `settings`, `optimize`, `stats` – Einstellungen und Auswertung
+- `export`, `import`, `build`, `dump` – Austausch und Quelltexte
+- `table`, `bind`, `unbind`, `calc` – Formeln und Tabellen (Workbook)
+- `notify`, `marker`, `tutorial`, `formula-guide` – Benachrichtigungen, Marker, Einführung
+- `plugin` – Plugins erstellen und testen
+- `cloud` – Locora Cloud (Konto, Freischaltung, Sync, Challenges)

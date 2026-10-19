@@ -21,12 +21,15 @@ use clap::{Parser, Subcommand};
 use locora_store::LocusPatch;
 use notify::NotifyCommand;
 
+/// The guide shown by `locora guide`: the same file the repository root ships as llm.txt.
+const GUIDE: &str = include_str!("../../../llm.txt");
+
 #[derive(Parser)]
 #[command(
     name = "locora",
     version,
     about = "Gedächtnispaläste und Plugins für Locora",
-    after_help = "Beispiele:\n  locora new \"Planeten\" -- Merkur Venus Erde Mars\n  locora practice Planeten\n  locora due\n  locora review"
+    after_help = "Beispiele:\n  locora new \"Planeten\" -- Merkur Venus Erde Mars\n  locora practice Planeten\n  locora due\n  locora review\n\nNeu hier? `locora guide` zeigt, welcher Befehl wann passt."
 )]
 struct Cli {
     /// Datenordner (Standard: $LOCORA_DATA oder der Datenordner des Systems)
@@ -174,6 +177,8 @@ enum Command {
     },
     /// Lernstatistik: Antworten, Trefferquote, Serie
     Stats,
+    /// Anleitung: welcher Befehl wann passt (auch für LLMs gedacht; Text aus llm.txt)
+    Guide,
     /// Marker der Orte eines Palasts zeigen oder ändern (eigene .sply-Animation)
     Marker {
         palace: String,
@@ -454,6 +459,11 @@ fn main() -> Result<()> {
             settings::optimize_command(&mut app::App::open(data)?, dry_run, reset)
         }
         Command::Stats => settings::stats(&mut app::App::open(data)?),
+        // Printed without opening the profile, so a guide works before any setup.
+        Command::Guide => {
+            print!("{GUIDE}");
+            Ok(())
+        }
         Command::Marker {
             palace,
             file,

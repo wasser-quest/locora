@@ -21,6 +21,9 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 /// Public half of the entitlement signing key (base64). The private key only
 /// exists on the Locora Cloud server.
 pub const ENTITLEMENT_PUBLIC_KEY: &str = "I625aQ0M16ixtCYAAo2UP0M6CstD+LcPsHQcK9aPKuI=";
+/// The Locora Cloud server used when no other address is given. The app's sign-in form
+/// shows the same address as its default.
+pub const DEFAULT_SERVER: &str = "https://locora.cloud";
 const FILE: &str = "cloud.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

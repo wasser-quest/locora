@@ -16,7 +16,7 @@ pub enum CloudCommand {
         /// Anzeigename in Ranglisten
         #[arg(long, default_value = "Lernende")]
         name: String,
-        /// Adresse des Servers (sonst LOCORA_CLOUD_URL oder der zuletzt benutzte)
+        /// Adresse des Servers (Standard: LOCORA_CLOUD_URL, dann der zuletzt benutzte, sonst https://locora.cloud)
         #[arg(long)]
         server: Option<String>,
     },
@@ -410,7 +410,7 @@ fn server_or_default(server: Option<String>, data: &Path) -> Result<String> {
     }
     match cloud::load(data)? {
         Some(state) => Ok(state.server),
-        None => bail!("Kein Server angegeben: --server <URL> oder LOCORA_CLOUD_URL setzen"),
+        None => Ok(locora_runtime::cloud::DEFAULT_SERVER.to_owned()),
     }
 }
 

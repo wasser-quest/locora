@@ -185,7 +185,8 @@ fn ConnectForm(
     busy: RwSignal<bool>,
 ) -> impl IntoView {
     let register = RwSignal::new(false);
-    let server = RwSignal::new(String::new());
+    // Same address as locora_runtime::cloud::DEFAULT_SERVER; change it only for another server.
+    let server = RwSignal::new(String::from("https://locora.cloud"));
     let email = RwSignal::new(String::new());
     let display_name = RwSignal::new(String::new());
     let password = RwSignal::new(String::new());
@@ -231,7 +232,7 @@ fn ConnectForm(
         <p class="notes">"Konto und Verschlüsselung lassen sich hier direkt auf diesem Gerät einrichten."</p>
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
             <label class="input"><span>"Cloud-Server (HTTPS)"</span>
-                <input type="url" placeholder="https://cloud.example.org" autocomplete="url" bind:value=server required />
+                <input type="url" placeholder="https://locora.cloud" autocomplete="url" bind:value=server required />
             </label>
             <label class="input"><span>"E-Mail"</span>
                 <input type="email" autocomplete="username" bind:value=email required />
