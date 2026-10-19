@@ -134,9 +134,6 @@ async fn route_tour_step(
             let home = call::<Home>(CMD_HOME, tauri::NoArgs {}).await?;
             let id = if let Some(palace) = home.palaces.iter().find(|p| p.built_in.as_deref() == Some("tutorial")) {
                 palace.id.clone()
-            } else if tutorial_removed() {
-                // Removed on purpose: the step shows its text without a palace.
-                return Ok(());
             } else {
                 call::<String>(CMD_TUTORIAL, LanguageArgs { lang: current_language() }).await?
             };
@@ -700,7 +697,15 @@ fn HomeView(
         }
         busy.set(true);
         tour_route_ready.set(false);
+        let reload = expect_context::<HomeReload>().0;
         spawn_local(async move {
+            // The tour always sets up both built-in palaces again, also after they were deleted.
+            let mut created = false;
+            created |= call::<String>(CMD_TUTORIAL, LanguageArgs { lang: current_language() }).await.is_ok();
+            created |= call::<String>(CMD_FORMULA_GUIDE, LanguageArgs { lang: current_language() }).await.is_ok();
+            if created {
+                reload.run(());
+            }
             match call::<Option<HighlightRequest>>(
                 CMD_TOUR,
                 TourArgs {
@@ -729,22 +734,24 @@ fn HomeView(
     };
     let dashboard_open = expect_context::<dashboard::Open>().0;
     view! {
-        <header class="bar">
+        <header class="bar home-bar">
             <h1>{if core_only { "Core" } else { "Locora" }}</h1>
-            {core_only.then(|| view! {
-                <button on:click=move |_| screen.set(Screen::Home)>{t("Startseite")}</button>
-            })}
-            <button id="tour-home-media" disabled=move || busy.get() on:click=pick_media>{t("Bild/Video wählen…")}</button>
-            <button id="tour-home-import" disabled=move || busy.get() on:click=import title=t("Paläste aus einer .locora-Datei oder locora.toml")>
-                {t("Importieren…")}
-            </button>
-            <button disabled=move || busy.get() on:click=start_tour>{t("App-Tour")}</button>
-            {(!core_only).then(|| view! {
-                <button on:click=move |_| dashboard_open.update(|open| *open = !*open)>{t("Seiten anpassen")}</button>
-            })}
-            <button id="tour-home-settings" title=t("Einstellungen & Statistik") on:click=move |_| screen.set(Screen::Settings)>
-                "⚙"
-            </button>
+            <div class="home-actions">
+                {core_only.then(|| view! {
+                    <button class="wide" on:click=move |_| screen.set(Screen::Home)>{t("Startseite")}</button>
+                })}
+                <button class="primary wide" id="tour-home-media" disabled=move || busy.get() on:click=pick_media>{t("Bild/Video wählen…")}</button>
+                <button id="tour-home-import" disabled=move || busy.get() on:click=import title=t("Paläste aus einer .locora-Datei oder locora.toml")>
+                    {t("Importieren…")}
+                </button>
+                <button disabled=move || busy.get() on:click=start_tour>{t("App-Tour")}</button>
+                {(!core_only).then(|| view! {
+                    <button on:click=move |_| dashboard_open.update(|open| *open = !*open)>{t("Seiten anpassen")}</button>
+                })}
+                <button class="icon" id="tour-home-settings" title=t("Einstellungen & Statistik") aria-label=t("Einstellungen & Statistik") on:click=move |_| screen.set(Screen::Settings)>
+                    "⚙"
+                </button>
+            </div>
         </header>
         <p class="notes" role="status">{move || message.get()}</p>
         <p class="status" role="status">{move || info.get()}</p>
@@ -807,6 +814,8 @@ fn HomeView(
                 };
                 let known = dashboard::known(&catalog);
                 let page = pages.get().current().clone();
+                // The built-in palaces show only where the layout places their blocks.
+                let built_ins: Vec<PalaceCard> = home.palaces.iter().filter(|p| p.built_in.is_some()).cloned().collect();
                 let mut palaces = Some(home.palaces);
                 let mut shown: Vec<AnyView> = Vec::new();
                 let mut folded: Vec<AnyView> = Vec::new();
@@ -867,7 +876,12 @@ fn HomeView(
                             .into_any(),
                         ),
                         "palaces" => {
-                            let list = palaces.take().unwrap_or_default();
+                            let list: Vec<PalaceCard> = palaces
+                                .take()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|p| p.built_in.is_none())
+                                .collect();
                             Some(if list.is_empty() {
                                 view! {
                                     <p class="empty">
@@ -888,7 +902,9 @@ fn HomeView(
                                 .into_any()
                             })
                         }
-                        "tutorial" => (!tutorial).then(|| {
+                        "tutorial" => match built_ins.iter().find(|p| p.built_in.as_deref() == Some("tutorial")) {
+                            Some(palace) => Some(view! { <PalaceTile palace=palace.clone() screen=screen busy=busy/> }.into_any()),
+                            None => Some({
                             view! {
                                 <section class="card weiter">
                                     <div class="text">
@@ -903,8 +919,11 @@ fn HomeView(
                                 </section>
                             }
                             .into_any()
-                        }),
-                        "formulas" => (!formula_guide).then(|| {
+                            }),
+                        },
+                        "formulas" => match built_ins.iter().find(|p| p.built_in.as_deref() == Some("formulas")) {
+                            Some(palace) => Some(view! { <PalaceTile palace=palace.clone() screen=screen busy=busy/> }.into_any()),
+                            None => Some({
                             view! {
                                 <section class="card weiter">
                                     <div class="text">
@@ -917,7 +936,8 @@ fn HomeView(
                                 </section>
                             }
                             .into_any()
-                        }),
+                            }),
+                        },
                         "achievements" => Some(view! { <crate::achievements::Achievements /> }.into_any()),
                         "activity" => Some(view! { <crate::activity::Activity /> }.into_any()),
                         other => dashboard::plugin_view(&catalog, other),
@@ -1034,34 +1054,13 @@ fn current_language() -> String {
     crate::i18n::current().code().to_owned()
 }
 
-/// Remembers that a built-in palace (`tutorial` or `formulas`) was removed on purpose, so the
-/// tour does not create it again.
-fn remember_removed(kind: &str) {
-    if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
-        let key = match kind {
-            "tutorial" => "locora-tutorial-removed-v1",
-            _ => "locora-formulas-removed-v1",
-        };
-        let _ = storage.set_item(key, "1");
-    }
-}
-
-/// Whether the built-in tutorial palace was removed on purpose.
-fn tutorial_removed() -> bool {
-    web_sys::window()
-        .and_then(|window| window.local_storage().ok().flatten())
-        .and_then(|storage| storage.get_item("locora-tutorial-removed-v1").ok().flatten())
-        .is_some()
-}
-
 #[component]
 fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>) -> impl IntoView {
     let id = palace.id.clone();
     let cover_open_id = palace.id.clone();
     let play_id = palace.id.clone();
-    // Built-in palaces can be removed; the tour then leaves them out instead of creating them again.
+    // Built-in palaces can be removed; the app tour creates them again.
     let built_in = palace.built_in.is_some();
-    let built_in_kind = palace.built_in.clone().unwrap_or_default();
     let delete_id = palace.id.clone();
     let delete_name = palace.name.clone();
     let status = match (palace.due, palace.fresh) {
@@ -1123,7 +1122,6 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                 {built_in.then(|| {
                     let delete_id = delete_id.clone();
                     let delete_name = delete_name.clone();
-                    let built_in_kind = built_in_kind.clone();
                     view! {
                         <button class="ghost" disabled=move || busy.get() on:click=move |ev| {
                             ev.stop_propagation();
@@ -1135,12 +1133,10 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                             if !confirmed { return; }
                             busy.set(true);
                             let palace_id = delete_id.clone();
-                            let removed_kind = built_in_kind.clone();
                             let reload = expect_context::<HomeReload>().0;
                             spawn_local(async move {
                                 match call::<()>("palace_delete", DeletePalaceArgs { palace_id }).await {
                                     Ok(()) => {
-                                        remember_removed(&removed_kind);
                                         busy.set(false);
                                         reload.run(());
                                     }

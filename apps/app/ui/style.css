@@ -367,4 +367,11 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .dashboard-suggestions .row { margin-top: .3rem; }
 .layout-text { width: 100%; font-family: ui-monospace, monospace; font-size: .8rem; }
 .plugin-block h2 { margin-top: 0; }
+/* Start page header: the title in the middle, the actions in rows that fit a phone. */
+.home-bar { flex-direction: column; align-items: stretch; gap: .75rem; }
+.home-bar h1 { text-align: center; flex: none; font-size: 1.6rem; }
+.home-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.home-actions button { min-height: 2.75rem; }
+.home-actions .wide { grid-column: 1 / -1; }
+.home-actions .icon { justify-self: end; min-width: 3rem; }
 
