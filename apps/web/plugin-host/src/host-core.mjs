@@ -30,6 +30,7 @@ export class PluginHost {
     this.hostServices = new Map(); // service -> (callerId, Uint8Array) => Uint8Array, synchronous
     this.pending = [];             // events published but not yet delivered
     this.logs = [];                // { plugin, level, message }
+    this.onPublish = null;         // (plugin id, topic, payload) for the core, set by the app
   }
 
   /** Registers a transpiled plugin module under its id (the id is checked against the manifest). */
@@ -93,6 +94,7 @@ export class PluginHost {
         if (plugin && this.services.get(service) !== plugin) return err(`plugin ${plugin} does not provide ${service}`);
         return this.callService(service, request);
       },
+      filter: (hook, value) => ok(this.filter(hook, value)),
     };
   }
 
@@ -103,9 +105,13 @@ export class PluginHost {
       .filter((p) => p.active && p.filters.has(hook))
       .sort((a, b) => a.filters.get(hook) - b.filters.get(hook) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     for (const plugin of chain) {
+      // As in the native host: a failing filter keeps the value it was given, and the chain goes on.
       const result = settle(() => plugin.module.onFilter(hook, current));
-      if (result.tag === 'err') throw new Error(`filter ${hook} of ${plugin.id} failed: ${result.val}`);
-      current = result.val;
+      if (result.tag === 'err') {
+        this.logs.push({ plugin: plugin.id, level: 'error', message: `filter ${hook}: ${result.val}` });
+        continue;
+      }
+      current = new Uint8Array(result.val);
       this.drain();
     }
     return current;
@@ -156,6 +162,8 @@ export class PluginHost {
       },
       publish(topic, payload) {
         host.pending.push({ topic, payload: new Uint8Array(payload), from: id });
+        // The core hears every plugin event too: the UI declarations of plugins are read from them.
+        host.onPublish?.(id, topic, new Uint8Array(payload));
       },
       provide(service) {
         const owner = host.services.get(service);

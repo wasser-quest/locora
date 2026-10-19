@@ -108,6 +108,70 @@ pub trait ServiceBridge {
     /// Whether `service` exists, provided by `plugin` when one is named.
     fn provides(&self, plugin: Option<&str>, service: &str) -> bool;
     fn call(&self, plugin: Option<&str>, service: &str, request: &[u8]) -> Result<Vec<u8>, String>;
+    /// Runs the filters of `hook` on an encoded value; the result is the encoded value after them.
+    fn filter(&self, hook: &str, value: &[u8]) -> Result<Vec<u8>, String>;
+}
+
+thread_local! {
+    /// What plugins did while the core was busy with a call (highlights, published events): the core
+    /// reads it with `drain_events`, in `Profile::report`.
+    static NESTED: std::cell::RefCell<Vec<HostEvent>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// What the core's palace reads wrote while a plugin asked for them: the page delivers these
+    /// to the plugins with the rest of the command's events (see `take_events`).
+    static PAGE: std::cell::RefCell<Vec<HostEvent>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Limits of a tour step, as the native host enforces them.
+const MAX_TOUR_REQUEST: usize = 1_024;
+
+/// A plugin's palace read, answered while the core is busy. Writes the plugin makes are queued as
+/// events of the command in progress.
+pub fn nested_palace(store: &locora_store::Store, request: &[u8]) -> Result<Vec<u8>, String> {
+    let request: locora_api::palaces::Request = locora_api::decode(request).map_err(|e| e.to_string())?;
+    let outcome = palaces::call(store, request)?;
+    PAGE.with(|queue| {
+        queue
+            .borrow_mut()
+            .extend(outcome.events.into_iter().map(|(topic, payload)| HostEvent::Published {
+                plugin: "core".to_owned(),
+                topic,
+                payload,
+            }))
+    });
+    locora_api::encode(&outcome.response).map_err(|e| e.to_string())
+}
+
+/// A tour step a plugin shows (`ui.highlight@1`), checked the way the native host checks it.
+/// Returns the encoded reply the plugin expects (`bool`: the step was shown).
+pub fn nested_highlight(plugin: &str, request: &[u8]) -> Result<Vec<u8>, String> {
+    if request.len() > MAX_TOUR_REQUEST {
+        return Err("Tour-Schritt ist zu groß".into());
+    }
+    let step: locora_api::ui::HighlightRequest =
+        locora_api::decode(request).map_err(|e| format!("Ungültiger Tour-Schritt: {e}"))?;
+    if !step.target.starts_with("tour-")
+        || step.target.len() > 64
+        || !step.target.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+        || step.title.trim().is_empty()
+        || step.title.chars().count() > 80
+        || step.text.trim().is_empty()
+        || step.text.chars().count() > 320
+        || step.total == 0
+        || step.total > 12
+        || step.step == 0
+        || step.step > step.total
+    {
+        return Err("Ungültiges Ziel oder Inhalt des Tour-Schritts".into());
+    }
+    NESTED.with(|queue| queue.borrow_mut().push(HostEvent::Highlighted { plugin: plugin.to_owned(), step }));
+    locora_api::encode(&true).map_err(|e| e.to_string())
+}
+
+/// An event a plugin published, for the core (the UI declarations of plugins are read from these).
+pub fn nested_publish(plugin: &str, topic: &str, payload: Vec<u8>) {
+    NESTED.with(|queue| {
+        queue.borrow_mut().push(HostEvent::Published { plugin: plugin.to_owned(), topic: topic.to_owned(), payload })
+    });
 }
 
 /// The plugin host of the browser build.
@@ -115,11 +179,13 @@ pub struct PluginHost {
     palaces: Option<Arc<locora_store::Store>>,
     bridge: Option<Box<dyn ServiceBridge>>,
     events: Vec<HostEvent>,
+    /// The plugins the page runs (set by the page after it starts them).
+    plugins: Vec<Manifest>,
 }
 
 impl PluginHost {
     pub fn new(_cache_dir: Option<PathBuf>) -> Result<Self> {
-        Ok(Self { palaces: None, bridge: None, events: Vec::new() })
+        Ok(Self { palaces: None, bridge: None, events: Vec::new(), plugins: Vec::new() })
     }
 
     pub fn with_kv(cache_dir: Option<PathBuf>, _kv: Arc<dyn KvStore>) -> Result<Self> {
@@ -127,7 +193,7 @@ impl PluginHost {
     }
 
     pub fn with_palaces(_cache_dir: Option<PathBuf>, _kv: Arc<dyn KvStore>, palaces: Arc<locora_store::Store>) -> Result<Self> {
-        Ok(Self { palaces: Some(palaces), bridge: None, events: Vec::new() })
+        Ok(Self { palaces: Some(palaces), bridge: None, events: Vec::new(), plugins: Vec::new() })
     }
 
     /// Connects the plugins the browser host runs. Until this is set, only the palace service exists.
@@ -147,8 +213,9 @@ impl PluginHost {
         self.load_file(path)
     }
 
+    /// The built-in plugins are loaded by the page's plugin host, not here: accepting them is enough.
     pub fn load_bytes(&mut self, _bytes: &[u8]) -> Result<Manifest> {
-        bail!(NOT_IN_BROWSER)
+        Ok(Manifest { id: String::new(), name: String::new(), version: String::new(), api: String::new(), permissions: Vec::new() })
     }
 
     pub fn inspect_bytes(&self, _bytes: &[u8]) -> Result<Manifest> {
@@ -164,9 +231,11 @@ impl PluginHost {
         Ok(())
     }
 
-    /// Events the core published since the last call. The page delivers them to the plugins.
+    /// Events the core published since the last call, for the page to deliver to the plugins.
     pub fn take_events(&mut self) -> Vec<HostEvent> {
-        std::mem::take(&mut self.events)
+        let mut events = std::mem::take(&mut self.events);
+        PAGE.with(|queue| events.append(&mut queue.borrow_mut()));
+        events
     }
 
     pub fn publish_raw(&mut self, topic: &str, payload: Vec<u8>) {
@@ -217,20 +286,33 @@ impl PluginHost {
         }
     }
 
-    /// Filters run in the browser host; here values pass through unchanged.
+    /// Filters run in the plugin host (in the page). A failing filter keeps the value it was given.
     pub fn filter<H: locora_api::Hook>(&mut self, value: H::Value) -> Result<H::Value> {
-        Ok(value)
+        let Some(bridge) = self.bridge.as_ref() else {
+            return Ok(value);
+        };
+        let input = locora_api::encode(&value)?;
+        Ok(match bridge.filter(H::NAME, &input) {
+            Ok(bytes) => locora_api::decode::<H::Value>(&bytes).unwrap_or(value),
+            Err(_) => value,
+        })
+    }
+
+    /// The plugins the page runs. Their tiles and declared blocks are shown only for these.
+    pub fn set_plugins(&mut self, plugins: Vec<Manifest>) {
+        self.plugins = plugins;
     }
 
     pub fn plugins(&self) -> impl Iterator<Item = &Manifest> {
-        std::iter::empty()
+        self.plugins.iter()
     }
 
     pub fn source(&self, _id: &str) -> Option<&Path> {
         None
     }
 
+    /// What plugins caused for the core (highlights, published events), since the last call.
     pub fn drain_events(&mut self) -> Vec<HostEvent> {
-        std::mem::take(&mut self.events)
+        NESTED.with(|queue| std::mem::take(&mut *queue.borrow_mut()))
     }
 }

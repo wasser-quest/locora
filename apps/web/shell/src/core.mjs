@@ -25,6 +25,15 @@ export async function instantiateCore(wasmBytes, { fs, bridge = NO_PLUGINS }) {
     }
   };
 
+  // A filter that fails keeps the value it was given (the plugin host logs it).
+  const runFilter = (hook, value) => {
+    try {
+      return bridge.filter(hook, value);
+    } catch {
+      return { tag: 'ok', val: value };
+    }
+  };
+
   /** Hands a WIT result to the core: one tag byte (0 = ok, 1 = error), then the bytes or the message. */
   const reply = (result) => {
     const body = result.tag === 'ok' ? new Uint8Array(result.val) : encoder.encode(result.val);
@@ -48,6 +57,11 @@ export async function instantiateCore(wasmBytes, { fs, bridge = NO_PLUGINS }) {
         const request = new Uint8Array(core.memory.buffer.slice(requestPointer, requestPointer + requestLength));
         return reply(callBridge(plugin, service, request));
       },
+      filter: (hookPointer, hookLength, valuePointer, valueLength) => {
+        const hook = text(hookPointer, hookLength);
+        const value = new Uint8Array(core.memory.buffer.slice(valuePointer, valuePointer + valueLength));
+        return reply(runFilter(hook, value));
+      },
     },
   };
   const { instance } = await WebAssembly.instantiate(wasmBytes, imports);
@@ -63,8 +77,28 @@ export async function instantiateCore(wasmBytes, { fs, bridge = NO_PLUGINS }) {
     return { pointer, length: bytes.length };
   };
 
+  /**
+   * The core's entry points for plugins that call back while a command runs (see palace_service,
+   * plugin_highlight and plugin_publish in the core). Inputs are byte arrays; the result is a WIT result.
+   */
+  const nested = (name, ...inputs) => {
+    const written = inputs.map((value) => {
+      const bytes = typeof value === 'string' ? encoder.encode(value) : value;
+      const pointer = alloc(bytes.length);
+      new Uint8Array(core.memory.buffer, pointer, bytes.length).set(bytes);
+      return { pointer, length: bytes.length };
+    });
+    const packed = core[name](...written.flatMap((w) => [w.pointer, w.length]));
+    for (const w of written) dealloc(w.pointer, w.length);
+    const pointer = Number(packed >> 32n);
+    const length = Number(packed & 0xffffffffn);
+    const bytes = new Uint8Array(core.memory.buffer, pointer, length).slice();
+    dealloc(pointer, length);
+    return bytes[0] === 0 ? { tag: 'ok', val: bytes.subarray(1) } : { tag: 'err', val: decoder.decode(bytes.subarray(1)) };
+  };
+
   /** Runs one command and returns the parsed reply: { ok } or { err }. */
-  return function call(command, args = {}) {
+  const call = function call(command, args = {}) {
     const c = write(command);
     const a = write(JSON.stringify(args));
     const packed = invoke(c.pointer, c.length, a.pointer, a.length);
@@ -76,4 +110,8 @@ export async function instantiateCore(wasmBytes, { fs, bridge = NO_PLUGINS }) {
     dealloc(pointer, length);
     return JSON.parse(output);
   };
+  call.palaceService = (request) => nested('palace_service', request);
+  call.highlight = (plugin, request) => nested('plugin_highlight', plugin, request);
+  call.publish = (plugin, topic, payload) => nested('plugin_publish', plugin, topic, payload);
+  return call;
 }

@@ -45,16 +45,40 @@ async function start() {
   pluginDb = await openPluginStorage(indexedDB);
   fileSystem = new MemFs();
   fileSystem.load(await loadFiles(files));
+  const wasm = await (await fetch('core/locora_web_core.wasm')).arrayBuffer();
+  core = await instantiateCore(wasm, { fs: fileSystem, bridge: host.asBridge() });
+  // The plugins reach the core while they run: palace reads, tour steps and the events they publish.
+  host.provideHostService('core.palaces@1', (_plugin, request) => unwrap(core.palaceService(request)));
+  host.provideHostService('ui.highlight@1', (plugin, request) => {
+    if (!host.require(plugin).manifest?.permissions?.includes('ui:highlight')) {
+      throw new Error('the ui:highlight permission is missing');
+    }
+    return unwrap(core.highlight(plugin, request));
+  });
+  host.onPublish = (plugin, topic, payload) => {
+    try {
+      unwrap(core.publish(plugin, topic, payload));
+    } catch (error) {
+      console.warn(`the core did not take an event of ${plugin}: ${error.message}`);
+    }
+  };
   for (const id of PLUGINS) {
     const module = await import(`../plugins/${id}/${id}.js`);
     host.register(id, module, await loadPluginStorage(pluginDb, id));
     host.start(id);
   }
-  const wasm = await (await fetch('core/locora_web_core.wasm')).arrayBuffer();
-  core = await instantiateCore(wasm, { fs: fileSystem, bridge: host.asBridge() });
   const opened = core('open', '/locora');
   if (opened.err) throw new Error(opened.err);
+  // The core shows the tiles and blocks of the plugins that run here.
+  const listed = core('set_plugins', { plugins: PLUGINS.map((id) => host.require(id).manifest) });
+  if (listed.err) throw new Error(listed.err);
   for (const id of PLUGINS) await flushPluginStorage(pluginDb, id, host.takeDirty(id));
+}
+
+/** A WIT result as a value: the bytes, or an error thrown with the plugin's message. */
+function unwrap(result) {
+  if (result.tag === 'err') throw new Error(result.val);
+  return result.val;
 }
 
 /** Saves what changed since the last save, in order. */
@@ -87,7 +111,7 @@ async function invoke(cmd, args = {}) {
     case 'editor_pick_picture':
       return pickAndImport(MEDIA_ACCEPT, { kind: 'picture', target: args.target });
     case 'import_pick':
-      return pickAndImport(ARCHIVE_ACCEPT, { kind: 'archive' });
+      return importFolder(`${ARCHIVE_ACCEPT},${MEDIA_ACCEPT}`);
     case 'home_import_drop':
       return importTicket(args.ticket, { kind: 'palace' });
     case 'editor_import_drop':
@@ -102,6 +126,51 @@ async function invoke(cmd, args = {}) {
       reply = command(cmd, args);
       if (reply.err !== undefined) throw reply.err;
       return reply.ok;
+  }
+}
+
+/** Several files at once (a folder's source with its pictures and videos). */
+function pickFiles(accept) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = true;
+    input.hidden = true;
+    document.body.append(input);
+    const done = (files) => {
+      input.remove();
+      resolve(files);
+    };
+    input.addEventListener('change', () => done(Array.from(input.files ?? [])));
+    input.addEventListener('cancel', () => done([]));
+    input.click();
+  });
+}
+
+/**
+ * Imports a `.locora` file, or a `locora.toml` with the files it names (its pictures and videos are
+ * chosen with it). The files are stored in one inbox folder under their own names, as on disk.
+ */
+async function importFolder(accept) {
+  const files = await pickFiles(accept);
+  if (files.length === 0) return null;
+  const main = files.find((file) => /\.(locora|toml)$/i.test(file.name));
+  if (!main) throw 'Choose a .locora file, or a locora.toml with its pictures and videos.';
+  const folder = crypto.randomUUID();
+  const staged = [];
+  try {
+    for (const file of files) {
+      const path = `inbox/${folder}/${file.name}`;
+      fileSystem.putScratch(path, new Uint8Array(await file.arrayBuffer()));
+      staged.push(path);
+    }
+    const reply = command('import_file', { name: `${folder}/${main.name}`, kind: 'archive', target: null });
+    if (reply.err !== undefined) throw reply.err;
+    return reply.ok;
+  } finally {
+    for (const path of staged) fileSystem.removeScratch(path);
+    persist();
   }
 }
 

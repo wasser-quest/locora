@@ -30,7 +30,7 @@ after(async () => {
 
 /** A fresh browser profile: its own IndexedDB, so each test starts with no palaces. */
 async function openApp(options = {}) {
-  const context = await browser.newContext({ viewport: { width: 1000, height: 760 }, acceptDownloads: true });
+  const context = await browser.newContext({ viewport: options.viewport ?? { width: 1000, height: 760 }, acceptDownloads: true });
   const page = await context.newPage();
   const problems = [];
   const requests = [];
@@ -48,7 +48,7 @@ async function openApp(options = {}) {
   page.on('request', (request) => requests.push(request.url()));
   await page.goto(origin + '/', { waitUntil: 'load' });
   await page.getByRole('button', { name: 'Start the tutorial' }).waitFor({ timeout: 15000 });
-  return { context, page, problems, requests, ...options };
+  return { context, page, problems, requests };
 }
 
 test('the app starts with its welcome page, a live graphic and no errors', async () => {
@@ -227,6 +227,112 @@ test('the palace exports as a ZIP of its source and media (the folder export)', 
       page.getByRole('button', { name: /Export TOML/ }).click(),
     ]);
     assert.match(file.suggestedFilename(), /\.zip$/);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the app tour is shown: the tutorial plugin highlights the controls step by step', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.getByRole('button', { name: 'App tour' }).click();
+    await page.waitForFunction(() => document.body.innerText.includes('Step 1 of 9'), null, { timeout: 15000 });
+    await page.locator('.tour-panel').getByRole('button', { name: 'Next' }).click();
+    await page.waitForFunction(() => document.body.innerText.includes('Step 2 of 9'), null, { timeout: 15000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the plugins show their tiles on the start page (notify and gamification run in the browser)', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.waitForTimeout(1500);
+    const text = await page.locator('body').innerText();
+    assert.match(text, /Gamification|Erfolge|Achievements/i, 'the gamification tile or its section is shown');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('reminders reach the browser notifications once, and the page does not show them twice', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    // The browser API is recorded here; the real notification is the browser's own.
+    await page.addInitScript(() => {
+      window.__notified = [];
+      const record = (title, options) => window.__notified.push({ title, body: options?.body ?? '' });
+      Notification.permission = 'granted';
+      Notification.requestPermission = () => Promise.resolve('granted');
+      window.Notification = function Notification(title, options) { record(title, options); };
+      window.Notification.permission = 'granted';
+      window.Notification.requestPermission = () => Promise.resolve('granted');
+      // Frames of the graphics have no service worker: only the page's own registrations are patched.
+      if (window.ServiceWorkerRegistration) {
+        ServiceWorkerRegistration.prototype.showNotification = function (title, options) {
+          record(title, options);
+          return Promise.resolve();
+        };
+      }
+    });
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'Start the tutorial' }).waitFor({ timeout: 15000 });
+    await page.waitForFunction(() => window.__TAURI__, null, { timeout: 15000 });
+    await page.evaluate(() => window.__TAURI__.core.invoke('settings_set', {
+      change: { reminders: { enabled: true, start: '00:00', end: '23:59', every: 1 } },
+    }));
+    await page.evaluate(() => window.__TAURI__.core.invoke('notifications', {}));
+    const shown = await page.evaluate(() => window.__notified.length);
+    assert.ok(shown > 0, 'a due reminder was shown');
+    await page.evaluate(() => window.__TAURI__.core.invoke('notifications', {}));
+    assert.equal(await page.evaluate(() => window.__notified.length), shown, 'shown reminders leave the queue');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the layout fits the screen: a phone folds the modes, the desktop shows them, and nothing scrolls sideways', async () => {
+  const phone = await openApp({ viewport: { width: 390, height: 844 } });
+  try {
+    await phone.page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await phone.page.waitForTimeout(1200);
+    assert.equal(await phone.page.locator('details.modes').evaluate((el) => el.open), false, 'folded on a phone');
+    assert.equal(await phone.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), 0);
+  } finally {
+    await phone.context.close();
+  }
+  const desktop = await openApp({ viewport: { width: 1440, height: 900 } });
+  try {
+    await desktop.page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await desktop.page.waitForTimeout(1200);
+    assert.equal(await desktop.page.locator('details.modes').evaluate((el) => el.open), true, 'open on a desktop');
+    assert.equal(await desktop.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), 0);
+  } finally {
+    await desktop.context.close();
+  }
+});
+
+test('a locora.toml imports with its pictures, chosen together, and becomes a palace', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const toml = 'name = "Folder import"\n[[room]]\nname = "Room"\nimage = "room.png"\nitems = ["One", "Two"]\n';
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Import…' }).click(),
+    ]);
+    await chooser.setFiles([
+      { name: 'locora.toml', mimeType: 'text/plain', buffer: Buffer.from(toml) },
+      { name: 'room.png', mimeType: 'image/png', buffer: png },
+    ]);
+    await page.waitForFunction(() => document.body.innerText.includes('Folder import'), null, { timeout: 20000 });
     assert.deepEqual(problems, []);
   } finally {
     await context.close();

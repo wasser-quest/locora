@@ -28,6 +28,9 @@ pub struct Backend {
 
 thread_local! {
     static BACKEND: RefCell<Option<Backend>> = const { RefCell::new(None) };
+    /// The store, for the plugins' calls back into the core. Those calls arrive while a command is
+    /// running and the backend is borrowed, so they use this handle instead.
+    static STORE: RefCell<Option<std::sync::Arc<locora_store::Store>>> = const { RefCell::new(None) };
 }
 
 /// The plugins of the browser host. The host provides the `locora_bridge` imports: `provides` says
@@ -50,6 +53,8 @@ mod plugins {
             request: *const u8,
             request_len: usize,
         ) -> u64;
+        #[link_name = "filter"]
+        fn host_filter(hook: *const u8, hook_len: usize, value: *const u8, value_len: usize) -> u64;
     }
 
     pub struct Bridge;
@@ -65,6 +70,11 @@ mod plugins {
             let packed = unsafe {
                 host_call(plugin.as_ptr(), plugin.len(), service.as_ptr(), service.len(), request.as_ptr(), request.len())
             };
+            read_reply(packed)
+        }
+
+        fn filter(&self, hook: &str, value: &[u8]) -> Result<Vec<u8>, String> {
+            let packed = unsafe { host_filter(hook.as_ptr(), hook.len(), value.as_ptr(), value.len()) };
             read_reply(packed)
         }
     }
@@ -91,6 +101,8 @@ fn open(dir: &str) -> anyhow::Result<()> {
     let default_marker = profile.store.put_media(locora_runtime::tutorial::DEFAULT_MARKER, SPLINELY)?.hash;
     let simo = profile.store.put_media(locora_runtime::tutorial::SIMO, SPLINELY)?.hash;
     let assets = Assets::register(&profile.store)?;
+    let store = profile.store.clone();
+    STORE.with(|cell| *cell.borrow_mut() = Some(store));
     BACKEND.with(|cell| {
         *cell.borrow_mut() = Some(Backend {
             profile,
@@ -158,6 +170,83 @@ fn dispatch(command: &str, args: &str) -> String {
         Ok((value, events)) => serde_json::json!({ "ok": value, "events": events }).to_string(),
         Err(error) => serde_json::json!({ "err": format!("{error:#}") }).to_string(),
     }
+}
+
+/// The output of a call from a plugin: one tag byte (0 = ok, 1 = error), then the bytes or the message.
+#[cfg(target_arch = "wasm32")]
+fn tagged(result: Result<Vec<u8>, String>) -> u64 {
+    let mut output = match result {
+        Ok(bytes) => std::iter::once(0).chain(bytes).collect::<Vec<u8>>(),
+        Err(message) => std::iter::once(1).chain(message.into_bytes()).collect(),
+    };
+    output.shrink_to_fit();
+    let (pointer, len) = (output.as_mut_ptr(), output.len());
+    std::mem::forget(output);
+    ((pointer as u64) << 32) | len as u64
+}
+
+/// # Safety
+/// The pair must describe bytes the host wrote with `alloc`.
+#[cfg(target_arch = "wasm32")]
+unsafe fn input(pointer: *const u8, len: usize) -> Vec<u8> {
+    unsafe { std::slice::from_raw_parts(pointer, len) }.to_vec()
+}
+
+/// # Safety
+/// The pair must describe UTF-8 the host wrote with `alloc`.
+#[cfg(target_arch = "wasm32")]
+unsafe fn text(pointer: *const u8, len: usize) -> String {
+    String::from_utf8_lossy(&unsafe { input(pointer, len) }).into_owned()
+}
+
+/// A plugin's palace read (`core.palaces@1`), answered by the store while the core is busy.
+/// # Safety
+/// The pair must describe a postcard request the host wrote with `alloc`.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn palace_service(pointer: *const u8, len: usize) -> u64 {
+    let request = unsafe { input(pointer, len) };
+    let store = STORE.with(|cell| cell.borrow().clone());
+    tagged(match store {
+        Some(store) => locora_host::nested_palace(&store, &request),
+        None => Err("the palace service is not bound".to_owned()),
+    })
+}
+
+/// A tour step a plugin shows (`ui.highlight@1`).
+/// # Safety
+/// Both pairs must describe bytes the host wrote with `alloc`.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plugin_highlight(
+    plugin_pointer: *const u8,
+    plugin_len: usize,
+    request_pointer: *const u8,
+    request_len: usize,
+) -> u64 {
+    let plugin = unsafe { text(plugin_pointer, plugin_len) };
+    let request = unsafe { input(request_pointer, request_len) };
+    tagged(locora_host::nested_highlight(&plugin, &request))
+}
+
+/// An event a plugin published (its UI declarations reach the core this way).
+/// # Safety
+/// The three pairs must describe bytes the host wrote with `alloc`.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plugin_publish(
+    plugin_pointer: *const u8,
+    plugin_len: usize,
+    topic_pointer: *const u8,
+    topic_len: usize,
+    payload_pointer: *const u8,
+    payload_len: usize,
+) -> u64 {
+    let plugin = unsafe { text(plugin_pointer, plugin_len) };
+    let topic = unsafe { text(topic_pointer, topic_len) };
+    let payload = unsafe { input(payload_pointer, payload_len) };
+    locora_host::nested_publish(&plugin, &topic, payload);
+    tagged(Ok(Vec::new()))
 }
 
 #[unsafe(no_mangle)]

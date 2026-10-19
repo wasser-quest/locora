@@ -134,6 +134,11 @@ struct ImportArgs {
 }
 
 #[derive(Deserialize)]
+struct PluginsArgs {
+    plugins: Vec<locora_host::Manifest>,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NotificationArgs {
     notification: NotificationView,
@@ -201,12 +206,22 @@ pub const NAMES: &[&str] = &[
     "media_file",
     "sply_svg",
     "dump_file",
+    "set_plugins",
 ];
 
 /// Whether a command name is known, before any backend is needed to answer it.
 pub fn is_known(command: &str) -> bool {
     NAMES.contains(&command) || command.starts_with("cloud_")
 }
+
+/// The browser host learns which plugins the page runs; native hosts load their own.
+#[cfg(target_arch = "wasm32")]
+fn tell_host_plugins(profile: &mut locora_runtime::Profile, plugins: Vec<locora_host::Manifest>) {
+    profile.host.set_plugins(plugins);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn tell_host_plugins(_profile: &mut locora_runtime::Profile, _plugins: Vec<locora_host::Manifest>) {}
 
 /// Writes every file below `folder` into a ZIP archive, with names relative to `folder`.
 fn zip_folder(folder: &Path, archive: &Path) -> Result<()> {
@@ -458,6 +473,12 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
             out(svg)
         }
         // The folder export: the palace's source and media, as one ZIP file for the page to save.
+        // The plugins the page started: their tiles and declared blocks are shown.
+        "set_plugins" => {
+            let a: PluginsArgs = take(args)?;
+            tell_host_plugins(profile, a.plugins);
+            out(())
+        }
         "dump_file" => {
             let a: ExportArgs = take(args)?;
             std::fs::create_dir_all(OUTBOX)?;
