@@ -82,6 +82,9 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     provide_context(VideoReady(video_ready));
     provide_context(VideoPosition(RwSignal::new(0.0)));
     let question = RwSignal::new(None::<Question>);
+    // The question's step number: the stage (and its video) belongs to a step, not to
+    // every answer or workbook action that sets the question again on the same step.
+    let stage_step = Memo::new(move |_| question.with(|q| q.as_ref().map(|q| q.n)));
     let phase = RwSignal::new(Phase::Asking);
     let summary = RwSignal::new(None::<Summary>);
     let error = RwSignal::new(None::<String>);
@@ -315,6 +318,15 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         <GameStatus status=game art=art />
         {move || error.get().map(|e| view! { <p class="notes">{e}</p> })}
         {move || {
+            stage_step.get();
+            if summary.get().is_some() || fields.get().is_some() {
+                return None;
+            }
+            question
+                .get_untracked()
+                .map(|q| view! { <Stage question=q phase=phase /> }.into_any())
+        }}
+        {move || {
             if let Some(s) = summary.get() {
                 return view! { <Done summary=s screen=screen art=art /> }.into_any();
             }
@@ -325,7 +337,6 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 return view! { <crate::Loading /> }.into_any();
             };
             view! {
-                <Stage question=q.clone() phase=phase />
                 <section class="card panel">
                     <div class="progress">{q.room.clone()}</div>
                     <div id="tour-journey-prompt" class="prompt" tabindex="-1">{q.prompt.clone()}</div>
