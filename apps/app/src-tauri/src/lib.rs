@@ -510,32 +510,45 @@ async fn notifications(
     state: State<'_, Shared>,
 ) -> Result<Vec<NotificationView>, String> {
     use tauri_plugin_notification::{NotificationExt, PermissionState};
-    let mut b = lock(&state)?;
-    let messages = b.profile.notifications().map_err(err)?;
+    // The backend lock covers only reading and writing the profile. The system calls below can
+    // wait for the OS; holding the lock meanwhile would block every other command, the palace
+    // delete included.
+    let messages = {
+        let mut b = lock(&state)?;
+        b.profile.notifications().map_err(err)?
+    };
+    if messages.is_empty() {
+        return Ok(Vec::new());
+    }
     let system = app.notification();
     if system.permission_state().map_or(true, |state| state != PermissionState::Granted) {
         let _ = system.request_permission();
     }
+    let mut sent = Vec::new();
     for message in messages {
-        let sent = system
+        let shown = system
             .builder()
             .title(message.title.clone())
             .body(message.body.clone())
             .show()
             .is_ok();
-        if sent {
-            b.profile
-                .shown_notification(&locora_api::notify::Message {
-                    plugin: "notify".into(),
-                    channel: message.channel,
-                    priority: message.priority,
-                    title: message.title,
-                    body: message.body,
-                    action: message.action,
-                    shown_at: locora_runtime::now(),
-                })
-                .map_err(err)?;
+        if shown {
+            sent.push(message);
         }
+    }
+    let mut b = lock(&state)?;
+    for message in sent {
+        b.profile
+            .shown_notification(&locora_api::notify::Message {
+                plugin: "notify".into(),
+                channel: message.channel,
+                priority: message.priority,
+                title: message.title,
+                body: message.body,
+                action: message.action,
+                shown_at: locora_runtime::now(),
+            })
+            .map_err(err)?;
     }
     Ok(Vec::new())
 }

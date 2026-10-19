@@ -132,12 +132,18 @@ pub fn known(catalog: &Catalog) -> Vec<(String, Placement)> {
     known
 }
 
+/// The layout a new installation starts with: the start page and the Stats tab as the developer
+/// set them up (apps/app/ui/src/default_layout.json). Saved layouts always take precedence.
+fn default_pages() -> Vec<Page> {
+    serde_json::from_str(include_str!("default_layout.json")).unwrap_or_default()
+}
+
 pub fn load() -> Pages {
     let mut list = web_sys::window()
         .and_then(|window| window.local_storage().ok().flatten())
         .and_then(|storage| storage.get_item(KEY).ok().flatten())
         .and_then(|value| serde_json::from_str::<Vec<Page>>(&value).ok())
-        .unwrap_or_default();
+        .unwrap_or_else(default_pages);
     ensure_start(&mut list);
     Pages {
         list,

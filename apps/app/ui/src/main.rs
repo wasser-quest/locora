@@ -577,6 +577,14 @@ fn HomeView(
     core_only: bool,
 ) -> impl IntoView {
     let home = RwSignal::new(None::<Result<Home, String>>);
+    // Loads the start page's data again in place: the screen and its scroll position stay.
+    let reload = Callback::new(move |()| {
+        spawn_local(async move {
+            let result = call::<Home>(CMD_HOME, tauri::NoArgs {}).await;
+            home.try_set(Some(result));
+        });
+    });
+    provide_context(HomeReload(reload));
     Effect::new(move |_| {
         let revision = offset_revision.get();
         spawn_local(async move {
@@ -1011,6 +1019,10 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
     })
 }
 
+/// Reloads the start page's data in place (provided by the home view).
+#[derive(Clone, Copy)]
+struct HomeReload(Callback<()>);
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DeletePalaceArgs {
@@ -1124,11 +1136,13 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                             busy.set(true);
                             let palace_id = delete_id.clone();
                             let removed_kind = built_in_kind.clone();
+                            let reload = expect_context::<HomeReload>().0;
                             spawn_local(async move {
                                 match call::<()>("palace_delete", DeletePalaceArgs { palace_id }).await {
                                     Ok(()) => {
                                         remember_removed(&removed_kind);
-                                        let _ = js_sys::eval("location.reload()");
+                                        busy.set(false);
+                                        reload.run(());
                                     }
                                     Err(error) => {
                                         busy.set(false);

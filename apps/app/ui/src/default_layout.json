@@ -1,0 +1,109 @@
+[
+  {
+    "id": "start",
+    "name": "",
+    "entries": [
+      {
+        "id": "due",
+        "placement": "shown",
+        "size": "full"
+      },
+      {
+        "id": "palaces",
+        "placement": "shown",
+        "size": "full"
+      },
+      {
+        "id": "tutorial",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "formulas",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "achievements",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "activity",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "tile:gamification",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "tile:notify",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "tile:review",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "block:review/wiederholung",
+        "placement": "folded",
+        "size": "full"
+      }
+    ]
+  },
+  {
+    "id": "page-1792424908613",
+    "name": "stats",
+    "entries": [
+      {
+        "id": "due",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "palaces",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "tutorial",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "activity",
+        "placement": "shown",
+        "size": "full"
+      },
+      {
+        "id": "tile:gamification",
+        "placement": "shown",
+        "size": "full"
+      },
+      {
+        "id": "achievements",
+        "placement": "shown",
+        "size": "full"
+      },
+      {
+        "id": "formulas",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "tile:notify",
+        "placement": "hidden",
+        "size": "full"
+      },
+      {
+        "id": "tile:review",
+        "placement": "hidden",
+        "size": "full"
+      }
+    ]
+  }
+]
