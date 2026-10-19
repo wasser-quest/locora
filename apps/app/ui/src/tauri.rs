@@ -66,14 +66,18 @@ thread_local! {
     static LAST_VIDEO: std::cell::RefCell<Option<(String, String)>> = const { std::cell::RefCell::new(None) };
 }
 
-pub async fn video_url(media: &Media) -> Result<String, String> {
-    let cached = LAST_VIDEO.with(|last| {
+/// The stage's video URL when that video is already loaded; no fetch is needed.
+pub fn cached_video_url(media: &Media) -> Option<String> {
+    LAST_VIDEO.with(|last| {
         last.borrow()
             .as_ref()
             .filter(|(hash, _)| *hash == media.hash)
             .map(|(_, object)| object.clone())
-    });
-    if let Some(object) = cached {
+    })
+}
+
+pub async fn video_url(media: &Media) -> Result<String, String> {
+    if let Some(object) = cached_video_url(media) {
         return Ok(object);
     }
     let read = "Video konnte nicht gelesen werden";

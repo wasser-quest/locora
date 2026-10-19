@@ -405,11 +405,16 @@ pub fn VideoBackdrop(
     #[prop(optional)] on_error: Option<Box<dyn Fn() + Send + Sync>>,
     #[prop(optional)] on_timeupdate: Option<Box<dyn Fn() + Send + Sync>>,
 ) -> impl IntoView {
-    let source = RwSignal::new(Err("Video lädt…".to_string()));
-    spawn_local(async move {
-        let result = crate::tauri::video_url(&media).await;
-        source.set(result);
-    });
+    // A video that is already loaded shows at once; otherwise the frame waits for the fetch.
+    let cached = crate::tauri::cached_video_url(&media);
+    let fetching = cached.is_none();
+    let source = RwSignal::new(cached.map_or_else(|| Err("Video lädt…".to_string()), Ok));
+    if fetching {
+        spawn_local(async move {
+            let result = crate::tauri::video_url(&media).await;
+            source.set(result);
+        });
+    }
     let loaded = StoredValue::new(on_loaded);
     let failed = StoredValue::new(on_error);
     let ticked = StoredValue::new(on_timeupdate);
