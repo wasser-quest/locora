@@ -1331,7 +1331,7 @@ fn RoomStage(
                 </nav>
             })
         } else { None }}
-        <div class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
+        <div id="tour-editor-stage" class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
             aria-label=if video { "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame" } else if timed_sply { "Animationsraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
             on:keydown=move |ev: web_sys::KeyboardEvent| {
                 // Only the stage itself, never native video controls or markers.
@@ -1882,7 +1882,7 @@ fn ContentForm(
             <Show when=move || locus.bound><p class="notes">{bound_note.clone()}</p></Show>
             <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get()>
                 <label>{t("Ort")}<input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
-                <label>{t("Inhalt")}<input type="text" bind:value=item disabled=item_bound /></label>
+                <label id="tour-editor-content">{t("Inhalt")}<input type="text" bind:value=item disabled=item_bound /></label>
                 <label>{t("Merkhilfe")}<textarea bind:value=note /></label>
                 <div class="tabs">
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=pick>{t("Bild wählen…")}</button>
@@ -1891,7 +1891,7 @@ fn ContentForm(
                 </div>
                 <label>{t("Bildgröße (Anteil der Raumbreite, 0.05–1)")}<input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
                 <label>"Zoom beim Abfragen (1 = ganzer Raum bis 4)"<input type="text" inputmode="decimal" bind:value=zoom /></label>
-                <label>{t("Antwortart")}<select bind:value=kind>
+                <label id="tour-editor-answer">{t("Antwortart")}<select bind:value=kind>
                     <option value="recall">{t("Recall (Selbstbewertung)")}</option><option value="guess">{t("Guess (Eingabe)")}</option><option value="quiz">{t("Quiz")}</option>
                 </select></label>
                 <Show when=move || kind.get() == "guess"><label>{t("Weitere gültige Antworten (eine pro Zeile)")}<textarea bind:value=accept /></label></Show>

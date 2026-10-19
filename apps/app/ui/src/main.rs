@@ -73,17 +73,9 @@ fn tour_action(
     if busy.get_untracked() {
         return;
     }
-    if action == TourAction::Next {
-        let exists = active.get_untracked().is_some_and(|step| {
-            web_sys::window()
-                .and_then(|window| window.document())
-                .and_then(|document| document.get_element_by_id(&step.target))
-                .is_some()
-        });
-        if !(route_ready.get_untracked() && target_ready.get_untracked() && exists) {
-            target_ready.set(false);
-            return;
-        }
+    // The tour never blocks: a step without its target still shows its text.
+    if action == TourAction::Next && !route_ready.get_untracked() {
+        return;
     }
     busy.set(true);
     spawn_local(async move {
@@ -95,7 +87,10 @@ fn tour_action(
                         error.set(String::new());
                         route_ready.set(true);
                     }
-                    Err(message) => error.set(message),
+                    Err(_) => {
+                        error.set(String::new());
+                        route_ready.set(true);
+                    }
                 }
             }
             Err(message) => error.set(message),
@@ -119,10 +114,13 @@ async fn route_tour_step(
                 screen.set(Screen::Home);
             }
         }
-        "tour-palace-route" | "tour-editor-toggle" | "tour-journey-prompt" => {
+        "tour-palace-route" | "tour-editor-toggle" | "tour-editor-stage" | "tour-editor-content" | "tour-editor-answer" | "tour-journey-prompt" => {
             let home = call::<Home>(CMD_HOME, tauri::NoArgs {}).await?;
             let id = if let Some(palace) = home.palaces.iter().find(|p| p.name == "Locora lernen") {
                 palace.id.clone()
+            } else if tutorial_removed() {
+                // Removed on purpose: the step shows its text without a palace.
+                return Ok(());
             } else {
                 call::<String>(CMD_TUTORIAL, tauri::NoArgs {}).await?
             };
@@ -168,6 +166,9 @@ fn TourOverlay(
             "tour-home-settings",
             "tour-palace-route",
             "tour-editor-toggle",
+            "tour-editor-stage",
+            "tour-editor-content",
+            "tour-editor-answer",
             "tour-journey-prompt",
         ] {
             if let Some(node) = document.get_element_by_id(id) {
@@ -200,7 +201,7 @@ fn TourOverlay(
                 target_ready.set(true);
             } else {
                 focused.set_value(None);
-                target_ready.set(false);
+                target_ready.set(true);
             }
         } else {
             focused.set_value(None);
@@ -219,18 +220,19 @@ fn TourOverlay(
         }
     });
     view! {
+        {move || active.get().is_some().then(|| view! { <div class="tour-scrim" aria-hidden="true"></div> })}
         <Show when=move || active.get().is_some()>
                 <aside class="tour-panel card" role="region" aria-label=t("App-Tour") aria-live="polite">
                     <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
                     <div class="tour-copy">
-                        <small>{move || active.get().map(|step| format!("Schritt {} von {}", step.step, step.total)).unwrap_or_default()}</small>
-                        <h2>{move || active.get().map(|step| step.title).unwrap_or_default()}</h2>
-                        <p>{move || active.get().map(|step| step.text).unwrap_or_default()}</p>
+                        <small>{move || active.get().map(|step| crate::i18n::tf("Schritt {0} von {1}", &[&step.step, &step.total])).unwrap_or_default()}</small>
+                        <h2>{move || active.get().map(|step| crate::i18n::translate(&step.title)).unwrap_or_default()}</h2>
+                        <p>{move || active.get().map(|step| crate::i18n::translate(&step.text)).unwrap_or_default()}</p>
                         <p class="notes" role="status">{move || {
                             let message = error.get();
                             if !message.is_empty() { message }
                             else if route_ready.get() && !target_ready.get() {
-                                "Tour-Ziel nicht gefunden. Du kannst den Schritt erneut laden oder die Tour schließen.".into()
+                                t("Tour-Ziel nicht gefunden. Du kannst den Schritt erneut laden oder die Tour schließen.").into()
                             } else { String::new() }
                         }}</p>
                         <div class="row">
@@ -238,9 +240,8 @@ fn TourOverlay(
                             <button disabled=move || busy.get() || active.get().is_none_or(|step| step.step <= 1)
                                 on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Previous)>{t("Zurück")}</button>
                             <button class="primary" disabled=move || busy.get()
-                                on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready,
-                                    if route_ready.get_untracked() && target_ready.get_untracked() { TourAction::Next } else { TourAction::Resume })>
-                                {move || if !route_ready.get() || !target_ready.get() { "Erneut versuchen" } else if active.get().is_some_and(|step| step.step == step.total) { "Fertig" } else { "Weiter" }}
+                                on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Next)>
+                                {move || if active.get().is_some_and(|step| step.step == step.total) { t("Fertig") } else { t("Weiter") }}
                             </button>
                         </div>
                     </div>
@@ -700,9 +701,9 @@ fn HomeView(
     view! {
         <header class="bar">
             <h1>{if core_only { "Core" } else { "Locora" }}</h1>
-            <button on:click=move |_| screen.set(if core_only { Screen::Home } else { Screen::Core })>
-                {if core_only { "Startseite" } else { "Core" }}
-            </button>
+            {core_only.then(|| view! {
+                <button on:click=move |_| screen.set(Screen::Home)>{t("Startseite")}</button>
+            })}
             <button id="tour-home-media" disabled=move || busy.get() on:click=pick_media>{t("Bild/Video wählen…")}</button>
             <button id="tour-home-import" disabled=move || busy.get() on:click=import title=t("Paläste aus einer .locora-Datei oder locora.toml")>
                 {t("Importieren…")}
@@ -916,11 +917,39 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
     })
 }
 
+#[derive(serde::Serialize)]
+struct DeletePalaceArgs {
+    palace_id: String,
+}
+
+/// Remembers that a built-in palace was removed on purpose, so the tour does not create it again.
+fn remember_removed(name: &str) {
+    if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
+        let key = match name {
+            "Locora lernen" => "locora-tutorial-removed-v1",
+            _ => "locora-formulas-removed-v1",
+        };
+        let _ = storage.set_item(key, "1");
+    }
+}
+
+/// Whether the built-in tutorial palace was removed on purpose.
+fn tutorial_removed() -> bool {
+    web_sys::window()
+        .and_then(|window| window.local_storage().ok().flatten())
+        .and_then(|storage| storage.get_item("locora-tutorial-removed-v1").ok().flatten())
+        .is_some()
+}
+
 #[component]
 fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>) -> impl IntoView {
     let id = palace.id.clone();
     let cover_open_id = palace.id.clone();
     let play_id = palace.id.clone();
+    // Built-in palaces can be removed; the tour then leaves them out instead of creating them again.
+    let built_in = matches!(palace.name.as_str(), "Locora lernen" | "Formeln verstehen");
+    let delete_id = palace.id.clone();
+    let delete_name = palace.name.clone();
     let status = match (palace.due, palace.fresh) {
         (0, 0) => t("alles gewusst").to_owned(),
         (due, 0) => format!("{due} fällig"),
@@ -977,6 +1006,29 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
             <button class="name palace-title" disabled=move || busy.get()>{palace.name.clone()}</button>
             <div class="row">
                 <span class="meta">{format!("{} · {}", loci_text(palace.loci), status)}</span>
+                {built_in.then(|| {
+                    let delete_id = delete_id.clone();
+                    let delete_name = delete_name.clone();
+                    view! {
+                        <button class="ghost" disabled=move || busy.get() on:click=move |ev| {
+                            ev.stop_propagation();
+                            if busy.get_untracked() { return; }
+                            let question = crate::i18n::tf("„{0}“ löschen? Du kannst ihn später wieder anlegen.", &[&delete_name]);
+                            let confirmed = web_sys::window()
+                                .and_then(|window| window.confirm_with_message(&question).ok())
+                                .unwrap_or(false);
+                            if !confirmed { return; }
+                            busy.set(true);
+                            let palace_id = delete_id.clone();
+                            let removed_name = delete_name.clone();
+                            spawn_local(async move {
+                                let _ = call::<()>("palace_delete", DeletePalaceArgs { palace_id }).await;
+                                remember_removed(&removed_name);
+                                let _ = js_sys::eval("location.reload()");
+                            });
+                        }>{t("Löschen")}</button>
+                    }
+                })}
                 <button
                     class="primary play"
                     title=t("Route ablaufen")

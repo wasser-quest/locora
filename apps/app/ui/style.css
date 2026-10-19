@@ -316,3 +316,6 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .activity-day.l4 { background: var(--ok); }
 .activity-legend { display: flex; gap: 3px; align-items: center; color: var(--muted); font-size: .8rem; }
 .activity-legend span:not(.activity-day) { margin: 0 .3rem; }
+
+/* Room tabs are buttons, not text: they cannot be selected or highlighted. */
+.tabs, .tabs * { -webkit-user-select: none; user-select: none; }

@@ -498,20 +498,41 @@ async fn formula_guide(state: State<'_, Shared>) -> Result<String, String> {
 
 /// Everything that may be shown now (quiet hours, muting and the daily
 /// per-channel limit were already applied by the plugin).
+/// Due notifications leave as system notifications (Android or desktop), not as banners in the app.
+/// A message counts as shown once the system accepted it, so the queue drops it.
 #[tauri::command]
-async fn notifications(state: State<'_, Shared>) -> Result<Vec<NotificationView>, String> {
+async fn notifications(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+) -> Result<Vec<NotificationView>, String> {
+    use tauri_plugin_notification::{NotificationExt, PermissionState};
     let mut b = lock(&state)?;
     let messages = b.profile.notifications().map_err(err)?;
-    Ok(messages
-        .into_iter()
-        .map(|message| NotificationView {
-            channel: message.channel,
-            priority: message.priority,
-            title: message.title,
-            body: message.body,
-            action: message.action,
-        })
-        .collect())
+    let system = app.notification();
+    if system.permission_state().map_or(true, |state| state != PermissionState::Granted) {
+        let _ = system.request_permission();
+    }
+    for message in messages {
+        let sent = system
+            .builder()
+            .title(message.title.clone())
+            .body(message.body.clone())
+            .show()
+            .is_ok();
+        if sent {
+            b.profile
+                .shown_notification(&locora_api::notify::Message {
+                    plugin: "notify".into(),
+                    channel: message.channel,
+                    priority: message.priority,
+                    title: message.title,
+                    body: message.body,
+                    action: message.action,
+                })
+                .map_err(err)?;
+        }
+    }
+    Ok(Vec::new())
 }
 
 /// Confirm that a notification was shown, so the queue drops it.
@@ -871,6 +892,7 @@ pub fn run() {
         .manage(DropInbox::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let backend = open(app).map_err(|e| format!("Profil öffnen: {e:#}"))?;
             app.manage::<Shared>(Mutex::new(backend));

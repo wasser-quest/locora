@@ -11,12 +11,37 @@ const STEPS: &[(&str, &str, &str)] = &[
     (
         "tour-home-media",
         "Ein Bild wird zum Palast",
-        "Wähle ein Bild oder Video. Locora legt den Palast an und öffnet direkt den Editor.",
+        "Wähle ein Bild oder Video. Locora legt daraus einen Palast mit einem Raum an und öffnet direkt den Editor.",
     ),
     (
-        "tour-home-import",
-        "Vorhandene Paläste mitnehmen",
-        "Hier importierst du eine .locora-Datei oder eine locora.toml-Quelle.",
+        "tour-editor-toggle",
+        "Bearbeiten einschalten",
+        "Aktiviere „Bearbeiten“, damit du Orte im Bild setzen und verändern kannst.",
+    ),
+    (
+        "tour-editor-stage",
+        "Orte setzen",
+        "Klicke auf das Bild dort, wo etwas liegen soll. Jeder Klick setzt einen Ort, den du dir merken willst.",
+    ),
+    (
+        "tour-editor-content",
+        "Inhalt eintragen",
+        "Klicke einen Ort an. Im Feld Ort beschreibst du den Platz, im Feld Inhalt das, was du dir merken willst – zum Beispiel „Haustür“ und „Schlüssel“.",
+    ),
+    (
+        "tour-editor-answer",
+        "Antwortart wählen",
+        "Wähle den Ort und stelle die Antwortart ein. Recall zeigt den Ort, und du bewertest dich selbst. Guess fragt eine Eingabe ab, Quiz bietet mehrere Antworten an.",
+    ),
+    (
+        "tour-palace-route",
+        "Deine Route",
+        "Mit „Route ablaufen“ gehst du alle Orte nacheinander durch. Die App fragt sie ab und merkt sich, was du wusstest.",
+    ),
+    (
+        "tour-journey-prompt",
+        "Am Ort erinnern",
+        "Die Journey fragt einen Ort nach dem anderen ab. Zeige die Antwort und bewerte danach, wie gut du sie wusstest.",
     ),
     (
         "tour-home-settings",
@@ -24,19 +49,9 @@ const STEPS: &[(&str, &str, &str)] = &[
         "Stelle Tageslimit und Behaltensrate ein und sieh dir deine Lernstatistik an.",
     ),
     (
-        "tour-palace-route",
-        "Deine Route",
-        "Im Tutorial-Palast startest du hier den Weg durch die Orte. Die App-Tour öffnet dafür den Beispielpalast.",
-    ),
-    (
-        "tour-editor-toggle",
-        "Orte bearbeiten",
-        "Aktiviere Bearbeiten, um Orte im Raum zu setzen und ihre Inhalte zu ändern.",
-    ),
-    (
-        "tour-journey-prompt",
-        "Am Ort erinnern",
-        "Die Journey fragt einen Ort nach dem anderen ab. Zeige die Antwort und bewerte danach, wie gut du sie wusstest.",
+        "tour-home-import",
+        "Vorhandene Paläste mitnehmen",
+        "Hier importierst du eine .locora-Datei oder eine locora.toml-Quelle.",
     ),
 ];
 
