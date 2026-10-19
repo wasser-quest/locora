@@ -27,11 +27,12 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
-            // Neighbouring loci and the earlier pictures show by default; the numbers stay off,
-            // so one has to recall what the locus was at that place. quick_next is on: it only
-            // moves on after the user's own grade or answer, it never grades by itself.
-            previous: 3,
-            next: 3,
+            // Only the current locus shows by default, on every device: the neighbouring loci would
+            // tell where one is on the route. Earlier pictures stay, and the numbers stay off.
+            // quick_next is on: it only moves on after the user's own grade or answer, it never
+            // grades by itself.
+            previous: 0,
+            next: 0,
             numbers: false,
             hide_revealed: true,
             keep_previous: true,
