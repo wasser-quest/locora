@@ -164,6 +164,11 @@ impl PluginHost {
         Ok(())
     }
 
+    /// Events the core published since the last call. The page delivers them to the plugins.
+    pub fn take_events(&mut self) -> Vec<HostEvent> {
+        std::mem::take(&mut self.events)
+    }
+
     pub fn publish_raw(&mut self, topic: &str, payload: Vec<u8>) {
         self.events.push(HostEvent::Published { plugin: "host".to_owned(), topic: topic.to_owned(), payload });
     }

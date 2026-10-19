@@ -1,0 +1,14 @@
+{
+  "name": "locora-web-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end tests of the browser build in Chromium (run node apps/web/build.mjs first).",
+  "type": "module",
+  "scripts": {
+    "test": "node --test app.test.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.1"
+  },
+  "license": "MIT"
+}
