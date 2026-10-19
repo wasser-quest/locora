@@ -255,6 +255,32 @@ fn mistakes_are_reported_with_their_place() {
 }
 
 #[test]
+fn media_must_stay_inside_the_palace_folder() {
+    let root = tempfile::tempdir().unwrap();
+    let palace = root.path().join("palace");
+    fs::create_dir(&palace).unwrap();
+    files(&palace);
+    fs::write(root.path().join("secret.png"), b"\x89PNG private").unwrap();
+    let secret = root.path().join("secret.png");
+    for escape in ["../secret.png", secret.to_str().unwrap(), "sub/../../secret.png"] {
+        let text = format!("name = \"P\"\n[[room]]\nname = \"a\"\nimage = \"{escape}\"");
+        assert!(plan_of(&text, &palace).is_err(), "{escape} leaves the palace folder");
+    }
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&secret, palace.join("link.png")).unwrap();
+        let text = "name = \"P\"\n[[room]]\nname = \"a\"\nimage = \"link.png\"";
+        assert!(err_of(text, &palace).contains("außerhalb"), "a symlink out of the folder is refused");
+    }
+    // Media in a sibling folder is fine when the root is above the palace (the bundled tutorial).
+    let sibling = root.path().join("sibling.png");
+    fs::write(&sibling, b"\x89PNG shared").unwrap();
+    let text = "name = \"P\"\n[[room]]\nname = \"a\"\nimage = \"../sibling.png\"";
+    let source = parse(text).unwrap();
+    assert!(check_within(&source, &palace, root.path()).is_ok());
+}
+
+#[test]
 fn times_parse() {
     assert_eq!(parse_time("83"), Some(83.0));
     assert_eq!(parse_time("1:23"), Some(83.0));

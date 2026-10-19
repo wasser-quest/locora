@@ -203,7 +203,8 @@ fn build_staged(
     }
     let source_file = dir.join(source);
     let source = locora_source::parse(&fs::read_to_string(&source_file)?)?;
-    let plan = locora_source::check(&source, source_file.parent().unwrap_or(Path::new(".")))?;
+    // The pictures of a bundled palace may sit next to its folder, so the whole staging folder is the root.
+    let plan = locora_source::check_within(&source, source_file.parent().unwrap_or(Path::new(".")), dir)?;
     let mut notes = Vec::new();
     for query in [name, &locora_source::bundled_palace_id(namespace)] {
         if let Some(old) = profile.store.find_palace(query)?
