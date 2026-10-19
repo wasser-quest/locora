@@ -17,10 +17,6 @@ struct ConnectArgs {
     request: CloudConnect,
 }
 
-#[derive(Serialize)]
-struct GuestArgs {
-    server: String,
-}
 
 #[derive(Serialize)]
 struct KeyArgs {
@@ -190,6 +186,7 @@ fn ConnectForm(
     busy: RwSignal<bool>,
 ) -> impl IntoView {
     let register = RwSignal::new(false);
+    let guest = RwSignal::new(false);
     // Same address as locora_runtime::cloud::DEFAULT_SERVER; change it only for another server.
     let server = RwSignal::new(String::from("https://locora.cloud"));
     let email = RwSignal::new(String::new());
@@ -216,6 +213,7 @@ fn ConnectForm(
             password: secret,
             display_name: creating.then(|| display_name.get_untracked()),
             register: creating,
+            guest: creating && guest.get_untracked(),
         };
         password.set(String::new());
         confirmation.set(String::new());
@@ -233,31 +231,7 @@ fn ConnectForm(
             busy.set(false);
         });
     };
-    // A guest needs no e-mail address or password and gets the access of a trial.
-    let guest = move || {
-        if busy.get_untracked() {
-            return;
-        }
-        let server = server.get_untracked();
-        busy.set(true);
-        message.set(None);
-        spawn_local(async move {
-            match call::<CloudStatus>("cloud_guest", GuestArgs { server }).await {
-                Ok(connected) => status.set(Some(Ok(connected))),
-                Err(error) => {
-                    message.set(Some(Err(error)));
-                    status.set(Some(call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}).await));
-                }
-            }
-            busy.set(false);
-        });
-    };
     view! {
-        <div class="card panel">
-            <h3>"Ohne Konto starten"</h3>
-            <p class="notes">"Als Gast nutzt du Locora Cloud mit dem Zugang einer Testphase, ohne E-Mail und Passwort. Die Cloud kann später etwas kosten; darüber informieren wir vorher."</p>
-            <button type="button" disabled=move || busy.get() on:click=move |_| guest()>"Als Gast nutzen"</button>
-        </div>
         <p class="notes">"Konto und Verschlüsselung lassen sich hier direkt auf diesem Gerät einrichten."</p>
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
             <label class="input"><span>"Cloud-Server (HTTPS)"</span>
@@ -269,6 +243,8 @@ fn ConnectForm(
             <label><input type="checkbox" prop:checked=move || register.get()
                 on:change=move |event| register.set(event_target_checked(&event)) />"Neues Konto erstellen"</label>
             <Show when=move || register.get()>
+                <label><input type="checkbox" prop:checked=move || guest.get()
+                    on:change=move |event| guest.set(event_target_checked(&event)) />"Als Gast anlegen: Daten bleiben sechs Monate erhalten, der Zugang entspricht einer Testphase. Mit einem Abo bleiben die Daten dauerhaft. Die Cloud kann später etwas kosten."</label>
                 <label class="input"><span>"Anzeigename"</span>
                     <input type="text" maxlength="32" bind:value=display_name />
                 </label>

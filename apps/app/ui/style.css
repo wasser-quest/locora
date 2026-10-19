@@ -115,6 +115,8 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 video::-webkit-media-controls-overlay-play-button { display: none !important; }
 .locus-picture { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .locus-picture > img { display: block; width: 100%; height: auto; }
+/* The text of a revealed locus without a picture, where the picture would stand. */
+.locus-text { position: absolute; transform: translate(-50%, -50%); pointer-events: none; max-width: 40%; padding: .3rem .6rem; border-radius: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--line); font-weight: 600; text-align: center; overflow-wrap: anywhere; }
 .locus-picture > iframe.sply { display: block; width: 100%; aspect-ratio: 1; height: auto; }
 .marker { z-index: 2; position: absolute; width: 56px; height: 56px; transform: translate(-50%, -50%); }
 /* With a dark colour scheme WebViews paint frames white unless the frame opts out. */

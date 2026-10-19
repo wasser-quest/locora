@@ -149,27 +149,23 @@ pub fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+/// Creates an account. A guest account (`guest`) keeps its data for six months with the
+/// access of a trial; a paid subscription makes it permanent.
 pub fn register(
     server: &str,
     email: &str,
     password: &str,
     display_name: &str,
+    guest: bool,
 ) -> Result<CloudState> {
     let server = check_server(server)?;
     let body = Register {
         email: email.to_owned(),
         password: password.to_owned(),
         display_name: display_name.to_owned(),
+        guest,
     };
     let session: Session = post(&server, "/v1/accounts", None, &body)?;
-    finish_login(server, session)
-}
-
-/// A guest session: no e-mail address or password. Guests have the access of a trial
-/// subscription, so the cloud works from the first start.
-pub fn guest(server: &str) -> Result<CloudState> {
-    let server = check_server(server)?;
-    let session: Session = post(&server, "/v1/guests", None, &())?;
     finish_login(server, session)
 }
 

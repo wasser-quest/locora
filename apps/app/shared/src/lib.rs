@@ -94,6 +94,9 @@ pub struct CloudConnect {
     pub password: String,
     pub display_name: Option<String>,
     pub register: bool,
+    /// With `register`: a guest account (data kept six months, trial access).
+    #[serde(default)]
+    pub guest: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

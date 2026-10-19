@@ -19,12 +19,9 @@ pub enum CloudCommand {
         /// Adresse des Servers (Standard: LOCORA_CLOUD_URL, dann der zuletzt benutzte, sonst https://locora.cloud)
         #[arg(long)]
         server: Option<String>,
-    },
-    /// Als Gast nutzen: ohne E-Mail und Passwort, mit dem Zugang einer Testphase
-    Guest {
-        /// Adresse des Servers (Standard: LOCORA_CLOUD_URL, sonst https://locora.cloud)
+        /// Gastkonto: Daten bleiben sechs Monate, Zugang wie in einer Testphase; ein Abo übernimmt die Daten
         #[arg(long)]
-        server: Option<String>,
+        guest: bool,
     },
     /// Anmelden; das Passwort wird abgefragt, nicht als Argument übergeben
     Login {
@@ -98,20 +95,13 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             email,
             name,
             server,
+            guest,
         } => {
             let server = server_or_default(server, &data)?;
             let password = read_password("Neues Passwort (mind. 10 Zeichen): ")?;
-            let state = cloud::register(&server, &email, &password, &name)?;
+            let state = cloud::register(&server, &email, &password, &name, guest)?;
             cloud::save(&data, &state)?;
             println!("✓ Konto angelegt. Angemeldet als {}.", state.account.email);
-            print_status(&state);
-            Ok(())
-        }
-        CloudCommand::Guest { server } => {
-            let server = server_or_default(server, &data)?;
-            let state = cloud::guest(&server)?;
-            cloud::save(&data, &state)?;
-            println!("✓ Als Gast angemeldet. Zugang wie in einer Testphase.");
             print_status(&state);
             Ok(())
         }

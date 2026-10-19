@@ -482,9 +482,17 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                     }
                 })}
                 {move || {
-                    phase.get().stage_answer().cloned().and_then(|r| r.picture.map(|m| view! {
-                        <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
-                    }))
+                    // A locus with a picture shows the picture; without one, its text stands in.
+                    phase.get().stage_answer().cloned().map(|r| match r.picture {
+                        Some(m) => view! {
+                            <crate::LocusPicture media=m x=question.x y=question.y size=r.image_size />
+                        }.into_any(),
+                        None => view! {
+                            <div class="locus-text" style:left=format!("{}%", question.x * 100.0) style:top=format!("{}%", question.y * 100.0)>
+                                {r.solution.clone()}
+                            </div>
+                        }.into_any(),
+                    })
                 }}
                 {nearby.into_iter().map(|locus| {
                     let id = locus.id.clone();
@@ -617,7 +625,8 @@ fn VideoAtLocus(
         <VideoBackdrop
             media=media.clone()
             class="backdrop"
-            controls=MaybeProp::derive(move || Some(matches!(phase.get(), Phase::Judged(_))))
+            // No native bar with its seek slider: the journey moves the video itself.
+            controls=false
             muted=true
             preload="auto".to_string()
             autoplay=true

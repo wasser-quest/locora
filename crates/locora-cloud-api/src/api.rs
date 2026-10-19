@@ -10,6 +10,10 @@ pub struct Register {
     pub email: String,
     pub password: String,
     pub display_name: String,
+    /// A guest keeps its data for six months with the access of a trial; a paid
+    /// subscription makes it permanent. Older clients never send it.
+    #[serde(default)]
+    pub guest: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
