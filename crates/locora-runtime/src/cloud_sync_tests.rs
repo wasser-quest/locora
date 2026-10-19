@@ -51,6 +51,12 @@ fn responses(replies: Vec<(u16, Value)>) -> (CloudState, thread::JoinHandle<Vec<
     )
 }
 
+/// The pull of the tests: the pages of the script, applied as the sync applies them.
+fn pull(state: &CloudState, store: &Store, dek: &Dek, report: &mut SyncReport) -> Result<()> {
+    *report = cloud_http::run(SyncFlow::pull_only(state.clone(), store, dek)?)?;
+    Ok(())
+}
+
 fn dek() -> &'static Dek {
     static KEY: OnceLock<Dek> = OnceLock::new();
     KEY.get_or_init(|| locora_crypto::create("test passphrase for sync").unwrap().dek)

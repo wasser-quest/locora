@@ -36,10 +36,9 @@ use locora_api::review::{CardState, Schedule, ScheduleRequest};
 use locora_host::{ApprovalReceipt, HostEvent, KvStore, Level, Manifest, PluginHost};
 use locora_store::{PalaceTree, Store};
 
-#[cfg(feature = "cloud")]
 pub mod cloud;
+pub mod cloud_http;
 mod palace_i18n;
-#[cfg(feature = "cloud")]
 pub mod cloud_sync;
 pub mod formula_guide;
 pub mod journey;
