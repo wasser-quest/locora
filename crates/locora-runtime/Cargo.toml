@@ -7,6 +7,11 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[features]
+# Cloud accounts, sync and entitlements over HTTPS. Off for the browser build, which keeps all data local.
+default = ["cloud"]
+cloud = ["dep:ureq"]
+
 [dependencies]
 anyhow.workspace = true
 dirs = "6"
@@ -23,7 +28,7 @@ locora-store = { path = "../locora-store" }
 tempfile = "3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-ureq = { version = "3", features = ["json"] }
+ureq = { version = "3", features = ["json"], optional = true }
 url = "2"
 sha2.workspace = true
 percent-encoding = "2"
