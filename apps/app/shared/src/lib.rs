@@ -56,6 +56,11 @@ pub struct UiAssets {
     /// The Locora logo (loading) and Simo (resting, nothing due).
     pub logo: Media,
     pub simo: Media,
+    /// Achievement medals: coloured once unlocked (clickable), grey while locked.
+    pub medal_tutorial: Media,
+    pub medal_tutorial_locked: Media,
+    pub medal_formulas: Media,
+    pub medal_formulas_locked: Media,
 }
 pub const CMD_EXPORT_PICK: &str = "export_pick";
 pub const CMD_DUMP_PICK: &str = "dump_pick";

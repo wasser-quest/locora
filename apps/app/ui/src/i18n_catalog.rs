@@ -256,4 +256,8 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
     ("Startseite", ["Home", "Startseite", "Accueil", "ホーム", "主页"]),
     ("„{0}“ löschen? Du kannst ihn später wieder anlegen.", ["Delete “{0}”? You can add it again later.", "„{0}“ löschen? Du kannst ihn später wieder anlegen.", "Supprimer « {0} » ? Tu pourras le recréer plus tard.", "「{0}」を削除しますか？あとで作り直せます。", "删除「{0}」？之后可以重新创建。"]),
     ("Löschen", ["Delete", "Löschen", "Supprimer", "削除", "删除"]),
+    ("Tutorial abgeschlossen", ["Tutorial completed", "Tutorial abgeschlossen", "Tutoriel terminé", "チュートリアル完了", "教程已完成"]),
+    ("Formeln verstanden", ["Formulas understood", "Formeln verstanden", "Formules comprises", "数式を理解", "已掌握公式"]),
+    ("Schließe das Tutorial „Locora lernen“ ab.", ["Finish the tutorial “Locora lernen” to unlock it.", "Schließe das Tutorial „Locora lernen“ ab.", "Termine le tutoriel « Locora lernen » pour le débloquer.", "チュートリアル「Locora lernen」を完了すると解除されます。", "完成教程「Locora lernen」即可解锁。"]),
+    ("Schließe den Formel-Guide ab.", ["Finish the formula guide to unlock it.", "Schließe den Formel-Guide ab.", "Termine le guide des formules pour le débloquer.", "数式ガイドを完了すると解除されます。", "完成公式指南即可解锁。"]),
 ];

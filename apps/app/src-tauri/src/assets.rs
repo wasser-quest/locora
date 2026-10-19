@@ -30,6 +30,10 @@ const FILES: &[(&str, &[u8])] = ui![
     "raum-leer",
     "raum-bild",
     "raum-video",
+    "erfolg-tutorial",
+    "erfolg-tutorial-gesperrt",
+    "erfolg-formeln",
+    "erfolg-formeln-gesperrt",
 ];
 
 /// Graphics from elsewhere in `assets/`.
@@ -84,6 +88,10 @@ impl Assets {
             room_video: self.media("raum-video"),
             logo: self.media("logo"),
             simo: self.media("simo"),
+            medal_tutorial: self.media("erfolg-tutorial"),
+            medal_tutorial_locked: self.media("erfolg-tutorial-gesperrt"),
+            medal_formulas: self.media("erfolg-formeln"),
+            medal_formulas_locked: self.media("erfolg-formeln-gesperrt"),
         }
     }
 }

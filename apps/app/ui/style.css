@@ -325,3 +325,11 @@ dl.stats dd { margin: 0; font-weight: 600; }
 /* Edit mode: everything sits in one panel; the inner blocks drop their own card frames. */
 .editor-panel { display: flex; flex-direction: column; gap: .6rem; }
 .editor-panel > .panel { margin-top: 0; }
+
+/* Achievements: unlocked medals are coloured and clickable, locked ones grey and still. */
+.medals { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
+.medal { display: flex; flex-direction: column; align-items: center; gap: .3rem; width: 9rem; text-align: center; }
+.medal-art { width: 72px; height: 72px; }
+.medal-title { font-weight: 600; }
+.medal-hint { color: var(--muted); font-size: .85rem; }
+.medal.locked .medal-title { color: var(--muted); }

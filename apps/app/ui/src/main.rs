@@ -1,5 +1,6 @@
 //! Locora app UI: start screen, palace with rooms and markers, journeys.
 
+mod achievements;
 mod activity;
 mod cloud_settings;
 mod crash;
@@ -756,7 +757,8 @@ fn HomeView(
                             </div>
                         </section>
                         <Tiles tiles=home.tiles.clone() />
-                        <crate::activity::Activity />
+                        <crate::achievements::Achievements />
+<crate::activity::Activity />
                         {home
                             .notes
                             .into_iter()
@@ -840,7 +842,8 @@ fn HomeView(
                             }
                         })}
                     <Tiles tiles=home.tiles.clone() />
-                        <crate::activity::Activity />
+                        <crate::achievements::Achievements />
+<crate::activity::Activity />
                     </> })}
                     {if home.palaces.is_empty() {
                         view! {
