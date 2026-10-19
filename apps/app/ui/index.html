@@ -6941,8 +6941,8 @@ if(controls && (data.audioAssets || []).length) {
         if (template) art.appendChild(document.importNode(template.content, true));
         document.getElementById("splash-tip").textContent = pick(tips[lang] || tips.en);
         var hideRequested = false, removed = false;
-        // The splash stays for a short time, so the animation can be seen; the app asks for the hide once mounted.
-        var minShown = 1800, maxWait = 3000;
+        // The splash gives way as soon as the app is mounted; the short minimum only avoids a flicker.
+        var minShown = 400, maxWait = 3000;
         var finish = function () {
           if (removed) return;
           removed = true;
