@@ -4,6 +4,7 @@ mod achievements;
 mod activity;
 mod cloud_settings;
 mod crash;
+mod dashboard;
 mod editor;
 mod i18n;
 mod i18n_catalog;
@@ -17,7 +18,7 @@ mod tauri;
 mod theme;
 mod video_frames;
 
-use crate::i18n::t;
+use crate::i18n::{t, tf};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -287,6 +288,10 @@ fn App() -> impl IntoView {
     // The app's own animations (assets/ui), loaded once for every screen.
     let art = Art(RwSignal::new(None));
     provide_context(art);
+    provide_context(dashboard::Layout(RwSignal::new(dashboard::load())));
+    // The start page's layout editor (see dashboard.rs).
+    let dashboard_open = RwSignal::new(false);
+    provide_context(dashboard::Open(dashboard_open));
     spawn_local(async move {
         if let Ok(a) = call::<UiAssets>(CMD_UI_ASSETS, tauri::NoArgs {}).await {
             art.0.set(Some(a));
@@ -699,6 +704,7 @@ fn HomeView(
             busy.set(false);
         });
     };
+    let dashboard_open = expect_context::<dashboard::Open>().0;
     view! {
         <header class="bar">
             <h1>{if core_only { "Core" } else { "Locora" }}</h1>
@@ -710,6 +716,9 @@ fn HomeView(
                 {t("Importieren…")}
             </button>
             <button disabled=move || busy.get() on:click=start_tour>{t("App-Tour")}</button>
+            {(!core_only).then(|| view! {
+                <button on:click=move |_| dashboard_open.update(|open| *open = !*open)>{t("Seiten anpassen")}</button>
+            })}
             <button id="tour-home-settings" title=t("Einstellungen & Statistik") on:click=move |_| screen.set(Screen::Settings)>
                 "⚙"
             </button>
@@ -767,52 +776,91 @@ fn HomeView(
                     }
                         .into_any();
                 }
-                view! {
-                    {(!core_only).then(|| view! { <>
-                    <section class="card weiter">
-                        <div class="text">
-                            <div class="count">
-                                {if waiting == 0 {
-                                    "Heute ist nichts fällig".to_owned()
-                                } else {
-                                    format!("{} fällig · {} neu", home.due, home.fresh)
-                                }}
-                            </div>
-                            <div class="meta">
-                                {if waiting == 0 {
-                                    {t("Simo hält die Laterne – morgen geht es weiter.")}
-                                } else {
-                                    {t("Wiederholen, was dein Gedächtnis gerade braucht.")}
-                                }}
-                            </div>
-                        </div>
-                        {(waiting == 0)
-                            .then(|| {
-                                let art = art();
-                                move || {
-                                    art.get()
-                                        .map(|a| view! { <div class="resting"><Sply media=a.simo /></div> })
-                                }
-                            })}
-                        <button
-                            class="primary"
-                            disabled=move || waiting == 0 || busy.get()
-                            on:click=move |_| {
-                                if busy.get_untracked() { return; }
-                                screen
-                                    .set(
-                                        Screen::Journey(JourneyStart {
-                                            due_only: true,
-                                            ..Default::default()
-                                        }),
-                                    )
+                let pages = expect_context::<dashboard::Layout>().0;
+                let tiles = home.tiles.clone();
+                let page = pages.get().current().clone();
+                let mut palaces = Some(home.palaces);
+                let mut shown: Vec<AnyView> = Vec::new();
+                let mut folded: Vec<AnyView> = Vec::new();
+                let mut fold_at = None;
+                for entry in dashboard::resolve(&page.entries, &tiles, page.id == dashboard::START) {
+                    // Core only: the palaces, nothing else.
+                    let placement = if core_only && entry.id != "palaces" {
+                        dashboard::Placement::Hidden
+                    } else {
+                        entry.placement
+                    };
+                    let block: Option<AnyView> = match entry.id.as_str() {
+                        "due" => Some(
+                            view! {
+                                <section class="card weiter">
+                                    <div class="text">
+                                        <div class="count">
+                                            {if waiting == 0 {
+                                                t("Heute ist nichts fällig").to_owned()
+                                            } else {
+                                                tf("{0} fällig · {1} neu", &[&home.due, &home.fresh])
+                                            }}
+                                        </div>
+                                        <div class="meta">
+                                            {if waiting == 0 {
+                                                t("Simo hält die Laterne – morgen geht es weiter.")
+                                            } else {
+                                                t("Wiederholen, was dein Gedächtnis gerade braucht.")
+                                            }}
+                                        </div>
+                                    </div>
+                                    {(waiting == 0)
+                                        .then(|| {
+                                            let art = art();
+                                            move || {
+                                                art.get()
+                                                    .map(|a| view! { <div class="resting"><Sply media=a.simo /></div> })
+                                            }
+                                        })}
+                                    <button
+                                        class="primary"
+                                        disabled=move || waiting == 0 || busy.get()
+                                        on:click=move |_| {
+                                            if busy.get_untracked() { return; }
+                                            screen
+                                                .set(
+                                                    Screen::Journey(JourneyStart {
+                                                        due_only: true,
+                                                        ..Default::default()
+                                                    }),
+                                                )
+                                        }
+                                    >
+                                        {t("Weiter ▶")}
+                                    </button>
+                                </section>
                             }
-                        >
-                            {t("Weiter ▶")}
-                        </button>
-                    </section>
-                    {(!tutorial)
-                        .then(|| {
+                            .into_any(),
+                        ),
+                        "palaces" => {
+                            let list = palaces.take().unwrap_or_default();
+                            Some(if list.is_empty() {
+                                view! {
+                                    <p class="empty">
+                                        {t("Noch keine Paläste. Wähle oben ein Bild oder Video, oder nutze die CLI: ")}
+                                        <code>"locora new Planeten -- Merkur Venus Erde"</code>
+                                    </p>
+                                }
+                                .into_any()
+                            } else {
+                                view! {
+                                    <section class="palaces">
+                                        {list
+                                            .into_iter()
+                                            .map(|p| view! { <PalaceTile palace=p screen=screen busy=busy/> })
+                                            .collect_view()}
+                                    </section>
+                                }
+                                .into_any()
+                            })
+                        }
+                        "tutorial" => (!tutorial).then(|| {
                             view! {
                                 <section class="card weiter">
                                     <div class="text">
@@ -826,9 +874,9 @@ fn HomeView(
                                     </button>
                                 </section>
                             }
-                        })}
-                    {(!formula_guide)
-                        .then(|| {
+                            .into_any()
+                        }),
+                        "formulas" => (!formula_guide).then(|| {
                             view! {
                                 <section class="card weiter">
                                     <div class="text">
@@ -840,31 +888,59 @@ fn HomeView(
                                     </button>
                                 </section>
                             }
-                        })}
-                    <Tiles tiles=home.tiles.clone() />
-                        <crate::achievements::Achievements />
-<crate::activity::Activity />
-                    </> })}
-                    {if home.palaces.is_empty() {
-                        view! {
-                            <p class="empty">
-                                {t("Noch keine Paläste. Wähle oben ein Bild oder Video, oder nutze die CLI: ")}
-                                <code>"locora new Planeten -- Merkur Venus Erde"</code>
-                            </p>
-                        }
                             .into_any()
-                    } else {
-                        view! {
-                            <section class="palaces">
-                                {home
-                                    .palaces
-                                    .into_iter()
-                                    .map(|p| view! { <PalaceTile palace=p screen=screen busy=busy/> })
-                                    .collect_view()}
-                            </section>
+                        }),
+                        "achievements" => Some(view! { <crate::achievements::Achievements /> }.into_any()),
+                        "activity" => Some(view! { <crate::activity::Activity /> }.into_any()),
+                        other => tiles
+                            .iter()
+                            .find(|tile| dashboard::tile_id(&tile.plugin) == other)
+                            .map(|tile| {
+                                let only = vec![tile.clone()];
+                                view! { <Tiles tiles=only/> }.into_any()
+                            }),
+                    };
+                    let Some(block) = block else {
+                        continue;
+                    };
+                    match placement {
+                        dashboard::Placement::Shown => shown.push(block),
+                        dashboard::Placement::Folded => {
+                            fold_at.get_or_insert(shown.len());
+                            folded.push(block);
                         }
-                            .into_any()
+                        dashboard::Placement::Hidden => {}
+                    }
+                }
+                if shown.is_empty() && folded.is_empty() {
+                    shown.push(
+                        view! { <p class="notes">{t("Auf dieser Seite ist noch nichts. Füge Blöcke unter „Seiten anpassen“ hinzu.")}</p> }
+                            .into_any(),
+                    );
+                }
+                if !folded.is_empty() {
+                    let at = fold_at.unwrap_or(shown.len());
+                    let count = folded.len();
+                    shown.insert(
+                        at,
+                        view! {
+                            <details class="plugins-fold">
+                                <summary>{tf("Plugins ({0})", &[&count])}</summary>
+                                {folded}
+                            </details>
+                        }
+                        .into_any(),
+                    );
+                }
+                let editor_tiles = tiles.clone();
+                view! {
+                    <dashboard::Tabs />
+                    {move || {
+                        dashboard_open
+                            .get()
+                            .then(|| view! { <dashboard::Editor tiles=editor_tiles.clone() open=dashboard_open/> })
                     }}
+                    {shown}
                     {home
                         .notes
                         .into_iter()
