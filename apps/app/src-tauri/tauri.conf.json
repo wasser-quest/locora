@@ -15,6 +15,7 @@
       {
         "label": "main",
         "create": false,
+        "backgroundColor": "#16173a",
         "title": "Locora",
         "width": 1100,
         "height": 760,

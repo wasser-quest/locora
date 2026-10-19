@@ -5,18 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Locora</title>
     <link data-trunk rel="css" href="style.css" />
+    <!-- The splash animations (assets/ui/src/splash.py), copied as they are. -->
+    <link data-trunk rel="copy-dir" href="splash" />
     <!-- Rust enables these wasm32 features by default; wasm-opt must accept them. -->
     <link data-trunk rel="rust" data-wasm-opt="z"
       data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types --enable-multivalue --enable-mutable-globals" />
-    <!-- Painted before the wasm loads: the app removes #splash once it is mounted. -->
+    <!-- Painted before the wasm loads: a random animation and a random tip in the saved language.
+         The app removes #splash once it is mounted. -->
     <style>
       html, body { margin: 0; background: #f3eee3; }
-      #splash { position: fixed; inset: 0; display: grid; place-items: center; color: #22234f; font: 600 1.6rem system-ui, sans-serif; }
+      #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.25rem; padding: 1rem; color: #22234f; font: 500 1.05rem system-ui, sans-serif; text-align: center; }
+      #splash-art { width: min(70vw, 300px); height: min(70vw, 300px); border: 0; }
+      #splash-tip { max-width: 22rem; margin: 0; line-height: 1.4; }
       @media (prefers-color-scheme: dark) {
         html, body { background: #16173a; }
         #splash { color: #ece8dc; }
       }
     </style>
   </head>
-  <body><div id="splash">Locora</div></body>
+  <body>
+    <div id="splash">
+      <object id="splash-art" type="image/svg+xml" aria-hidden="true"></object>
+      <p id="splash-tip"></p>
+    </div>
+    <script>
+      (function () {
+        var scenes = ["splash-route", "splash-firefly", "splash-arch", "splash-ball"];
+        var tips = {
+          en: [
+            "Put what you want to remember at places you know well.",
+            "The route is the order: walk it in your mind to recall it.",
+            "Make the picture strange: the stranger, the better it sticks.",
+            "Review just before you forget: that is when it sticks best.",
+            "Next goes to the next place – quick next moves on after your own grade."
+          ],
+          de: [
+            "Lege, was du behalten willst, an Orte, die du gut kennst.",
+            "Die Route ist die Reihenfolge: geh sie im Kopf ab, um dich zu erinnern.",
+            "Mach das Bild seltsam: je seltsamer, desto besser bleibt es.",
+            "Wiederhole kurz bevor du vergisst – dann bleibt es am besten.",
+            "„Weiter“ führt zum nächsten Ort – mit Schnell weiter geht es nach deiner Bewertung."
+          ],
+          fr: [
+            "Place ce que tu veux retenir dans des lieux que tu connais bien.",
+            "Le parcours est l’ordre : parcours-le dans ta tête pour te souvenir.",
+            "Rends l’image étrange : plus elle l’est, mieux elle reste.",
+            "Révise juste avant d’oublier : c’est là que ça reste le mieux.",
+            "« Suivant » passe au lieu suivant – après ta propre évaluation."
+          ],
+          ja: [
+            "覚えたいものは、よく知っている場所に置きましょう。",
+            "ルートは順番そのもの。頭の中でたどると思い出せます。",
+            "イメージは奇妙に: 奇妙なほど記憶に残ります。",
+            "忘れる直前に復習すると、いちばん定着します。",
+            "「次へ」で次の場所へ。自分で評価した後に進みます。"
+          ],
+          zh: [
+            "把想记住的内容放在你熟悉的位置上。",
+            "路线就是顺序：在脑中走一遍就能回想起来。",
+            "让画面奇怪一点：越奇怪，越容易记住。",
+            "在快要忘记时复习，记得最牢。",
+            "“下一个”会进入下一个位置——你评价之后才继续。"
+          ]
+        };
+        var pick = function (items) { return items[Math.floor(Math.random() * items.length)]; };
+        var lang = "en";
+        try { lang = localStorage.getItem("locora-language-v1") || "en"; } catch (_) {}
+        document.getElementById("splash-art").data = "splash/" + pick(scenes) + ".svg";
+        document.getElementById("splash-tip").textContent = pick(tips[lang] || tips.en);
+      })();
+    </script>
+  </body>
 </html>
