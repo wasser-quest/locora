@@ -47,7 +47,58 @@ pub struct Backend {
     cloud_sync_busy: Arc<AtomicBool>,
 }
 
-type Shared = Mutex<Backend>;
+/// The profile opens in the background while the window is already on screen. Commands wait for
+/// it (see `lock`); the media protocol answers "not found" until then.
+pub struct Shared {
+    opening: Mutex<Opening>,
+    ready: std::sync::Condvar,
+}
+
+enum Opening {
+    Opening,
+    Ready(Box<Backend>),
+    Failed(String),
+}
+
+impl Shared {
+    fn new() -> Self {
+        Self {
+            opening: Mutex::new(Opening::Opening),
+            ready: std::sync::Condvar::new(),
+        }
+    }
+
+    fn finish(&self, result: Result<Backend, String>) {
+        let mut opening = self.opening.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        *opening = match result {
+            Ok(backend) => Opening::Ready(Box::new(backend)),
+            Err(error) => Opening::Failed(error),
+        };
+        self.ready.notify_all();
+    }
+}
+
+/// The backend, once it is open.
+pub struct BackendGuard<'a>(std::sync::MutexGuard<'a, Opening>);
+
+impl std::ops::Deref for BackendGuard<'_> {
+    type Target = Backend;
+    fn deref(&self) -> &Backend {
+        match &*self.0 {
+            Opening::Ready(backend) => backend,
+            _ => unreachable!("handed out only once the backend is open"),
+        }
+    }
+}
+
+impl std::ops::DerefMut for BackendGuard<'_> {
+    fn deref_mut(&mut self) -> &mut Backend {
+        match &mut *self.0 {
+            Opening::Ready(backend) => backend,
+            _ => unreachable!("handed out only once the backend is open"),
+        }
+    }
+}
 // Native UI callbacks must never wait for profile/import operations.
 type DropInbox = Mutex<drops::Inbox>;
 
@@ -64,10 +115,24 @@ fn err(e: anyhow::Error) -> String {
     format!("{e:#}")
 }
 
-fn lock<'a>(state: &'a State<'_, Shared>) -> Result<std::sync::MutexGuard<'a, Backend>, String> {
-    state
-        .lock()
-        .map_err(|_| "Interner Fehler: Zustand blockiert".to_owned())
+fn lock<'a>(state: &'a State<'_, Shared>) -> Result<BackendGuard<'a>, String> {
+    let poisoned = || "Interner Fehler: Zustand blockiert".to_owned();
+    let mut opening = state.opening.lock().map_err(|_| poisoned())?;
+    loop {
+        if let Opening::Ready(_) = *opening {
+            return Ok(BackendGuard(opening));
+        }
+        if let Opening::Failed(error) = &*opening {
+            return Err(error.clone());
+        }
+        opening = state.ready.wait(opening).map_err(|_| poisoned())?;
+    }
+}
+
+/// The backend if it is open already; never waits.
+fn ready<'a>(state: &'a State<'_, Shared>) -> Option<BackendGuard<'a>> {
+    let opening = state.opening.lock().ok()?;
+    matches!(*opening, Opening::Ready(_)).then_some(BackendGuard(opening))
 }
 
 #[tauri::command]
@@ -863,7 +928,7 @@ fn serve(
     }
 }
 
-fn open(app: &tauri::App) -> anyhow::Result<Backend> {
+fn open(app: &tauri::AppHandle) -> anyhow::Result<Backend> {
     // Desktop shares the CLI's profile; mobile keeps it in the app's sandbox.
     #[cfg(mobile)]
     let data = Some(app.path().app_data_dir()?);
@@ -918,10 +983,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let backend = open(app).map_err(|e| format!("Profil öffnen: {e:#}"))?;
-            app.manage::<Shared>(Mutex::new(backend));
-            // Tauri otherwise creates configured windows before this callback.
-            // On Android the frontend can invoke `home` before Shared exists.
+            // The window comes first; the profile opens behind it and commands wait for it.
+            app.manage::<Shared>(Shared::new());
             let window = app
                 .config()
                 .app
@@ -931,6 +994,14 @@ pub fn run() {
                 .ok_or("Fensterkonfiguration 'main' fehlt")?
                 .clone();
             tauri::WebviewWindowBuilder::from_config(app, &window)?.build()?;
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                // A panic must still end the wait of the commands, so it becomes an error.
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| open(&handle)))
+                    .map_err(|_| "Profil öffnen: Abbruch beim Start".to_owned())
+                    .and_then(|opened| opened.map_err(|e| format!("Profil öffnen: {e:#}")));
+                handle.state::<Shared>().finish(result);
+            });
             Ok(())
         })
         // A window's own content webview reports drops as a window event
@@ -956,7 +1027,7 @@ pub fn run() {
         })
         .register_uri_scheme_protocol(locora_app_api::SCHEME, |ctx, request| {
             let state = ctx.app_handle().state::<Shared>();
-            let Ok(mut backend) = state.lock() else {
+            let Some(mut backend) = ready(&state) else {
                 return not_found();
             };
             serve(

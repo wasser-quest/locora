@@ -8,6 +8,15 @@
     <!-- Rust enables these wasm32 features by default; wasm-opt must accept them. -->
     <link data-trunk rel="rust" data-wasm-opt="z"
       data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types --enable-multivalue --enable-mutable-globals" />
+    <!-- Painted before the wasm loads: the app removes #splash once it is mounted. -->
+    <style>
+      html, body { margin: 0; background: #f3eee3; }
+      #splash { position: fixed; inset: 0; display: grid; place-items: center; color: #22234f; font: 600 1.6rem system-ui, sans-serif; }
+      @media (prefers-color-scheme: dark) {
+        html, body { background: #16173a; }
+        #splash { color: #ece8dc; }
+      }
+    </style>
   </head>
-  <body></body>
+  <body><div id="splash">Locora</div></body>
 </html>

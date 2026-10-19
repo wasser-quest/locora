@@ -58,6 +58,13 @@ fn main() {
     i18n::set_current(i18n::load());
     theme::apply(theme::current());
     mount_to_body(Root);
+    // The static splash from index.html gives way to the app.
+    if let Some(splash) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id("splash"))
+    {
+        splash.remove();
+    }
 }
 
 /// The root. It builds the app again when the language changes, so every text is looked up
