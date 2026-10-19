@@ -16,7 +16,7 @@ pub enum CloudCommand {
         /// Anzeigename in Ranglisten
         #[arg(long, default_value = "Lernende")]
         name: String,
-        /// Adresse des Servers (Standard: LOCORA_CLOUD_URL, dann der zuletzt benutzte, sonst https://locora.cloud)
+        /// Adresse des Servers (Standard: LOCORA_CLOUD_URL, dann der zuletzt benutzte, sonst https://api.locora.cloud)
         #[arg(long)]
         server: Option<String>,
         /// Gastkonto: Daten bleiben sechs Monate, Zugang wie in einer Testphase; ein Abo übernimmt die Daten
