@@ -318,4 +318,5 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
     ("{0} Loci", ["{0} loci", "{0} Loci", "{0} loci", "{0} 個の場所", "{0} 个位置"]),
     ("{0} fällig", ["{0} due", "{0} fällig", "{0} à revoir", "{0} 件期限", "{0} 个到期"]),
     ("{0} neu", ["{0} new", "{0} neu", "{0} nouveau", "{0} 件新規", "{0} 个新的"]),
+    ("Modi und Optionen", ["Modes and options", "Modi und Optionen", "Modes et options", "モードとオプション", "模式和选项"]),
 ];

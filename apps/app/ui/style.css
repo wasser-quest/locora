@@ -75,7 +75,7 @@ button.primary:hover { background: var(--indigo-deep); }
 button:disabled { opacity: .5; cursor: default; }
 input[type=text] { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); width: 100%; }
-main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+main { max-width: min(1200px, 100%); margin: 0 auto; padding: 16px; }
 header.bar { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
 /* Tour copy remains text; the highlighted control is addressed by a stable ID. */
 [data-tour-active="true"] { position: relative; z-index: 11; outline: 3px solid var(--lime); outline-offset: 4px; box-shadow: 0 0 0 7px var(--indigo-deep); }
@@ -147,8 +147,8 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
   background: linear-gradient(160deg, var(--indigo-deep), var(--indigo)); }
 .stage .backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; }
 /* The room gets the height left after the status strip, the text and the picture, so the answer
-   and the grades fit on one screen; the reserve of 460px leaves room for the combo line and "Weiter" after grading. */
-.stage:not(.editing) { width: min(100%, calc(max(100px, 100vh - 460px - min(110px, 14vh)) * var(--stage-ratio, 1.3333))); }
+   and the grades fit on one screen; the reserve of 400px leaves room for the combo line and "Weiter" after grading. */
+.stage:not(.editing) { width: min(100%, calc(max(100px, 100vh - 400px - min(110px, 14vh)) * var(--stage-ratio, 1.3333))); }
 /* Only the small button in the control bar; the large centre button hides loci. */
 video::-webkit-media-controls-overlay-play-button { display: none !important; }
 .locus-picture { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
@@ -374,4 +374,4 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .home-actions button { min-height: 2.75rem; }
 .home-actions .wide { grid-column: 1 / -1; }
 .home-actions .icon { justify-self: end; min-width: 3rem; }
-
+.modes > summary { cursor: pointer; font-weight: 600; color: var(--muted); margin-bottom: .5rem; }

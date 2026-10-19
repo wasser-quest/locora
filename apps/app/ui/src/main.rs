@@ -494,6 +494,14 @@ fn notification_action(notification: &NotificationView, screen: RwSignal<Screen>
 /// Due reminders as small cards on top of everything, from the `notify`
 /// plugin. Fetching more acknowledges the ones on screen, so each message
 /// shows until it is handled (tap or dismiss).
+/// Wide enough for the controls to start open; on a phone they start folded so the room comes first.
+fn wide_screen() -> bool {
+    web_sys::window()
+        .and_then(|window| window.inner_width().ok())
+        .and_then(|width| width.as_f64())
+        .map_or(true, |width| width > 700.0)
+}
+
 #[component]
 fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
     let shown = RwSignal::new(Vec::<NotificationView>::new());
@@ -1310,7 +1318,8 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
             Ok(text) => view! { <p class="status" role="status">{text}</p> }.into_any(),
             Err(text) => view! { <p class="notes" role="alert">{text}</p> }.into_any(),
         }}
-        <div class="modes">
+        <details class="modes" open=wide_screen()>
+            <summary>{t("Modi und Optionen")}</summary>
             <label>
                 <input type="checkbox" bind:checked=reverse />
                 {t("Rückwärts (Inhalt → Ort)")}
@@ -1345,7 +1354,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
                         }
                     } />
             </label>
-        </div>
+        </details>
         {move || match palace.get() {
             None => view! { <Loading /> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
