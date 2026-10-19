@@ -319,3 +319,5 @@ dl.stats dd { margin: 0; font-weight: 600; }
 
 /* Room tabs are buttons, not text: they cannot be selected or highlighted. */
 .tabs, .tabs * { -webkit-user-select: none; user-select: none; }
+/* While a tour step is shown, everything but the highlighted element is covered. */
+.tour-scrim { position: fixed; inset: 0; z-index: 10; background: rgba(8, 8, 24, .9); }
