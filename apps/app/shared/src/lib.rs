@@ -20,6 +20,11 @@ pub const CMD_HOME: &str = "home";
 pub const CMD_HOME_PICK_MEDIA: &str = "home_pick_media";
 pub const CMD_PALACE: &str = "palace";
 pub const CMD_TUTORIAL: &str = "tutorial";
+/// The language a built-in palace is built in (`de`, `en`, `fr`, `ja`, `zh`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LanguageArgs {
+    pub lang: String,
+}
 pub const CMD_FORMULA_GUIDE: &str = "formula_guide";
 pub const CMD_TOUR: &str = "tour";
 pub use locora_api::tutorial::TourAction;
@@ -274,6 +279,31 @@ pub struct Home {
     /// No palaces yet: Simo welcomes and points to the tutorial.
     #[serde(default)]
     pub welcome: Option<Media>,
+    /// Cards plugins declared (`ui.block`), in plugin order.
+    #[serde(default)]
+    pub blocks: Vec<PluginBlock>,
+    /// Pages plugins suggest (`ui.page`), in plugin order.
+    #[serde(default)]
+    pub pages: Vec<PluginPage>,
+}
+
+/// A card a plugin declared. `id` is unique within the plugin; the app addresses it as
+/// `plugin/id`. Titles and texts may be translation templates, as for tiles.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PluginBlock {
+    pub plugin: String,
+    pub id: String,
+    pub title: String,
+    pub text: String,
+}
+
+/// A page a plugin suggests: `blocks` are block ids of the same plugin.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PluginPage {
+    pub plugin: String,
+    pub id: String,
+    pub name: String,
+    pub blocks: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -301,6 +331,9 @@ pub struct NotificationView {
 pub struct PalaceCard {
     pub id: String,
     pub name: String,
+    /// `tutorial` or `formulas` for the built-in palaces, in any language.
+    #[serde(default)]
+    pub built_in: Option<String>,
     pub rooms: u32,
     pub loci: u32,
     pub due: u32,

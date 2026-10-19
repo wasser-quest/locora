@@ -1,13 +1,15 @@
 //! Pages of the app's home: the start page and extra pages that show only the blocks chosen for
-//! them. A block is a built-in section or one plugin's tile. Kept per viewer in the browser.
+//! them. A block is a built-in section, one plugin's tile, or a card a plugin declared. Kept per
+//! viewer in the browser; the editor lives in dashboard_editor.rs.
 
 use leptos::prelude::*;
-use locora_app_api::TileView;
+use locora_app_api::{PluginBlock, PluginPage, TileView};
 use serde::{Deserialize, Serialize};
 
 use crate::i18n::{plugin_text, t};
+use crate::Tiles;
 
-const KEY: &str = "locora-dashboard-v2";
+pub const KEY: &str = "locora-dashboard-v2";
 
 /// The start page's id. It always exists and cannot be deleted.
 pub const START: &str = "start";
@@ -21,10 +23,21 @@ pub enum Placement {
     Hidden,
 }
 
+/// How much of a block is shown: the whole card, or only its heading.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Size {
+    #[default]
+    Full,
+    Compact,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Entry {
     pub id: String,
     pub placement: Placement,
+    #[serde(default)]
+    pub size: Size,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -54,7 +67,7 @@ impl Pages {
         &self.list[self.index()]
     }
 
-    fn current_mut(&mut self) -> &mut Page {
+    pub fn current_mut(&mut self) -> &mut Page {
         let index = self.index();
         &mut self.list[index]
     }
@@ -67,6 +80,15 @@ pub struct Layout(pub RwSignal<Pages>);
 /// Whether the page editor is open.
 #[derive(Debug, Clone, Copy)]
 pub struct Open(pub RwSignal<bool>);
+
+/// Everything a page can show from outside the built-in sections: plugin tiles, the cards
+/// plugins declared, and the pages they suggest.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Catalog {
+    pub tiles: Vec<TileView>,
+    pub blocks: Vec<PluginBlock>,
+    pub suggestions: Vec<PluginPage>,
+}
 
 /// The built-in blocks with their placement on the start page. Palaces come right after the
 /// due card; the plugin blocks wait behind the "Plugins" fold.
@@ -84,12 +106,47 @@ pub fn tile_id(plugin: &str) -> String {
     format!("tile:{plugin}")
 }
 
+/// The id of a card a plugin declared.
+pub fn block_id(plugin: &str, id: &str) -> String {
+    format!("block:{plugin}/{id}")
+}
+
+/// Every block the catalog offers, with its default placement on the start page.
+pub fn known(catalog: &Catalog) -> Vec<(String, Placement)> {
+    let mut known: Vec<(String, Placement)> = BUILT_IN
+        .iter()
+        .map(|(id, placement)| ((*id).to_owned(), *placement))
+        .collect();
+    known.extend(
+        catalog
+            .tiles
+            .iter()
+            .map(|tile| (tile_id(&tile.plugin), Placement::Folded)),
+    );
+    known.extend(
+        catalog
+            .blocks
+            .iter()
+            .map(|block| (block_id(&block.plugin, &block.id), Placement::Folded)),
+    );
+    known
+}
+
 pub fn load() -> Pages {
     let mut list = web_sys::window()
         .and_then(|window| window.local_storage().ok().flatten())
         .and_then(|storage| storage.get_item(KEY).ok().flatten())
         .and_then(|value| serde_json::from_str::<Vec<Page>>(&value).ok())
         .unwrap_or_default();
+    ensure_start(&mut list);
+    Pages {
+        list,
+        current: START.to_owned(),
+    }
+}
+
+/// The start page must exist; it goes first.
+pub fn ensure_start(list: &mut Vec<Page>) {
     if !list.iter().any(|page| page.id == START) {
         list.insert(
             0,
@@ -99,10 +156,6 @@ pub fn load() -> Pages {
                 entries: Vec::new(),
             },
         );
-    }
-    Pages {
-        list,
-        current: START.to_owned(),
     }
 }
 
@@ -115,13 +168,8 @@ pub fn save(pages: &[Page]) {
 
 /// The blocks of a page in order, with their placement. Saved entries keep their place; a block
 /// missing from the page gets its default on the start page and is hidden on extra pages.
-/// Blocks that no longer exist are dropped; a plugin installed since shows up as a new block.
-pub fn resolve(saved: &[Entry], tiles: &[TileView], start: bool) -> Vec<Entry> {
-    let mut known: Vec<(String, Placement)> = BUILT_IN
-        .iter()
-        .map(|(id, placement)| ((*id).to_owned(), *placement))
-        .collect();
-    known.extend(tiles.iter().map(|tile| (tile_id(&tile.plugin), Placement::Folded)));
+/// Blocks that no longer exist are dropped; a block installed since shows up as new.
+pub fn resolve(saved: &[Entry], known: &[(String, Placement)], start: bool) -> Vec<Entry> {
     let mut out: Vec<Entry> = Vec::new();
     for entry in saved {
         let is_known = known.iter().any(|(id, _)| *id == entry.id);
@@ -130,9 +178,13 @@ pub fn resolve(saved: &[Entry], tiles: &[TileView], start: bool) -> Vec<Entry> {
         }
     }
     for (id, default) in known {
-        if !out.iter().any(|entry| entry.id == id) {
-            let placement = if start { default } else { Placement::Hidden };
-            out.push(Entry { id, placement });
+        if !out.iter().any(|entry| entry.id == *id) {
+            let placement = if start { *default } else { Placement::Hidden };
+            out.push(Entry {
+                id: id.clone(),
+                placement,
+                size: Size::Full,
+            });
         }
     }
     out
@@ -148,20 +200,61 @@ pub fn page_label(page: &Page) -> String {
 }
 
 /// The name of a block in the editor.
-pub fn label(id: &str, tiles: &[TileView]) -> String {
+pub fn label(id: &str, catalog: &Catalog) -> String {
     match id {
         "due" => t("Heute fällig").to_owned(),
         "palaces" => t("Paläste").to_owned(),
         "tutorial" => t("Locora lernen").to_owned(),
         "formulas" => t("Formeln verstehen").to_owned(),
-        "achievements" => t("Erfolge").to_owned(),
+        "achievements" => t("Erfolgs-Medaillen").to_owned(),
         "activity" => t("Aktivität").to_owned(),
-        _ => tiles
+        _ => catalog
+            .tiles
             .iter()
             .find(|tile| tile_id(&tile.plugin) == id)
             .map(|tile| plugin_text(&tile.title))
+            .or_else(|| {
+                catalog
+                    .blocks
+                    .iter()
+                    .find(|block| block_id(&block.plugin, &block.id) == id)
+                    .map(|block| plugin_text(&block.title))
+            })
             .unwrap_or_else(|| id.to_owned()),
     }
+}
+
+/// The view of a plugin's tile or declared card; `None` for built-in or unknown ids.
+pub fn plugin_view(catalog: &Catalog, id: &str) -> Option<AnyView> {
+    if let Some(tile) = catalog.tiles.iter().find(|tile| tile_id(&tile.plugin) == id) {
+        let tile = tile.clone();
+        return Some(view! { <Tiles tiles=vec![tile]/> }.into_any());
+    }
+    let block = catalog
+        .blocks
+        .iter()
+        .find(|block| block_id(&block.plugin, &block.id) == id)?;
+    let title = plugin_text(&block.title);
+    let text = plugin_text(&block.text);
+    Some(
+        view! {
+            <section class="card panel plugin-block">
+                <h2>{title}</h2>
+                <p class="meta">{text}</p>
+            </section>
+        }
+        .into_any(),
+    )
+}
+
+/// Wraps a block so its size can be set in CSS.
+pub fn sized(view: AnyView, size: Size) -> AnyView {
+    view! {
+        <div class="block" class:compact=size == Size::Compact>
+            {view}
+        </div>
+    }
+    .into_any()
 }
 
 /// The tab bar of the pages. Only shown once there is more than the start page.
@@ -190,197 +283,5 @@ pub fn Tabs() -> impl IntoView {
                 .collect_view();
             view! { <nav class="pages" aria-label=t("Seiten")>{tabs}</nav> }
         })
-    }
-}
-
-fn placement_value(placement: Placement) -> &'static str {
-    match placement {
-        Placement::Shown => "shown",
-        Placement::Folded => "folded",
-        Placement::Hidden => "hidden",
-    }
-}
-
-fn placement_from(value: &str) -> Option<Placement> {
-    match value {
-        "shown" => Some(Placement::Shown),
-        "folded" => Some(Placement::Folded),
-        "hidden" => Some(Placement::Hidden),
-        _ => None,
-    }
-}
-
-/// Changes the blocks of a page as they are shown (resolved first), then keeps them.
-fn rearrange(page: &mut Page, tiles: &[TileView], edit: impl FnOnce(&mut Vec<Entry>)) {
-    let mut entries = resolve(&page.entries, tiles, page.id == START);
-    edit(&mut entries);
-    page.entries = entries;
-}
-
-/// The editor: the blocks of the page on screen, and the pages themselves.
-#[component]
-pub fn Editor(tiles: Vec<TileView>, open: RwSignal<bool>) -> impl IntoView {
-    let layout = expect_context::<Layout>().0;
-    let tiles = StoredValue::new(tiles);
-    // Every change goes to the page on screen and is saved at once.
-    let change = move |edit: &dyn Fn(&mut Page, &[TileView])| {
-        layout.update(|pages| {
-            tiles.with_value(|tiles| edit(pages.current_mut(), tiles));
-            save(&pages.list);
-        });
-    };
-    let entries = move || {
-        let pages = layout.get();
-        let page = pages.current();
-        tiles.with_value(|tiles| resolve(&page.entries, tiles, page.id == START))
-    };
-    let new_name = RwSignal::new(String::new());
-    let create = move |_| {
-        let name: String = new_name.get_untracked().trim().chars().take(40).collect();
-        if name.is_empty() {
-            return;
-        }
-        let id = format!("page-{}", js_sys::Date::now() as u64);
-        layout.update(|pages| {
-            pages.list.push(Page {
-                id: id.clone(),
-                name,
-                entries: Vec::new(),
-            });
-            pages.current = id;
-            save(&pages.list);
-        });
-        new_name.set(String::new());
-    };
-    let is_start = move || layout.get().current().id == START;
-    view! {
-        <section class="card panel dashboard" aria-label=t("Seiten anpassen")>
-            <h2>{t("Seiten anpassen")}</h2>
-            <p class="dashboard-note">
-                {t("Was jede Seite zeigt und wo. „Im Plugins-Bereich“ klappt unter „Plugins“ zu. Eigene Seiten zeigen nur, was du dort einfügst.")}
-            </p>
-            <div class="row">
-                <label>
-                    {t("Seite")}
-                    <select on:change=move |event| {
-                        let id = event_target_value(&event);
-                        layout.update(|pages| pages.current = id);
-                    }>
-                        {move || {
-                            let pages = layout.get();
-                            pages
-                                .list
-                                .iter()
-                                .map(|page| {
-                                    let selected = page.id == pages.current;
-                                    view! {
-                                        <option value=page.id.clone() selected=selected>
-                                            {page_label(page)}
-                                        </option>
-                                    }
-                                })
-                                .collect_view()
-                        }}
-                    </select>
-                </label>
-            </div>
-            {move || (!is_start()).then(|| {
-                view! {
-                    <div class="row">
-                        <input
-                            aria-label=t("Seitenname")
-                            prop:value=move || layout.get().current().name.clone()
-                            on:change=move |event| {
-                                let name: String = event_target_value(&event).trim().chars().take(40).collect();
-                                if !name.is_empty() {
-                                    change(&move |page, _| page.name = name.clone());
-                                }
-                            }
-                        />
-                        <button on:click=move |_| {
-                            layout.update(|pages| {
-                                let current = pages.current.clone();
-                                pages.list.retain(|page| page.id != current);
-                                pages.current = START.to_owned();
-                                save(&pages.list);
-                            });
-                        }>{t("Seite löschen")}</button>
-                    </div>
-                }
-            })}
-            <ol class="dashboard-list">
-                {move || {
-                    let entries = entries();
-                    let last = entries.len().saturating_sub(1);
-                    entries
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, entry)| {
-                            let id = entry.id.clone();
-                            let name = tiles.with_value(|tiles| label(&id, tiles));
-                            let placement = entry.placement;
-                            let set_placement = {
-                                let id = id.clone();
-                                move |event: leptos::ev::Event| {
-                                    let Some(placement) = placement_from(&event_target_value(&event))
-                                    else {
-                                        return;
-                                    };
-                                    change(&|page, tiles| {
-                                        rearrange(page, tiles, |entries| {
-                                            if let Some(entry) = entries.iter_mut().find(|entry| entry.id == id) {
-                                                entry.placement = placement;
-                                            }
-                                        })
-                                    });
-                                }
-                            };
-                            let swap = move |from: usize, to: usize| {
-                                change(&|page, tiles| rearrange(page, tiles, |entries| entries.swap(from, to)));
-                            };
-                            view! {
-                                <li class="dashboard-row">
-                                    <span class="dashboard-name">{name.clone()}</span>
-                                    <select aria-label=name on:change=set_placement>
-                                        <option value=placement_value(Placement::Shown) selected=placement == Placement::Shown>
-                                            {t("Zeigen")}
-                                        </option>
-                                        <option value=placement_value(Placement::Folded) selected=placement == Placement::Folded>
-                                            {t("Im Plugins-Bereich")}
-                                        </option>
-                                        <option value=placement_value(Placement::Hidden) selected=placement == Placement::Hidden>
-                                            {t("Nicht auf dieser Seite")}
-                                        </option>
-                                    </select>
-                                    <button disabled=index == 0 aria-label=t("Nach oben") on:click=move |_| {
-                                        if index > 0 {
-                                            swap(index, index - 1);
-                                        }
-                                    }>"↑"</button>
-                                    <button disabled=index == last aria-label=t("Nach unten") on:click=move |_| {
-                                        if index < last {
-                                            swap(index, index + 1);
-                                        }
-                                    }>"↓"</button>
-                                </li>
-                            }
-                        })
-                        .collect_view()
-                }}
-            </ol>
-            <div class="row">
-                {move || is_start().then(|| view! {
-                    <button on:click=move |_| change(&|page, _| page.entries.clear())>{t("Zurücksetzen")}</button>
-                })}
-                <input
-                    aria-label=t("Seitenname")
-                    placeholder=t("Neue Seite")
-                    prop:value=move || new_name.get()
-                    on:input=move |event| new_name.set(event_target_value(&event))
-                />
-                <button on:click=create>{t("Neue Seite")}</button>
-                <button class="primary" on:click=move |_| open.set(false)>{t("Fertig")}</button>
-            </div>
-        </section>
     }
 }

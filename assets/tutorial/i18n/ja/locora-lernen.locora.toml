@@ -1,0 +1,78 @@
+# Das Tutorial: Locora mit der Loci-Methode lernen.
+# Jeder Ort zeigt eine animierte Grafik (.sply), die die App mit der Splinely-Runtime abspielt.
+# Bauen: locora tutorial (oder locora build assets/tutorial/locora-lernen.locora.toml)
+
+name = "Locora を学ぶ"
+
+[[room]]
+name = "玄関ホール"
+image = "halle.sply"
+
+[[room.locus]]
+place = "門 – 記憶の宮殿とは何か？"
+item = "よく知っている場所"
+at = [0.5, 0.45]
+image = "../mascot/simo.sply"
+
+[[room.locus]]
+place = "じゅうたん – 順番を決めるのは？"
+item = "場所をたどるルート"
+at = [0.5, 0.88]
+image = "teppich.sply"
+
+[[room.locus]]
+place = "ランタン – 各場所に何を置く？"
+item = "鮮やかなイメージ"
+at = [0.82, 0.3]
+image = "laterne.sply"
+
+[[room]]
+name = "図書室"
+image = "bibliothek.sply"
+
+[[room.locus]]
+place = "本棚 – どんなイメージが残る？"
+item = "奇妙なほど良い"
+at = [0.3, 0.4]
+image = "regal.sply"
+
+[[room.locus]]
+place = "読書コーナー – どう練習する？"
+item = "ルートをたどって、すべての場所を思い出す"
+at = [0.6, 0.75]
+image = "leseplatz.sply"
+
+[[room.locus]]
+place = "時計 – いつ復習する？"
+item = "忘れる直前"
+at = [0.82, 0.12]
+image = "uhr.sply"
+
+[[room]]
+name = "庭園"
+image = "garten.sply"
+
+[[room.locus]]
+place = "噴水 – 答えをどう評価する？"
+item = "正直に、1〜4で"
+at = [0.2, 0.75]
+image = "brunnen.sply"
+answer = { type = "quiz", options = [
+  { text = "いつも4にすれば速い", correct = false },
+  { text = "正直に、1〜4で", correct = true },
+  { text = "まったくしない", correct = false },
+] }
+
+[[room.locus]]
+place = "木 – どのコマンドで自分の宮殿を作る？"
+item = "locora new"
+at = [0.55, 0.6]
+image = "baum.sply"
+answer = { type = "guess", accept = ["new", "locora new NAME"] }
+note = "木からは新しい宮殿が育つ – 幹の札には「new」と書かれている"
+
+[[room.locus]]
+place = "ホタル – 期限のあるものの練習には何を使う？"
+item = "locora review"
+at = [0.8, 0.35]
+image = "../mascot/gluehwuermchen.sply"

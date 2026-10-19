@@ -355,3 +355,16 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .dashboard-row > button { flex: 0 0 auto; min-width: 2.4rem; padding: .3rem .5rem; }
 .dashboard-row > select { flex: 0 1 auto; max-width: 55%; }
 .dashboard .row { flex-wrap: wrap; align-items: center; }
+/* Sizes of blocks: compact keeps the heading and the actions, drops the explanatory lines. */
+.block.compact .meta, .block.compact .notes { display: none; }
+.block.compact .card, .block.compact .panel, .block.compact .weiter { padding-top: .5rem; padding-bottom: .5rem; }
+.block { display: block; }
+/* Density of the whole app. */
+:root[data-density="compact"] .card { padding: .6rem .8rem; margin-bottom: .5rem; }
+:root[data-density="compact"] .palaces { gap: .5rem; }
+/* Page editor: suggestions and the layout text. */
+.dashboard h3 { margin: 1rem 0 .4rem; }
+.dashboard-suggestions .row { margin-top: .3rem; }
+.layout-text { width: 100%; font-family: ui-monospace, monospace; font-size: .8rem; }
+.plugin-block h2 { margin-top: 0; }
+

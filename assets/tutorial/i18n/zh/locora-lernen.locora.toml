@@ -1,0 +1,78 @@
+# Das Tutorial: Locora mit der Loci-Methode lernen.
+# Jeder Ort zeigt eine animierte Grafik (.sply), die die App mit der Splinely-Runtime abspielt.
+# Bauen: locora tutorial (oder locora build assets/tutorial/locora-lernen.locora.toml)
+
+name = "学习 Locora"
+
+[[room]]
+name = "入口大厅"
+image = "halle.sply"
+
+[[room.locus]]
+place = "大门——什么是记忆宫殿？"
+item = "一个你很熟悉的地方"
+at = [0.5, 0.45]
+image = "../mascot/simo.sply"
+
+[[room.locus]]
+place = "地毯——什么决定顺序？"
+item = "穿过各个位置的路线"
+at = [0.5, 0.88]
+image = "teppich.sply"
+
+[[room.locus]]
+place = "灯笼——你在每个位置放什么？"
+item = "一个生动的画面"
+at = [0.82, 0.3]
+image = "laterne.sply"
+
+[[room]]
+name = "图书馆"
+image = "bibliothek.sply"
+
+[[room.locus]]
+place = "书架——哪些画面会留下？"
+item = "越奇怪越好"
+at = [0.3, 0.4]
+image = "regal.sply"
+
+[[room.locus]]
+place = "阅读角——你怎么练习？"
+item = "沿路线走一遍，回想每一个位置"
+at = [0.6, 0.75]
+image = "leseplatz.sply"
+
+[[room.locus]]
+place = "时钟——什么时候复习？"
+item = "就在快要忘记之前"
+at = [0.82, 0.12]
+image = "uhr.sply"
+
+[[room]]
+name = "花园"
+image = "garten.sply"
+
+[[room.locus]]
+place = "喷泉——你怎么给答案打分？"
+item = "诚实地打 1 到 4 分"
+at = [0.2, 0.75]
+image = "brunnen.sply"
+answer = { type = "quiz", options = [
+  { text = "总是打 4，这样更快", correct = false },
+  { text = "诚实地打 1 到 4 分", correct = true },
+  { text = "完全不用", correct = false },
+] }
+
+[[room.locus]]
+place = "大树——用哪个命令创建自己的宮殿？"
+item = "locora new"
+at = [0.55, 0.6]
+image = "baum.sply"
+answer = { type = "guess", accept = ["new", "locora new NAME"] }
+note = "大树会长出一座新宮殿——树干的牌子上写着“new”"
+
+[[room.locus]]
+place = "萤火虫——用什么练习到期的内容？"
+item = "locora review"
+at = [0.8, 0.35]
+image = "../mascot/gluehwuermchen.sply"

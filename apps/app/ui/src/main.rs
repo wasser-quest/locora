@@ -5,6 +5,8 @@ mod activity;
 mod cloud_settings;
 mod crash;
 mod dashboard;
+mod dashboard_editor;
+mod look;
 mod editor;
 mod i18n;
 mod i18n_catalog;
@@ -23,7 +25,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     CMD_FORMULA_GUIDE, CMD_GAMIFICATION_STATUS, CMD_HOME, CMD_PALACE, CMD_TOUR, CMD_TUTORIAL,
-    CMD_UI_ASSETS, GamificationStatus, HighlightRequest, Home, JourneyStart, Media,
+    CMD_UI_ASSETS, GamificationStatus, HighlightRequest, Home, JourneyStart, LanguageArgs, Media,
     NotificationView, PalaceCard, PalaceView, TourAction, UiAssets,
 };
 use serde::Serialize;
@@ -118,13 +120,13 @@ async fn route_tour_step(
         }
         "tour-palace-route" | "tour-editor-toggle" | "tour-editor-stage" | "tour-editor-content" | "tour-editor-answer" | "tour-journey-prompt" => {
             let home = call::<Home>(CMD_HOME, tauri::NoArgs {}).await?;
-            let id = if let Some(palace) = home.palaces.iter().find(|p| p.name == "Locora lernen") {
+            let id = if let Some(palace) = home.palaces.iter().find(|p| p.built_in.as_deref() == Some("tutorial")) {
                 palace.id.clone()
             } else if tutorial_removed() {
                 // Removed on purpose: the step shows its text without a palace.
                 return Ok(());
             } else {
-                call::<String>(CMD_TUTORIAL, tauri::NoArgs {}).await?
+                call::<String>(CMD_TUTORIAL, LanguageArgs { lang: current_language() }).await?
             };
             if step.target == "tour-journey-prompt" {
                 if !matches!(screen.get_untracked(), Screen::Journey(ref start) if start.palace_id.as_ref() == Some(&id))
@@ -289,6 +291,7 @@ fn App() -> impl IntoView {
     let art = Art(RwSignal::new(None));
     provide_context(art);
     provide_context(dashboard::Layout(RwSignal::new(dashboard::load())));
+    look::apply(&look::load());
     // The start page's layout editor (see dashboard.rs).
     let dashboard_open = RwSignal::new(false);
     provide_context(dashboard::Open(dashboard_open));
@@ -647,7 +650,7 @@ fn HomeView(
         }
         busy.set(true);
         spawn_local(async move {
-            match call::<String>(CMD_TUTORIAL, tauri::NoArgs {}).await {
+            match call::<String>(CMD_TUTORIAL, LanguageArgs { lang: current_language() }).await {
                 Ok(id) => screen.set(Screen::Palace(id)),
                 Err(e) => {
                     busy.set(false);
@@ -662,7 +665,7 @@ fn HomeView(
         }
         busy.set(true);
         spawn_local(async move {
-            match call::<String>(CMD_FORMULA_GUIDE, tauri::NoArgs {}).await {
+            match call::<String>(CMD_FORMULA_GUIDE, LanguageArgs { lang: current_language() }).await {
                 Ok(id) => screen.set(Screen::Palace(id)),
                 Err(error) => {
                     busy.set(false);
@@ -777,13 +780,18 @@ fn HomeView(
                         .into_any();
                 }
                 let pages = expect_context::<dashboard::Layout>().0;
-                let tiles = home.tiles.clone();
+                let catalog = dashboard::Catalog {
+                    tiles: home.tiles.clone(),
+                    blocks: home.blocks.clone(),
+                    suggestions: home.pages.clone(),
+                };
+                let known = dashboard::known(&catalog);
                 let page = pages.get().current().clone();
                 let mut palaces = Some(home.palaces);
                 let mut shown: Vec<AnyView> = Vec::new();
                 let mut folded: Vec<AnyView> = Vec::new();
                 let mut fold_at = None;
-                for entry in dashboard::resolve(&page.entries, &tiles, page.id == dashboard::START) {
+                for entry in dashboard::resolve(&page.entries, &known, page.id == dashboard::START) {
                     // Core only: the palaces, nothing else.
                     let placement = if core_only && entry.id != "palaces" {
                         dashboard::Placement::Hidden
@@ -892,17 +900,12 @@ fn HomeView(
                         }),
                         "achievements" => Some(view! { <crate::achievements::Achievements /> }.into_any()),
                         "activity" => Some(view! { <crate::activity::Activity /> }.into_any()),
-                        other => tiles
-                            .iter()
-                            .find(|tile| dashboard::tile_id(&tile.plugin) == other)
-                            .map(|tile| {
-                                let only = vec![tile.clone()];
-                                view! { <Tiles tiles=only/> }.into_any()
-                            }),
+                        other => dashboard::plugin_view(&catalog, other),
                     };
                     let Some(block) = block else {
                         continue;
                     };
+                    let block = dashboard::sized(block, entry.size);
                     match placement {
                         dashboard::Placement::Shown => shown.push(block),
                         dashboard::Placement::Folded => {
@@ -932,13 +935,13 @@ fn HomeView(
                         .into_any(),
                     );
                 }
-                let editor_tiles = tiles.clone();
+                let editor_catalog = catalog.clone();
                 view! {
                     <dashboard::Tabs />
                     {move || {
                         dashboard_open
                             .get()
-                            .then(|| view! { <dashboard::Editor tiles=editor_tiles.clone() open=dashboard_open/> })
+                            .then(|| view! { <dashboard_editor::Editor catalog=editor_catalog.clone() open=dashboard_open/> })
                     }}
                     {shown}
                     {home
@@ -1001,11 +1004,17 @@ struct DeletePalaceArgs {
     palace_id: String,
 }
 
-/// Remembers that a built-in palace was removed on purpose, so the tour does not create it again.
-fn remember_removed(name: &str) {
+/// The language the palaces are built in: the app's language.
+fn current_language() -> String {
+    crate::i18n::current().code().to_owned()
+}
+
+/// Remembers that a built-in palace (`tutorial` or `formulas`) was removed on purpose, so the
+/// tour does not create it again.
+fn remember_removed(kind: &str) {
     if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
-        let key = match name {
-            "Locora lernen" => "locora-tutorial-removed-v1",
+        let key = match kind {
+            "tutorial" => "locora-tutorial-removed-v1",
             _ => "locora-formulas-removed-v1",
         };
         let _ = storage.set_item(key, "1");
@@ -1026,7 +1035,8 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
     let cover_open_id = palace.id.clone();
     let play_id = palace.id.clone();
     // Built-in palaces can be removed; the tour then leaves them out instead of creating them again.
-    let built_in = matches!(palace.name.as_str(), "Locora lernen" | "Formeln verstehen");
+    let built_in = palace.built_in.is_some();
+    let built_in_kind = palace.built_in.clone().unwrap_or_default();
     let delete_id = palace.id.clone();
     let delete_name = palace.name.clone();
     let status = match (palace.due, palace.fresh) {
@@ -1088,6 +1098,7 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                 {built_in.then(|| {
                     let delete_id = delete_id.clone();
                     let delete_name = delete_name.clone();
+                    let built_in_kind = built_in_kind.clone();
                     view! {
                         <button class="ghost" disabled=move || busy.get() on:click=move |ev| {
                             ev.stop_propagation();
@@ -1099,10 +1110,10 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                             if !confirmed { return; }
                             busy.set(true);
                             let palace_id = delete_id.clone();
-                            let removed_name = delete_name.clone();
+                            let removed_kind = built_in_kind.clone();
                             spawn_local(async move {
                                 let _ = call::<()>("palace_delete", DeletePalaceArgs { palace_id }).await;
-                                remember_removed(&removed_name);
+                                remember_removed(&removed_kind);
                                 let _ = js_sys::eval("location.reload()");
                             });
                         }>{t("Löschen")}</button>

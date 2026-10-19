@@ -1,0 +1,67 @@
+# Ein kleiner Palast für die Formelsprache. Die Bilder zeigen jeweils die
+# Antwort; beim Fragen bleiben sie wie im Tutorial zunächst verborgen.
+name = "Understand the formulas"
+
+[[room]]
+name = "Writing room"
+image = "../bibliothek.sply"
+
+[[room.locus]]
+place = "The input book – how does a formula read an input?"
+item = "$zahl"
+note = "A dollar sign before an input name reads its current value."
+at = [0.22, 0.27]
+image = "eingabe.sply"
+
+[[room.locus]]
+place = "The calculating table – what does Integer($zahl) + 1 give when zahl = 3?"
+item = "4"
+note = "This place works out its answer itself: Integer($zahl) + 1. The starting value of zahl is 3."
+at = [0.50, 0.55]
+image = "rechnen.sply"
+bindings = { item = "Integer($zahl) + 1" }
+
+[[room.locus]]
+place = "The register – which mnemonic word does Major[4] give?"
+item = "Rat"
+note = 'This place reads its answer from Major["4"]. The key is written as text in square brackets.'
+at = [0.79, 0.28]
+image = "tabelle.sply"
+bindings = { item = 'Major["4"]' }
+
+[[room]]
+name = "Workshop"
+image = "../halle.sply"
+
+[[room.locus]]
+place = "The label – which field replaces a binding?"
+item = "item"
+note = "An item binding computes the content of a place. place, x, y, visible and active can be bound too."
+at = [0.24, 0.56]
+image = "bindung.sply"
+
+[[room.locus]]
+place = "The switch – when is a place active?"
+item = "When the active formula gives true"
+note = "For example: Integer($zahl) > 2. An inactive place is skipped in the journey."
+at = [0.53, 0.28]
+image = "aktiv.sply"
+bindings = { active = "Integer($zahl) > 2" }
+
+[[room.locus]]
+place = "The gate – where do you write the formula for the place?"
+item = "In the bindings of the locora.toml file"
+note = "Example: bindings = { item = 'Major[\"4\"]', active = \"Integer($zahl) > 2\" }"
+at = [0.77, 0.62]
+image = "quelle.sply"
+
+[[table]]
+table = "Inputs"
+key = "zahl"
+value = "3"
+type = "number"
+
+[[table]]
+table = "Major"
+key = "4"
+value = "Rat"

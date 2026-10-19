@@ -137,7 +137,11 @@ fn update_tile(ctx: &mut Ctx) -> Result {
     for palace in palaces(ctx)? {
         all.extend(load(ctx, &palace)?.into_values());
     }
-    ctx.tile("Wiederholung", tile_text(all))
+    let text = tile_text(all);
+    ctx.tile("Wiederholung", text.clone())?;
+    // The same card can go on any page; the app offers a "Lernen" page with it.
+    ctx.block("wiederholung", "Wiederholung", text)?;
+    ctx.page("lernen", "Lernen", &["wiederholung"])
 }
 
 fn clear_log(ctx: &mut Ctx, palace: &str) -> Result {

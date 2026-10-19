@@ -37,6 +37,7 @@ use locora_host::{ApprovalReceipt, HostEvent, KvStore, Level, Manifest, PluginHo
 use locora_store::{PalaceTree, Store};
 
 pub mod cloud;
+mod palace_i18n;
 pub mod cloud_sync;
 pub mod formula_guide;
 pub mod journey;
@@ -103,6 +104,22 @@ pub fn read_regular(file: &Path) -> Result<Vec<u8>> {
 }
 
 /// Current time in seconds; `LOCORA_NOW` overrides it (tests, demos).
+/// Which built-in palace an id belongs to, in any language: "tutorial" or "formulas".
+pub fn built_in_kind(palace_id: &str) -> Option<&'static str> {
+    let is = |namespaces: &[&str]| {
+        namespaces
+            .iter()
+            .any(|namespace| locora_source::bundled_palace_id(namespace) == palace_id)
+    };
+    if is(&tutorial::NAMESPACES) {
+        Some("tutorial")
+    } else if is(&formula_guide::NAMESPACES) {
+        Some("formulas")
+    } else {
+        None
+    }
+}
+
 pub fn now() -> u64 {
     env::var("LOCORA_NOW")
         .ok()

@@ -23,24 +23,22 @@ use crate::views::{marker, media};
 pub const ACHIEVEMENTS: &str = "achievements";
 
 /// The built-in achievements: finishing the tutorial or the formula guide unlocks one.
-const BUILT_IN_ACHIEVEMENTS: [(&str, &str); 2] = [
-    ("tutorial/v1", "tutorial-done"),
-    ("formula-guide/v1", "formulas-done"),
-];
+const ACHIEVEMENT_IDS: [&str; 2] = ["tutorial-done", "formulas-done"];
 
-/// The achievement a finished palace unlocks, if it is one of the built-in palaces.
+/// The achievement a finished palace unlocks, if it is one of the built-in palaces (in any language).
 pub fn built_in_achievement(palace_id: &str) -> Option<&'static str> {
-    BUILT_IN_ACHIEVEMENTS
-        .iter()
-        .find(|(namespace, _)| locora_source::bundled_palace_id(namespace) == palace_id)
-        .map(|(_, id)| *id)
+    match locora_runtime::built_in_kind(palace_id)? {
+        "tutorial" => Some("tutorial-done"),
+        "formulas" => Some("formulas-done"),
+        _ => None,
+    }
 }
 
 /// The built-in achievements and whether each is unlocked.
 pub fn achievements(profile: &Profile) -> Result<Vec<locora_app_api::AchievementView>> {
-    BUILT_IN_ACHIEVEMENTS
+    ACHIEVEMENT_IDS
         .iter()
-        .map(|(_, id)| {
+        .map(|id| {
             Ok(locora_app_api::AchievementView {
                 id: (*id).to_string(),
                 unlocked: profile.store.kv_get(ACHIEVEMENTS, id)?.is_some(),

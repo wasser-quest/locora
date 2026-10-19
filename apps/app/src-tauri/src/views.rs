@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use anyhow::Result;
 use locora_api::review::CardState;
 use locora_app_api::{
-    Home, LocusView, Media, MediaKind, PalaceCard, PalaceView, RoomView, Status, TileView,
+    Home, LocusView, Media, MediaKind, PalaceCard, PalaceView, PluginBlock, PluginPage, RoomView, Status,
+    TileView,
 };
 use locora_runtime::{Profile, count_due, now};
 use locora_store::{PalaceTree, SPLINELY, Store};
@@ -53,7 +54,10 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
     let now = now();
     // Tiles published while scheduling are stored before they are read.
     let reported = profile.report();
+    let (blocks, pages) = declared(profile.ui_declarations()?);
     let mut home = Home {
+        blocks,
+        pages,
         tutorial: locora_runtime::tutorial::find(profile)?.is_some(),
         formula_guide: locora_runtime::formula_guide::find(profile)?.is_some(),
         notes: profile.notes.iter().cloned().chain(reported).collect(),
@@ -76,6 +80,7 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
         home.due += due as u32;
         fresh_total += fresh;
         home.palaces.push(PalaceCard {
+            built_in: locora_runtime::built_in_kind(&summary.id).map(str::to_owned),
             id: summary.id,
             name: summary.name,
             rooms: summary.rooms,
@@ -166,3 +171,27 @@ pub fn palace_view(
         rooms,
     }
 }
+
+/// The cards and suggested pages plugins declared, in plugin order.
+fn declared(
+    plugins: Vec<(String, locora_runtime::PluginUi)>,
+) -> (Vec<PluginBlock>, Vec<PluginPage>) {
+    let mut blocks = Vec::new();
+    let mut pages = Vec::new();
+    for (plugin, ui) in plugins {
+        blocks.extend(ui.blocks.into_values().map(|block| PluginBlock {
+            plugin: plugin.clone(),
+            id: block.id,
+            title: block.title,
+            text: block.text,
+        }));
+        pages.extend(ui.pages.into_values().map(|page| PluginPage {
+            plugin: plugin.clone(),
+            id: page.id,
+            name: page.name,
+            blocks: page.blocks,
+        }));
+    }
+    (blocks, pages)
+}
+

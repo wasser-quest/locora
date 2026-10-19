@@ -470,9 +470,13 @@ async fn dump_pick(
 
 /// Build (or rebuild) the tutorial palace; returns its id.
 #[tauri::command]
-async fn tutorial(state: State<'_, Shared>) -> Result<String, String> {
+async fn tutorial(state: State<'_, Shared>, lang: String) -> Result<String, String> {
     let mut b = lock(&state)?;
-    let (tree, _) = locora_runtime::tutorial::install(&mut b.profile).map_err(err)?;
+    // Built once per language: an existing palace keeps its progress.
+    if let Some(existing) = locora_runtime::tutorial::find_in(&b.profile, &lang).map_err(err)? {
+        return Ok(existing.id);
+    }
+    let (tree, _) = locora_runtime::tutorial::install_in(&mut b.profile, &lang).map_err(err)?;
     Ok(tree.palace.id)
 }
 
@@ -487,12 +491,12 @@ async fn tour(
 
 /// Open the existing formula guide or build it once.
 #[tauri::command]
-async fn formula_guide(state: State<'_, Shared>) -> Result<String, String> {
+async fn formula_guide(state: State<'_, Shared>, lang: String) -> Result<String, String> {
     let mut b = lock(&state)?;
-    if let Some(existing) = locora_runtime::formula_guide::find(&b.profile).map_err(err)? {
+    if let Some(existing) = locora_runtime::formula_guide::find_in(&b.profile, &lang).map_err(err)? {
         return Ok(existing.id);
     }
-    let (tree, _) = locora_runtime::formula_guide::install(&mut b.profile).map_err(err)?;
+    let (tree, _) = locora_runtime::formula_guide::install_in(&mut b.profile, &lang).map_err(err)?;
     Ok(tree.palace.id)
 }
 
