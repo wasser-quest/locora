@@ -29,6 +29,7 @@ pub const CMD_NOTIFICATION_SHOWN: &str = "notification_shown";
 pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_GAMIFICATION_STATUS: &str = "gamification_status";
 pub const CMD_ACTIVITY: &str = "activity";
+pub const CMD_ACHIEVEMENTS: &str = "achievements";
 pub use locora_api::gamification::{StatusResponse as GamificationStatus, Trophy};
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
@@ -192,6 +193,13 @@ pub struct StatsView {
     pub streak: u32,
     pub scheduled: u32,
     pub due: u32,
+}
+
+/// A built-in achievement. It lives apart from the palaces, so it stays when they are removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AchievementView {
+    pub id: String,
+    pub unlocked: bool,
 }
 
 /// Answers on one learning day, for the activity overview. `day` is the start of that day in seconds.

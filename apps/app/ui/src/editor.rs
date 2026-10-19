@@ -774,7 +774,7 @@ pub fn Rooms(
         }
     });
     view! {
-        <div class="room-editor"
+        <div class="room-editor card editor-panel"
             on:dragover=move |ev: web_sys::DragEvent| {
                 if ev.data_transfer().is_some_and(|data| data.types().includes(&"Files".into(), 0)) {
                     ev.prevent_default();
@@ -921,7 +921,7 @@ pub fn Rooms(
                 panel.selected_locus().map(|locus| {
                     let answer = StoredValue::new(locus.clone());
                     view! {
-                        <section class="card panel">
+                        <section class="panel">
                             <div class="progress">{format!("Ort {}", locus.number)}</div>
                             <div class="prompt">{locus.place}</div>
                             <button on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { "Verbergen" } else { "Aufdecken" }}</button>
@@ -953,7 +953,7 @@ fn ListPaste(editor: Editor) -> impl IntoView {
     view! {
         // Collapsed by default so the stage stays above the fold; Ctrl/⌘+V on
         // the focused stage works without opening it.
-        <details class="card panel editor-form list-paste">
+        <details class="panel editor-form list-paste">
             <summary>{t("Liste als Route einfügen (oder Strg/⌘+V auf der Bühne)")}</summary>
             <label>{t("Ein Begriff pro Zeile")}
                 <textarea rows="4" bind:value=text maxlength="65536"
@@ -1853,7 +1853,7 @@ fn ContentForm(
         quiz.set(draft.quiz);
     });
     view! {
-        <form class="card panel editor-form" on:submit=move |ev| ev.prevent_default()
+        <form class="panel editor-form" on:submit=move |ev| ev.prevent_default()
             on:keydown=move |ev: web_sys::KeyboardEvent| {
                 let single_line = ev.target().and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlInputElement>(t).ok()).is_some();
                 if single_line && ev.key() == "Enter" && !ev.is_composing() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() && recovery.get_untracked().is_none() {

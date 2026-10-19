@@ -19,6 +19,36 @@ use locora_store::{Locus, PalaceTree};
 
 use crate::views::{marker, media};
 
+/// Storage plugin name for achievements (kept apart from palaces and their removal).
+pub const ACHIEVEMENTS: &str = "achievements";
+
+/// The built-in achievements: finishing the tutorial or the formula guide unlocks one.
+const BUILT_IN_ACHIEVEMENTS: [(&str, &str); 2] = [
+    ("tutorial/v1", "tutorial-done"),
+    ("formula-guide/v1", "formulas-done"),
+];
+
+/// The achievement a finished palace unlocks, if it is one of the built-in palaces.
+pub fn built_in_achievement(palace_id: &str) -> Option<&'static str> {
+    BUILT_IN_ACHIEVEMENTS
+        .iter()
+        .find(|(namespace, _)| locora_source::bundled_palace_id(namespace) == palace_id)
+        .map(|(_, id)| *id)
+}
+
+/// The built-in achievements and whether each is unlocked.
+pub fn achievements(profile: &Profile) -> Result<Vec<locora_app_api::AchievementView>> {
+    BUILT_IN_ACHIEVEMENTS
+        .iter()
+        .map(|(_, id)| {
+            Ok(locora_app_api::AchievementView {
+                id: (*id).to_string(),
+                unlocked: profile.store.kv_get(ACHIEVEMENTS, id)?.is_some(),
+            })
+        })
+        .collect()
+}
+
 pub struct Journey {
     trees: Vec<PalaceTree>,
     runs: Vec<Run>,
@@ -185,8 +215,13 @@ impl Journey {
         let answer = &self.locus().answer;
         // Every correct answer is shown; the rest of the chosen total are wrong answers.
         let total = self.options.quiz_answers.map_or(4, usize::from);
-        let correct = answer.options.iter().filter(|option| option.correct).count();
-        self.shown = answer.quiz_selection_with(self.seed ^ self.at as u64, total.saturating_sub(correct));
+        let correct = answer
+            .options
+            .iter()
+            .filter(|option| option.correct)
+            .count();
+        self.shown =
+            answer.quiz_selection_with(self.seed ^ self.at as u64, total.saturating_sub(correct));
         self.asked = Instant::now();
     }
 
@@ -523,6 +558,9 @@ impl Journey {
             self.notes.extend(notes);
             if let Some(answers) = self.transcripts.get(&tree.palace.id) {
                 profile.store.record_journey(&tree.palace.id, answers)?;
+            }
+            if let Some(achievement) = built_in_achievement(&tree.palace.id) {
+                profile.store.kv_set(ACHIEVEMENTS, achievement, b"1")?;
             }
         }
         let summary = Summary {

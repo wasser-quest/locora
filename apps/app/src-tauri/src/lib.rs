@@ -528,6 +528,7 @@ async fn notifications(
                     title: message.title,
                     body: message.body,
                     action: message.action,
+                    shown_at: locora_runtime::now(),
                 })
                 .map_err(err)?;
         }
@@ -578,6 +579,12 @@ async fn journey_start(state: State<'_, Shared>, start: JourneyStart) -> Result<
 #[tauri::command]
 async fn ui_assets(state: State<'_, Shared>) -> Result<locora_app_api::UiAssets, String> {
     Ok(lock(&state)?.assets.ui())
+}
+
+/// Built-in achievements and whether each is unlocked.
+#[tauri::command]
+async fn achievements(state: State<'_, Shared>) -> Result<Vec<locora_app_api::AchievementView>, String> {
+    journey::achievements(&lock(&state)?.profile).map_err(err)
 }
 
 /// Days shown in the activity overview: one year.
@@ -975,6 +982,7 @@ pub fn run() {
             ui_assets,
             gamification_status,
             activity,
+            achievements,
             import_pick,
             export_pick,
             dump_pick,

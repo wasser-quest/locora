@@ -321,3 +321,7 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .tabs, .tabs * { -webkit-user-select: none; user-select: none; }
 /* While a tour step is shown, everything but the highlighted element is covered. */
 .tour-scrim { position: fixed; inset: 0; z-index: 10; background: rgba(8, 8, 24, .9); }
+
+/* Edit mode: everything sits in one panel; the inner blocks drop their own card frames. */
+.editor-panel { display: flex; flex-direction: column; gap: .6rem; }
+.editor-panel > .panel { margin-top: 0; }
