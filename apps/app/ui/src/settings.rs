@@ -398,7 +398,7 @@ fn Stats(stats: StatsView) -> impl IntoView {
         ),
         (
             "Geplante Loci",
-            format!("{} (davon {} fällig)", stats.scheduled, stats.due),
+            crate::i18n::tf("{0} (davon {1} fällig)", &[&stats.scheduled, &stats.due]),
         ),
     ];
     view! {

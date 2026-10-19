@@ -474,7 +474,7 @@ fn loci_text(n: u32) -> String {
     if n == 1 {
         "1 Locus".into()
     } else {
-        format!("{n} Loci")
+        crate::i18n::tf("{0} Loci", &[&n])
     }
 }
 
@@ -1074,9 +1074,9 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
     let delete_name = palace.name.clone();
     let status = match (palace.due, palace.fresh) {
         (0, 0) => t("alles gewusst").to_owned(),
-        (due, 0) => format!("{due} fällig"),
-        (0, fresh) => format!("{fresh} neu"),
-        (due, fresh) => format!("{due} fällig · {fresh} neu"),
+        (due, 0) => crate::i18n::tf("{0} fällig", &[&due]),
+        (0, fresh) => crate::i18n::tf("{0} neu", &[&fresh]),
+        (due, fresh) => crate::i18n::tf("{0} fällig · {1} neu", &[&due, &fresh]),
     };
     let previews = palace.previews.clone();
     let selected = RwSignal::new(startup::covers().get(&palace.id).cloned());

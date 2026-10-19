@@ -481,7 +481,7 @@ fn GameStatus(
                         {move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.combo still=true /></span> })}
                         <strong>{move || status.with(|game| game.as_ref().map(|game| crate::i18n::tf("{0} Combo", &[&game.combo])).unwrap_or_default())}</strong>
                     </span>
-                    <span class="game-hearts" aria-label=move || status.with(|game| format!("{} von 5 Herzen", game.as_ref().map_or(0, |game| game.hearts.min(5))))>
+                    <span class="game-hearts" aria-label=move || status.with(|game| crate::i18n::tf("{0} von 5 Herzen", &[&game.as_ref().map_or(0, |game| game.hearts.min(5))]))>
                         {(0..5u8)
                             .map(|index| {
                                 view! {
@@ -967,7 +967,7 @@ fn Ask(
 
 #[component]
 fn Grades(reply: impl Fn(Reply) + Copy + 'static, busy: RwSignal<bool>) -> impl IntoView {
-    let grades = [(1u8, "Nochmal"), (2, "Schwer"), (3, "Gut"), (4, "Leicht")];
+    let grades = [(1u8, t("Nochmal")), (2, t("Schwer")), (3, t("Gut")), (4, t("Leicht"))];
     view! {
         <div class="grades">
             {grades
@@ -1011,9 +1011,9 @@ fn Judged(
                         .map(|m| view! { <div class="feedback-art"><Sply media=m /></div> })
                 };
                 if correct {
-                    view! { <div class="verdict ok">{picture}"Richtig"</div> }.into_any()
+                    view! { <div class="verdict ok">{picture}{t("Richtig")}</div> }.into_any()
                 } else {
-                    view! { <div class="verdict again">{picture}"Nochmal"</div> }.into_any()
+                    view! { <div class="verdict again">{picture}{t("Nochmal")}</div> }.into_any()
                 }
             })}
         <Answer solution=r.solution note=r.note picture=r.picture />

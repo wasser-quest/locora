@@ -413,7 +413,7 @@ impl Editor {
             (EditorAction::Delete { .. }, None) => Some("Ort gelöscht".to_owned()),
             (EditorAction::Paste { items }, None) => Some(match items.len() {
                 1 => t("1 Ort eingefügt").to_owned(),
-                n => format!("{n} Orte eingefügt"),
+                n => crate::i18n::tf("{0} Orte eingefügt", &[&n]),
             }),
             _ => None,
         };
@@ -922,7 +922,7 @@ pub fn Rooms(
                     let answer = StoredValue::new(locus.clone());
                     view! {
                         <section class="panel">
-                            <div class="progress">{format!("Ort {}", locus.number)}</div>
+                            <div class="progress">{crate::i18n::tf("Ort {0}", &[&locus.number])}</div>
                             <div class="prompt">{locus.place}</div>
                             <button on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { "Verbergen" } else { "Aufdecken" }}</button>
                             <Show when=move || revealed.get()>{move || {
@@ -1303,7 +1303,7 @@ fn RoomStage(
                                 max=move || video_duration.get().unwrap_or(time).max(0.001).to_string()
                                 prop:value=time.to_string()
                                 disabled=move || !editing.get() || busy.get() || dirty.get() || video_duration.get().is_none_or(|d| !d.is_finite() || d <= 0.0)
-                                aria-label=format!("Zeitpunkt von Ort {number} verschieben")
+                                aria-label=crate::i18n::tf("Zeitpunkt von Ort {0} verschieben", &[&number])
                                 on:change=move |ev| {
                                     let Ok(time) = event_target_value(&ev).parse::<f64>() else { return; };
                                     let Some(duration) = video_duration.get_untracked() else { return; };
@@ -1496,7 +1496,7 @@ fn RoomStage(
                         style:left=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).0 * 100.0)
                         style:top=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).1 * 100.0)
                     >
-                        <button title=format!("Ort {}: {}", locus.number, locus.place)
+                        <button title=crate::i18n::tf("Ort {0}: {1}", &[&locus.number, &locus.place])
                             disabled=move || busy.get() || dirty.get()
                             on:pointerdown=move |ev: PointerEvent| {
                                 ev.stop_propagation();
@@ -1861,7 +1861,7 @@ fn ContentForm(
                     finish_requested.set(true);
                 }
             }>
-            <div class="progress">{format!("Ort {} bearbeiten", locus.number)}</div>
+            <div class="progress">{crate::i18n::tf("Ort {0} bearbeiten", &[&locus.number])}</div>
             <p class="notes">{t("Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen.")}</p>
             <Show when=move || recovery.get().is_some()>
                 <p role="alert">{t("Ein lokaler, noch nicht gespeicherter Entwurf wurde gefunden. Wiederherstellen speichert gültige Inhalte automatisch.")}</p>
