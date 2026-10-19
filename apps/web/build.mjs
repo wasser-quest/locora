@@ -108,5 +108,31 @@ html = html.replace(
   '<head>',
   `<head>\n    <meta http-equiv="Content-Security-Policy" content="${finalCsp}" />\n    <script type="importmap">${importMap}</script>\n    <script type="module" src="shell/boot.mjs"></script>`,
 );
+// 4. Installable as an app: the manifest, the icons, and the links that browsers look for.
+copyFileSync(join(shell, 'manifest.webmanifest'), join(out, 'manifest.webmanifest'));
+cpSync(join(shell, 'icons'), join(out, 'shell', 'icons'), { recursive: true });
+html = html.replace(
+  '<head>',
+  `<head>\n    <link rel="manifest" href="manifest.webmanifest" />\n    <meta name="theme-color" content="#16173a" />\n    <link rel="icon" type="image/png" sizes="192x192" href="shell/icons/icon-192.png" />\n    <link rel="apple-touch-icon" href="shell/icons/apple-touch-icon.png" />`,
+);
+
+// 5. Offline: the service worker stores every file of this build. Its cache name is a hash of the
+// build's contents, so a new build installs a new cache and the old one is removed.
 writeFileSync(indexPath, html);
-console.log(`built ${out} (${hashes.length} inline scripts allowed by hash)`);
+const everyFile = (dir, prefix = '') =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? everyFile(join(dir, entry.name), `${prefix}${entry.name}/`)
+      : [`${prefix}${entry.name}`],
+  );
+const precache = everyFile(out).filter((path) => path !== 'sw.js').sort();
+const version = createHash('sha256');
+for (const path of precache) version.update(path).update(readFileSync(join(out, path)));
+const swTemplate = readFileSync(join(shell, 'sw.js'), 'utf8');
+writeFileSync(
+  join(out, 'sw.js'),
+  swTemplate
+    .replace("'__VERSION__'", `'${version.digest('hex').slice(0, 16)}'`)
+    .replace('__PRECACHE__', JSON.stringify(precache)),
+);
+console.log(`built ${out} (${hashes.length} inline scripts allowed by hash, ${precache.length} files for offline use)`);

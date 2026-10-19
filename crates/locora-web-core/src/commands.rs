@@ -7,8 +7,8 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 use locora_app_api::{
-    EditorChange, EditorUpdated, JourneyStart, Media, MediaKind, NotificationView, PictureTarget,
-    Reply, SettingsChange, Step, Summary, TourAction, UtcOffset,
+    CloudStatus, EditorChange, EditorUpdated, JourneyStart, Media, MediaKind, NotificationView,
+    PictureTarget, Reply, SettingsChange, Step, Summary, TourAction, UtcOffset,
 };
 use locora_app_core::journey::Journey;
 use locora_app_core::{editor, settings, sply, transfer, views};
@@ -25,8 +25,9 @@ const ACTIVITY_DAYS: usize = 365;
 const INBOX: &str = "/locora/inbox";
 const OUTBOX: &str = "/locora/outbox";
 
+/// Shown where the browser build would need Locora Cloud (connect, sync, keys). Nothing is sent.
 const CLOUD_UNAVAILABLE: &str =
-    "Locora Cloud gibt es im Browser-Build noch nicht. Alle Daten bleiben auf diesem Gerät.";
+    "Locora Cloud ist im Browser-Build noch nicht verfügbar. Alle Daten bleiben auf diesem Gerät.";
 
 fn take<T: DeserializeOwned>(args: Value) -> Result<T> {
     Ok(serde_json::from_value(args)?)
@@ -134,6 +135,12 @@ struct ImportArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct NotificationArgs {
+    notification: NotificationView,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ExportArgs {
     palace_id: String,
 }
@@ -193,12 +200,34 @@ pub const NAMES: &[&str] = &[
     "export_file",
     "media_file",
     "sply_svg",
-    "dump_pick",
+    "dump_file",
 ];
 
 /// Whether a command name is known, before any backend is needed to answer it.
 pub fn is_known(command: &str) -> bool {
     NAMES.contains(&command) || command.starts_with("cloud_")
+}
+
+/// Writes every file below `folder` into a ZIP archive, with names relative to `folder`.
+fn zip_folder(folder: &Path, archive: &Path) -> Result<()> {
+    use std::io::Write;
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(archive)?);
+    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let mut pending = vec![folder.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            let name = path.strip_prefix(folder)?.to_string_lossy().replace('\\', "/");
+            zip.start_file(name, options)?;
+            zip.write_all(&std::fs::read(&path)?)?;
+        }
+    }
+    zip.finish()?;
+    Ok(())
 }
 
 /// Runs one command against the open backend.
@@ -344,9 +373,35 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
             Some(mut finished) => out(finished.finish(profile)?),
             None => out(Summary::default()),
         },
-        // No system notifications in the browser yet: nothing is due for the page to show.
-        "notifications" => out(Vec::<NotificationView>::new()),
-        "notification_shown" => out(()),
+        // The due messages leave for the system's notifications (the page shows them); a message
+        // stays queued until `notification_shown` confirms it.
+        "notifications" => {
+            let messages = profile.notifications()?;
+            out(messages
+                .into_iter()
+                .map(|m| NotificationView {
+                    channel: m.channel,
+                    priority: m.priority,
+                    title: m.title,
+                    body: m.body,
+                    action: m.action,
+                })
+                .collect::<Vec<_>>())
+        }
+        "notification_shown" => {
+            let a: NotificationArgs = take(args)?;
+            let n = a.notification;
+            profile.shown_notification(&locora_api::notify::Message {
+                plugin: "notify".into(),
+                channel: n.channel,
+                priority: n.priority,
+                title: n.title,
+                body: n.body,
+                action: n.action,
+                shown_at: locora_runtime::now(),
+            })?;
+            out(())
+        }
         // Imports and exports: the page stages the file in the inbox or fetches it from the outbox.
         "import_file" => {
             let a: ImportArgs = take(args)?;
@@ -402,7 +457,23 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
             let svg = if a.markers { sply::to_marker_layer(&bytes)? } else { sply::to_svg(&bytes)? };
             out(svg)
         }
-        "dump_pick" => bail!("Der Ordner-Export gibt es im Browser-Build noch nicht"),
+        // The folder export: the palace's source and media, as one ZIP file for the page to save.
+        "dump_file" => {
+            let a: ExportArgs = take(args)?;
+            std::fs::create_dir_all(OUTBOX)?;
+            let name = transfer::suggested_name(profile, &a.palace_id)?;
+            let folder = Path::new(OUTBOX).join(&name);
+            let message = transfer::dump_path(profile, &a.palace_id, &folder)?;
+            let archive = Path::new(OUTBOX).join(format!("{name}.zip"));
+            zip_folder(&folder, &archive)?;
+            std::fs::remove_dir_all(&folder)?;
+            out(serde_json::json!({ "message": message, "file": archive }))
+        }
+        // Without Locora Cloud the account is signed out: the settings page shows that, and the
+        // actions that need the server explain why they cannot run here.
+        "cloud_status" | "cloud_refresh" => out(CloudStatus { account: None, server: None, access: false }),
+        "cloud_keys_status" => out(false),
+        "cloud_logout" => out(()),
         cloud if cloud.starts_with("cloud_") => bail!(CLOUD_UNAVAILABLE),
         other => bail!("unknown command {other}"),
     }

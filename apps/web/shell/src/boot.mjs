@@ -30,6 +30,13 @@ let pluginDb = null;
 let fileSystem = null;
 let saving = Promise.resolve();
 
+// The app works offline through its service worker, and keeps its data safe from the browser's
+// cleanup: a persistent request asks the browser not to evict the device's storage.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch((error) => console.warn('offline mode unavailable', error));
+}
+navigator.storage?.persist?.().catch(() => {});
+
 const started = start();
 started.catch((error) => console.error('Locora could not start', error));
 
@@ -86,9 +93,11 @@ async function invoke(cmd, args = {}) {
     case 'editor_import_drop':
       return importTicket(args.ticket, { kind: 'picture', target: args.target });
     case 'export_pick':
-      return exportPalace(args.id);
+      return exportFile('export_file', { palaceId: args.id });
     case 'dump_pick':
-      throw 'Der Ordner-Export gibt es im Browser-Build noch nicht.';
+      return exportFile('dump_file', { palaceId: args.id });
+    case 'notifications':
+      return deliverNotifications();
     default:
       reply = command(cmd, args);
       if (reply.err !== undefined) throw reply.err;
@@ -147,8 +156,12 @@ async function stageAndImport(file, options) {
   }
 }
 
-async function exportPalace(palaceId) {
-  const reply = command('export_file', { palaceId });
+/**
+ * Runs an export command. The core writes the file into its outbox; the page saves it to the device
+ * and removes the copy. Returns the status message the UI shows.
+ */
+async function exportFile(name, args) {
+  const reply = command(name, args);
   if (reply.err !== undefined) throw reply.err;
   const { message, file } = reply.ok;
   const path = inFolder(file);
@@ -161,6 +174,32 @@ async function exportPalace(palaceId) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 60000);
   return message;
+}
+
+/**
+ * Shows the due messages as system notifications, then tells the core which ones were shown, so
+ * the queue drops them. A message whose notification was refused stays queued. Like the desktop
+ * app, the UI itself gets no list.
+ */
+async function deliverNotifications() {
+  const reply = command('notifications', {});
+  if (reply.err !== undefined) throw reply.err;
+  for (const item of reply.ok) {
+    if (await showNotification(item)) command('notification_shown', { notification: item });
+  }
+  return [];
+}
+
+async function showNotification(item) {
+  if (!('Notification' in window)) return false;
+  let permission = Notification.permission;
+  if (permission === 'default') permission = await Notification.requestPermission().catch(() => 'denied');
+  if (permission !== 'granted') return false;
+  const options = { body: item.body, tag: item.channel, data: { action: item.action }, icon: 'shell/icons/icon-192.png' };
+  const registration = await navigator.serviceWorker?.getRegistration();
+  if (registration) await registration.showNotification(item.title, options);
+  else new Notification(item.title, options);
+  return true;
 }
 
 /**
@@ -206,6 +245,22 @@ window.addEventListener('drop', (event) => {
     tickets.set(ticket, file);
     window.dispatchEvent(new CustomEvent('locora-file-drop', { detail: { ticket } }));
   }
+});
+
+// Installable: when the browser offers the app for the home screen, a button offers it too.
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  const button = document.createElement('button');
+  button.textContent = 'Install Locora';
+  button.setAttribute('style', 'position:fixed;right:12px;bottom:12px;z-index:9;padding:8px 12px;border-radius:8px;border:0;background:#3a3c8c;color:#fff;font:inherit;cursor:pointer');
+  button.addEventListener('click', async () => {
+    button.remove();
+    await installPrompt.prompt();
+    installPrompt = null;
+  });
+  document.body.append(button);
 });
 
 window.__TAURI__ = { core: { invoke, convertFileSrc } };

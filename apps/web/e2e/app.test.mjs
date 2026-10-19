@@ -3,7 +3,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
-import { serve } from './serve.mjs';
+import { createServer } from 'node:http';
+import { handler } from '../serve.mjs';
 
 const root = new URL('../dist', import.meta.url).pathname;
 let server;
@@ -11,7 +12,8 @@ let origin;
 let browser;
 
 before(async () => {
-  server = await serve(root);
+  server = createServer(handler(root));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   origin = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ args: ['--no-sandbox'] });
 });
@@ -65,6 +67,9 @@ test('the tutorial journey starts, reveals and grades an answer', async () => {
     await page.waitForFunction(() => document.body.innerText.includes('1/9'), null, { timeout: 15000 });
     // Space reveals the answer; 1–4 grade it (3 = good). The keys work in every language.
     await page.keyboard.press('Space');
+    // The grade buttons are in the interface language: English here, no German left behind.
+    const labels = await page.locator('.grades button').allInnerTexts();
+    assert.match(labels.join(' '), /Again.*Hard.*Good.*Easy/s, labels.join(' | '));
     await page.keyboard.press('3');
     await page.waitForTimeout(1500);
     assert.match(await page.locator('body').innerText(), /2\/9/, 'the next question follows the grade');
@@ -161,6 +166,62 @@ test('a palace exports as a .locora file that the app saves to the device', asyn
       page.getByRole('button', { name: /Export…/ }).click(),
     ]);
     assert.match(file.suggestedFilename(), /\.locora$/);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the app reloads and opens offline: the service worker keeps the app and the palaces', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await page.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 15000 });
+    // The worker must control the page before the network goes away.
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20000 });
+    await context.setOffline(true);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 20000 });
+    // A new page in the same browser profile opens offline too.
+    const second = await context.newPage();
+    second.on('pageerror', (error) => problems.push(`offline page error: ${error.message}`));
+    await second.goto(origin + '/', { waitUntil: 'load' });
+    await second.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 20000 });
+    await context.setOffline(false);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the app can be installed: manifest, icons and the offline worker are in place', async () => {
+  const { context, page } = await openApp();
+  try {
+    const manifest = await page.evaluate(async () => (await fetch('manifest.webmanifest')).json());
+    assert.equal(manifest.name, 'Locora');
+    assert.equal(manifest.display, 'standalone');
+    const sizes = manifest.icons.map((icon) => `${icon.sizes}:${icon.purpose}`);
+    assert.ok(sizes.includes('192x192:any') && sizes.includes('512x512:maskable'), sizes.join(', '));
+    for (const icon of manifest.icons) {
+      assert.equal(await page.evaluate(async (src) => (await fetch(src)).ok, icon.src), true, icon.src);
+    }
+    assert.equal(await page.locator('link[rel="manifest"]').getAttribute('href'), 'manifest.webmanifest');
+    await page.waitForFunction(() => navigator.serviceWorker.getRegistration().then((r) => !!r), null, { timeout: 20000 });
+  } finally {
+    await context.close();
+  }
+});
+
+test('the palace exports as a ZIP of its source and media (the folder export)', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await page.getByRole('button', { name: /Export TOML/ }).waitFor({ timeout: 15000 });
+    const [file] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: /Export TOML/ }).click(),
+    ]);
+    assert.match(file.suggestedFilename(), /\.zip$/);
     assert.deepEqual(problems, []);
   } finally {
     await context.close();

@@ -1703,6 +1703,7 @@ dependencies = [
  "locora-store",
  "serde",
  "serde_json",
+ "zip",
 ]
 
 [[package]]
