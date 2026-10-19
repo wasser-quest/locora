@@ -550,6 +550,13 @@ pub struct JourneyStart {
     /// `None` shows four.
     #[serde(default)]
     pub quiz_answers: Option<u8>,
+    /// Sudden death: the journey ends at the first wrong answer.
+    #[serde(default)]
+    pub sudden_death: bool,
+    /// Seconds per question. A question left unanswered in time counts as wrong;
+    /// `None` means no limit.
+    #[serde(default)]
+    pub time_limit: Option<u8>,
 }
 
 /// A workbook input a journey asks for before it starts.

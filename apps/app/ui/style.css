@@ -333,3 +333,8 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .medal-title { font-weight: 600; }
 .medal-hint { color: var(--muted); font-size: .85rem; }
 .medal.locked .medal-title { color: var(--muted); }
+
+/* Time limit per question: the bar empties while the question waits for an answer. */
+.timer { height: 6px; margin: .4rem 0; border-radius: 3px; background: var(--line); overflow: hidden; }
+.timer > span { display: block; height: 100%; background: var(--indigo); transform-origin: left center; animation: timer-run linear forwards; }
+@keyframes timer-run { from { transform: scaleX(1); } to { transform: scaleX(0); } }

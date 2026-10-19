@@ -504,7 +504,13 @@ impl Journey {
         };
         self.answered_shown = std::mem::take(&mut self.shown);
         self.at += 1;
-        let next = if self.at < self.stops.len() {
+        // Sudden death ends the journey at the first wrong answer.
+        let ended = self.options.sudden_death && !correct;
+        if ended {
+            self.notes
+                .push("Sudden Death: die Runde endete bei der ersten falschen Antwort.".into());
+        }
+        let next = if !ended && self.at < self.stops.len() {
             self.enter();
             Step::Question(self.question(profile, default_marker))
         } else {
@@ -873,5 +879,49 @@ mod tests {
             "the next stop sees the new value"
         );
         assert_eq!(journey.question(&profile, "marker").prompt, "2");
+    }
+
+    #[test]
+    fn sudden_death_ends_at_the_first_wrong_answer() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let p = profile.store.create_palace("P").unwrap();
+        let r = profile
+            .store
+            .add_room(&p.id, "R", RoomKind::Blank, None)
+            .unwrap();
+        for item in ["a", "b"] {
+            profile
+                .store
+                .add_locus(
+                    &r.id,
+                    NewLocus {
+                        place: "?".into(),
+                        item: item.into(),
+                        x: 0.5,
+                        y: 0.5,
+                        time: None,
+                        answer: Answer::default(),
+                        image: None,
+                        note: String::new(),
+                        image_size: 0.25,
+                        zoom: locora_store::default_zoom(),
+                    },
+                )
+                .unwrap();
+        }
+        let start = JourneyStart {
+            palace_id: Some(p.id.clone()),
+            sudden_death: true,
+            ..Default::default()
+        };
+        let mut journey = Journey::start(&mut profile, start).unwrap().unwrap();
+        let feedback = journey.answer(&mut profile, Reply::Forfeit, "marker").unwrap();
+        assert!(!feedback.correct);
+        let Step::Done(summary) = feedback.next else {
+            panic!("sudden death ends the journey")
+        };
+        assert_eq!(summary.asked, 1);
+        assert!(summary.notes.iter().any(|note| note.starts_with("Sudden Death")));
     }
 }

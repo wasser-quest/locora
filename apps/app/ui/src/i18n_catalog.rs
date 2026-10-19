@@ -258,6 +258,8 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
     ("Löschen", ["Delete", "Löschen", "Supprimer", "削除", "删除"]),
     ("Tutorial abgeschlossen", ["Tutorial completed", "Tutorial abgeschlossen", "Tutoriel terminé", "チュートリアル完了", "教程已完成"]),
     ("Formeln verstanden", ["Formulas understood", "Formeln verstanden", "Formules comprises", "数式を理解", "已掌握公式"]),
+    ("Sudden Death: die erste falsche Antwort beendet die Runde", ["Sudden death: the first wrong answer ends the run", "Sudden Death: die erste falsche Antwort beendet die Runde", "Mort subite : la première mauvaise réponse termine la série", "サドンデス：最初の誤答でこのセッションは終了", "突然死：第一次答错即结束本轮"]),
+    ("Sekunden pro Frage (0 = ohne Zeitlimit) ", ["Seconds per question (0 = no time limit) ", "Sekunden pro Frage (0 = ohne Zeitlimit) ", "Secondes par question (0 = sans limite) ", "1問あたりの秒数（0 = 制限なし） ", "每题秒数（0 = 无时限） "]),
     ("Schließe das Tutorial „Locora lernen“ ab.", ["Finish the tutorial “Locora lernen” to unlock it.", "Schließe das Tutorial „Locora lernen“ ab.", "Termine le tutoriel « Locora lernen » pour le débloquer.", "チュートリアル「Locora lernen」を完了すると解除されます。", "完成教程「Locora lernen」即可解锁。"]),
     ("Schließe den Formel-Guide ab.", ["Finish the formula guide to unlock it.", "Schließe den Formel-Guide ab.", "Termine le guide des formules pour le débloquer.", "数式ガイドを完了すると解除されます。", "完成公式指南即可解锁。"]),
 ];

@@ -1107,6 +1107,8 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     let numbers = RwSignal::new(false);
     let shuffle = RwSignal::new(false);
     let quiz_answers = RwSignal::new(4u8);
+    let sudden_death = RwSignal::new(false);
+    let time_limit = RwSignal::new(0u8);
     let id = StoredValue::new(id);
     let start = move |due_only: bool| {
         screen.set(Screen::Journey(JourneyStart {
@@ -1117,6 +1119,8 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
             shuffle: shuffle.get_untracked(),
             inputs: Vec::new(),
             quiz_answers: Some(quiz_answers.get_untracked()),
+            sudden_death: sudden_death.get_untracked(),
+            time_limit: Some(time_limit.get_untracked()).filter(|seconds| *seconds > 0),
         }))
     };
     view! {
@@ -1197,6 +1201,19 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
                     on:change=move |event| {
                         if let Ok(count) = event_target_value(&event).parse::<u8>() {
                             quiz_answers.set(count.clamp(2, 30));
+                        }
+                    } />
+            </label>
+            <label>
+                <input type="checkbox" bind:checked=sudden_death />
+                {t("Sudden Death: die erste falsche Antwort beendet die Runde")}
+            </label>
+            <label>
+                {t("Sekunden pro Frage (0 = ohne Zeitlimit) ")}
+                <input type="number" min="0" max="120" prop:value=move || time_limit.get().to_string()
+                    on:change=move |event| {
+                        if let Ok(seconds) = event_target_value(&event).parse::<u8>() {
+                            time_limit.set(seconds.min(120));
                         }
                     } />
             </label>

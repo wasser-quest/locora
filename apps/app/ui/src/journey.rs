@@ -231,6 +231,25 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             busy.set(false);
         });
     };
+    // A time limit per question: a question still unanswered when the time is up counts as
+    // a wrong answer (forfeit). A timer that fires after the question changed does nothing.
+    if let Some(seconds) = start.get_value().time_limit.filter(|seconds| *seconds > 0) {
+        Effect::new(move |_| {
+            let Some(step) = stage_step.get() else {
+                return;
+            };
+            set_timeout(
+                move || {
+                    if stage_step.get_untracked() == Some(step)
+                        && phase.get_untracked() == Phase::Asking
+                    {
+                        reply(Reply::Forfeit);
+                    }
+                },
+                std::time::Duration::from_secs(u64::from(seconds)),
+            );
+        });
+    }
     // A workbook action on the current question; „reveal“ actions show the answer.
     let act = move |key: String| {
         if busy.get_untracked() || !video_ready.get_untracked() {
@@ -334,6 +353,18 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             </span>
         </header>
         <GameStatus status=game art=art />
+        {move || {
+            // Restarts with every question: the bar is rebuilt when the step changes.
+            let step = stage_step.get()?;
+            let seconds = start.get_value().time_limit.filter(|seconds| *seconds > 0)?;
+            (phase.get() == Phase::Asking).then(|| {
+                view! {
+                    <div class="timer" aria-hidden="true" data-step=step>
+                        <span style=format!("animation-duration: {seconds}s")></span>
+                    </div>
+                }
+            })
+        }}
         {move || error.get().map(|e| view! { <p class="notes">{e}</p> })}
         {move || {
             stage_step.get();
