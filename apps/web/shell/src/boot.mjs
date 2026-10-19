@@ -8,6 +8,7 @@
 
 import { MemFs } from './wasi-memfs.mjs';
 import { instantiateCore } from './core.mjs';
+import { runCloud } from './cloud.mjs';
 import { openFileStorage, loadFiles, saveChanges } from './file-storage.mjs';
 import { openStorage as openPluginStorage, loadPluginStorage, flushPluginStorage } from '../src/storage-idb.mjs';
 import { host } from '../src/host-core.mjs';
@@ -123,6 +124,7 @@ async function invoke(cmd, args = {}) {
     case 'notifications':
       return deliverNotifications();
     default:
+      if (cmd.startsWith('cloud_')) return runCloud(core, persist, cmd, args);
       reply = command(cmd, args);
       if (reply.err !== undefined) throw reply.err;
       return reply.ok;

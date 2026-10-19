@@ -16,6 +16,8 @@ anyhow.workspace = true
 locora-api.workspace = true
 locora-app-api = { path = "../../apps/app/shared" }
 locora-app-core = { path = "../locora-app-core" }
+locora-cloud-api = { path = "../locora-cloud-api" }
+locora-crypto = { path = "../locora-crypto" }
 locora-host = { path = "../locora-host-select", package = "locora-host-select" }
 locora-runtime = { path = "../locora-runtime", default-features = false }
 locora-store = { path = "../locora-store" }

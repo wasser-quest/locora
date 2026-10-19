@@ -5,6 +5,7 @@
 //! Memory protocol: the host reserves input bytes with `alloc`, writes them, calls `invoke`, reads
 //! the result from the returned (pointer, length) pair and frees it with `dealloc`.
 
+mod cloud;
 mod commands;
 
 use std::cell::RefCell;
@@ -115,7 +116,7 @@ fn open(dir: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn with_backend<T>(f: impl FnOnce(&mut Backend) -> anyhow::Result<T>) -> anyhow::Result<T> {
+pub(crate) fn with_backend<T>(f: impl FnOnce(&mut Backend) -> anyhow::Result<T>) -> anyhow::Result<T> {
     BACKEND.with(|cell| match cell.borrow_mut().as_mut() {
         Some(backend) => f(backend),
         None => anyhow::bail!("the profile is not open"),
@@ -159,6 +160,10 @@ fn dispatch(command: &str, args: &str) -> String {
         } else {
             serde_json::from_str(args)?
         };
+        // The cloud commands take the backend themselves, and may wait for the page's calls.
+        if command.starts_with("cloud_") {
+            return Ok((cloud::command(command, &args)?, serde_json::json!([])));
+        }
         // Events are taken in every case: the page delivers them to the plugins after the command.
         with_backend(|b| {
             let value = commands::run(b, command, args);
@@ -276,3 +281,32 @@ pub unsafe extern "C" fn invoke(command_ptr: *const u8, command_len: usize, args
     std::mem::forget(output);
     ((pointer as u64) << 32) | len as u64
 }
+
+/// The page's reply to the call of a cloud command: the status, and the body it read.
+///
+/// # Safety
+/// The pair must describe bytes the host wrote with `alloc`; the host frees them after the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cloud_reply(status: u32, pointer: *const u8, length: usize) -> u64 {
+    let body = unsafe { std::slice::from_raw_parts(pointer, length) }.to_vec();
+    let output = match cloud::reply(status, body) {
+        Ok(value) => serde_json::json!({ "ok": value, "events": [] }).to_string(),
+        Err(error) => serde_json::json!({ "err": format!("{error:#}") }).to_string(),
+    };
+    pack_bytes(output.into_bytes())
+}
+
+/// The body of the call the cloud command last asked for (empty when it had none).
+#[unsafe(no_mangle)]
+pub extern "C" fn cloud_body() -> u64 {
+    pack_bytes(cloud::body())
+}
+
+/// Hands bytes to the host as a packed (pointer, length) pair; the host frees them with `dealloc`.
+fn pack_bytes(mut output: Vec<u8>) -> u64 {
+    output.shrink_to_fit();
+    let (pointer, len) = (output.as_mut_ptr(), output.len());
+    std::mem::forget(output);
+    ((pointer as u64) << 32) | len as u64
+}
+

@@ -113,5 +113,31 @@ export async function instantiateCore(wasmBytes, { fs, bridge = NO_PLUGINS }) {
   call.palaceService = (request) => nested('palace_service', request);
   call.highlight = (plugin, request) => nested('plugin_highlight', plugin, request);
   call.publish = (plugin, topic, payload) => nested('plugin_publish', plugin, topic, payload);
+
+  /**
+   * The page's reply to the call a cloud command waits for: the HTTP status (0 when no reply came)
+   * and the body. Returns the command's next step, as `call` does.
+   */
+  call.cloudReply = (status, body) => {
+    const pointer = alloc(body.length);
+    new Uint8Array(core.memory.buffer, pointer, body.length).set(body);
+    const packed = core.cloud_reply(status, pointer, body.length);
+    dealloc(pointer, body.length);
+    const outPointer = Number(packed >> 32n);
+    const outLength = Number(packed & 0xffffffffn);
+    const output = decoder.decode(new Uint8Array(core.memory.buffer, outPointer, outLength));
+    dealloc(outPointer, outLength);
+    return JSON.parse(output);
+  };
+
+  /** The body of the call a cloud command asked for, copied out of the core. */
+  call.cloudBody = () => {
+    const packed = core.cloud_body();
+    const pointer = Number(packed >> 32n);
+    const length = Number(packed & 0xffffffffn);
+    const bytes = new Uint8Array(core.memory.buffer, pointer, length).slice();
+    dealloc(pointer, length);
+    return bytes;
+  };
   return call;
 }
