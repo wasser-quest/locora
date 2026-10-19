@@ -3129,6 +3129,7 @@ dependencies = [
  "infer",
  "locora-api",
  "locora-app-api",
+ "locora-app-core",
  "locora-cloud-api",
  "locora-crypto",
  "locora-format",
@@ -3155,6 +3156,18 @@ version = "0.1.0"
 dependencies = [
  "locora-api",
  "serde",
+]
+
+[[package]]
+name = "locora-app-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "locora-api",
+ "locora-app-api",
+ "locora-formula",
+ "locora-runtime",
+ "locora-store",
 ]
 
 [[package]]
@@ -3228,6 +3241,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "locora-host-browser"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "locora-api",
+ "locora-store",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "locora-host-select"
+version = "0.1.0"
+dependencies = [
+ "locora-host",
+ "locora-host-browser",
+]
+
+[[package]]
 name = "locora-runtime"
 version = "0.1.0"
 dependencies = [
@@ -3240,7 +3272,7 @@ dependencies = [
  "locora-format",
  "locora-formula",
  "locora-fsrs",
- "locora-host",
+ "locora-host-select",
  "locora-signing",
  "locora-source",
  "locora-store",

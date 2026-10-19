@@ -18,6 +18,7 @@ tauri-build = { version = "2.7.3", features = [] }
 anyhow = "1"
 infer = "0.22"
 locora-api = { path = "../../../crates/locora-api" }
+locora-app-core = { path = "../../../crates/locora-app-core" }
 locora-app-api.workspace = true
 locora-cloud-api = { path = "../../../crates/locora-cloud-api" }
 locora-crypto = { path = "../../../crates/locora-crypto" }

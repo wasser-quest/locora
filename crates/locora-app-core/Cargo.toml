@@ -1,0 +1,20 @@
+[package]
+name = "locora-app-core"
+description = "The app's logic without Tauri: the home and palace views, and the journey. Shared by the desktop/phone app and the browser build."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+locora-api.workspace = true
+locora-app-api = { path = "../../apps/app/shared" }
+locora-formula = { path = "../locora-formula" }
+locora-runtime = { path = "../locora-runtime" }
+locora-store = { path = "../locora-store" }
+
+[dev-dependencies]
+tempfile = "3"

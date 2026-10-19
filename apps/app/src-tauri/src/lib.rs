@@ -5,7 +5,7 @@ mod assets;
 mod cloud_setup;
 mod drops;
 mod editor;
-mod journey;
+pub use locora_app_core::journey;
 mod media;
 #[cfg(any(mobile, test))]
 #[cfg_attr(not(mobile), allow(dead_code))]
@@ -13,7 +13,7 @@ mod mobile_files;
 mod settings;
 mod sply;
 mod transfer;
-mod views;
+pub use locora_app_core::views;
 
 use std::borrow::Cow;
 use std::collections::HashMap;

@@ -1337,6 +1337,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "locora-app-api"
+version = "0.1.0"
+dependencies = [
+ "locora-api",
+ "serde",
+]
+
+[[package]]
+name = "locora-app-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "locora-api",
+ "locora-app-api",
+ "locora-formula",
+ "locora-runtime",
+ "locora-store",
+ "tempfile",
+]
+
+[[package]]
 name = "locora-cloud-api"
 version = "0.1.0"
 dependencies = [
