@@ -182,10 +182,11 @@ impl Journey {
     }
 
     fn enter(&mut self) {
-        self.shown = self
-            .locus()
-            .answer
-            .quiz_selection(self.seed ^ self.at as u64);
+        let answer = &self.locus().answer;
+        // Every correct answer is shown; the rest of the chosen total are wrong answers.
+        let total = self.options.quiz_answers.map_or(4, usize::from);
+        let correct = answer.options.iter().filter(|option| option.correct).count();
+        self.shown = answer.quiz_selection_with(self.seed ^ self.at as u64, total.saturating_sub(correct));
         self.asked = Instant::now();
     }
 

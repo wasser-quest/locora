@@ -14,7 +14,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #17183a;
     --surface: #22244f;
     --text: #f3eee3;
@@ -24,6 +24,41 @@
     --again: #ff9a8a;
     color-scheme: dark;
   }
+}
+/* Chosen in Einstellungen → Darstellung; these come after the system palette so they win. */
+:root[data-theme="light"] {
+  --bg: #f3eee3;
+  --surface: #fffaf0;
+  --text: #22234f;
+  --muted: #5f6089;
+  --line: #d3cbb9;
+  --ok: #3c8d4a;
+  --again: #b8473a;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #17183a;
+  --surface: #22244f;
+  --text: #f3eee3;
+  --muted: #b3b4d8;
+  --line: #3a3d72;
+  --ok: #8fd18a;
+  --again: #ff9a8a;
+  color-scheme: dark;
+}
+:root[data-theme="contrast"] {
+  --bg: #000000;
+  --surface: #0d0d0d;
+  --text: #ffffff;
+  --muted: #e8e8ff;
+  --line: #ffffff;
+  --indigo: #2f5cff;
+  --indigo-deep: #0b2a9e;
+  --lime: #ffff00;
+  --glow: #ffff66;
+  --ok: #66ff7a;
+  --again: #ff7a66;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text);
@@ -117,6 +152,11 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 /* Only the small button in the control bar; the large centre button hides loci. */
 video::-webkit-media-controls-overlay-play-button { display: none !important; }
 .locus-picture { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
+/* Where a reverse question was answered: green inside the radius, red outside. */
+.guess-marker { position: absolute; width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--lime);
+  transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 0 2px #0008; }
+.guess-marker.hit { border-color: var(--ok); }
+.guess-marker.miss { border-color: var(--again); }
 .locus-picture > img { display: block; width: 100%; height: auto; }
 /* The text of a revealed locus without a picture, where the picture would stand. */
 .locus-text { position: absolute; transform: translate(-50%, -50%); pointer-events: none; max-width: 40%; padding: .3rem .6rem; border-radius: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--line); font-weight: 600; text-align: center; overflow-wrap: anywhere; }
@@ -165,6 +205,11 @@ iframe.sply { border: 0; width: 100%; height: 100%; background: transparent; col
 .options label { display: flex; gap: .6rem; align-items: center; padding: .5rem .7rem; border: 1px solid var(--line);
   border-radius: 10px; background: var(--surface); cursor: pointer; }
 .options label.right { border-color: var(--ok); }
+/* More than three answers sit in a grid: three columns, two on a narrow phone. */
+.options.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 520px) {
+  .options.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .verdict.ok { color: var(--ok); font-weight: 700; }
 .verdict.again { color: var(--again); font-weight: 700; }
 .modes { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-top: .75rem; }

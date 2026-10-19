@@ -9,6 +9,7 @@ mod settings;
 mod sply;
 mod startup;
 mod tauri;
+mod theme;
 mod video_frames;
 
 use leptos::prelude::*;
@@ -43,6 +44,8 @@ pub fn start_screen() -> Screen {
 
 fn main() {
     console_error_panic_hook::set_once();
+    // Before mounting, so the first paint already has the chosen palette.
+    theme::apply(theme::current());
     mount_to_body(App);
 }
 
@@ -1023,6 +1026,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     let reverse = RwSignal::new(false);
     let numbers = RwSignal::new(false);
     let shuffle = RwSignal::new(false);
+    let quiz_answers = RwSignal::new(4u8);
     let id = StoredValue::new(id);
     let start = move |due_only: bool| {
         screen.set(Screen::Journey(JourneyStart {
@@ -1032,6 +1036,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
             numbers: numbers.get_untracked(),
             shuffle: shuffle.get_untracked(),
             inputs: Vec::new(),
+            quiz_answers: Some(quiz_answers.get_untracked()),
         }))
     };
     view! {
@@ -1105,6 +1110,15 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
             <label>
                 <input type="checkbox" bind:checked=shuffle />
                 "Gemischt"
+            </label>
+            <label>
+                "Antworten pro Quizfrage "
+                <input type="number" min="2" max="30" prop:value=move || quiz_answers.get().to_string()
+                    on:change=move |event| {
+                        if let Ok(count) = event_target_value(&event).parse::<u8>() {
+                            quiz_answers.set(count.clamp(2, 30));
+                        }
+                    } />
             </label>
         </div>
         {move || match palace.get() {

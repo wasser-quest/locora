@@ -18,18 +18,24 @@ pub struct Preferences {
     /// Grade a recall right after revealing it, and move on after an answer.
     pub quick_next: bool,
     pub video_lead: f64,
+    /// Reverse journeys: how far from the locus a click may land, as a share of the stage width.
+    pub reverse_radius: f64,
 }
 
 impl Default for Preferences {
     fn default() -> Self {
         Self {
-            previous: 0,
-            next: 0,
-            numbers: true,
-            hide_revealed: false,
-            keep_previous: false,
+            // Neighbouring loci and the earlier pictures show by default; the numbers stay off,
+            // so one has to recall what the locus was at that place. quick_next stays off:
+            // it grades a reveal by itself.
+            previous: 3,
+            next: 3,
+            numbers: false,
+            hide_revealed: true,
+            keep_previous: true,
             quick_next: false,
             video_lead: 0.0,
+            reverse_radius: 0.1,
         }
     }
 }
@@ -81,6 +87,11 @@ pub fn load() -> Preferences {
             hide_revealed: value.hide_revealed,
             keep_previous: value.keep_previous,
             quick_next: value.quick_next,
+            reverse_radius: if value.reverse_radius.is_finite() {
+                value.reverse_radius.clamp(0.02, 0.3)
+            } else {
+                0.1
+            },
             video_lead: if value.video_lead.is_finite() {
                 value.video_lead.clamp(0.0, 30.0)
             } else {

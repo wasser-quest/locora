@@ -75,9 +75,37 @@ fn refresh_game(status: RwSignal<Option<GamificationStatus>>) {
     });
 }
 
+/// Where a reverse question was answered, as room fractions, and whether it was within the radius.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Guess {
+    n: u32,
+    x: f64,
+    y: f64,
+    hit: bool,
+}
+
+#[derive(Clone, Copy)]
+struct GuessSpot(RwSignal<Option<Guess>>);
+
+/// The zoom shift of `zoom_view`: where the stage moves the room for a locus at `target`.
+fn zoom_shift(target: f64, zoom: f64) -> f64 {
+    (0.5 - target * zoom).clamp(1.0 - zoom, 0.0)
+}
+
+/// Stage fraction (0–1 of the stage box) of a room fraction, as the zoomed stage shows it.
+fn stage_fraction(room: f64, target: f64, zoom: f64) -> f64 {
+    zoom_shift(target, zoom) + zoom * room
+}
+
+/// Room fraction under a stage fraction: the inverse of `stage_fraction`.
+fn room_fraction(stage: f64, target: f64, zoom: f64) -> f64 {
+    (stage - zoom_shift(target, zoom)) / zoom
+}
+
 #[component]
 pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoView {
     provide_context(VideoProgress(StoredValue::new(None)));
+    provide_context(GuessSpot(RwSignal::new(None::<Guess>)));
     let video_ready = RwSignal::new(true);
     provide_context(VideoReady(video_ready));
     provide_context(VideoPosition(RwSignal::new(0.0)));
@@ -194,19 +222,12 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         }
         busy.set(true);
         spawn_local(async move {
-            let mut revealed = false;
+            // The grade is always the user's: quick mode only moves on after it.
             match call::<Revealed>(CMD_JOURNEY_REVEAL, NoArgs {}).await {
-                Ok(r) => {
-                    phase.set(Phase::Revealed(r));
-                    revealed = true;
-                }
+                Ok(r) => phase.set(Phase::Revealed(r)),
                 Err(e) => error.set(Some(e)),
             }
             busy.set(false);
-            // Quick mode grades a recall as „gut“ at once.
-            if revealed && prefs.get_untracked().quick_next {
-                reply(Reply::Recall(3));
-            }
         });
     };
     // A workbook action on the current question; „reveal“ actions show the answer.
@@ -283,10 +304,6 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             }
             (Phase::Revealed(_), k @ ("1" | "2" | "3" | "4")) => {
                 reply(Reply::Recall(k.parse().unwrap_or(3)));
-            }
-            (Phase::Revealed(_), " " | "Enter") => {
-                e.prevent_default();
-                reply(Reply::Recall(3));
             }
             (Phase::Judged(_), " " | "Enter") => {
                 e.prevent_default();
@@ -415,48 +432,57 @@ fn GameStatus(
     status: RwSignal<Option<GamificationStatus>>,
     art: RwSignal<Option<UiAssets>>,
 ) -> impl IntoView {
+    // Answers only change the numbers: the icons are built once per artwork, not once per answer,
+    // so the animated frames (and the video next to them) are not rebuilt.
+    let trophies = Memo::new(move |_| {
+        status.with(|game| game.as_ref().map(|game| game.trophies.clone()).unwrap_or_default())
+    });
     view! {
-        {move || status.get().map(|game| {
-            let icons = art.get();
-            let goal = game.daily_goal.max(1);
-            view! {
-                <aside class="game-status card" aria-label="Lernfortschritt">
-                    <div class="game-numbers">
-                        <span class="game-stat" title="Erfahrungspunkte">
-                            {icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}
-                            <strong>{format!("{} XP", game.xp)}</strong>
-                        </span>
-                        <span class="game-stat" title="Richtige Antworten in Folge">
-                            {icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.combo still=true /></span> })}
-                            <strong>{format!("{} Combo", game.combo)}</strong>
-                        </span>
-                        <span class="game-hearts" aria-label=format!("{} von 5 Herzen", game.hearts.min(5))>
-                            {(0..5).map(|index| {
-                                let live = index < game.hearts;
-                                let icon = icons.clone();
-                                view! { <span class:spent=!live class="game-icon" aria-hidden="true">
-                                    {icon.map(|a| view! { <Sply media=a.heart still=true /> })}
-                                </span> }
-                            }).collect_view()}
-                        </span>
+        <Show when=move || status.with(Option::is_some)>
+            <aside class="game-status card" aria-label="Lernfortschritt">
+                <div class="game-numbers">
+                    <span class="game-stat" title="Erfahrungspunkte">
+                        {move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}
+                        <strong>{move || status.with(|game| game.as_ref().map(|game| format!("{} XP", game.xp)).unwrap_or_default())}</strong>
+                    </span>
+                    <span class="game-stat" title="Richtige Antworten in Folge">
+                        {move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.combo still=true /></span> })}
+                        <strong>{move || status.with(|game| game.as_ref().map(|game| format!("{} Combo", game.combo)).unwrap_or_default())}</strong>
+                    </span>
+                    <span class="game-hearts" aria-label=move || status.with(|game| format!("{} von 5 Herzen", game.as_ref().map_or(0, |game| game.hearts.min(5))))>
+                        {(0..5u8)
+                            .map(|index| {
+                                view! {
+                                    <span class:spent=move || status.with(|game| game.as_ref().is_some_and(|game| index >= game.hearts)) class="game-icon" aria-hidden="true">
+                                        {move || art.get().map(|a| view! { <Sply media=a.heart still=true /> })}
+                                    </span>
+                                }
+                            })
+                            .collect_view()}
+                    </span>
+                </div>
+                <div class="game-daily">
+                    <div class="game-daily-label">
+                        {move || art.get().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.streak still=true /></span> })}
+                        <label for="game-daily-progress">{move || status.with(|game| game.as_ref().map(|game| format!("Tagesziel: {} von {} richtig · {} Tage in Folge", game.daily_correct, game.daily_goal, game.streak)).unwrap_or_default())}</label>
                     </div>
-                    <div class="game-daily">
-                        <div class="game-daily-label">
-                            {icons.clone().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.streak still=true /></span> })}
-                            <label for="game-daily-progress">{format!("Tagesziel: {} von {} richtig · {} Tage in Folge", game.daily_correct, game.daily_goal, game.streak)}</label>
-                        </div>
-                        <progress id="game-daily-progress" max=goal value=game.daily_correct.min(goal)></progress>
-                    </div>
-                    {(!game.trophies.is_empty()).then(|| view! {
+                    <progress
+                        id="game-daily-progress"
+                        max=move || status.with(|game| game.as_ref().map_or(1, |game| game.daily_goal.max(1)))
+                        value=move || status.with(|game| game.as_ref().map_or(0, |game| game.daily_correct.min(game.daily_goal.max(1))))
+                    ></progress>
+                </div>
+                {move || {
+                    (!trophies.get().is_empty()).then(|| view! {
                         <div class="game-trophies" aria-label="Erfolge">
-                            {game.trophies.into_iter().map(|trophy| view! {
-                                <span class="game-trophy">{icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}{trophy_name(trophy)}</span>
+                            {trophies.get().into_iter().map(|trophy| view! {
+                                <span class="game-trophy">{move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}{trophy_name(trophy)}</span>
                             }).collect_view()}
                         </div>
-                    })}
-                </aside>
-            }
-        })}
+                    })
+                }}
+            </aside>
+        </Show>
     }
 }
 
@@ -471,8 +497,41 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
     let nearby = question.nearby.clone();
     let marker = question.marker.clone();
     let zoom = question.zoom.clamp(1.0, 4.0);
+    let number = question.n;
+    let (locus_x, locus_y) = (question.x, question.y);
+    // Reverse questions ask for the place: the stage takes the click instead of a reveal.
+    let reverse = question.picture.is_some() && question.kind == AnswerKind::Recall;
+    let spot = expect_context::<GuessSpot>().0;
+    // A video holds at the locus; a click before that would not be about this place.
+    let video_ready = expect_context::<VideoReady>().0;
     view! {
-        <div class="stage">
+        <div class="stage" on:click=move |event: web_sys::MouseEvent| {
+            if !reverse || !video_ready.get_untracked() || !matches!(phase.get_untracked(), Phase::Asking) {
+                return;
+            }
+            let Some(stage) = event
+                .current_target()
+                .and_then(|target| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(target).ok())
+            else {
+                return;
+            };
+            let rect = stage.get_bounding_client_rect();
+            if rect.width() <= 0.0 || rect.height() <= 0.0 {
+                return;
+            }
+            let click_x = (f64::from(event.client_x()) - rect.left()) / rect.width();
+            let click_y = (f64::from(event.client_y()) - rect.top()) / rect.height();
+            // The radius is a share of the stage width, so it means the same on phone and desktop.
+            let dx = (click_x - stage_fraction(locus_x, locus_x, zoom)) * rect.width();
+            let dy = (click_y - stage_fraction(locus_y, locus_y, zoom)) * rect.height();
+            let radius = crate::locus_display::signal().get_untracked().reverse_radius * rect.width();
+            spot.set(Some(Guess {
+                n: number,
+                x: room_fraction(click_x, locus_x, zoom),
+                y: room_fraction(click_y, locus_y, zoom),
+                hit: dx.hypot(dy) <= radius,
+            }));
+        }>
             {(!question.video_preview.is_empty()).then(|| view! {
                 <div class="video-start-preview" role="note">
                     <strong>"Startvorschau · Orte bei 0 s"</strong>
@@ -539,6 +598,16 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                         }}
                     }
                 }).collect_view()}
+                {move || {
+                    // The guess stays on the room, so it zooms along with the locus.
+                    spot.get()
+                        .filter(|guess| guess.n == number)
+                        .map(|guess| view! {
+                            <div class="guess-marker" class:hit=guess.hit class:miss=!guess.hit
+                                style:left=format!("{}%", guess.x * 100.0)
+                                style:top=format!("{}%", guess.y * 100.0)></div>
+                        })
+                }}
             </div>
         </div>
     }
@@ -735,12 +804,27 @@ fn Ask(
     reply: impl Fn(Reply) + Copy + Send + Sync + 'static,
 ) -> impl IntoView {
     match question.kind {
-        AnswerKind::Recall => view! {
-            <button class="primary" disabled=move || busy.get() on:click=move |_| reveal()>
-                "Aufdecken (Leertaste)"
-            </button>
+        AnswerKind::Recall => {
+            // A reverse question asks for the place: the stage takes the click, and this line says what it was.
+            let reverse = question.picture.is_some();
+            let number = question.n;
+            let spot = expect_context::<GuessSpot>().0;
+            view! {
+                {reverse.then(|| view! {
+                    <p class="progress">
+                        {move || match spot.get().filter(|guess| guess.n == number) {
+                            Some(guess) if guess.hit => "Treffer – der Ort liegt im Radius.",
+                            Some(_) => "Daneben – der Ort ist markiert. Du kannst trotzdem aufdecken.",
+                            None => "Klick auf die Bühne, wo der Inhalt war.",
+                        }}
+                    </p>
+                })}
+                <button class="primary" disabled=move || busy.get() on:click=move |_| reveal()>
+                    "Aufdecken (Leertaste)"
+                </button>
+            }
+            .into_any()
         }
-        .into_any(),
         AnswerKind::Guess => {
             let text = RwSignal::new(String::new());
             let submit = move || {
@@ -782,6 +866,7 @@ fn Ask(
             };
             // PLAN 6.3: keys 1–9 toggle options, Enter checks. Only mounted while asking.
             let count = question.options.len().min(9) as u32;
+            let grid = question.options.len() > 3;
             let keys = window_event_listener(leptos::ev::keydown, move |e| {
                 if busy.get_untracked() || e.alt_key() || e.ctrl_key() || e.meta_key() || e.repeat()
                 {
@@ -811,7 +896,8 @@ fn Ask(
             });
             on_cleanup(move || keys.remove());
             view! {
-                <div class="options">
+                <p class="progress">"Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter prüft. Es können auch mehrere richtig sein."</p>
+                <div class="options" class:grid=grid>
                     {question
                         .options
                         .iter()

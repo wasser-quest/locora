@@ -71,6 +71,20 @@ fn StartView() -> impl IntoView {
 fn LocusDisplay() -> impl IntoView {
     let settings = locus_display::signal();
     view! {
+        <section class="card panel" aria-label="Darstellung">
+            <h2>"Darstellung"</h2>
+            <label>"Farben "
+                <select prop:value=move || crate::theme::current().key() on:change=move |event| {
+                    let theme = crate::theme::Theme::from_key(&event_target_value(&event));
+                    crate::theme::save(theme);
+                    crate::theme::apply(theme);
+                }>
+                    {crate::theme::Theme::ALL.into_iter().map(|theme| view! {
+                        <option value=theme.key()>{theme.label()}</option>
+                    }).collect_view()}
+                </select>
+            </label>
+        </section>
         <section class="card panel" aria-label="Locus-Anzeige">
             <h2>"Loci anzeigen"</h2>
             <p class="notes">"Die Auswahl gilt für dieses Gerät. Der aktuelle Ort ist immer sichtbar, bis du ihn aufdeckst."</p>
@@ -99,7 +113,16 @@ fn LocusDisplay() -> impl IntoView {
             <label><input type="checkbox" prop:checked=move || settings.get().keep_previous
                 on:change=move |event| { settings.update(|p| p.keep_previous = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Aufgedeckte Bilder bereits durchlaufener Orte weiter anzeigen"</label>
             <label><input type="checkbox" prop:checked=move || settings.get().quick_next
-                on:change=move |event| { settings.update(|p| p.quick_next = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Schnell weiter: nach dem Aufdecken oder der Eingabe direkt zum nächsten Ort"</label>
+                on:change=move |event| { settings.update(|p| p.quick_next = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Schnell weiter: nach der Bewertung oder der Eingabe direkt zum nächsten Ort"</label>
+            <label>"Rückwärts: Trefferradius (% der Bühnenbreite) "
+                <input type="number" min="2" max="30" step="1" prop:value=move || (settings.get().reverse_radius * 100.0).round().to_string()
+                    on:change=move |event| {
+                        if let Ok(percent) = event_target_value(&event).parse::<f64>() {
+                            settings.update(|p| p.reverse_radius = (percent / 100.0).clamp(0.02, 0.3));
+                            locus_display::save(settings.get_untracked());
+                        }
+                    } />
+            </label>
             <label>"Video: Marker frühestens vor dem Stopp (Sekunden) "
                 <input type="number" min="0" max="30" step="0.1" prop:value=move || settings.get().video_lead.to_string()
                     on:change=move |event| {

@@ -1894,7 +1894,7 @@ fn ContentForm(
                     <option value="recall">"Recall (Selbstbewertung)"</option><option value="guess">"Guess (Eingabe)"</option><option value="quiz">"Quiz"</option>
                 </select></label>
                 <Show when=move || kind.get() == "guess"><label>"Weitere gültige Antworten (eine pro Zeile)"<textarea bind:value=accept /></label></Show>
-                <Show when=move || kind.get() == "quiz"><label>"Quizoptionen (eine pro Zeile: + richtig, - falsch)"<textarea rows="5" bind:value=quiz /></label></Show>
+                <Show when=move || kind.get() == "quiz"><label>"Quizoptionen (eine pro Zeile: + richtig, - falsch; beliebig viele + pro Frage möglich)"<textarea rows="5" bind:value=quiz /></label></Show>
             </fieldset>
             <div class="tabs">
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {

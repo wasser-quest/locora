@@ -525,6 +525,10 @@ pub struct JourneyStart {
     /// Values for workbook inputs (`Inputs` table), asked before the start.
     #[serde(default)]
     pub inputs: Vec<InputValue>,
+    /// Quiz: how many answers each question shows in all (the correct ones always count);
+    /// `None` shows four.
+    #[serde(default)]
+    pub quiz_answers: Option<u8>,
 }
 
 /// A workbook input a journey asks for before it starts.
