@@ -13,7 +13,7 @@ anyhow.workspace = true
 locora-api.workspace = true
 locora-app-api = { path = "../../apps/app/shared" }
 locora-formula = { path = "../locora-formula" }
-locora-runtime = { path = "../locora-runtime" }
+locora-runtime = { path = "../locora-runtime", default-features = false }
 locora-store = { path = "../locora-store" }
 
 [dev-dependencies]

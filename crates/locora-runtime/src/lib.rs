@@ -136,6 +136,8 @@ pub fn now() -> u64 {
 /// An open profile: local store plus plugin host.
 pub struct Profile {
     pub store: Arc<Store>,
+    /// The folder the profile lives in; scratch files go below it.
+    pub data_dir: PathBuf,
     pub host: PluginHost,
     /// Problems noticed while opening (plugins that did not load).
     pub notes: Vec<String>,
@@ -190,6 +192,7 @@ impl Profile {
         }
         let mut profile = Self {
             store,
+            data_dir,
             host,
             notes,
             highlight: None,

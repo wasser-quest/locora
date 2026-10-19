@@ -171,7 +171,8 @@ pub fn install_in(profile: &mut Profile, code: &str) -> Result<(PalaceTree, Vec<
     install_files(profile, name_for(code), &files, FILES[0].0, namespace_for(code))
 }
 
-/// Import one bundled palace and its local media assets.
+/// Import one bundled palace and its local media assets. The files are staged in the
+/// profile folder, because WASI has no temporary directory.
 pub(crate) fn install_files(
     profile: &mut Profile,
     name: &str,
@@ -179,13 +180,28 @@ pub(crate) fn install_files(
     source: &str,
     namespace: &str,
 ) -> Result<(PalaceTree, Vec<String>)> {
-    let dir = tempfile::tempdir().context("Temporären Ordner anlegen")?;
+    let dir = profile.data_dir.join("staging");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).context("Arbeitsordner anlegen")?;
+    let built = build_staged(profile, &dir, name, files, source, namespace);
+    let _ = fs::remove_dir_all(&dir);
+    built
+}
+
+fn build_staged(
+    profile: &mut Profile,
+    dir: &Path,
+    name: &str,
+    files: &[(&str, &[u8])],
+    source: &str,
+    namespace: &str,
+) -> Result<(PalaceTree, Vec<String>)> {
     for (path, bytes) in files {
-        let target = dir.path().join(path);
+        let target = dir.join(path);
         fs::create_dir_all(target.parent().expect("files live in folders"))?;
         fs::write(&target, bytes)?;
     }
-    let source_file = dir.path().join(source);
+    let source_file = dir.join(source);
     let source = locora_source::parse(&fs::read_to_string(&source_file)?)?;
     let plan = locora_source::check(&source, source_file.parent().unwrap_or(Path::new(".")))?;
     let mut notes = Vec::new();

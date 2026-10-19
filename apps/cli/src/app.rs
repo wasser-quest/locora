@@ -61,6 +61,7 @@ impl App {
     pub fn for_tests() -> Self {
         Self(Profile {
             store: std::sync::Arc::new(locora_store::Store::in_memory().unwrap()),
+            data_dir: std::env::temp_dir(),
             host: locora_host::PluginHost::new(None).unwrap(),
             notes: Vec::new(),
             highlight: None,

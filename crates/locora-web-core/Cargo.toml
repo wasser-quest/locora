@@ -1,0 +1,22 @@
+[package]
+name = "locora-web-core"
+description = "The Locora core for the browser: the app's commands as one WebAssembly module (WASI), data in a folder the host provides."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow.workspace = true
+locora-api.workspace = true
+locora-app-api = { path = "../../apps/app/shared" }
+locora-app-core = { path = "../locora-app-core" }
+locora-runtime = { path = "../locora-runtime", default-features = false }
+locora-store = { path = "../locora-store" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

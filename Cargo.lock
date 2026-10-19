@@ -1440,6 +1440,7 @@ dependencies = [
  "locora-store",
  "serde",
  "sha2",
+ "tempfile",
 ]
 
 [[package]]
@@ -1538,6 +1539,20 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "uuid",
+]
+
+[[package]]
+name = "locora-web-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "locora-api",
+ "locora-app-api",
+ "locora-app-core",
+ "locora-runtime",
+ "locora-store",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
