@@ -1,0 +1,18 @@
+[package]
+name = "locora-host-select"
+description = "Picks the plugin host for the target: locora-host natively, locora-host-browser on wasm32."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "locora_host"
+path = "src/lib.rs"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+locora-host.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+locora-host-browser = { path = "../locora-host-browser" }
