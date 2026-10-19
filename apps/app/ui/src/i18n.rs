@@ -98,6 +98,34 @@ pub fn t(key: &'static str) -> &'static str {
     })
 }
 
+/// Text from a plugin in the current language. Plain text is translated when a translation
+/// exists. A template comes as `@@template␟arg␟arg…` (␟ is U+001F): the template is translated
+/// and its `{0}`, `{1}`, … are filled with the arguments, so the numbers sit in the right place.
+pub fn plugin_text(text: &str) -> String {
+    let Some(rest) = text.strip_prefix("@@") else {
+        return translate(text);
+    };
+    let mut parts = rest.split('\u{1f}');
+    let mut out = translate(parts.next().unwrap_or_default());
+    for (index, arg) in parts.enumerate() {
+        out = out.replace(&format!("{{{index}}}"), arg);
+    }
+    out
+}
+
+/// The translation of a text known only at run time, or the text itself.
+pub fn translate(text: &str) -> String {
+    let column = current().column();
+    TABLE.with(|table| {
+        let mut table = table.borrow_mut();
+        let map = table.get_or_insert_with(|| MESSAGES.iter().copied().collect());
+        match map.get(text) {
+            Some(texts) if !texts[column].is_empty() => texts[column].to_string(),
+            _ => text.to_string(),
+        }
+    })
+}
+
 /// `t` with placeholders `{0}`, `{1}`, … filled in, in order.
 pub fn tf(key: &'static str, args: &[&dyn std::fmt::Display]) -> String {
     let mut text = t(key).to_string();

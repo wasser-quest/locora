@@ -55,13 +55,7 @@ fn save(ctx: &mut Ctx, progress: &Progress) -> Result {
 fn show(ctx: &mut Ctx, progress: &Progress) -> Result {
     ctx.tile(
         "Erfolge",
-        format!(
-            "{} XP · {}/{} heute · {} Trophäen",
-            progress.xp,
-            progress.daily_correct.min(DAILY_GOAL),
-            DAILY_GOAL,
-            progress.trophies.len()
-        ),
+        localized("{0} XP · {1}/{2} heute · {3} Trophäen", &[&progress.xp, &progress.daily_correct.min(DAILY_GOAL), &DAILY_GOAL, &progress.trophies.len()]),
     )
 }
 
@@ -154,13 +148,7 @@ impl Plugin for Gamification {
             };
             ctx.tile(
                 "Erfolge",
-                format!(
-                    "{} XP · {}/{} heute · {} Trophäen",
-                    progress.xp,
-                    daily_correct,
-                    DAILY_GOAL,
-                    progress.trophies.len()
-                ),
+                localized("{0} XP · {1}/{2} heute · {3} Trophäen", &[&progress.xp, &daily_correct, &DAILY_GOAL, &progress.trophies.len()]),
             )?;
             Ok(StatusResponse {
                 xp: progress.xp,
@@ -176,4 +164,12 @@ impl Plugin for Gamification {
         let progress = load(ctx)?;
         show(ctx, &progress)
     }
+}
+
+
+/// A tile text the app fills in the current language: a template and its arguments,
+/// separated by U+001F (see `plugin_text` in the app).
+fn localized(template: &str, args: &[&dyn std::fmt::Display]) -> String {
+    args.iter()
+        .fold(format!("@@{template}"), |text, arg| format!("{text}\u{1f}{arg}"))
 }

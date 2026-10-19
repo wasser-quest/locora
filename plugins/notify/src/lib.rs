@@ -280,11 +280,19 @@ fn update_tile(ctx: &mut Ctx) -> Result {
         .filter(|schedule| matches!(schedule.plan, Plan::Daily { .. }))
         .count()
     {
-        0 => "Keine täglichen Erinnerungen".to_owned(),
-        1 => "1 tägliche Erinnerung".to_owned(),
-        count => format!("{count} tägliche Erinnerungen"),
+        0 => localized("Keine täglichen Erinnerungen", &[]),
+        1 => localized("1 tägliche Erinnerung", &[]),
+        count => localized("{0} tägliche Erinnerungen", &[&count]),
     };
     ctx.tile("Benachrichtigungen", text)
+}
+
+
+/// A tile text the app fills in the current language: a template and its arguments,
+/// separated by U+001F (see `plugin_text` in the app).
+fn localized(template: &str, args: &[&dyn std::fmt::Display]) -> String {
+    args.iter()
+        .fold(format!("@@{template}"), |text, arg| format!("{text}\u{1f}{arg}"))
 }
 
 #[cfg(test)]

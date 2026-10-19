@@ -895,8 +895,8 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
                             <article class="card tile" title=t.plugin>
                                 {t.icon.map(|m| view! { <div class="icon"><Sply media=m /></div> })}
                                 <div class="text">
-                                    <span class="meta">{t.title}</span>
-                                    <span class="count">{t.text}</span>
+                                    <span class="meta">{crate::i18n::plugin_text(&t.title)}</span>
+                                    <span class="count">{crate::i18n::plugin_text(&t.text)}</span>
                                     {gamification.then(|| view! {
                                         <span class="tile-streak">
                                             {move || art.get().map(|assets| view! { <span class="game-icon" aria-hidden="true"><Sply media=assets.streak /></span> })}

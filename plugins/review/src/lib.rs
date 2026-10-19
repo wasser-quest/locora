@@ -125,10 +125,9 @@ fn tile_text(cards: impl IntoIterator<Item = CardState>) -> String {
         });
     match next {
         None => "Noch keine Loci im Plan".into(),
-        Some(due) => format!(
-            "{count} {} · fällig ab {}",
-            if count == 1 { "Locus" } else { "Loci" },
-            day_month(due)
+        Some(due) => localized(
+            if count == 1 { "{0} Locus · fällig ab {1}" } else { "{0} Loci · fällig ab {1}" },
+            &[&count, &day_month(due)],
         ),
     }
 }
@@ -251,6 +250,14 @@ impl Plugin for Review {
             Ok(scheduled)
         })
     }
+}
+
+
+/// A tile text the app fills in the current language: a template and its arguments,
+/// separated by U+001F (see `plugin_text` in the app).
+fn localized(template: &str, args: &[&dyn std::fmt::Display]) -> String {
+    args.iter()
+        .fold(format!("@@{template}"), |text, arg| format!("{text}\u{1f}{arg}"))
 }
 
 #[cfg(test)]

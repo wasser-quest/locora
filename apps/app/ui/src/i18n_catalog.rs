@@ -215,4 +215,13 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
     ("Wiederholungsstand für {0} Loci übernommen", ["Review progress for {0} places taken over", "Wiederholungsstand für {0} Loci übernommen", "État des révisions pour {0} lieux repris", "{0} 個の場所の復習の進みを引き継ぎました", "已接收 {0} 个位置的复习进度"]),
     ("{0} Tage in Folge", ["{0} days in a row", "{0} Tage in Folge", "{0} jours d'affilée", "{0} 日連続", "连续 {0} 天"]),
     ("Erfahrungspunkte, Combo und Herzen in der Journey anzeigen", ["Show XP, combo and hearts in journeys", "Erfahrungspunkte, Combo und Herzen in der Journey anzeigen", "Afficher XP, combo et cœurs dans les parcours", "ジャーニーで経験値・コンボ・ハートを表示", "在旅程中显示经验值、连击和心"]),
+    ("Wiederholung", ["Review", "Wiederholung", "Révision", "復習", "复习"]),
+    ("Benachrichtigungen", ["Notifications", "Benachrichtigungen", "Notifications", "通知", "通知"]),
+    ("{0} XP · {1}/{2} heute · {3} Trophäen", ["{0} XP · {1}/{2} today · {3} trophies", "{0} XP · {1}/{2} heute · {3} Trophäen", "{0} XP · {1}/{2} aujourd'hui · {3} trophées", "{0} XP · 今日 {1}/{2} · トロフィー {3}", "{0} XP · 今日 {1}/{2} · 奖杯 {3}"]),
+    ("{0} Locus · fällig ab {1}", ["{0} place · due from {1}", "{0} Locus · fällig ab {1}", "{0} lieu · à revoir dès le {1}", "{0} か所 · {1} から期限", "{0} 个位置 · {1} 起到期"]),
+    ("{0} Loci · fällig ab {1}", ["{0} places · due from {1}", "{0} Loci · fällig ab {1}", "{0} lieux · à revoir dès le {1}", "{0} か所 · {1} から期限", "{0} 个位置 · {1} 起到期"]),
+    ("Keine täglichen Erinnerungen", ["No daily reminders", "Keine täglichen Erinnerungen", "Aucun rappel quotidien", "毎日のリマインダーはありません", "没有每日提醒"]),
+    ("1 tägliche Erinnerung", ["1 daily reminder", "1 tägliche Erinnerung", "1 rappel quotidien", "毎日のリマインダー 1 件", "1 个每日提醒"]),
+    ("{0} tägliche Erinnerungen", ["{0} daily reminders", "{0} tägliche Erinnerungen", "{0} rappels quotidiens", "毎日のリマインダー {0} 件", "{0} 个每日提醒"]),
+    ("Noch keine Loci im Plan", ["No places in the plan yet", "Noch keine Loci im Plan", "Pas encore de lieux dans le plan", "計画にまだ場所がありません", "计划中还没有位置"]),
 ];
