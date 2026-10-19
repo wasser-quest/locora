@@ -187,7 +187,6 @@ fn ConnectForm(
     busy: RwSignal<bool>,
 ) -> impl IntoView {
     let register = RwSignal::new(false);
-    let guest = RwSignal::new(false);
     // Same address as locora_runtime::cloud::DEFAULT_SERVER; change it only for another server.
     let server = RwSignal::new(String::from("https://locora.cloud"));
     let email = RwSignal::new(String::new());
@@ -214,7 +213,8 @@ fn ConnectForm(
             password: secret,
             display_name: creating.then(|| display_name.get_untracked()),
             register: creating,
-            guest: creating && guest.get_untracked(),
+            // Every account is a guest until it pays: there is no other kind of account to choose.
+            guest: false,
         };
         password.set(String::new());
         confirmation.set(String::new());
@@ -244,8 +244,7 @@ fn ConnectForm(
             <label><input type="checkbox" prop:checked=move || register.get()
                 on:change=move |event| register.set(event_target_checked(&event)) />{t("Neues Konto erstellen")}</label>
             <Show when=move || register.get()>
-                <label><input type="checkbox" prop:checked=move || guest.get()
-                    on:change=move |event| guest.set(event_target_checked(&event)) />{t("Als Gast anlegen: Daten bleiben sechs Monate erhalten, der Zugang entspricht einer Testphase. Mit einem Abo bleiben die Daten dauerhaft. Die Cloud kann später etwas kosten.")}</label>
+                <p class="meta">{t("Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate. Mit einem Abo bleiben sie dauerhaft.")}</p>
                 <label class="input"><span>{t("Anzeigename")}</span>
                     <input type="text" maxlength="32" bind:value=display_name />
                 </label>
