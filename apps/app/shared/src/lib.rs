@@ -28,6 +28,7 @@ pub const CMD_NOTIFICATIONS: &str = "notifications";
 pub const CMD_NOTIFICATION_SHOWN: &str = "notification_shown";
 pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_GAMIFICATION_STATUS: &str = "gamification_status";
+pub const CMD_ACTIVITY: &str = "activity";
 pub use locora_api::gamification::{StatusResponse as GamificationStatus, Trophy};
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
@@ -191,6 +192,13 @@ pub struct StatsView {
     pub streak: u32,
     pub scheduled: u32,
     pub due: u32,
+}
+
+/// Answers on one learning day, for the activity overview. `day` is the start of that day in seconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActivityDay {
+    pub day: u64,
+    pub answers: u32,
 }
 
 /// Change settings; `None` keeps a value.

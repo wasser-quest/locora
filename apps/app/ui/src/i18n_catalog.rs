@@ -224,4 +224,10 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
     ("1 tägliche Erinnerung", ["1 daily reminder", "1 tägliche Erinnerung", "1 rappel quotidien", "毎日のリマインダー 1 件", "1 个每日提醒"]),
     ("{0} tägliche Erinnerungen", ["{0} daily reminders", "{0} tägliche Erinnerungen", "{0} rappels quotidiens", "毎日のリマインダー {0} 件", "{0} 个每日提醒"]),
     ("Noch keine Loci im Plan", ["No places in the plan yet", "Noch keine Loci im Plan", "Pas encore de lieux dans le plan", "計画にまだ場所がありません", "计划中还没有位置"]),
+    ("Aktivität", ["Activity", "Aktivität", "Activité", "アクティビティ", "活动"]),
+    ("{0} aktive Tage in den letzten 12 Monaten · {1} Antworten", ["{0} active days in the last 12 months · {1} answers", "{0} aktive Tage in den letzten 12 Monaten · {1} Antworten", "{0} jours actifs sur les 12 derniers mois · {1} réponses", "過去 12 か月で {0} 日活動 · {1} 回答", "过去 12 个月有 {0} 个活跃日 · {1} 次作答"]),
+    ("weniger", ["Less", "weniger", "Moins", "少", "少"]),
+    ("mehr", ["More", "mehr", "Plus", "多", "多"]),
+    ("{0}: keine Antworten", ["{0}: no answers", "{0}: keine Antworten", "{0} : aucune réponse", "{0}：回答なし", "{0}：没有作答"]),
+    ("{0}: {1} Antworten", ["{0}: {1} answers", "{0}: {1} Antworten", "{0} : {1} réponses", "{0}：{1} 回答", "{0}：{1} 次作答"]),
 ];

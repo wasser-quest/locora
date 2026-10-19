@@ -199,6 +199,27 @@ pub struct Stats {
     pub due: usize,
 }
 
+/// Answers per learning day for the last `days` days up to today, oldest first. Days without
+/// answers count as zero, so the overview shows the inactive days too.
+pub fn activity_days(entries: &[LogEntry], now: u64, clock: &DayClock, days: usize) -> Vec<(u64, u32)> {
+    let mut counts: HashMap<u64, u32> = HashMap::new();
+    for entry in entries {
+        *counts.entry(clock.day_start(entry.answered_at)).or_default() += 1;
+    }
+    let mut day = clock.day_start(now);
+    let mut out = Vec::with_capacity(days);
+    for _ in 0..days {
+        out.push((day, counts.get(&day).copied().unwrap_or(0)));
+        let previous = clock.previous_day(day);
+        if previous >= day {
+            break;
+        }
+        day = previous;
+    }
+    out.reverse();
+    out
+}
+
 pub fn stats(
     entries: &[LogEntry],
     schedule: &[ScheduledLocus],
@@ -470,6 +491,15 @@ impl Profile {
     }
 
     /// Statistics; `None` without the review plugin.
+    /// Answers per learning day for the last `days` days (see `activity_days`).
+    pub fn activity(&mut self, days: usize) -> Result<Vec<(u64, u32)>> {
+        if !self.has_review() {
+            return Ok(Vec::new());
+        }
+        let entries = self.review_log()?;
+        Ok(activity_days(&entries, now(), &self.day_clock()?, days))
+    }
+
     pub fn stats(&mut self) -> Result<Option<Stats>> {
         if !self.has_review() {
             return Ok(None);

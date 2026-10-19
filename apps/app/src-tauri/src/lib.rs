@@ -559,6 +559,19 @@ async fn ui_assets(state: State<'_, Shared>) -> Result<locora_app_api::UiAssets,
     Ok(lock(&state)?.assets.ui())
 }
 
+/// Days shown in the activity overview: one year.
+const ACTIVITY_DAYS: usize = 365;
+
+/// Answers per learning day for the last year (days without answers included).
+#[tauri::command]
+async fn activity(state: State<'_, Shared>) -> Result<Vec<locora_app_api::ActivityDay>, String> {
+    let days = lock(&state)?.profile.activity(ACTIVITY_DAYS).map_err(err)?;
+    Ok(days
+        .into_iter()
+        .map(|(day, answers)| locora_app_api::ActivityDay { day, answers })
+        .collect())
+}
+
 #[tauri::command]
 async fn gamification_status(
     state: State<'_, Shared>,
@@ -939,6 +952,7 @@ pub fn run() {
             cloud_setup::cloud_refresh,
             ui_assets,
             gamification_status,
+            activity,
             import_pick,
             export_pick,
             dump_pick,

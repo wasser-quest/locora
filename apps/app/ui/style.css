@@ -305,3 +305,14 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .notification .close { background: transparent; color: inherit; padding: 0 .6rem; }
 .notification[data-priority="2"] { outline: 2px solid var(--lime); }
 .options kbd { display: inline-block; min-width: 1.4em; margin-right: .4em; padding: 0 .3em; border: 1px solid var(--line); border-radius: 4px; font: inherit; font-size: .8rem; text-align: center; color: var(--muted); }
+
+/* Activity overview: one square per learning day, shaded by the answers of that day. */
+.activity-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); gap: 3px;
+  overflow-x: auto; padding: .2rem 0 .5rem; }
+.activity-day { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--line); }
+.activity-day.l1 { background: color-mix(in srgb, var(--ok) 30%, var(--surface)); }
+.activity-day.l2 { background: color-mix(in srgb, var(--ok) 50%, var(--surface)); }
+.activity-day.l3 { background: color-mix(in srgb, var(--ok) 75%, var(--surface)); }
+.activity-day.l4 { background: var(--ok); }
+.activity-legend { display: flex; gap: 3px; align-items: center; color: var(--muted); font-size: .8rem; }
+.activity-legend span:not(.activity-day) { margin: 0 .3rem; }
