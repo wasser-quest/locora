@@ -100,6 +100,13 @@ const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !importan
       return;
     }
     if (!svg.splinely) return;
+    if (d.still) {
+      // A still icon keeps its first frame: nothing plays, so nothing is drawn on every frame.
+      var stillClips = (svg.splinely.sourceProject && svg.splinely.sourceProject.clips) || [];
+      stillClips.forEach(function (clip) { svg.splinely.clip(clip.id).pause(); });
+      svg.splinely.timeline.pause();
+      return;
+    }
     if (d.timed && typeof d.timed.action === 'string') {
       try {
         var runtime = svg.splinely, duration = animationDuration();

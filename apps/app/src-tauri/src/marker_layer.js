@@ -121,13 +121,16 @@
     } catch (error) { console.error('Marker layer:', error); ready(false); }
   });
   const resize = new ResizeObserver(layout); resize.observe(root);
+  // Marker glow and state changes read fine at 30 fps; ticking every frame keeps the WebView busy while idle.
+  const frameInterval = 1000 / 30;
   let last = null, raf;
   function tick(now) {
+    raf = requestAnimationFrame(tick);
+    if (last !== null && now - last < frameInterval) return;
     const delta = last === null ? 0 : Math.max(0, (now - last) / 1000); last = now;
     for (const entry of instances.values()) {
       try { entry.runtime.tick(delta); } catch (error) { console.error('Marker tick:', error); ready(false); }
     }
-    raf = requestAnimationFrame(tick);
   }
   raf = requestAnimationFrame(tick);
   window.addEventListener('pagehide', () => {

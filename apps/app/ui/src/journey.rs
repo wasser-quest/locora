@@ -423,11 +423,11 @@ fn GameStatus(
                 <aside class="game-status card" aria-label="Lernfortschritt">
                     <div class="game-numbers">
                         <span class="game-stat" title="Erfahrungspunkte">
-                            {icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.trophy /></span> })}
+                            {icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}
                             <strong>{format!("{} XP", game.xp)}</strong>
                         </span>
                         <span class="game-stat" title="Richtige Antworten in Folge">
-                            {icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.combo /></span> })}
+                            {icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.combo still=true /></span> })}
                             <strong>{format!("{} Combo", game.combo)}</strong>
                         </span>
                         <span class="game-hearts" aria-label=format!("{} von 5 Herzen", game.hearts.min(5))>
@@ -435,14 +435,14 @@ fn GameStatus(
                                 let live = index < game.hearts;
                                 let icon = icons.clone();
                                 view! { <span class:spent=!live class="game-icon" aria-hidden="true">
-                                    {icon.map(|a| view! { <Sply media=a.heart /> })}
+                                    {icon.map(|a| view! { <Sply media=a.heart still=true /> })}
                                 </span> }
                             }).collect_view()}
                         </span>
                     </div>
                     <div class="game-daily">
                         <div class="game-daily-label">
-                            {icons.clone().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.streak /></span> })}
+                            {icons.clone().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.streak still=true /></span> })}
                             <label for="game-daily-progress">{format!("Tagesziel: {} von {} richtig · {} Tage in Folge", game.daily_correct, game.daily_goal, game.streak)}</label>
                         </div>
                         <progress id="game-daily-progress" max=goal value=game.daily_correct.min(goal)></progress>
@@ -450,7 +450,7 @@ fn GameStatus(
                     {(!game.trophies.is_empty()).then(|| view! {
                         <div class="game-trophies" aria-label="Erfolge">
                             {game.trophies.into_iter().map(|trophy| view! {
-                                <span class="game-trophy">{icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.trophy /></span> })}{trophy_name(trophy)}</span>
+                                <span class="game-trophy">{icons.clone().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}{trophy_name(trophy)}</span>
                             }).collect_view()}
                         </div>
                     })}

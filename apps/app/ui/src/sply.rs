@@ -69,6 +69,8 @@ pub fn Sply(
     #[prop(optional, into)] class: String,
     #[prop(optional, into)] state: Option<Signal<&'static str>>,
     #[prop(default = "status")] machine: &'static str,
+    // Decorative icons hold their first frame instead of animating on every frame.
+    #[prop(optional)] still: bool,
     #[prop(optional)] timed: Option<RwSignal<TimedCommand>>,
     #[prop(optional)] on_timed_ready: Option<Box<dyn Fn(f64) + Send + Sync>>,
     #[prop(optional)] on_timed_at: Option<Box<dyn Fn(f64) + Send + Sync>>,
@@ -318,6 +320,14 @@ pub fn Sply(
                 ready.set(false);
                 timed_ready.set(false);
                 push();
+                if still {
+                    if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+                        let message = js_sys::Object::new();
+                        let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+                        let _ = js_sys::Reflect::set(&message, &"still".into(), &true.into());
+                        let _ = window.post_message(&message, "*");
+                    }
+                }
                 if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
                     let request = js_sys::Object::new();
                     let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
