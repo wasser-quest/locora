@@ -239,7 +239,8 @@ dl.stats dt { color: var(--muted); }
 dl.stats dd { margin: 0; font-weight: 600; }
 .status { color: var(--ok); font-size: .9rem; }
 .status:empty, .notes:empty { display: none; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-bottom: 1rem; }
+/* auto-fit: a single tile takes the whole row, as the other cards do; several tiles share it. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-bottom: 1rem; }
 .tile { display: flex; align-items: center; gap: .6rem; }
 .tile .icon { width: 48px; height: 48px; flex: none; }
 .tile .text { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
@@ -330,6 +331,8 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .medals { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
 .medal { display: flex; flex-direction: column; align-items: center; gap: .3rem; width: 9rem; text-align: center; }
 .medal-art { width: 72px; height: 72px; }
+/* The medal is a frame of its own: the general frame rule would stretch it to the card. */
+iframe.sply.medal-art { width: 72px; height: 72px; flex: none; }
 .medal-title { font-weight: 600; }
 .medal-hint { color: var(--muted); font-size: .85rem; }
 .medal.locked .medal-title { color: var(--muted); }
