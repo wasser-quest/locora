@@ -159,12 +159,14 @@ pub fn Sply(
             return;
         }
         use wasm_bindgen::JsCast;
+        // The frame runs after the animation frame: the graphic may be gone by then, so the
+        // values are read with the checked accessors.
         let frame_task = wasm_bindgen::closure::Closure::once_into_js(move || {
-            let Some((client_x, client_y)) = pending.get_value() else {
+            let Some(Some((client_x, client_y))) = pending.try_get_value() else {
                 return;
             };
-            pending.set_value(None);
-            if let Some(frame) = frame.get_untracked() {
+            let _ = pending.try_set_value(None);
+            if let Some(Some(frame)) = frame.try_get_untracked() {
                 post_pointer(frame, client_x, client_y);
             }
         });

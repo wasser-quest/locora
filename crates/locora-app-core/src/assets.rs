@@ -9,7 +9,7 @@ use locora_store::{SPLINELY, Store};
 
 macro_rules! ui {
     ($($name:literal),* $(,)?) => {
-        &[$(($name, include_bytes!(concat!("../../../../assets/ui/", $name, ".sply")))),*]
+        &[$(($name, include_bytes!(concat!("../../../assets/ui/", $name, ".sply")))),*]
     };
 }
 
@@ -38,7 +38,7 @@ const FILES: &[(&str, &[u8])] = ui![
 
 /// Graphics from elsewhere in `assets/`.
 const MORE: &[(&str, &[u8])] = &[
-    ("logo", include_bytes!("../../../../assets/brand/icon.sply")),
+    ("logo", include_bytes!("../../../assets/brand/icon.sply")),
     ("simo", locora_runtime::tutorial::SIMO),
 ];
 

@@ -12,9 +12,14 @@ publish = false
 anyhow.workspace = true
 locora-api.workspace = true
 locora-app-api = { path = "../../apps/app/shared" }
+infer = "0.22"
+locora-format = { path = "../locora-format" }
 locora-formula = { path = "../locora-formula" }
+locora-source = { path = "../locora-source" }
 locora-runtime = { path = "../locora-runtime", default-features = false }
 locora-store = { path = "../locora-store" }
+serde_json = "1"
+splinely_document = { git = "https://github.com/wasser-quest/splinely", tag = "v0.5.2" }
 
 [dev-dependencies]
 tempfile = "3"
