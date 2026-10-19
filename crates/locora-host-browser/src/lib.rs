@@ -102,15 +102,24 @@ impl KvStore for MemoryKv {
     }
 }
 
+/// Answers plugin services from outside the core: the browser's plugin host runs the plugins.
+/// Requests and replies are the postcard bytes the native host passes to plugins.
+pub trait ServiceBridge {
+    /// Whether `service` exists, provided by `plugin` when one is named.
+    fn provides(&self, plugin: Option<&str>, service: &str) -> bool;
+    fn call(&self, plugin: Option<&str>, service: &str, request: &[u8]) -> Result<Vec<u8>, String>;
+}
+
 /// The plugin host of the browser build.
 pub struct PluginHost {
     palaces: Option<Arc<locora_store::Store>>,
+    bridge: Option<Box<dyn ServiceBridge>>,
     events: Vec<HostEvent>,
 }
 
 impl PluginHost {
     pub fn new(_cache_dir: Option<PathBuf>) -> Result<Self> {
-        Ok(Self { palaces: None, events: Vec::new() })
+        Ok(Self { palaces: None, bridge: None, events: Vec::new() })
     }
 
     pub fn with_kv(cache_dir: Option<PathBuf>, _kv: Arc<dyn KvStore>) -> Result<Self> {
@@ -118,7 +127,12 @@ impl PluginHost {
     }
 
     pub fn with_palaces(_cache_dir: Option<PathBuf>, _kv: Arc<dyn KvStore>, palaces: Arc<locora_store::Store>) -> Result<Self> {
-        Ok(Self { palaces: Some(palaces), events: Vec::new() })
+        Ok(Self { palaces: Some(palaces), bridge: None, events: Vec::new() })
+    }
+
+    /// Connects the plugins the browser host runs. Until this is set, only the palace service exists.
+    pub fn set_bridge(&mut self, bridge: Box<dyn ServiceBridge>) {
+        self.bridge = Some(bridge);
     }
 
     pub fn load_file(&mut self, _path: &Path) -> Result<Manifest> {
@@ -159,21 +173,23 @@ impl PluginHost {
         Ok(locora_api::decode(&bytes)?)
     }
 
-    pub fn call_plugin<S: locora_api::Service>(&mut self, plugin: &str, _request: &S::Request) -> Result<S::Response> {
-        bail!("plugin {plugin} does not provide {} here: {NOT_IN_BROWSER}", S::NAME)
+    pub fn call_plugin<S: locora_api::Service>(&mut self, plugin: &str, request: &S::Request) -> Result<S::Response> {
+        let bytes = self.bridge_call(Some(plugin), S::NAME, &locora_api::encode(request)?)?;
+        Ok(locora_api::decode(&bytes)?)
     }
 
-    pub fn plugin_provides(&self, _plugin: &str, _service: &str) -> bool {
-        false
+    pub fn plugin_provides(&self, plugin: &str, service: &str) -> bool {
+        self.bridge.as_ref().is_some_and(|bridge| bridge.provides(Some(plugin), service))
     }
 
     pub fn provides(&self, service: &str) -> bool {
-        service == <locora_api::palaces::Palaces as locora_api::Service>::NAME && self.palaces.is_some()
+        (service == <locora_api::palaces::Palaces as locora_api::Service>::NAME && self.palaces.is_some())
+            || self.bridge.as_ref().is_some_and(|bridge| bridge.provides(None, service))
     }
 
     pub fn call_raw(&mut self, service: &str, request: &[u8]) -> Result<Vec<u8>> {
         if service != <locora_api::palaces::Palaces as locora_api::Service>::NAME {
-            bail!("service {service} is not available: {NOT_IN_BROWSER}");
+            return self.bridge_call(None, service, request);
         }
         let Some(store) = self.palaces.clone() else {
             bail!("the palace service is not bound");
@@ -184,6 +200,16 @@ impl PluginHost {
             self.events.push(HostEvent::Published { plugin: "core".to_owned(), topic, payload });
         }
         Ok(locora_api::encode(&outcome.response)?)
+    }
+
+    fn bridge_call(&self, plugin: Option<&str>, service: &str, request: &[u8]) -> Result<Vec<u8>> {
+        match self.bridge.as_ref().filter(|bridge| bridge.provides(plugin, service)) {
+            Some(bridge) => bridge.call(plugin, service, request).map_err(anyhow::Error::msg),
+            None => match plugin {
+                Some(plugin) => bail!("plugin {plugin} does not provide {service} here: {NOT_IN_BROWSER}"),
+                None => bail!("service {service} is not available: {NOT_IN_BROWSER}"),
+            },
+        }
     }
 
     /// Filters run in the browser host; here values pass through unchanged.

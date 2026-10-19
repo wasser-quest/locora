@@ -1549,6 +1549,7 @@ dependencies = [
  "locora-api",
  "locora-app-api",
  "locora-app-core",
+ "locora-host-select",
  "locora-runtime",
  "locora-store",
  "serde",

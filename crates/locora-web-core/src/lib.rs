@@ -52,8 +52,64 @@ thread_local! {
     static BACKEND: RefCell<Option<Backend>> = const { RefCell::new(None) };
 }
 
+/// The plugins of the browser host. The host provides the `locora_bridge` imports: `provides` says
+/// whether a service exists, and `call` runs one and returns a packed (pointer, length) reply.
+#[cfg(target_arch = "wasm32")]
+mod plugins {
+    use locora_host::ServiceBridge;
+
+    // An empty plugin name means any plugin.
+    #[link(wasm_import_module = "locora_bridge")]
+    unsafe extern "C" {
+        #[link_name = "provides"]
+        fn host_provides(plugin: *const u8, plugin_len: usize, service: *const u8, service_len: usize) -> u32;
+        #[link_name = "call"]
+        fn host_call(
+            plugin: *const u8,
+            plugin_len: usize,
+            service: *const u8,
+            service_len: usize,
+            request: *const u8,
+            request_len: usize,
+        ) -> u64;
+    }
+
+    pub struct Bridge;
+
+    impl ServiceBridge for Bridge {
+        fn provides(&self, plugin: Option<&str>, service: &str) -> bool {
+            let plugin = plugin.unwrap_or("");
+            unsafe { host_provides(plugin.as_ptr(), plugin.len(), service.as_ptr(), service.len()) == 1 }
+        }
+
+        fn call(&self, plugin: Option<&str>, service: &str, request: &[u8]) -> Result<Vec<u8>, String> {
+            let plugin = plugin.unwrap_or("");
+            let packed = unsafe {
+                host_call(plugin.as_ptr(), plugin.len(), service.as_ptr(), service.len(), request.as_ptr(), request.len())
+            };
+            read_reply(packed)
+        }
+    }
+
+    /// The reply is one tag byte (0 = ok, anything else = error), then the bytes or the message.
+    /// The host reserved its memory with `alloc`, so it is taken back here.
+    fn read_reply(packed: u64) -> Result<Vec<u8>, String> {
+        let pointer = (packed >> 32) as *mut u8;
+        let len = (packed & 0xffff_ffff) as usize;
+        let reply = unsafe { Vec::from_raw_parts(pointer, len, len) };
+        match reply.split_first() {
+            Some((0, bytes)) => Ok(bytes.to_vec()),
+            Some((_, message)) => Err(String::from_utf8_lossy(message).into_owned()),
+            None => Err("the browser host sent no reply".to_owned()),
+        }
+    }
+}
+
 fn open(dir: &str) -> anyhow::Result<()> {
-    let profile = Profile::open(Some(Path::new(dir)))?;
+    #[cfg_attr(not(target_arch = "wasm32"), allow(unused_mut))]
+    let mut profile = Profile::open(Some(Path::new(dir)))?;
+    #[cfg(target_arch = "wasm32")]
+    profile.host.set_bridge(Box::new(plugins::Bridge));
     let default_marker = profile.store.put_media(locora_runtime::tutorial::DEFAULT_MARKER, SPLINELY)?.hash;
     let simo = profile.store.put_media(locora_runtime::tutorial::SIMO, SPLINELY)?.hash;
     BACKEND.with(|cell| *cell.borrow_mut() = Some(Backend { profile, default_marker, simo, journey: None }));

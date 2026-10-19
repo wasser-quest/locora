@@ -8,6 +8,18 @@
 
 const ok = (val) => ({ tag: 'ok', val });
 const err = (val) => ({ tag: 'err', val: String(val) });
+
+/**
+ * Runs one plugin export. jco returns the value of an `ok` and throws the payload of an `err`
+ * (a ComponentError); this turns both into WIT results.
+ */
+function settle(run) {
+  try {
+    return ok(run());
+  } catch (error) {
+    return err(error?.payload ?? error?.message ?? error);
+  }
+}
 const MAX_DELIVERIES = 10_000; // a loop of events stops here instead of hanging the page
 
 export class PluginHost {
@@ -35,8 +47,8 @@ export class PluginHost {
     const plugin = this.require(id);
     plugin.manifest = plugin.module.manifest();
     if (plugin.manifest.id !== id) throw new Error(`plugin registered as ${id} identifies as ${plugin.manifest.id}`);
-    const result = plugin.module.activate();
-    if (result?.tag === 'err') throw new Error(`plugin ${id} did not activate: ${result.val}`);
+    const result = settle(() => plugin.module.activate());
+    if (result.tag === 'err') throw new Error(`plugin ${id} did not activate: ${result.val}`);
     plugin.active = true;
     this.drain();
   }
@@ -65,9 +77,23 @@ export class PluginHost {
     const id = this.services.get(service);
     if (!id) return err(`no plugin provides ${service}`);
     const plugin = this.require(id);
-    const result = plugin.module.onCall(service, new Uint8Array(request));
+    const result = settle(() => plugin.module.onCall(service, new Uint8Array(request)));
     this.drain();
     return result;
+  }
+
+  /**
+   * What the core calls to reach plugin services (its `locora_bridge` imports). `plugin` is null for
+   * any plugin. Replies are WIT results.
+   */
+  asBridge() {
+    return {
+      provides: (plugin, service) => (plugin ? this.services.get(service) === plugin : this.services.has(service)),
+      call: (plugin, service, request) => {
+        if (plugin && this.services.get(service) !== plugin) return err(`plugin ${plugin} does not provide ${service}`);
+        return this.callService(service, request);
+      },
+    };
   }
 
   /** Runs the filters registered for `hook` in order; each filter's output is the next one's input. */
@@ -77,8 +103,8 @@ export class PluginHost {
       .filter((p) => p.active && p.filters.has(hook))
       .sort((a, b) => a.filters.get(hook) - b.filters.get(hook) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     for (const plugin of chain) {
-      const result = plugin.module.onFilter(hook, current);
-      if (result?.tag === 'err') throw new Error(`filter ${hook} of ${plugin.id} failed: ${result.val}`);
+      const result = settle(() => plugin.module.onFilter(hook, current));
+      if (result.tag === 'err') throw new Error(`filter ${hook} of ${plugin.id} failed: ${result.val}`);
       current = result.val;
       this.drain();
     }
@@ -107,8 +133,8 @@ export class PluginHost {
       for (const id of [...(this.topics.get(event.topic) ?? [])]) {
         const plugin = this.plugins.get(id);
         if (!plugin?.active) continue;
-        const result = plugin.module.onEvent(event.topic, event.payload);
-        if (result?.tag === 'err') this.logs.push({ plugin: id, level: 'error', message: `onEvent ${event.topic}: ${result.val}` });
+        const result = settle(() => plugin.module.onEvent(event.topic, event.payload));
+        if (result.tag === 'err') this.logs.push({ plugin: id, level: 'error', message: `onEvent ${event.topic}: ${result.val}` });
       }
     }
   }

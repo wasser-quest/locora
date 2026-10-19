@@ -35,18 +35,22 @@ test('the tutorial palace builds in the browser core, once per language', async 
   assert.ok(german.ok && german.ok !== english.ok, JSON.stringify(german));
 });
 
-// Grading needs the core plugin's Evaluate service, which lives in the JS plugin host. The
-// browser core cannot reach it yet, so the journey stops with the missing-plugin error.
-test('a tutorial journey runs in the browser core: start, reveal, grade', { todo: 'needs the JS plugin host bridge' }, async () => {
-  const call = await loadCore(wasm, mkdtempSync(join(tmpdir(), 'locora-core-')));
+// Grading runs the core plugin's Evaluate service in the JS plugin host, reached through the bridge.
+test('a tutorial journey runs in the browser core: start, reveal, grade', async () => {
+  const { host } = await import('../plugin-host/src/host-core.mjs');
+  if (!host.plugins.has('core')) {
+    host.register('core', await import('../plugin-host/dist/core/core.js'));
+    host.start('core');
+  }
+  const call = await loadCore(wasm, mkdtempSync(join(tmpdir(), 'locora-core-')), host.asBridge());
   call('open', '/locora');
   const palaceId = call('tutorial', 'en').ok;
   const start = call('journey_start', {
     palace_id: palaceId, due_only: false, reverse: false, numbers: false, shuffle: false, inputs: [], quiz_answers: null,
   });
-  assert.ok(start.ok && start.ok.Question, JSON.stringify(start));
+  assert.equal(start.ok?.type, 'question', JSON.stringify(start));
   assert.ok(call('journey_reveal').ok, 'the answer can be revealed');
-  const feedback = call('journey_answer', { Recall: 3 });
+  const feedback = call('journey_answer', { type: 'recall', value: 3 });
   assert.ok(feedback.ok, JSON.stringify(feedback));
-  assert.equal(typeof feedback.ok.correct, 'boolean');
+  assert.equal(feedback.ok.correct, true, 'any recall rating above "again" counts as correct');
 });
