@@ -2,6 +2,7 @@
 //! sandboxed frame (scripts only, no access to the app); state changes reach
 //! it as messages (see `src-tauri/src/sply.rs`).
 
+use crate::i18n::t;
 use leptos::{html::Iframe, task::spawn_local};
 use leptos::prelude::*;
 use locora_app_api::{Media, MediaKind};
@@ -331,7 +332,7 @@ pub fn Sply(
             class=format!("sply {class}")
             sandbox="allow-scripts"
             src=url(&media)
-            title="Animation"
+            title=t("Animation")
             // A focused frame would swallow every key (Ctrl/⌘+K, Space, 1–4).
             tabindex="-1"
             on:load=move |_| {
@@ -360,7 +361,7 @@ pub fn Sply(
             }
         ></iframe>
         <Show when=move || failed.get()>
-            <span class="notes" role="alert">"Splinely-Runtime nicht gestartet – Animation konnte nicht geladen werden."</span>
+            <span class="notes" role="alert">{t("Splinely-Runtime nicht gestartet – Animation konnte nicht geladen werden.")}</span>
         </Show>
     }
 }
@@ -408,7 +409,7 @@ pub fn VideoBackdrop(
     // A video that is already loaded shows at once; otherwise the frame waits for the fetch.
     let cached = crate::tauri::cached_video_url(&media);
     let fetching = cached.is_none();
-    let source = RwSignal::new(cached.map_or_else(|| Err("Video lädt…".to_string()), Ok));
+    let source = RwSignal::new(cached.map_or_else(|| Err(t("Video lädt…").to_string()), Ok));
     if fetching {
         spawn_local(async move {
             let result = crate::tauri::video_url(&media).await;

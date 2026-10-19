@@ -1,6 +1,7 @@
 //! Command palette (Ctrl/⌘+K): type to find a palace or a command, arrows
 //! to choose, Enter to run, Escape to close.
 
+use crate::i18n::t;
 use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -25,7 +26,7 @@ struct Command {
 fn commands(home: &Home) -> Vec<Command> {
     let mut list = vec![
         Command {
-            label: "Weiter – fällige Loci wiederholen".into(),
+            label: t("Weiter – fällige Loci wiederholen").into(),
             hint: "Journey",
             target: Screen::Journey(JourneyStart {
                 due_only: true,
@@ -33,24 +34,24 @@ fn commands(home: &Home) -> Vec<Command> {
             }),
         },
         Command {
-            label: "Übersicht".into(),
+            label: t("Übersicht").into(),
             hint: "Start",
             target: Screen::Home,
         },
         Command {
-            label: "Einstellungen & Statistik".into(),
+            label: t("Einstellungen & Statistik").into(),
             hint: "⚙",
             target: Screen::Settings,
         },
     ];
     for p in &home.palaces {
         list.push(Command {
-            label: format!("{} öffnen", p.name),
+            label: crate::i18n::tf("{0} öffnen", &[&p.name]),
             hint: "Palast",
             target: Screen::Palace(p.id.clone()),
         });
         list.push(Command {
-            label: format!("{} üben", p.name),
+            label: crate::i18n::tf("{0} üben", &[&p.name]),
             hint: "▶ Route",
             target: Screen::Journey(JourneyStart {
                 palace_id: Some(p.id.clone()),
@@ -160,7 +161,7 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
     };
     let run = move |command: Command| {
         if editing.0.get_untracked() {
-            note.set("Erst die Änderungen im Editor speichern oder verwerfen.".into());
+            note.set(t("Erst die Änderungen im Editor speichern oder verwerfen.").into());
             return;
         }
         open.set(false);
@@ -260,8 +261,8 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
 
     view! {
         <Show when=move || !open.get()>
-            <button class="palette-mobile-trigger" type="button" aria-label="Befehlspalette öffnen"
-                on:click=move |_| show()>"Befehle"</button>
+            <button class="palette-mobile-trigger" type="button" aria-label=t("Befehlspalette öffnen")
+                on:click=move |_| show()>{t("Befehle")}</button>
         </Show>
         <Show when=move || open.get()>
             <div class="palette-backdrop" on:click=move |_| close()>
@@ -269,7 +270,7 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
                     class="palette card"
                     role="dialog"
                     aria-modal="true"
-                    aria-label="Befehlspalette"
+                    aria-label=t("Befehlspalette")
                     on:click=|e| e.stop_propagation()
                 >
                     <input
@@ -283,14 +284,14 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
                             (!shown.with(Vec::is_empty))
                                 .then(|| format!("palette-option-{}", selected.get()))
                         }
-                        placeholder="Palast oder Befehl suchen …"
+                        placeholder=t("Palast oder Befehl suchen …")
                         prop:value=move || query.get()
                         on:input=move |e| {
                             query.set(event_target_value(&e));
                             selected.set(0);
                         }
                     />
-                    <ul role="listbox" id="palette-list" aria-label="Treffer">
+                    <ul role="listbox" id="palette-list" aria-label=t("Treffer")>
                         {move || {
                             shown
                                 .get()

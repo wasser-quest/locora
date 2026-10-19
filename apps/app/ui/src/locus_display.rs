@@ -20,6 +20,8 @@ pub struct Preferences {
     pub video_lead: f64,
     /// Reverse journeys: how far from the locus a click may land, as a share of the stage width.
     pub reverse_radius: f64,
+    /// Show the XP, combo and hearts strip in journeys.
+    pub gamification: bool,
 }
 
 impl Default for Preferences {
@@ -36,6 +38,7 @@ impl Default for Preferences {
             quick_next: false,
             video_lead: 0.0,
             reverse_radius: 0.1,
+            gamification: true,
         }
     }
 }
@@ -87,6 +90,7 @@ pub fn load() -> Preferences {
             hide_revealed: value.hide_revealed,
             keep_previous: value.keep_previous,
             quick_next: value.quick_next,
+            gamification: value.gamification,
             reverse_radius: if value.reverse_radius.is_finite() {
                 value.reverse_radius.clamp(0.02, 0.3)
             } else {

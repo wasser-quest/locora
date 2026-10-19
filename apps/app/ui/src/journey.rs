@@ -2,6 +2,7 @@
 //! Guess: type and Enter (empty Enter reveals). Quiz: tick and confirm.
 //! Revealing shows the locus picture, because it belongs to the answer.
 
+use crate::i18n::t;
 use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -316,11 +317,11 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 
     view! {
         <header class="bar">
-            <button class="back" title="Beenden" on:click=move |_| screen.set(crate::start_screen())>
+            <button class="back" title=t("Beenden") on:click=move |_| screen.set(crate::start_screen())>
                 "←"
             </button>
             <h1>
-                {move || question.get().map(|q| q.palace).unwrap_or_else(|| "Journey".into())}
+                {move || question.get().map(|q| q.palace).unwrap_or_else(|| t("Journey").into())}
             </h1>
             <span class="progress">
                 {move || {
@@ -420,10 +421,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 
 fn trophy_name(trophy: Trophy) -> &'static str {
     match trophy {
-        Trophy::FirstJourney => "Erste Journey",
-        Trophy::PerfectJourney => "Fehlerfreie Journey",
-        Trophy::HundredXp => "100 XP",
-        Trophy::SevenDayStreak => "7 Tage gelernt",
+        Trophy::FirstJourney => t("Erste Journey"),
+        Trophy::PerfectJourney => t("Fehlerfreie Journey"),
+        Trophy::HundredXp => t("100 XP"),
+        Trophy::SevenDayStreak => t("7 Tage gelernt"),
     }
 }
 
@@ -438,16 +439,16 @@ fn GameStatus(
         status.with(|game| game.as_ref().map(|game| game.trophies.clone()).unwrap_or_default())
     });
     view! {
-        <Show when=move || status.with(Option::is_some)>
-            <aside class="game-status card" aria-label="Lernfortschritt">
+        <Show when=move || status.with(Option::is_some) && crate::locus_display::signal().get().gamification>
+            <aside class="game-status card" aria-label=t("Lernfortschritt")>
                 <div class="game-numbers">
-                    <span class="game-stat" title="Erfahrungspunkte">
+                    <span class="game-stat" title=t("Erfahrungspunkte")>
                         {move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}
                         <strong>{move || status.with(|game| game.as_ref().map(|game| format!("{} XP", game.xp)).unwrap_or_default())}</strong>
                     </span>
-                    <span class="game-stat" title="Richtige Antworten in Folge">
+                    <span class="game-stat" title=t("Richtige Antworten in Folge")>
                         {move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.combo still=true /></span> })}
-                        <strong>{move || status.with(|game| game.as_ref().map(|game| format!("{} Combo", game.combo)).unwrap_or_default())}</strong>
+                        <strong>{move || status.with(|game| game.as_ref().map(|game| crate::i18n::tf("{0} Combo", &[&game.combo])).unwrap_or_default())}</strong>
                     </span>
                     <span class="game-hearts" aria-label=move || status.with(|game| format!("{} von 5 Herzen", game.as_ref().map_or(0, |game| game.hearts.min(5))))>
                         {(0..5u8)
@@ -464,7 +465,7 @@ fn GameStatus(
                 <div class="game-daily">
                     <div class="game-daily-label">
                         {move || art.get().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.streak still=true /></span> })}
-                        <label for="game-daily-progress">{move || status.with(|game| game.as_ref().map(|game| format!("Tagesziel: {} von {} richtig · {} Tage in Folge", game.daily_correct, game.daily_goal, game.streak)).unwrap_or_default())}</label>
+                        <label for="game-daily-progress">{move || status.with(|game| game.as_ref().map(|game| crate::i18n::tf("Tagesziel: {0} von {1} richtig · {2} Tage in Folge", &[&game.daily_correct, &game.daily_goal, &game.streak])).unwrap_or_default())}</label>
                     </div>
                     <progress
                         id="game-daily-progress"
@@ -474,7 +475,7 @@ fn GameStatus(
                 </div>
                 {move || {
                     (!trophies.get().is_empty()).then(|| view! {
-                        <div class="game-trophies" aria-label="Erfolge">
+                        <div class="game-trophies" aria-label=t("Erfolge")>
                             {trophies.get().into_iter().map(|trophy| view! {
                                 <span class="game-trophy">{move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}{trophy_name(trophy)}</span>
                             }).collect_view()}
@@ -534,7 +535,7 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
         }>
             {(!question.video_preview.is_empty()).then(|| view! {
                 <div class="video-start-preview" role="note">
-                    <strong>"Startvorschau · Orte bei 0 s"</strong>
+                    <strong>{t("Startvorschau · Orte bei 0 s")}</strong>
                     <ul>{question.video_preview.clone().into_iter().map(|locus| view! {
                         <li><span>{locus.place}</span>{(!locus.item.is_empty()).then(|| view! { " · " <span>{locus.item}</span> })}</li>
                     }).collect_view()}</ul>
@@ -644,7 +645,7 @@ fn SplyAtLocus(media: locora_app_api::Media, time: Option<f64>) -> impl IntoView
             })
         />
         <Show when=move || error.get()>
-            <p class="notes" role="alert">"Splinely-Animation oder gespeicherte Locus-Zeit konnte nicht geladen werden."</p>
+            <p class="notes" role="alert">{t("Splinely-Animation oder gespeicherte Locus-Zeit konnte nicht geladen werden.")}</p>
         </Show>
     }
 }
@@ -726,10 +727,10 @@ fn VideoAtLocus(
             on_error=Box::new(move || { error.set(true); ready.set(true); })
         />
         <Show when=move || error.get()>
-            <p class="notes" role="alert">"Video oder gespeicherte Locus-Zeit konnte nicht geladen werden."</p>
+            <p class="notes" role="alert">{t("Video oder gespeicherte Locus-Zeit konnte nicht geladen werden.")}</p>
         </Show>
         <Show when=move || fallback.get()>
-            <p class="notes" role="status">"Automatische Wiedergabe nicht möglich; direkt zum Locus gesprungen."</p>
+            <p class="notes" role="status">{t("Automatische Wiedergabe nicht möglich; direkt zum Locus gesprungen.")}</p>
         </Show>
     }
 }
@@ -813,14 +814,14 @@ fn Ask(
                 {reverse.then(|| view! {
                     <p class="progress">
                         {move || match spot.get().filter(|guess| guess.n == number) {
-                            Some(guess) if guess.hit => "Treffer – der Ort liegt im Radius.",
-                            Some(_) => "Daneben – der Ort ist markiert. Du kannst trotzdem aufdecken.",
-                            None => "Klick auf die Bühne, wo der Inhalt war.",
+                            Some(guess) if guess.hit => t("Treffer – der Ort liegt im Radius."),
+                            Some(_) => t("Daneben – der Ort ist markiert. Du kannst trotzdem aufdecken."),
+                            None => t("Klick auf die Bühne, wo der Inhalt war."),
                         }}
                     </p>
                 })}
                 <button class="primary" disabled=move || busy.get() on:click=move |_| reveal()>
-                    "Aufdecken (Leertaste)"
+                    {t("Aufdecken (Leertaste)")}
                 </button>
             }
             .into_any()
@@ -848,7 +849,7 @@ fn Ask(
                     />
                 </form>
                 <button class="primary" disabled=move || busy.get() on:click=move |_| submit()>
-                    "Prüfen"
+                    {t("Prüfen")}
                 </button>
             }
             .into_any()
@@ -896,7 +897,7 @@ fn Ask(
             });
             on_cleanup(move || keys.remove());
             view! {
-                <p class="progress">"Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter prüft. Es können auch mehrere richtig sein."</p>
+                <p class="progress">{t("Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter prüft. Es können auch mehrere richtig sein.")}</p>
                 <div class="options" class:grid=grid>
                     {question
                         .options
@@ -918,15 +919,15 @@ fn Ask(
                         })
                         .collect_view()}
                 </div>
-                <div class="progress">"Alle richtigen wählen (Tasten 1–9, Enter prüft)."</div>
+                <div class="progress">{t("Alle richtigen wählen (Tasten 1–9, Enter prüft).")}</div>
                 <button
                     class="primary"
                     disabled=move || busy.get() || picked.get().is_empty()
                     on:click=move |_| reply(Reply::Quiz(picked.get_untracked()))
                 >
-                    "Prüfen"
+                    {t("Prüfen")}
                 </button>
-                <button on:click=move |_| reply(Reply::Forfeit)>"Aufdecken"</button>
+                <button on:click=move |_| reply(Reply::Forfeit)>{t("Aufdecken")}</button>
             }
             .into_any()
         }
@@ -988,10 +989,10 @@ fn Judged(
         {game.map(|game| view! { <p class="progress game-status">{game_status(game)}</p> })}
         {(!right.is_empty())
             .then(|| {
-                view! { <div class="progress">{format!("Richtig: {}", right.join(", "))}</div> }
+                view! { <div class="progress">{crate::i18n::tf("Richtig: {0}", &[&right.join(", ")])}</div> }
             })}
         <button class="primary" disabled=move || busy.get() on:click=move |_| next()>
-            "Weiter (Leertaste)"
+            {t("Weiter (Leertaste)")}
         </button>
     }
 }
@@ -1000,12 +1001,7 @@ fn Judged(
 fn game_status(game: GameView) -> String {
     const HEARTS: usize = 5;
     let held = usize::from(game.hearts).min(HEARTS);
-    format!(
-        "Combo {} · Herzen {}{}",
-        game.combo,
-        "♥".repeat(held),
-        "♡".repeat(HEARTS - held)
-    )
+    crate::i18n::tf("Combo {0} · Herzen {1}", &[&game.combo, &format!("{}{}", "♥".repeat(held), "♡".repeat(HEARTS - held))])
 }
 
 #[component]
@@ -1023,7 +1019,7 @@ fn Done(
                     .map(|a| view! { <div class="done-art"><Sply media=a.done /></div> })
             }}
             {if summary.asked == 0 {
-                view! { <div class="prompt">"Nichts zu üben – alles erledigt."</div> }.into_any()
+                view! { <div class="prompt">{t("Nichts zu üben – alles erledigt.")}</div> }.into_any()
             } else {
                 view! {
                     <div class="prompt">
@@ -1043,7 +1039,7 @@ fn Done(
                 .map(|n| view! { <p class="notes">{n}</p> })
                 .collect_view()}
             <button class="primary" on:click=move |_| screen.set(crate::start_screen())>
-                "Zur Übersicht"
+                {t("Zur Übersicht")}
             </button>
         </section>
     }

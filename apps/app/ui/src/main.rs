@@ -1,7 +1,10 @@
 //! Locora app UI: start screen, palace with rooms and markers, journeys.
 
 mod cloud_settings;
+mod crash;
 mod editor;
+mod i18n;
+mod i18n_catalog;
 mod journey;
 mod locus_display;
 mod palette;
@@ -12,6 +15,7 @@ mod tauri;
 mod theme;
 mod video_frames;
 
+use crate::i18n::t;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -44,7 +48,9 @@ pub fn start_screen() -> Screen {
 
 fn main() {
     console_error_panic_hook::set_once();
-    // Before mounting, so the first paint already has the chosen palette.
+    // Before mounting, so the first paint already has the chosen language and palette.
+    crash::install();
+    i18n::set_current(i18n::load());
     theme::apply(theme::current());
     mount_to_body(App);
 }
@@ -213,7 +219,7 @@ fn TourOverlay(
     });
     view! {
         <Show when=move || active.get().is_some()>
-                <aside class="tour-panel card" role="region" aria-label="App-Tour" aria-live="polite">
+                <aside class="tour-panel card" role="region" aria-label=t("App-Tour") aria-live="polite">
                     <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
                     <div class="tour-copy">
                         <small>{move || active.get().map(|step| format!("Schritt {} von {}", step.step, step.total)).unwrap_or_default()}</small>
@@ -227,9 +233,9 @@ fn TourOverlay(
                             } else { String::new() }
                         }}</p>
                         <div class="row">
-                            <button disabled=move || busy.get() on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Skip)>"Schließen"</button>
+                            <button disabled=move || busy.get() on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Skip)>{t("Schließen")}</button>
                             <button disabled=move || busy.get() || active.get().is_none_or(|step| step.step <= 1)
-                                on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Previous)>"Zurück"</button>
+                                on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready, TourAction::Previous)>{t("Zurück")}</button>
                             <button class="primary" disabled=move || busy.get()
                                 on:click=move |_| tour_action(active, screen, busy, error, route_ready, target_ready,
                                     if route_ready.get_untracked() && target_ready.get_untracked() { TourAction::Next } else { TourAction::Resume })>
@@ -324,8 +330,24 @@ fn App() -> impl IntoView {
             handle.clear();
         }
     });
+    // The last crash, shown once with a prefilled bug report that the person submits.
+    let crash_notice = RwSignal::new(crash::take());
     view! {
         <palette::Palette screen=screen editing=editing />
+        {move || crash_notice.get().map(|report| {
+            let url = crash::issue_url(&report);
+            view! {
+                <aside class="card notes" role="alert" style="margin:.6rem;">
+                    <strong>"An error happened in the last session."</strong>
+                    <p>{format!("{} · {}", report.message, report.location)}</p>
+                    <p>
+                        <a href=url target="_blank" rel="noopener">"Report it on GitHub"</a>
+                        " · "
+                        <button on:click=move |_| crash_notice.set(None)>"Dismiss"</button>
+                    </p>
+                </aside>
+            }
+        })}
         <Notifications screen=screen />
         <TourOverlay active=tour screen=screen error=tour_error route_ready=tour_route_ready />
         <main>
@@ -366,7 +388,7 @@ pub fn Loading() -> impl IntoView {
     view! {
         <div class="loading" role="status">
             {move || art.get().map(|a| view! { <div class="logo"><Sply media=a.logo /></div> })}
-            <p>"Lädt …"</p>
+            <p>{t("Lädt …")}</p>
         </div>
     }
 }
@@ -413,7 +435,7 @@ fn import_message(result: &locora_app_api::ImportResult) -> String {
         })
         .collect();
     if let Some(n) = result.restored {
-        parts.push(format!("Wiederholungsstand für {n} Loci übernommen"));
+        parts.push(crate::i18n::tf("Wiederholungsstand für {0} Loci übernommen", &[&n]));
     }
     parts.extend(result.notes.iter().cloned());
     parts.join(" · ")
@@ -482,7 +504,7 @@ fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
         }
     };
     view! {
-        <div class="notifications" role="region" aria-label="Erinnerungen">
+        <div class="notifications" role="region" aria-label=t("Erinnerungen")>
             <For
                 each=move || shown.get()
                 key=|n| (n.channel.clone(), n.title.clone(), n.body.clone())
@@ -509,7 +531,7 @@ fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
                             </button>
                             <button
                                 class="close"
-                                aria-label="Erinnerung schließen"
+                                aria-label=t("Erinnerung schließen")
                                 on:click=move |_| dismiss(notification.get_value().clone(), true)
                             >
                                 "✕"
@@ -680,12 +702,12 @@ fn HomeView(
             <button on:click=move |_| screen.set(if core_only { Screen::Home } else { Screen::Core })>
                 {if core_only { "Startseite" } else { "Core" }}
             </button>
-            <button id="tour-home-media" disabled=move || busy.get() on:click=pick_media>"Bild/Video wählen…"</button>
-            <button id="tour-home-import" disabled=move || busy.get() on:click=import title="Paläste aus einer .locora-Datei oder locora.toml">
-                "Importieren…"
+            <button id="tour-home-media" disabled=move || busy.get() on:click=pick_media>{t("Bild/Video wählen…")}</button>
+            <button id="tour-home-import" disabled=move || busy.get() on:click=import title=t("Paläste aus einer .locora-Datei oder locora.toml")>
+                {t("Importieren…")}
             </button>
-            <button disabled=move || busy.get() on:click=start_tour>"App-Tour"</button>
-            <button id="tour-home-settings" title="Einstellungen & Statistik" on:click=move |_| screen.set(Screen::Settings)>
+            <button disabled=move || busy.get() on:click=start_tour>{t("App-Tour")}</button>
+            <button id="tour-home-settings" title=t("Einstellungen & Statistik") on:click=move |_| screen.set(Screen::Settings)>
                 "⚙"
             </button>
         </header>
@@ -705,14 +727,14 @@ fn HomeView(
                                 <Sply media=simo />
                             </div>
                             <div class="text">
-                                <h2>"Willkommen bei Locora"</h2>
+                                <h2>{t("Willkommen bei Locora")}</h2>
                                 <p>
-                                    "Mit der Loci-Methode legst du, was du behalten willst, an Orte, die du "
-                                    "gut kennst – und gehst die Route später im Kopf ab."
+                                    {t("Mit der Loci-Methode legst du, was du behalten willst, an Orte, die du ")}
+                                    {t("gut kennst – und gehst die Route später im Kopf ab.")}
                                 </p>
                                 <p class="meta">
-                                    "Am schnellsten lernst du Locora mit Locora selbst: Das Tutorial ist ein "
-                                    "kleiner Gedächtnispalast mit 3 Räumen und 9 Orten."
+                                    {t("Am schnellsten lernst du Locora mit Locora selbst: Das Tutorial ist ein ")}
+                                    {t("kleiner Gedächtnispalast mit 3 Räumen und 9 Orten.")}
                                 </p>
                                 <div class="row">
                                     <button
@@ -720,13 +742,13 @@ fn HomeView(
                                         disabled=move || busy.get()
                                         on:click=start_tutorial
                                     >
-                                        "Tutorial starten"
+                                        {t("Tutorial starten")}
                                     </button>
                                     <button disabled=move || busy.get() on:click=pick_media>
-                                        "Eigener Palast aus Bild/Video…"
+                                        {t("Eigener Palast aus Bild/Video…")}
                                     </button>
                                     <button disabled=move || busy.get() on:click=start_formula_guide>
-                                        "Formel-Guide öffnen"
+                                        {t("Formel-Guide öffnen")}
                                     </button>
                                 </div>
                             </div>
@@ -753,9 +775,9 @@ fn HomeView(
                             </div>
                             <div class="meta">
                                 {if waiting == 0 {
-                                    "Simo hält die Laterne – morgen geht es weiter."
+                                    {t("Simo hält die Laterne – morgen geht es weiter.")}
                                 } else {
-                                    "Wiederholen, was dein Gedächtnis gerade braucht."
+                                    {t("Wiederholen, was dein Gedächtnis gerade braucht.")}
                                 }}
                             </div>
                         </div>
@@ -781,7 +803,7 @@ fn HomeView(
                                     )
                             }
                         >
-                            "Weiter ▶"
+                            {t("Weiter ▶")}
                         </button>
                     </section>
                     {(!tutorial)
@@ -789,13 +811,13 @@ fn HomeView(
                             view! {
                                 <section class="card weiter">
                                     <div class="text">
-                                        <div class="count">"Locora lernen"</div>
+                                        <div class="count">{t("Locora lernen")}</div>
                                         <div class="meta">
-                                            "Das Tutorial ist selbst ein Gedächtnispalast: 3 Räume, 9 Orte."
+                                            {t("Das Tutorial ist selbst ein Gedächtnispalast: 3 Räume, 9 Orte.")}
                                         </div>
                                     </div>
                                     <button disabled=move || busy.get() on:click=start_tutorial>
-                                        "Tutorial anlegen"
+                                        {t("Tutorial anlegen")}
                                     </button>
                                 </section>
                             }
@@ -805,11 +827,11 @@ fn HomeView(
                             view! {
                                 <section class="card weiter">
                                     <div class="text">
-                                        <div class="count">"Formeln verstehen"</div>
-                                        <div class="meta">"Variablen, Tabellen und Bindungen in einem eigenen Palast üben."</div>
+                                        <div class="count">{t("Formeln verstehen")}</div>
+                                        <div class="meta">{t("Variablen, Tabellen und Bindungen in einem eigenen Palast üben.")}</div>
                                     </div>
                                     <button disabled=move || busy.get() on:click=start_formula_guide>
-                                        "Formel-Guide anlegen"
+                                        {t("Formel-Guide anlegen")}
                                     </button>
                                 </section>
                             }
@@ -819,7 +841,7 @@ fn HomeView(
                     {if home.palaces.is_empty() {
                         view! {
                             <p class="empty">
-                                "Noch keine Paläste. Wähle oben ein Bild oder Video, oder nutze die CLI: "
+                                {t("Noch keine Paläste. Wähle oben ein Bild oder Video, oder nutze die CLI: ")}
                                 <code>"locora new Planeten -- Merkur Venus Erde"</code>
                             </p>
                         }
@@ -864,7 +886,7 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
     let art = art();
     (!tiles.is_empty()).then(|| {
         view! {
-            <section class="tiles" aria-label="Plugins">
+            <section class="tiles" aria-label=t("Plugins")>
                 {tiles
                     .into_iter()
                     .map(|t| {
@@ -878,7 +900,7 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
                                     {gamification.then(|| view! {
                                         <span class="tile-streak">
                                             {move || art.get().map(|assets| view! { <span class="game-icon" aria-hidden="true"><Sply media=assets.streak /></span> })}
-                                            {move || streak.get().map(|days| format!("{days} Tage in Folge"))}
+                                            {move || streak.get().map(|days| crate::i18n::tf("{0} Tage in Folge", &[&days]))}
                                         </span>
                                     })}
                                 </div>
@@ -897,7 +919,7 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
     let cover_open_id = palace.id.clone();
     let play_id = palace.id.clone();
     let status = match (palace.due, palace.fresh) {
-        (0, 0) => "alles gewusst".to_owned(),
+        (0, 0) => t("alles gewusst").to_owned(),
         (due, 0) => format!("{due} fällig"),
         (0, fresh) => format!("{fresh} neu"),
         (due, fresh) => format!("{due} fällig · {fresh} neu"),
@@ -929,12 +951,12 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                     } else {
                         view! { <Shown media=preview.media class="palace-cover-media" /> }.into_any()
                     }}
-                    <button type="button" class="palace-cover-open" title="Palast öffnen"
+                    <button type="button" class="palace-cover-open" title=t("Palast öffnen")
                         disabled=move || busy.get() on:click={
                             let open_id = cover_open_id.clone();
                             move |ev| { ev.stop_propagation(); screen.set(Screen::Palace(open_id.clone())); }
                         }></button>
-                    <button type="button" class="palace-cover-change" title="Raumvorschaubild wechseln"
+                    <button type="button" class="palace-cover-change" title=t("Raumvorschaubild wechseln")
                         disabled=!can_change_cover on:click=move |ev| {
                             ev.stop_propagation();
                             let Some(current) = selected_preview.get_untracked() else { return; };
@@ -954,7 +976,7 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                 <span class="meta">{format!("{} · {}", loci_text(palace.loci), status)}</span>
                 <button
                     class="primary play"
-                    title="Route ablaufen"
+                    title=t("Route ablaufen")
                     disabled=move || busy.get()
                     on:click=move |ev| {
                         ev.stop_propagation();
@@ -1041,16 +1063,16 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
     };
     view! {
         <header class="bar">
-            <button class="back" title="Zurück" disabled=move || blocked.get() on:click=move |_| screen.set(start_screen())>
+            <button class="back" title=t("Zurück") disabled=move || blocked.get() on:click=move |_| screen.set(start_screen())>
                 "←"
             </button>
             <h1>
                 {move || palace.get().and_then(|p| p.ok()).map(|p| p.name).unwrap_or_default()}
             </h1>
-            <button disabled=move || blocked.get() on:click=move |_| start(true)>"Fällige"</button>
+            <button disabled=move || blocked.get() on:click=move |_| start(true)>{t("Fällige")}</button>
             <button
                 disabled=move || blocked.get() || exporting.get()
-                title="Als .locora-Datei speichern (mit Wiederholungsstand)"
+                title=t("Als .locora-Datei speichern (mit Wiederholungsstand)")
                 on:click=move |_| {
                     if exporting.get_untracked() {
                         return;
@@ -1070,10 +1092,10 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
                     });
                 }
             >
-                "Exportieren…"
+                {t("Exportieren…")}
             </button>
             <button disabled=move || blocked.get() || exporting.get()
-                title="Bearbeitbare TOML-Quelle und Medien in einen Ordner exportieren (ohne Wiederholungsstand)"
+                title=t("Bearbeitbare TOML-Quelle und Medien in einen Ordner exportieren (ohne Wiederholungsstand)")
                 on:click=move |_| {
                     if exporting.get_untracked() { return; }
                     let id = id.get_value();
@@ -1088,10 +1110,10 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
                         exporting.set(false);
                     });
                 }>
-                "TOML exportieren…"
+                {t("TOML exportieren…")}
             </button>
             <button id="tour-palace-route" class="primary" disabled=move || blocked.get() on:click=move |_| start(false)>
-                "▶ Route ablaufen"
+                {t("▶ Route ablaufen")}
             </button>
         </header>
         {move || match saved.get() {
@@ -1101,18 +1123,18 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
         <div class="modes">
             <label>
                 <input type="checkbox" bind:checked=reverse />
-                "Rückwärts (Inhalt → Ort)"
+                {t("Rückwärts (Inhalt → Ort)")}
             </label>
             <label>
                 <input type="checkbox" bind:checked=numbers />
-                "Nur Ortsnummern"
+                {t("Nur Ortsnummern")}
             </label>
             <label>
                 <input type="checkbox" bind:checked=shuffle />
-                "Gemischt"
+                {t("Gemischt")}
             </label>
             <label>
-                "Antworten pro Quizfrage "
+                {t("Antworten pro Quizfrage ")}
                 <input type="number" min="2" max="30" prop:value=move || quiz_answers.get().to_string()
                     on:change=move |event| {
                         if let Ok(count) = event_target_value(&event).parse::<u8>() {

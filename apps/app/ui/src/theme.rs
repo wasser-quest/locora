@@ -1,5 +1,7 @@
 //! Colour themes. "System" follows the operating system; the others force a palette
 //! through the `data-theme` attribute of the document (the palettes live in style.css).
+use crate::i18n::t;
+
 
 const KEY: &str = "locora-theme-v1";
 
@@ -25,10 +27,10 @@ impl Theme {
 
     pub fn label(self) -> &'static str {
         match self {
-            Theme::System => "System",
-            Theme::Light => "Hell",
-            Theme::Dark => "Dunkel",
-            Theme::Contrast => "Hoher Kontrast",
+            Theme::System => t("System"),
+            Theme::Light => t("Hell"),
+            Theme::Dark => t("Dunkel"),
+            Theme::Contrast => t("Hoher Kontrast"),
         }
     }
 

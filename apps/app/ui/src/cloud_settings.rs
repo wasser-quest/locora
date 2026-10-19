@@ -1,5 +1,6 @@
 //! Cloud sign-in, account-key setup and manually triggered encrypted sync.
 
+use crate::i18n::t;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -76,7 +77,7 @@ pub fn CloudSettings() -> impl IntoView {
             match call::<CloudStatus>(CMD_CLOUD_REFRESH, NoArgs {}).await {
                 Ok(updated) => {
                     status.set(Some(Ok(updated)));
-                    message.set(Some(Ok("Cloud-Freischaltung aktualisiert.".into())));
+                    message.set(Some(Ok(t("Cloud-Freischaltung aktualisiert.").into())));
                 }
                 Err(error) => message.set(Some(Err(error))),
             }
@@ -98,7 +99,7 @@ pub fn CloudSettings() -> impl IntoView {
                         server: None,
                         access: false,
                     })));
-                    message.set(Some(Ok("Auf diesem Gerät abgemeldet.".into())));
+                    message.set(Some(Ok(t("Auf diesem Gerät abgemeldet.").into())));
                 }
                 Err(error) => message.set(Some(Err(error))),
             }
@@ -107,10 +108,10 @@ pub fn CloudSettings() -> impl IntoView {
     };
 
     view! {
-        <section class="card panel" aria-label="Locora Cloud">
-            <h2>"Locora Cloud"</h2>
+        <section class="card panel" aria-label=t("Locora Cloud")>
+            <h2>{t("Locora Cloud")}</h2>
             {move || match status.get() {
-                None => view! { <p class="progress">"Cloud-Konto wird geprüft …"</p> }.into_any(),
+                None => view! { <p class="progress">{t("Cloud-Konto wird geprüft …")}</p> }.into_any(),
                 Some(Err(error)) => view! { <p class="notes" role="alert">{error}</p> }.into_any(),
                 Some(Ok(CloudStatus { account: None, .. })) => view! {
                     <ConnectForm status=status message=message busy=busy />
@@ -118,31 +119,31 @@ pub fn CloudSettings() -> impl IntoView {
                 Some(Ok(CloudStatus { account: Some(account), server, access })) => view! {
                     <p class="progress">{format!("Angemeldet als {account} bei {}.", server.unwrap_or_default())}</p>
                     <button type="button" disabled=move || busy.get() on:click=move |_| refresh_access()>
-                        "Freischaltung aktualisieren"
+                        {t("Freischaltung aktualisieren")}
                     </button>
                     <button type="button" disabled=move || busy.get() on:click=move |_| logout()>
-                        "Auf diesem Gerät abmelden"
+                        {t("Auf diesem Gerät abmelden")}
                     </button>
                     {move || match keys.get() {
-                        None => view! { <p class="progress">"Verschlüsselung wird geprüft …"</p> }.into_any(),
+                        None => view! { <p class="progress">{t("Verschlüsselung wird geprüft …")}</p> }.into_any(),
                         Some(Err(error)) => view! {
                             <p class="notes" role="alert">{error}</p>
-                            <button type="button" disabled=move || busy.get() on:click=move |_| refresh_keys()>"Erneut prüfen"</button>
+                            <button type="button" disabled=move || busy.get() on:click=move |_| refresh_keys()>{t("Erneut prüfen")}</button>
                         }.into_any(),
                         Some(Ok(false)) => view! {
-                            <p class="notes">"Für dieses Konto ist noch kein Ende-zu-Ende-Schlüssel hinterlegt."</p>
+                            <p class="notes">{t("Für dieses Konto ist noch kein Ende-zu-Ende-Schlüssel hinterlegt.")}</p>
                             {move || recovery.get().is_none().then(|| view! {
                                 <KeySetupForm keys=keys recovery=recovery message=message busy=busy generation=generation />
                             })}
-                            <button type="button" disabled=move || busy.get() on:click=move |_| refresh_keys()>"Schlüsselstatus prüfen"</button>
+                            <button type="button" disabled=move || busy.get() on:click=move |_| refresh_keys()>{t("Schlüsselstatus prüfen")}</button>
                         }.into_any(),
                         Some(Ok(true)) => view! {
                             {if recovery.get().is_some() {
-                                view! { <p class="notes">"Wiederherstellungsschlüssel zuerst sichern."</p> }.into_any()
+                                view! { <p class="notes">{t("Wiederherstellungsschlüssel zuerst sichern.")}</p> }.into_any()
                             } else if access {
                                 view! { <SyncForm /> }.into_any()
                             } else {
-                                view! { <p class="notes">"Verschlüsselung eingerichtet. Für Cloud-Sync fehlt derzeit eine gültige Freischaltung."</p> }.into_any()
+                                view! { <p class="notes">{t("Verschlüsselung eingerichtet. Für Cloud-Sync fehlt derzeit eine gültige Freischaltung.")}</p> }.into_any()
                             }}
                         }.into_any(),
                     }}
@@ -150,23 +151,23 @@ pub fn CloudSettings() -> impl IntoView {
             }}
             {move || recovery.get().map(|result| view! {
                 <div class="verdict" role="status">
-                    <p>"Wiederherstellungsschlüssel – nur jetzt sichtbar. Sicher außerhalb der App aufbewahren:"</p>
+                    <p>{t("Wiederherstellungsschlüssel – nur jetzt sichtbar. Sicher außerhalb der App aufbewahren:")}</p>
                     <code class="recovery-key">{result.recovery_key}</code>
                     {result.warning.map(|warning| view! { <p class="notes" role="alert">{warning}</p> })}
-                    <p>"Ohne Verschlüsselungs-Passwort und diesen Schlüssel sind Cloud-Daten nicht mehr lesbar."</p>
+                    <p>{t("Ohne Verschlüsselungs-Passwort und diesen Schlüssel sind Cloud-Daten nicht mehr lesbar.")}</p>
                     {move || match keys.get() {
                         Some(Ok(true)) => view! {
                             <button type="button" on:click=move |_| recovery.set(None)>
-                                "Ich habe den Schlüssel gesichert"
+                                {t("Ich habe den Schlüssel gesichert")}
                             </button>
                         }.into_any(),
                         Some(Ok(false)) => view! {
                             <button type="button" on:click=move |_| recovery.set(None)>
-                                "Server hat keinen Schlüssel – neuen Versuch starten"
+                                {t("Server hat keinen Schlüssel – neuen Versuch starten")}
                             </button>
                         }.into_any(),
                         _ => view! {
-                            <p class="notes">"Schlüsselstatus zuerst prüfen. Bis dahin diesen Wiederherstellungsschlüssel sichtbar lassen."</p>
+                            <p class="notes">{t("Schlüsselstatus zuerst prüfen. Bis dahin diesen Wiederherstellungsschlüssel sichtbar lassen.")}</p>
                         }.into_any(),
                     }}
                 </div>
@@ -203,7 +204,7 @@ fn ConnectForm(
             password.set(String::new());
             confirmation.set(String::new());
             message.set(Some(Err(
-                "Die Cloud-Passwörter stimmen nicht überein.".into()
+                t("Die Cloud-Passwörter stimmen nicht überein.").into()
             )));
             return;
         }
@@ -232,28 +233,28 @@ fn ConnectForm(
         });
     };
     view! {
-        <p class="notes">"Konto und Verschlüsselung lassen sich hier direkt auf diesem Gerät einrichten."</p>
+        <p class="notes">{t("Konto und Verschlüsselung lassen sich hier direkt auf diesem Gerät einrichten.")}</p>
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
-            <label class="input"><span>"Cloud-Server (HTTPS)"</span>
+            <label class="input"><span>{t("Cloud-Server (HTTPS)")}</span>
                 <input type="url" placeholder="https://locora.cloud" autocomplete="url" bind:value=server required />
             </label>
-            <label class="input"><span>"E-Mail"</span>
+            <label class="input"><span>{t("E-Mail")}</span>
                 <input type="email" autocomplete="username" bind:value=email required />
             </label>
             <label><input type="checkbox" prop:checked=move || register.get()
-                on:change=move |event| register.set(event_target_checked(&event)) />"Neues Konto erstellen"</label>
+                on:change=move |event| register.set(event_target_checked(&event)) />{t("Neues Konto erstellen")}</label>
             <Show when=move || register.get()>
                 <label><input type="checkbox" prop:checked=move || guest.get()
-                    on:change=move |event| guest.set(event_target_checked(&event)) />"Als Gast anlegen: Daten bleiben sechs Monate erhalten, der Zugang entspricht einer Testphase. Mit einem Abo bleiben die Daten dauerhaft. Die Cloud kann später etwas kosten."</label>
-                <label class="input"><span>"Anzeigename"</span>
+                    on:change=move |event| guest.set(event_target_checked(&event)) />{t("Als Gast anlegen: Daten bleiben sechs Monate erhalten, der Zugang entspricht einer Testphase. Mit einem Abo bleiben die Daten dauerhaft. Die Cloud kann später etwas kosten.")}</label>
+                <label class="input"><span>{t("Anzeigename")}</span>
                     <input type="text" maxlength="32" bind:value=display_name />
                 </label>
             </Show>
-            <label class="input"><span>"Cloud-Passwort"</span>
+            <label class="input"><span>{t("Cloud-Passwort")}</span>
                 <input type="password" autocomplete="current-password" bind:value=password required />
             </label>
             <Show when=move || register.get()>
-                <label class="input"><span>"Cloud-Passwort wiederholen"</span>
+                <label class="input"><span>{t("Cloud-Passwort wiederholen")}</span>
                     <input type="password" autocomplete="new-password" bind:value=confirmation />
                 </label>
             </Show>
@@ -283,7 +284,7 @@ fn KeySetupForm(
             passphrase.set(String::new());
             confirmation.set(String::new());
             message.set(Some(Err(
-                "Die Verschlüsselungs-Passwörter stimmen nicht überein.".into(),
+                t("Die Verschlüsselungs-Passwörter stimmen nicht überein.").into(),
             )));
             return;
         }
@@ -306,7 +307,7 @@ fn KeySetupForm(
                         keys.set(Some(Ok(true)));
                     } else {
                         keys.set(Some(Err(
-                            "Schlüsselstatus unklar. Bitte erneut prüfen.".into()
+                            t("Schlüsselstatus unklar. Bitte erneut prüfen.").into()
                         )));
                     }
                     recovery.set(Some(created));
@@ -318,14 +319,14 @@ fn KeySetupForm(
     };
     view! {
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
-            <label class="input"><span>"Neues Verschlüsselungs-Passwort (mindestens 12 Zeichen)"</span>
+            <label class="input"><span>{t("Neues Verschlüsselungs-Passwort (mindestens 12 Zeichen)")}</span>
                 <input type="password" autocomplete="new-password" bind:value=passphrase required />
             </label>
-            <label class="input"><span>"Verschlüsselungs-Passwort wiederholen"</span>
+            <label class="input"><span>{t("Verschlüsselungs-Passwort wiederholen")}</span>
                 <input type="password" autocomplete="new-password" bind:value=confirmation required />
             </label>
             <button class="primary" type="submit" disabled=move || busy.get()>
-                "Verschlüsselung einrichten"
+                {t("Verschlüsselung einrichten")}
             </button>
         </form>
     }
@@ -342,7 +343,7 @@ fn SyncForm() -> impl IntoView {
         }
         let secret = passphrase.get_untracked();
         if secret.is_empty() {
-            outcome.set(Some(Err("Verschlüsselungs-Passwort eingeben.".into())));
+            outcome.set(Some(Err(t("Verschlüsselungs-Passwort eingeben.").into())));
             return;
         }
         passphrase.set(String::new());
@@ -356,9 +357,9 @@ fn SyncForm() -> impl IntoView {
         });
     };
     view! {
-        <p class="progress">"Änderungen werden nur auf Knopfdruck Ende-zu-Ende-verschlüsselt synchronisiert."</p>
+        <p class="progress">{t("Änderungen werden nur auf Knopfdruck Ende-zu-Ende-verschlüsselt synchronisiert.")}</p>
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
-            <label class="input"><span>"Verschlüsselungs-Passwort"</span>
+            <label class="input"><span>{t("Verschlüsselungs-Passwort")}</span>
                 <input type="password" autocomplete="off" bind:value=passphrase />
             </label>
             <button class="primary" type="submit" disabled=move || busy.get()>

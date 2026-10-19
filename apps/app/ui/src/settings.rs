@@ -1,5 +1,6 @@
 //! Settings (new loci per day, target retention) and learning statistics.
 
+use crate::i18n::t;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -28,10 +29,10 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
     let message = RwSignal::new(None::<Result<String, String>>);
     view! {
         <header class="bar">
-            <button class="back" title="Zurück" on:click=move |_| screen.set(start_screen())>
+            <button class="back" title=t("Zurück") on:click=move |_| screen.set(start_screen())>
                 "←"
             </button>
-            <h1>"Einstellungen & Statistik"</h1>
+            <h1>{t("Einstellungen & Statistik")}</h1>
         </header>
         <LocusDisplay />
         <StartView />
@@ -55,14 +56,14 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
 fn StartView() -> impl IntoView {
     let in_core = RwSignal::new(startup::in_core());
     view! {
-        <section class="card panel" aria-label="Startansicht">
-            <h2>"Startansicht"</h2>
+        <section class="card panel" aria-label=t("Startansicht")>
+            <h2>{t("Startansicht")}</h2>
             <label><input type="checkbox" prop:checked=move || in_core.get()
                 on:change=move |event| {
                     let value = event_target_checked(&event);
                     startup::set_in_core(value);
                     in_core.set(value);
-                } />"Direkt in Core starten"</label>
+                } />{t("Direkt in Core starten")}</label>
         </section>
     }
 }
@@ -71,9 +72,9 @@ fn StartView() -> impl IntoView {
 fn LocusDisplay() -> impl IntoView {
     let settings = locus_display::signal();
     view! {
-        <section class="card panel" aria-label="Darstellung">
-            <h2>"Darstellung"</h2>
-            <label>"Farben "
+        <section class="card panel" aria-label=t("Darstellung")>
+            <h2>{t("Darstellung")}</h2>
+            <label>{t("Farben ")}
                 <select prop:value=move || crate::theme::current().key() on:change=move |event| {
                     let theme = crate::theme::Theme::from_key(&event_target_value(&event));
                     crate::theme::save(theme);
@@ -84,11 +85,24 @@ fn LocusDisplay() -> impl IntoView {
                     }).collect_view()}
                 </select>
             </label>
+            <label><input type="checkbox" prop:checked=move || crate::locus_display::signal().get().gamification
+                on:change=move |event| { crate::locus_display::signal().update(|p| p.gamification = event_target_checked(&event)); crate::locus_display::save(crate::locus_display::signal().get_untracked()); } />{t("Erfahrungspunkte, Combo und Herzen in der Journey anzeigen")}</label>
+            <label>{t("Sprache")}
+                <select prop:value=move || crate::i18n::current().code() on:change=move |event| {
+                    // Every text is built at start-up, so a new language takes a reload.
+                    crate::i18n::save(crate::i18n::Lang::from_code(&event_target_value(&event)));
+                    let _ = js_sys::eval("location.reload()");
+                }>
+                    {crate::i18n::Lang::ALL.into_iter().map(|lang| view! {
+                        <option value=lang.code()>{lang.name()}</option>
+                    }).collect_view()}
+                </select>
+            </label>
         </section>
-        <section class="card panel" aria-label="Locus-Anzeige">
-            <h2>"Loci anzeigen"</h2>
-            <p class="notes">"Die Auswahl gilt für dieses Gerät. Der aktuelle Ort ist immer sichtbar, bis du ihn aufdeckst."</p>
-            <label>"Vorherige Orte "
+        <section class="card panel" aria-label=t("Locus-Anzeige")>
+            <h2>{t("Loci anzeigen")}</h2>
+            <p class="notes">{t("Die Auswahl gilt für dieses Gerät. Der aktuelle Ort ist immer sichtbar, bis du ihn aufdeckst.")}</p>
+            <label>{t("Vorherige Orte ")}
                 <input type="number" min="0" max="10" prop:value=move || settings.get().previous.to_string()
                     on:change=move |event| {
                         if let Ok(value) = event_target_value(&event).parse::<u8>() {
@@ -97,7 +111,7 @@ fn LocusDisplay() -> impl IntoView {
                         }
                     } />
             </label>
-            <label>"Nächste Orte "
+            <label>{t("Nächste Orte ")}
                 <input type="number" min="0" max="10" prop:value=move || settings.get().next.to_string()
                     on:change=move |event| {
                         if let Ok(value) = event_target_value(&event).parse::<u8>() {
@@ -107,14 +121,14 @@ fn LocusDisplay() -> impl IntoView {
                     } />
             </label>
             <label><input type="checkbox" prop:checked=move || settings.get().numbers
-                on:change=move |event| { settings.update(|p| p.numbers = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Ortsnummern im Markerpunkt anzeigen"</label>
+                on:change=move |event| { settings.update(|p| p.numbers = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Ortsnummern im Markerpunkt anzeigen")}</label>
             <label><input type="checkbox" prop:checked=move || settings.get().hide_revealed
-                on:change=move |event| { settings.update(|p| p.hide_revealed = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Aktuellen Ort nach dem Aufdecken ausblenden"</label>
+                on:change=move |event| { settings.update(|p| p.hide_revealed = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Aktuellen Ort nach dem Aufdecken ausblenden")}</label>
             <label><input type="checkbox" prop:checked=move || settings.get().keep_previous
-                on:change=move |event| { settings.update(|p| p.keep_previous = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Aufgedeckte Bilder bereits durchlaufener Orte weiter anzeigen"</label>
+                on:change=move |event| { settings.update(|p| p.keep_previous = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Aufgedeckte Bilder bereits durchlaufener Orte weiter anzeigen")}</label>
             <label><input type="checkbox" prop:checked=move || settings.get().quick_next
-                on:change=move |event| { settings.update(|p| p.quick_next = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />"Schnell weiter: nach der Bewertung oder der Eingabe direkt zum nächsten Ort"</label>
-            <label>"Rückwärts: Trefferradius (% der Bühnenbreite) "
+                on:change=move |event| { settings.update(|p| p.quick_next = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Schnell weiter: nach der Bewertung oder der Eingabe direkt zum nächsten Ort")}</label>
+            <label>{t("Rückwärts: Trefferradius (% der Bühnenbreite) ")}
                 <input type="number" min="2" max="30" step="1" prop:value=move || (settings.get().reverse_radius * 100.0).round().to_string()
                     on:change=move |event| {
                         if let Ok(percent) = event_target_value(&event).parse::<f64>() {
@@ -123,7 +137,7 @@ fn LocusDisplay() -> impl IntoView {
                         }
                     } />
             </label>
-            <label>"Video: Marker frühestens vor dem Stopp (Sekunden) "
+            <label>{t("Video: Marker frühestens vor dem Stopp (Sekunden) ")}
                 <input type="number" min="0" max="30" step="0.1" prop:value=move || settings.get().video_lead.to_string()
                     on:change=move |event| {
                         if let Ok(value) = event_target_value(&event).parse::<f64>() {
@@ -149,9 +163,9 @@ fn Reminders(
     let every = RwSignal::new(view.every.to_string());
     let busy = RwSignal::new(false);
     let saved = if view.times.is_empty() {
-        "Keine Erinnerung eingeschaltet.".to_owned()
+        t("Keine Erinnerung eingeschaltet.").to_owned()
     } else {
-        format!("Erinnerungen um {}", view.times.join(" · "))
+        crate::i18n::tf("Erinnerungen um {0}", &[&view.times.join(" · ")])
     };
     let save = move || {
         let Ok(hours) = every.get_untracked().parse::<u8>() else {
@@ -173,7 +187,7 @@ fn Reminders(
         spawn_local(async move {
             match call::<SettingsView>(CMD_SETTINGS_SET, ChangeArgs { change }).await {
                 Ok(v) => {
-                    message.set(Some(Ok("Erinnerungen gespeichert.".into())));
+                    message.set(Some(Ok(t("Erinnerungen gespeichert.").into())));
                     data.set(Some(Ok(v)));
                 }
                 Err(e) => {
@@ -184,18 +198,18 @@ fn Reminders(
         });
     };
     view! {
-        <section class="card panel" aria-label="Tägliche Erinnerungen">
-            <h2>"Tägliche Erinnerungen"</h2>
-            <p class="notes">"Die Erinnerung erscheint in der App, solange sie läuft."</p>
-            <label><input type="checkbox" bind:checked=enabled disabled=move || busy.get() />"Erinnerungen einschalten"</label>
+        <section class="card panel" aria-label=t("Tägliche Erinnerungen")>
+            <h2>{t("Tägliche Erinnerungen")}</h2>
+            <p class="notes">{t("Die Erinnerung erscheint in der App, solange sie läuft.")}</p>
+            <label><input type="checkbox" bind:checked=enabled disabled=move || busy.get() />{t("Erinnerungen einschalten")}</label>
             <div class="editor-group-body">
-                <label>"Erste Erinnerung "
+                <label>{t("Erste Erinnerung ")}
                     <input type="time" bind:value=start disabled=move || busy.get() || !enabled.get() />
                 </label>
-                <label>"Letzte Erinnerung "
+                <label>{t("Letzte Erinnerung ")}
                     <input type="time" bind:value=end disabled=move || busy.get() || !enabled.get() />
                 </label>
-                <label>"Abstand "
+                <label>{t("Abstand ")}
                     <select bind:value=every disabled=move || busy.get() || !enabled.get()>
                         {(1..=12u8).map(|hours| view! {
                             <option value=hours.to_string()>{format!("{hours} Std.")}</option>
@@ -204,7 +218,7 @@ fn Reminders(
                 </label>
             </div>
             <p class="status">{saved}</p>
-            <button class="primary" disabled=move || busy.get() on:click=move |_| save()>"Erinnerungen speichern"</button>
+            <button class="primary" disabled=move || busy.get() on:click=move |_| save()>{t("Erinnerungen speichern")}</button>
         </section>
     }
 }
@@ -288,12 +302,12 @@ fn Form(
             }
         >
             <label class="input">
-                <span>"Neue Loci pro Tag"</span>
+                <span>{t("Neue Loci pro Tag")}</span>
                 <input type="text" inputmode="numeric" bind:value=new_per_day />
             </label>
             <label class="input">
                 <span>
-                    "Lerntag beginnt um (volle Stunde, 0–23)"
+                    {t("Lerntag beginnt um (volle Stunde, 0–23)")}
                     <small>{format!(" – jetzt {}", view.day_start)}</small>
                 </span>
                 <input type="text" inputmode="numeric" bind:value=day_start />
@@ -302,14 +316,14 @@ fn Form(
                 .then(|| {
                     view! {
                         <label class="input">
-                            <span>"Ziel-Behaltensrate (70–99 %)"</span>
+                            <span>{t("Ziel-Behaltensrate (70–99 %)")}</span>
                             <input type="text" inputmode="decimal" bind:value=retention />
                         </label>
                         <div class="progress">
                             {if view.personal_weights {
-                                "FSRS-Gewichte: persönlich (aus deinem Verlauf)"
+                                {t("FSRS-Gewichte: persönlich (aus deinem Verlauf)")}
                             } else {
-                                "FSRS-Gewichte: Standard"
+                                {t("FSRS-Gewichte: Standard")}
                             }}
                         </div>
                         <div class="optimize">
@@ -333,13 +347,13 @@ fn Form(
                                 disabled=move || busy.get() || !enough
                                 on:click=move |_| optimize()
                             >
-                                "Persönliche Gewichte berechnen"
+                                {t("Persönliche Gewichte berechnen")}
                             </button>
                         </div>
                     }
                 })}
             <button class="primary" type="submit" disabled=move || busy.get()>
-                "Speichern"
+                {t("Speichern")}
             </button>
             {move || {
                 message
@@ -391,7 +405,7 @@ fn Stats(stats: StatsView) -> impl IntoView {
     ];
     view! {
         <section class="card panel">
-            <div class="prompt">"Statistik"</div>
+            <div class="prompt">{t("Statistik")}</div>
             <dl class="stats">
                 {rows
                     .into_iter()
