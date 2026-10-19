@@ -2,7 +2,7 @@
 
 Alles, was noch gebaut oder entschieden werden muss. Wird bei jedem Schritt aktualisiert. Erledigtes wird hier gestrichen und in `PLAN.md` (Abschnitt 13) bzw. den Commits festgehalten. Reihenfolge innerhalb eines Abschnitts = Empfehlung.
 
-Stand: 18.10.2026
+Stand: 19.10.2026
 
 ## Jetzt: Phase 2 – die App (Tauri 2 + Leptos)
 
@@ -63,7 +63,8 @@ Stand: 18.10.2026
 - [x] Weitere Grafiken: Raum-Arten in den Tabs, „nichts fällig“ mit Simo, Ladezustand mit dem Locora-Logo
 - [x] Mobile-CI `.github/workflows/mobile.yml`: Android-Debug-APK bei Push/PR, iOS-Simulator-App nur per Hand (macOS-Kontingent); TOML-Ordnerexport auf Mobil mit klarer Fehlermeldung
 - [ ] Mobile-Workflow nach Push auf `testing` remote prüfen; iOS verwendet Pulley statt JIT, Gerätetest und Signierung offen
-- [x] Mobile Befehlspalette per Abwärtswisch vom oberen Rand und sichtbarem „Befehle“-Knopf öffnen; WASM-Check und Gestenlogik-Test bestanden, reales Touchgerät noch zu prüfen
+- [ ] Mobile Befehlspalette per Abwärtswisch vom oberen Rand und sichtbarem „Befehle“-Knopf öffnen; WASM-Check und Gestenlogik-Test bestanden; Abwärtswisch auf dem Gerät noch offen (Knopf ist geprüft, siehe nächster Punkt)
+- [x] Android-Gerätesmoke-Test (Nothing A059P, Android 16, ARM64-Debug-APK aus `b11aad6`, 19.10.2026): Installation über die bestehende App ohne Datenverlust, Startseite mit Bestandsdaten, „Befehle“-Knopf öffnet die Palette mit Tastatur, Palastansicht öffnet sich per Karte; Logcat ohne Abstürze/ANRs. Nicht geprüft: Journey, Marker, Video-Wiedergabe, Dateipicker, Abwärtswisch
 - [x] Einstellung „Direkt in Core starten“ (PLAN 6.1): Gerätepräferenz, direkte Palastübersicht und wechselbares Raumvorschaubild auf Karten (Video mit Raum-Icon statt geladenem Film)
 - [x] Core-Startpräferenz und Bildwechsel nach App-Neustart im nativen WebView geprüft (`native_smoke.py --only-core`); `LOCORA_DATA` isoliert jetzt auch den WebKit-Speicher
 - [x] Restliche Klick-Budgets (PLAN 6.3) als E2E-Tests: alle sechs Budgets laufen im nativen Smoke-Test
