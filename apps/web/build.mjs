@@ -129,7 +129,10 @@ const mapHash = `'sha256-${createHash('sha256').update(importMap).digest('base64
 const finalCsp = csp.replace("script-src 'self' 'wasm-unsafe-eval' ", `script-src 'self' 'wasm-unsafe-eval' ${mapHash} `);
 html = html.replace(
   '<head>',
-  `<head>\n    <meta http-equiv="Content-Security-Policy" content="${finalCsp}" />\n    <script type="importmap">${importMap}</script>\n    <script type="module" src="shell/boot.mjs"></script>`,
+  `<head>\n    <meta http-equiv="Content-Security-Policy" content="${finalCsp}" />\n    <script type="importmap">${importMap}</script>\n    <script type="module" src="shell/boot.mjs"></script>` +
+    // The inline mount for graphics (see splinely-mount.js), loaded before the splash runs. Only the web
+    // app has these files; the desktop and Android apps use the splash templates and frames instead.
+    `\n    <script src="shell/splinely.js"></script>\n    <script src="shell/splinely-mount.js"></script>\n    <script src="shell/sply-bridge.js"></script>`,
 );
 // 4. Installable as an app: the manifest, the icons, and the links that browsers look for.
 copyFileSync(join(shell, 'manifest.webmanifest'), join(out, 'manifest.webmanifest'));
