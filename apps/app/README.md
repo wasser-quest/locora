@@ -219,10 +219,8 @@ No release or device-readiness claim is implied by an uploaded build artifact.
 - `src-tauri/src/journey.rs`: a journey over IPC, same plan and grading as `locora practice`
   (`locora_runtime::journey`, Core plugin)
 - `src-tauri/src/sply.rs`: `.sply` → interactive SVG with the vendored Splinely runtime,
-  served as `locora://localhost/sply/<sha256>` into sandboxed frames. All markers of a
-  room share one frame (`locora://localhost/markers/<sha256>`, `marker_layer.js`): one
-  runtime, namespaced clones of the marker `.sply`, updated with complete snapshots
-  (`{ locora: 1, loci: [{ id, x, y, status }] }`); native buttons stay above it
+  served as `locora://localhost/sply/<sha256>`. The graphic is mounted inline in the page
+  (`splinely-mount.js`), not in a frame; its messages go through `sply_bridge.js`
 - `ui/src`: screens (start, palace with rooms and markers, journey); no domain logic
 
 ## Locus pictures

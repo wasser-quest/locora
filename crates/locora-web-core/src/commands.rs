@@ -160,7 +160,6 @@ struct MediaArgs {
 #[serde(rename_all = "camelCase")]
 struct SplyArgs {
     hash: String,
-    markers: bool,
 }
 
 /// The running journey; a finished one only takes actions on its last answer.
@@ -462,14 +461,14 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
             };
             out(serde_json::json!({ "path": file, "mime": found.mime }))
         }
-        // An animated `.sply` as the SVG document the page embeds (markers: the shared layer).
+        // An animated `.sply` as the SVG document the page embeds.
         "sply_svg" => {
             let a: SplyArgs = take(args)?;
             let Some(file) = profile.store.media_file(&a.hash) else {
                 bail!("Medium nicht gefunden");
             };
             let bytes = std::fs::read(file)?;
-            let svg = if a.markers { sply::to_marker_layer(&bytes)? } else { sply::to_svg(&bytes)? };
+            let svg = sply::to_svg(&bytes)?;
             out(svg)
         }
         // The folder export: the palace's source and media, as one ZIP file for the page to save.

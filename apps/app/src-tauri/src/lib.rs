@@ -866,7 +866,7 @@ fn not_found() -> Response<Cow<'static, [u8]>> {
     )
 }
 
-/// Content-addressed media, standalone `.sply` and shared room-marker layers.
+/// Content-addressed media and standalone `.sply` graphics.
 fn serve(
     backend: &mut Backend,
     path: &str,
@@ -894,20 +894,14 @@ fn serve(
             Ok(response) => response,
             Err(_) => not_found(),
         },
-        "sply" | "markers" if found.mime == SPLINELY => {
+        "sply" if found.mime == SPLINELY => {
             let key = format!("{kind}/{hash}");
             if let Some(svg) = backend.svg.get(&key) {
                 return respond(StatusCode::OK, "image/svg+xml", svg.clone().into_bytes());
             }
             let converted = std::fs::read(&file)
                 .map_err(anyhow::Error::from)
-                .and_then(|bytes| {
-                    if kind == "markers" {
-                        sply::to_marker_layer(&bytes)
-                    } else {
-                        sply::to_svg(&bytes)
-                    }
-                });
+                .and_then(|bytes| sply::to_svg(&bytes));
             match converted {
                 Ok(svg) => {
                     backend.svg.insert(key, svg.clone());

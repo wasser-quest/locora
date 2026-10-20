@@ -281,7 +281,7 @@ const stillGraphics = new Map();
 /** The SVG of a stored graphic as a blob URL, for an image element. */
 function stillGraphicUrl(hash) {
   if (stillGraphics.has(hash)) return stillGraphics.get(hash);
-  const reply = core ? core('sply_svg', { hash, markers: false }) : { err: 'not ready' };
+  const reply = core ? core('sply_svg', { hash }) : { err: 'not ready' };
   if (reply.err !== undefined) return '';
   const url = URL.createObjectURL(new Blob([reply.ok], { type: 'image/svg+xml' }));
   stillGraphics.set(hash, url);
@@ -290,7 +290,7 @@ function stillGraphicUrl(hash) {
 
 /** The SVG text of a stored graphic, from the core; null when it is not available. */
 function storedGraphicText(hash) {
-  const reply = core ? core('sply_svg', { hash, markers: false }) : { err: 'not ready' };
+  const reply = core ? core('sply_svg', { hash }) : { err: 'not ready' };
   return reply.err === undefined ? reply.ok : null;
 }
 
@@ -358,7 +358,7 @@ window.addEventListener('message', (event) => {
     return;
   }
   if (!core || !/^[0-9a-f]{64}$/.test(String(hash))) return;
-  const reply = core('sply_svg', { hash, markers: false });
+  const reply = core('sply_svg', { hash });
   if (reply.ok !== undefined) event.source.postMessage({ locoraGraphic: 'svg', svg: reply.ok }, '*');
 });
 
