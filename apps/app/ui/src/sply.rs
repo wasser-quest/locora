@@ -100,14 +100,6 @@ fn inline_available() -> bool {
     web_sys::window().is_some_and(|window| js_sys::Reflect::has(&window, &"locoraMountGraphic".into()).unwrap_or(false))
 }
 
-/// Chrome on Android closes the whole browser while an animation runs in a frame, so there (without
-/// inline mounting) every animation holds its first frame. Other browsers play them.
-fn holds_first_frame() -> bool {
-    web_sys::window()
-        .and_then(|window| window.navigator().user_agent().ok())
-        .is_some_and(|agent| agent.contains("Android") && agent.contains("Chrome/") && !agent.contains("Firefox/"))
-}
-
 /// Mounts the graphic inline in `element` (boot.mjs: `locoraMountGraphic`): SVG in the page, like a
 /// Rive artboard. `reply` receives the graphic's replies; `mounted` runs once it is in the page.
 fn mount_inline(element: &web_sys::Element, path: &str, still: bool, reply: impl Fn(JsValue) + 'static, mounted: impl Fn() + 'static) {
@@ -143,12 +135,8 @@ pub fn Sply(
     #[prop(optional)] on_timed_position: Option<Box<dyn Fn(f64) + Send + Sync>>,
     #[prop(optional)] on_timed_error: Option<Box<dyn Fn() + Send + Sync>>,
 ) -> impl IntoView {
-    // The page mounts the graphic inline; the desktop app keeps the frame. Without inline mounting,
-    // Chrome for Android shows an image instead: an image runs no script, so the browser stays up.
+    // The web app mounts the graphic inline; the desktop and Android apps keep the frame.
     let inline = inline_available();
-    if !inline && holds_first_frame() {
-        return view! { <img class=format!("sply {class}") src=url(&media) alt="" /> }.into_any();
-    }
     let path = media.path();
     let frame = NodeRef::<Iframe>::new();
     let host = NodeRef::<leptos::html::Div>::new();

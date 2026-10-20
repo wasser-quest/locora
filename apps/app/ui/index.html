@@ -6940,21 +6940,14 @@ if(controls && (data.audioAssets || []).length) {
         var started = Date.now();
         var art = document.getElementById("splash-art");
         var template = document.getElementById(pick(scenes));
-        // The animation is already in the page: it is inserted at once. On Chrome for Android a still
-        // image is shown instead: the browser closes while an animation runs there, and an image runs no script.
-        var androidChrome = /Android/.test(navigator.userAgent) && /Chrome\//.test(navigator.userAgent) && !/Firefox\//.test(navigator.userAgent);
+        // The web app mounts the animation inline (splinely-mount.js); the apps insert the template,
+        // whose SVG runs its own script.
         if (template && window.SplinelyMount) {
           // Inline, like a Rive artboard: the graphic is SVG in the page, with no frame of its own.
           fetch("splash/" + template.id + ".svg")
             .then(function (response) { return response.text(); })
             .then(function (svgText) { window.SplinelyMount.mount(art, svgText, { autoTick: true, focusRing: false }); })
             .catch(function () {});
-        } else if (template && androidChrome) {
-          var still = document.createElement("img");
-          still.className = "sply";
-          still.alt = "";
-          still.src = "splash/" + template.id + ".svg";
-          art.appendChild(still);
         } else if (template) art.appendChild(document.importNode(template.content, true));
         document.getElementById("splash-tip").textContent = pick(tips[lang] || tips.en);
         var hideRequested = false, removed = false;
