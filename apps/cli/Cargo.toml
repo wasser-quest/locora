@@ -15,6 +15,7 @@ path = "src/main.rs"
 anyhow.workspace = true
 locora-formula = { path = "../../crates/locora-formula" }
 locora-format = { path = "../../crates/locora-format" }
+locora-media = { path = "../../crates/locora-media" }
 locora-cloud-api = { path = "../../crates/locora-cloud-api" }
 locora-signing = { path = "../../crates/locora-signing" }
 locora-crypto = { path = "../../crates/locora-crypto" }

@@ -9,6 +9,7 @@
 import { MemFs } from './wasi-memfs.mjs';
 import { instantiateCore } from './core.mjs';
 import { runCloud } from './cloud.mjs';
+import { asMp4, isVideo } from './video.mjs';
 import { openFileStorage, loadFiles, saveChanges } from './file-storage.mjs';
 import { openStorage as openPluginStorage, loadPluginStorage, flushPluginStorage } from '../src/storage-idb.mjs';
 import { host } from '../src/host-core.mjs';
@@ -211,8 +212,12 @@ async function importTicket(ticket, options) {
   return imported;
 }
 
-/** Puts the file in the core's inbox, imports it through the core, and removes the copy again. */
+/**
+ * Puts the file in the core's inbox, imports it through the core, and removes the copy again. A video
+ * becomes MP4 with H.264 first (see video.mjs); the core removes the metadata of every file.
+ */
 async function stageAndImport(file, options) {
+  if (isVideo(file)) file = await asMp4(file);
   // Each import gets a folder of its own, so the file keeps its name (the palace takes its name from it).
   const name = `${crypto.randomUUID()}/${file.name.replace(/[^\w.-]/g, '_')}`;
   const path = `inbox/${name}`;

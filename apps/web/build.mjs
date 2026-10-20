@@ -82,6 +82,10 @@ copyFileSync(join(vendor, 'splinely-mount.js'), join(out, 'shell', 'splinely-mou
 const bridge = join(web, '..', '..', 'crates', 'locora-app-core', 'src', 'sply_bridge.js');
 writeFileSync(join(out, 'shell', 'sply-bridge.js'), `${readFileSync(bridge, 'utf8')}\nwindow.SplyBridge = { attach };\n`);
 cpSync(shim, join(out, 'shim'), { recursive: true });
+// The video converter (mediabunny, MPL-2.0), loaded by video.mjs only when a video is added.
+const mediabunny = join(web, 'node_modules', 'mediabunny');
+copyFileSync(join(mediabunny, 'dist', 'bundles', 'mediabunny.min.mjs'), join(out, 'shell', 'mediabunny.mjs'));
+copyFileSync(join(mediabunny, 'LICENSE'), join(out, 'shell', 'mediabunny.LICENSE.txt'));
 
 // 3. The page's content security policy. Scripts run only from this site, or inline with a hash
 // that is listed here: the splash screen and Trunk's loader, and the scripts inside the splash

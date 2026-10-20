@@ -124,6 +124,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
         Some(path) => {
             let (kind, mime) = media_kind(path)?;
             let bytes = fs::read(path).with_context(|| format!("{} lesen", path.display()))?;
+            let (bytes, mime) = prepared(path, bytes, mime)?;
             (kind, Some(app.store.put_media(&bytes, mime)?.hash))
         }
         None => (RoomKind::Blank, None),
@@ -233,7 +234,16 @@ pub fn store_picture(app: &App, path: &Path) -> Result<String> {
     if media_type == locora_store::SPLINELY && !bytes.starts_with(b"\x89SPLY\r\n\x1a") {
         bail!("{} ist keine binäre .sply-Datei", path.display());
     }
+    let (bytes, media_type) = prepared(path, bytes, media_type)?;
     Ok(app.store.put_media(&bytes, media_type)?.hash)
+}
+
+/// A picture or video without its metadata, a video as MP4 with H.264; `.sply` as it is.
+fn prepared(path: &Path, bytes: Vec<u8>, mime: &'static str) -> Result<(Vec<u8>, &'static str)> {
+    if mime == locora_store::SPLINELY {
+        return Ok((bytes, mime));
+    }
+    locora_media::prepare(path, bytes, mime).with_context(|| path.display().to_string())
 }
 
 pub fn add(app: &mut App, args: AddArgs) -> Result<()> {

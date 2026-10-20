@@ -724,6 +724,19 @@ fn read_media(path: &Path) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+/// Stores a media file of the source without its metadata, a video as MP4 with H.264 (see
+/// `locora_media::prepare`); `.sply` as it is.
+fn put_media(store: &Store, path: &Path, media_type: &str) -> Result<String> {
+    let bytes = read_media(path)?;
+    if media_type == locora_store::SPLINELY {
+        return Ok(store.put_media(&bytes, media_type)?.hash);
+    }
+    match locora_media::prepare(path, bytes, media_type) {
+        Ok((bytes, mime)) => Ok(store.put_media(&bytes, mime)?.hash),
+        Err(error) => Err(invalid(format!("{}: {error}", path.display()))),
+    }
+}
+
 /// Write a checked plan into the store as a new palace. If anything fails
 /// half-way, the partly built palace is removed again.
 pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
@@ -769,8 +782,7 @@ fn build_inner(store: &Store, plan: &Plan, namespace: Option<&str>) -> Result<Pa
     };
     let result = (|| -> Result<()> {
         if let Some((path, media_type)) = &plan.marker {
-            let bytes = read_media(path)?;
-            let hash = store.put_media(&bytes, media_type)?.hash;
+            let hash = put_media(store, path, media_type)?;
             store.set_marker(&palace.id, Some(&hash))?;
         }
         for row in &plan.tables {
@@ -778,10 +790,7 @@ fn build_inner(store: &Store, plan: &Plan, namespace: Option<&str>) -> Result<Pa
         }
         for (room_index, room) in plan.rooms.iter().enumerate() {
             let media = match &room.media {
-                Some((path, media_type)) => {
-                    let bytes = read_media(path)?;
-                    Some(store.put_media(&bytes, media_type)?.hash)
-                }
+                Some((path, media_type)) => Some(put_media(store, path, media_type)?),
                 None => None,
             };
             let created = if let Some(namespace) = namespace {
@@ -798,8 +807,7 @@ fn build_inner(store: &Store, plan: &Plan, namespace: Option<&str>) -> Result<Pa
             for (locus_index, (locus, bindings, picture)) in room.loci.iter().enumerate() {
                 let mut locus = locus.clone();
                 if let Some((path, media_type)) = picture {
-                    let bytes = read_media(path)?;
-                    locus.image = Some(store.put_media(&bytes, media_type)?.hash);
+                    locus.image = Some(put_media(store, path, media_type)?);
                 }
                 let new = if let Some(namespace) = namespace {
                     store.add_locus_with_id(

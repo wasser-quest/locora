@@ -330,7 +330,8 @@ fn read_selected_media(
             "Bildinhalt passt nicht zum Dateiformat ({mime})"
         );
     }
-
+    // Without metadata, and a video as MP4 with H.264.
+    let (bytes, mime) = crate::convert::prepare(path, bytes, mime)?;
     Ok((kind, mime, bytes))
 }
 
@@ -473,23 +474,40 @@ mod tests {
             assert!(import_palace(&store, Some(&path)).is_err());
         }
         assert!(store.palaces().unwrap().is_empty());
+        // A WebM is not stored as it is: it needs a conversion to MP4 (here, of invalid data, none).
         let mut webm = vec![0u8; 257];
         webm[..4].copy_from_slice(b"\x1a\x45\xdf\xa3");
         webm[4..11].copy_from_slice(b"\x42\x82\x84webm");
-        for (ext, bytes, kind) in [
-            ("png", b"\x89PNG\r\n\x1a\n".as_slice(), RoomKind::Image),
-            ("mp4", b"\0\0\0\x18ftypisom\0\0\0\0", RoomKind::Video),
-            ("m4v", b"\0\0\0\x18ftypM4V \0\0\0\0", RoomKind::Video),
-            ("mov", b"\0\0\0\x18ftypqt  \0\0\0\0", RoomKind::Video),
-            ("webm", webm.as_slice(), RoomKind::Video),
+        let path = dir.path().join("Raum.webm");
+        std::fs::write(&path, &webm).unwrap();
+        let refused = import_palace(&store, Some(&path)).unwrap_err().to_string();
+        assert!(refused.contains("MP4"), "{refused}");
+        use locora_media::fixtures;
+        let video = |brand| {
+            fixtures::movie(
+                brand,
+                vec![fixtures::track(b"vide", b"avc1", [0; 4])],
+                Vec::new(),
+            )
+        };
+        // A QuickTime file of MP4 codecs is stored as MP4: only its brand changes.
+        let mut as_mp4 = video(b"qt  ");
+        as_mp4[8..12].copy_from_slice(b"isom");
+        as_mp4[16..20].copy_from_slice(b"isom");
+        for (ext, bytes, kind, stored) in [
+            ("png", fixtures::png(), RoomKind::Image, None),
+            ("mp4", fixtures::mp4(), RoomKind::Video, None),
+            ("m4v", video(b"M4V "), RoomKind::Video, None),
+            ("mov", video(b"qt  "), RoomKind::Video, Some(as_mp4)),
             (
                 "sply",
-                locora_runtime::tutorial::DEFAULT_MARKER,
+                locora_runtime::tutorial::DEFAULT_MARKER.to_vec(),
                 RoomKind::Image,
+                None,
             ),
         ] {
             let path = dir.path().join(format!("Raum.{ext}"));
-            std::fs::write(&path, bytes).unwrap();
+            std::fs::write(&path, &bytes).unwrap();
             let tree = import_palace(&store, Some(&path)).unwrap().unwrap();
             assert_eq!(tree.rooms.len(), 1);
             assert_eq!(tree.rooms[0].room.kind, kind);
@@ -497,7 +515,7 @@ mod tests {
             let hash = tree.rooms[0].room.media.as_ref().unwrap();
             assert_eq!(
                 std::fs::read(store.media_file(hash).unwrap()).unwrap(),
-                bytes
+                stored.unwrap_or(bytes)
             );
             assert_eq!(
                 Store::open(dir.path())
@@ -508,7 +526,7 @@ mod tests {
             );
         }
         let palaces = store.palaces().unwrap();
-        assert_eq!(palaces.len(), 6);
+        assert_eq!(palaces.len(), 5);
         assert!(palaces.iter().any(|p| p.name == "Raum (2)"));
         let oversized = dir.path().join("large.png");
         std::fs::File::create(&oversized)
@@ -517,7 +535,7 @@ mod tests {
             .unwrap();
         assert!(import_palace(&store, Some(&oversized)).is_err());
         assert!(import_palace(&store, Some(dir.path())).is_err());
-        assert_eq!(store.palaces().unwrap().len(), 6);
+        assert_eq!(store.palaces().unwrap().len(), 5);
     }
 
     #[test]
@@ -525,7 +543,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open(dir.path()).unwrap();
         let staged = dir.path().join("random-temp-name.png");
-        std::fs::write(&staged, b"\x89PNG\r\n\x1a\n").unwrap();
+        std::fs::write(&staged, locora_media::fixtures::png()).unwrap();
         let named = import_palace_named(&store, Some(&staged), Some("Mein Bild"))
             .unwrap()
             .unwrap();
@@ -562,8 +580,8 @@ mod tests {
             locus_id,
         };
         let png = dir.path().join("bild.PNG");
-        let bytes = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
-        std::fs::write(&png, bytes).unwrap();
+        let bytes = locora_media::fixtures::png();
+        std::fs::write(&png, &bytes).unwrap();
         let (tree, selected) = import_picture(&store, &target, &png).unwrap();
         assert_eq!(selected.as_deref(), Some(target.locus_id.as_str()));
         let hash = tree.rooms[0].loci[0].image.as_ref().unwrap();
@@ -665,10 +683,10 @@ mod tests {
         .unwrap()
         .1
         .unwrap();
-        let bytes = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
-        store.put_media(bytes, "video/mp4").unwrap();
+        let bytes = locora_media::fixtures::png();
+        store.put_media(&bytes, "video/mp4").unwrap();
         let path = dir.path().join("bild.png");
-        std::fs::write(&path, bytes).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
         let before = store.palace(&palace.id).unwrap();
         let error = import_picture(
             &store,

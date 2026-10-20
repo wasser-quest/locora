@@ -10,6 +10,7 @@ rust-version.workspace = true
 [dependencies]
 locora-api.workspace = true
 locora-formula = { path = "../locora-formula" }
+locora-media = { path = "../locora-media" }
 locora-store = { path = "../locora-store" }
 serde = { version = "1", features = ["derive"] }
 sha2.workspace = true
@@ -17,4 +18,5 @@ thiserror.workspace = true
 toml = "1"
 
 [dev-dependencies]
+locora-media = { path = "../locora-media", features = ["fixtures"] }
 tempfile = "3"

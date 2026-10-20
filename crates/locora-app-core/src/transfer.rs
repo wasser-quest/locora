@@ -145,7 +145,7 @@ mod tests {
         let profile_path = dir.path().join("profile");
         let source_dir = dir.path().join("source");
         std::fs::create_dir(&source_dir).unwrap();
-        std::fs::write(source_dir.join("room.png"), b"picture").unwrap();
+        std::fs::write(source_dir.join("room.png"), locora_media::fixtures::png()).unwrap();
         let file = source_dir.join("locora.TOML");
         std::fs::write(&file, "name = \"Planeten\"\n[[room]]\nname = \"Zimmer\"\nimage = \"room.png\"\nitems = [\"Merkur\", \"Venus\"]\n").unwrap();
         let mut profile = Profile::open(Some(&profile_path)).unwrap();

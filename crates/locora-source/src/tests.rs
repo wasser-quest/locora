@@ -57,8 +57,8 @@ cells = [{ column = "name", type = "text", value = "Ada" }, { column = "age", ty
 "#;
 
 fn files(dir: &Path) {
-    fs::write(dir.join("wohnung.png"), b"\x89PNG fake").unwrap();
-    fs::write(dir.join("talk.mp4"), b"fake mp4").unwrap();
+    fs::write(dir.join("wohnung.png"), locora_media::fixtures::png()).unwrap();
+    fs::write(dir.join("talk.mp4"), locora_media::fixtures::mp4()).unwrap();
 }
 
 fn plan_of(text: &str, dir: &Path) -> Result<Plan> {
