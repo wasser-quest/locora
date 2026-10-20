@@ -7,7 +7,7 @@ import os, re, sys
 from html.parser import HTMLParser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ALLOWED_FILES = {"index.html", "privacy.html", "style.css", "_headers", "README.md", "check.py", "Dockerfile", "nginx.conf"}
+ALLOWED_FILES = {"index.html", "privacy.html", "impressum.html", "style.css", "_headers", "README.md", "check.py", "Dockerfile", "nginx.conf"}
 # Only these are allowed to leave the site: the project's own repository, as a plain link.
 # The forum and the browser app run as their own services at their public addresses.
 ALLOWED_LINKS = ("https://github.com/wasser-quest/locora", "https://bb.locora.cloud/", "https://app.locora.cloud/")

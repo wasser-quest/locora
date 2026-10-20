@@ -1,94 +1,137 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'" />
     <meta name="referrer" content="no-referrer" />
-    <title>Privacy policy – Locora</title>
+    <meta name="robots" content="index, follow" />
+    <title>Datenschutzerklärung – Locora</title>
+    <meta name="description" content="Datenschutzerklärung für locora.cloud, die Locora-App, das Forum bb.locora.cloud und die Locora Cloud." />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <a class="skip" href="#content">Zum Inhalt springen</a>
     <header class="top">
-      <p class="brand"><a href="index.html">Locora</a></p>
-      <nav aria-label="Sections">
-        <a href="index.html">Home</a>
-        <a href="#your-device">Your device</a>
-        <a href="#account">Account</a>
-        <a href="#rights">Your rights</a>
+      <a class="brand" href="index.html" aria-label="Locora Startseite"><span class="mark" aria-hidden="true">L</span> Locora</a>
+      <nav aria-label="Rechtliches">
+        <a href="index.html">Start</a>
+        <a href="impressum.html">Impressum</a>
       </nav>
     </header>
 
-    <main>
+    <main id="content">
       <section class="hero">
-        <h1>Privacy policy</h1>
-        <p><strong>Draft.</strong> This text describes how the system is designed. It is not legal advice. Fill in the bracketed parts and have it reviewed before you publish it.</p>
-        <p>Last updated: [date]</p>
+        <p class="eyebrow">Entwurf – vor der Veröffentlichung prüfen</p>
+        <h1>Datenschutzerklärung</h1>
+        <p class="lede">Hier steht, welche Daten bei der Nutzung von Locora anfallen, wo sie liegen und welche Rechte du hast.</p>
+        <p class="note">Stand: [Datum]</p>
       </section>
 
-      <section id="controller">
-        <h2>Who is responsible</h2>
-        <p>[Operator name and legal form], [postal address], [e-mail for privacy questions]. [Data protection officer, if one is required.]</p>
+      <section id="verantwortlicher">
+        <h2>1. Wer ist verantwortlich</h2>
+        <p>Verantwortlich für die Datenverarbeitung auf locora.cloud, app.locora.cloud, bb.locora.cloud und api.locora.cloud ist:</p>
+        <p>[Name bzw. Firma und Rechtsform], [Straße und Hausnummer], [PLZ Ort], [Land]<br />E-Mail: praxisboo@gmail.com</p>
+        <p>Datenschutzanfragen richte bitte an die E-Mail-Adresse oben.</p>
       </section>
 
-      <section id="your-device">
-        <h2>What stays on your device</h2>
-        <p>Locora works offline. Your palaces, their pictures and videos, your learning progress and your settings are stored on your device. We do not receive them unless you create an account and use sync or the online features.</p>
-        <p>You own this data. You can export your palaces to a file at any time, and you can delete them in the app.</p>
-      </section>
-
-      <section id="account">
-        <h2>If you create an account</h2>
-        <p>An account is optional. It is needed for sync between your devices, for subscriptions, friends, challenges and rankings.</p>
-        <h3>What we store</h3>
+      <section id="dienste">
+        <h2>2. Welche Dienste es gibt</h2>
         <ul>
-          <li><strong>Account:</strong> e-mail address, display name, and a password hash (Argon2id). We never store your password itself.</li>
-          <li><strong>Sessions:</strong> a hash of each sign-in token, with its expiry (90 days). The token itself is shown to your device only once.</li>
-          <li><strong>Subscription:</strong> plan, state and period end, plus the identifiers of payment events, so that payment provider retries are applied once.</li>
-          <li><strong>Social features:</strong> friend connections, challenges you join, and your scores in them. A score contains the answers of a journey and their timing, so that the ranking can be checked.</li>
-          <li><strong>Sync data and media:</strong> encrypted on your device before upload. We store ciphertext and the wrapped key bundle; we cannot read them.</li>
-          <li><strong>Security records:</strong> failed sign-in counts per e-mail address (kept for 15 minutes), request counters per account, and the status of deletion warnings.</li>
-        </ul>
-        <h3>Why we store it</h3>
-        <p>To provide the service you asked for (contract, Art. 6(1)(b) GDPR), to keep accounts secure (legitimate interest, Art. 6(1)(f)), and to send the deletion warnings described below.</p>
-        <h3>Where it is stored</h3>
-        <p>In the European Union: the database and encrypted media are hosted at [hosting provider and region]. Payments are processed by [payment provider]; e-mail is sent through [mail relay].</p>
-        <h3>How long we keep it</h3>
-        <ul>
-          <li>While the account is active.</li>
-          <li>If an account is not synced for six calendar months, we send a warning e-mail one month before deletion. After six months we delete the account, its encrypted media and its sync data. Backups are deleted within [backup period].</li>
-          <li>Sign-in tokens expire after 90 days; failed sign-in counters after 15 minutes.</li>
+          <li><strong>locora.cloud</strong> – diese Informationsseite.</li>
+          <li><strong>app.locora.cloud</strong> – die Lernapp im Browser. Sie arbeitet auf deinem Gerät und kann offline genutzt werden.</li>
+          <li><strong>bb.locora.cloud</strong> – das Forum (Software: rustbb).</li>
+          <li><strong>api.locora.cloud</strong> – die Locora Cloud: optionales Konto für die verschlüsselte Synchronisation zwischen deinen Geräten.</li>
         </ul>
       </section>
 
-      <section id="sharing">
-        <h2>Who receives data</h2>
-        <p>We do not sell data and do not use advertising or tracking. We use service providers only for hosting, payments and e-mail, under written data processing agreements. Your friends and challenge members see your display name and your scores in the challenges you share.</p>
+      <section id="hosting">
+        <h2>3. Hosting und Dienstleister</h2>
+        <p><strong>Auslieferung der Seiten (locora.cloud und app.locora.cloud):</strong> Netlify, Inc., USA. Beim Aufruf einer Seite verarbeitet Netlify technisch notwendige Daten: deine IP-Adresse, den Zeitpunkt, die aufgerufene Adresse und den Browsertyp. Netlify erhält diese Daten als Auftragsverarbeiter und kann sie in den USA verarbeiten. Die Übermittlung stützt sich auf [Standardvertragsklauseln bzw. den EU-US Data Privacy Framework – bitte prüfen].</p>
+        <p><strong>Server (bb.locora.cloud, api.locora.cloud, Datenbanken und Dateispeicher):</strong> IONOS SE, Deutschland, als Auftragsverarbeiter. Die Server stehen in der Europäischen Union, in Spanien. Die Dateispeicher (Bilder und verschlüsselte Medien) liegen ebenfalls in der EU [Standort des Speichers eintragen].</p>
+        <p><strong>E-Mail-Versand</strong> (Bestätigung, Passwort zurücksetzen): [Anbieter eintragen]. Der Anbieter erhält die Adresse des Empfängers und den Inhalt der Mail.</p>
+        <p>Werbung, Tracking und Analysedienste setzen wir nicht ein.</p>
       </section>
 
-      <section id="security">
-        <h2>Security</h2>
-        <p>Passwords are hashed with Argon2id. Sync and media are encrypted on your device. Subscriptions are checked on the server for every paid request. Payment webhooks must carry a signature. The servers run in containers with read-only file systems, no shell, and no access to each other beyond the connections they need.</p>
+      <section id="geraet">
+        <h2>4. Was auf deinem Gerät bleibt</h2>
+        <p>Die Lernapp speichert deine Paläste, deren Bilder und Videos, deinen Lernfortschritt und deine Einstellungen im Browser deines Geräts (Speicher des Browsers, IndexedDB). Das geschieht ohne Konto. Diese Daten verlassen dein Gerät nicht, außer du nutzt die Cloud-Synchronisation.</p>
+        <p>Die Seite app.locora.cloud nutzt einen Dienst-Worker, damit sie offline läuft. Er wird im Browser gespeichert und ist technisch notwendig. Cookies setzen wir in der App nicht.</p>
       </section>
 
-      <section id="rights">
-        <h2>Your rights</h2>
-        <p>Under the GDPR you have the right to access your data, to correct it, to delete it, to restrict or object to its processing, and to receive it in a portable format. You can delete your account in the app. For other requests, write to [privacy e-mail]. You may also complain to a supervisory authority, for example [competent authority].</p>
+      <section id="forum">
+        <h2>5. Das Forum (bb.locora.cloud)</h2>
+        <h3>Was wir speichern</h3>
+        <ul>
+          <li><strong>Konto:</strong> Benutzername, E-Mail-Adresse, Passwort als Argon2id-Hash (das Passwort selbst speichern wir nicht), Zeitpunkt der Anmeldung, und ein Anzeigetitel oder Profilbild, wenn du sie setzt.</li>
+          <li><strong>Inhalte:</strong> Themen, Beiträge, Antworten, Bilder, Umfragestimmen, Reaktionen, Abos von Themen, Benachrichtigungen. Gelöschte Beiträge bleiben als „entfernt“ im Verlauf, damit die Nummerierung stimmt; ihr Inhalt und ihre Bilder werden gelöscht.</li>
+          <li><strong>Bilder:</strong> Hochgeladene Bilder werden so gespeichert, wie sie hochgeladen wurden. Bilder können Metadaten enthalten, zum Beispiel den Aufnahmeort (EXIF). Entferne sie vor dem Hochladen, wenn du den Ort nicht teilen willst.</li>
+          <li><strong>Private Nachrichten</strong> (nur wenn die Funktion eingeschaltet ist): sichtbar für die beteiligten Mitglieder. Administratoren haben technisch Zugriff auf die Datenbank.</li>
+          <li><strong>Meldungen und Sperren:</strong> Meldungen zu Beiträgen, Grund und Dauer einer Sperre.</li>
+          <li><strong>Sitzung:</strong> Ein Anmeldetoken, dessen Hash wir speichern, für 30 Tage. Er liegt in einem Cookie, das nur der Server lesen kann (HttpOnly, Secure, SameSite=Lax).</li>
+          <li><strong>IP-Adressen:</strong> Für den Schutz vor Missbrauch (Begrenzung von Anmeldeversuchen und Anfragen) zählen wir Anfragen je Adresse im Arbeitsspeicher des Servers. Sie werden nicht in der Datenbank gespeichert und sind nach einem Neustart weg. Die Zugriffsprotokolle des Webservers speichern IP-Adressen für [Dauer, z. B. 7 Tage].</li>
+        </ul>
+        <h3>Anmeldung und Bestätigung</h3>
+        <p>Beim Registrieren schicken wir dir eine E-Mail mit einem Link. Der Link gilt 24 Stunden und funktioniert einmal. Konten, deren E-Mail-Adresse nicht bestätigt wird, löschen wir nach 3 Tagen. Ein Link zum Zurücksetzen des Passworts gilt eine Stunde.</p>
+        <h3>Rechtsgrundlagen</h3>
+        <p>Die Verarbeitung für das Forum beruht auf Art. 6 Abs. 1 lit. b DSGVO (Nutzung des Forums als Vertrag), auf Art. 6 Abs. 1 lit. f DSGVO (Schutz des Forums vor Missbrauch) und, wo Gesetze es verlangen, auf rechtlichen Pflichten. Das Sitzungs-Cookie ist technisch notwendig und braucht nach § 25 Abs. 2 TDDDG keine Einwilligung.</p>
       </section>
 
-      <section id="children">
-        <h2>Children</h2>
-        <p>Accounts are for people aged [minimum age] and over.</p>
+      <section id="cloud">
+        <h2>6. Die Locora Cloud (api.locora.cloud)</h2>
+        <p>Ein Konto ist freiwillig. Die App funktioniert auch ohne. Mit Konto synchronisieren wir deine Paläste zwischen deinen Geräten.</p>
+        <ul>
+          <li><strong>Konto:</strong> E-Mail-Adresse, Anzeigename, Passwort-Hash (Argon2id).</li>
+          <li><strong>Sitzungen:</strong> Hash des Anmeldetokens und Ablaufdatum. Das Token selbst zeigt der Server nur einmal an.</li>
+          <li><strong>Synchronisation und Medien:</strong> Deine Daten werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Wir speichern nur Chiffrat und den verschlüsselten Schlüssel. Wir können den Inhalt nicht lesen.</li>
+          <li><strong>Gastkonto:</strong> Neue Konten sind Gastkonten, bis ein Abo besteht. Die Daten bleiben sechs Monate, wenn das Konto nicht synchronisiert wird; danach werden sie gelöscht. Vorher schicken wir eine Warnung.</li>
+          <li><strong>Abo und Zahlung:</strong> [Zahlungsdienst eintragen, sobald Abos angeboten werden].</li>
+        </ul>
+        <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertrag über die Synchronisation).</p>
       </section>
 
-      <section id="changes">
-        <h2>Changes</h2>
-        <p>If this policy changes, the date above changes too, and material changes are announced in the app before they take effect.</p>
+      <section id="speicherdauer">
+        <h2>7. Wie lange wir Daten speichern</h2>
+        <ul>
+          <li>Konto und Inhalte: solange das Konto besteht.</li>
+          <li>Nicht bestätigte Forum-Konten: 3 Tage, dann gelöscht.</li>
+          <li>Forum-Sitzungen: 30 Tage.</li>
+          <li>Passwort-Reset-Links: 1 Stunde. Bestätigungslinks: 24 Stunden.</li>
+          <li>Zähler für Anfragen: nur im Arbeitsspeicher, bis zum Neustart oder Ablauf des Zeitfensters.</li>
+          <li>Zugriffsprotokolle des Webservers: [Dauer].</li>
+          <li>Sicherungskopien (Backups): [Dauer], danach gelöscht.</li>
+        </ul>
+      </section>
+
+      <section id="empfaenger">
+        <h2>8. Wer außerdem Daten erhält</h2>
+        <p>Die Dienstleister aus Abschnitt 3. Eine Weitergabe für Werbung oder zu anderen Zwecken findet nicht statt. Wenn Behörden nach dem Gesetz Auskunft verlangen, geben wir die Daten heraus.</p>
+      </section>
+
+      <section id="sicherheit">
+        <h2>9. Sicherheit</h2>
+        <p>Alle Dienste laufen über HTTPS. Passwörter werden gehasht. Die Cloud-Daten sind auf deinem Gerät verschlüsselt. Das Forum schützt Formulare gegen Fälschung (CSRF), begrenzt Anfragen und verbietet Skripte in den Seiten. Die Seite locora.cloud führt keinen Code aus. Eine vollständige Sicherheit gibt es nicht; bei einer Verletzung informieren wir dich, soweit das Gesetz es verlangt.</p>
+      </section>
+
+      <section id="rechte">
+        <h2>10. Deine Rechte</h2>
+        <p>Du hast das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch (Art. 21). Schreib dafür an die E-Mail-Adresse oben. Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren, zum Beispiel bei der für [Land bzw. Bundesland des Verantwortlichen] zuständigen Behörde.</p>
+        <p>Eine automatische Entscheidung mit rechtlicher Wirkung findet nicht statt (Art. 22 DSGVO). Die Rangstufe im Forum berechnet sich aus der Zahl deiner Beiträge; sie hat keine rechtliche Wirkung.</p>
+      </section>
+
+      <section id="kinder">
+        <h2>11. Kinder</h2>
+        <p>Die Dienste richten sich an Personen ab [Mindestalter, in Deutschland üblicherweise 16 Jahre]. Jüngere brauchen die Zustimmung ihrer Erziehungsberechtigten.</p>
+      </section>
+
+      <section id="aenderungen">
+        <h2>12. Änderungen</h2>
+        <p>Wenn sich diese Erklärung ändert, ändert sich das Datum oben. Wesentliche Änderungen kündigen wir auf den Seiten an, bevor sie gelten.</p>
       </section>
     </main>
 
     <footer>
-      <p><a href="index.html">Home</a> · <a href="https://github.com/wasser-quest/locora">Source on GitHub</a></p>
+      <p><a href="index.html">Start</a> · <a href="impressum.html">Impressum</a></p>
     </footer>
   </body>
 </html>

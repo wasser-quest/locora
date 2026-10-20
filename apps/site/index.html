@@ -7,53 +7,85 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'" />
     <meta name="referrer" content="no-referrer" />
     <title>Locora – learn with the method of loci</title>
-    <meta name="description" content="Locora is a memory palace app: you place what you want to remember at places you know well, and walk the route in your mind." />
+    <meta name="description" content="Locora is a memory palace app. Place what you want to remember at places you know well, and walk the route in your mind. Works offline, with no tracking." />
+    <meta property="og:title" content="Locora – learn with the method of loci" />
+    <meta property="og:description" content="Place what you want to remember at places you know well, and walk the route in your mind. Works offline, with no tracking." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://locora.cloud/" />
+    <meta name="theme-color" content="#3a3d92" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <a class="skip" href="#content">Skip to content</a>
     <header class="top">
-      <p class="brand">Locora</p>
-      <nav aria-label="Sections">
-        <a href="#about">About</a>
+      <a class="brand" href="index.html" aria-label="Locora home">
+        <span class="mark" aria-hidden="true">L</span> Locora
+      </a>
+      <nav aria-label="Main">
         <a href="#how">How it works</a>
+        <a href="#services">Services</a>
         <a href="#privacy">Privacy</a>
-        <a href="privacy.html">Privacy</a>
-        <a href="https://app.locora.cloud/">App</a>
-        <a href="https://bb.locora.cloud/">Forum</a>
         <a href="https://github.com/wasser-quest/locora">Source</a>
       </nav>
     </header>
 
-    <main>
+    <main id="content">
       <section class="hero">
+        <p class="eyebrow">The method of loci, made simple</p>
         <h1>Remember what you want to keep.</h1>
-        <p>Locora uses the method of loci: you place what you want to remember at places you know well, and later walk the route in your mind to recall it.</p>
+        <p class="lede">Place what you want to learn at spots in a picture you know well. Later, walk the route in your mind and recall each one. Locora then reminds you just before you would forget.</p>
+        <div class="actions">
+          <a class="button" href="https://app.locora.cloud/">Open the app</a>
+          <a class="button ghost" href="#how">See how it works</a>
+        </div>
+        <p class="note">Works offline in your browser. No account needed to start.</p>
       </section>
 
-      <section id="about">
-        <h2>About</h2>
-        <p>Locora is a memory palace app. You build palaces from pictures or videos, place your memories at spots in them, and review them with spaced repetition, so you revisit each one just before you would forget it.</p>
-      </section>
-
-      <section id="how">
-        <h2>How it works</h2>
-        <ol>
-          <li><strong>Choose a picture or video</strong> as a room.</li>
-          <li><strong>Place loci</strong> where you want to remember something.</li>
-          <li><strong>Walk the route</strong> and recall what each place holds.</li>
-          <li><strong>Review</strong> when the app says it is due.</li>
+      <section id="how" class="steps" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <ol class="cards">
+          <li class="card"><span class="num">1</span><h3>Choose a room</h3><p>A picture or a video of a place you know well: your home, your street, a station.</p></li>
+          <li class="card"><span class="num">2</span><h3>Place the loci</h3><p>Put each thing you want to remember at a spot in the room, and add a short hint.</p></li>
+          <li class="card"><span class="num">3</span><h3>Walk the route</h3><p>Go through the room in your mind and recall what each spot holds. Then check yourself.</p></li>
+          <li class="card"><span class="num">4</span><h3>Review when it is due</h3><p>Spaced repetition brings each item back just before you would forget it.</p></li>
         </ol>
       </section>
 
-      <section id="privacy">
-        <h2>Privacy and security</h2>
-        <p>This page is static: it contains HTML and CSS only. It runs no script, loads nothing from other sites, and sets no cookies.</p>
-        <p>The security policy for this site forbids scripts, embedded frames and external resources. Forms are not used. The full <a href="privacy.html">privacy policy</a> is a separate page.</p>
+      <section id="services" aria-labelledby="services-title">
+        <h2 id="services-title">Services</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Locora app</h3>
+            <p>The learning app, in your browser. Your palaces stay on your device, and the app works offline.</p>
+            <a href="https://app.locora.cloud/">app.locora.cloud</a>
+          </article>
+          <article class="card">
+            <h3>Forum</h3>
+            <p>Boards and threads for learners: questions, palaces to share, polls and reactions. Pages run no scripts.</p>
+            <a href="https://bb.locora.cloud/">bb.locora.cloud</a>
+          </article>
+          <article class="card">
+            <h3>Locora Cloud</h3>
+            <p>An optional account to sync your palaces between devices. Your data is encrypted on your device before it is sent.</p>
+            <a href="privacy.html#account">How the account works</a>
+          </article>
+        </div>
+      </section>
+
+      <section id="privacy" class="callout" aria-labelledby="privacy-title">
+        <h2 id="privacy-title">Privacy</h2>
+        <ul>
+          <li>No advertising, no tracking, no analytics on this site.</li>
+          <li>This page runs no script, loads nothing from other sites, and sets no cookies.</li>
+          <li>The app keeps your data on your device. The cloud only sees what is encrypted on your device.</li>
+        </ul>
+        <p><a href="privacy.html">Read the privacy policy</a> · <a href="impressum.html">Legal notice</a></p>
       </section>
     </main>
 
     <footer>
-      <p>Locora is open source. <a href="https://github.com/wasser-quest/locora">Source on GitHub</a>.</p>
+      <p>Locora is open source. <a href="https://github.com/wasser-quest/locora">Source on GitHub</a></p>
+      <p><a href="privacy.html">Privacy</a> · <a href="impressum.html">Legal notice</a></p>
     </footer>
   </body>
 </html>
