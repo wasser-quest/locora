@@ -318,20 +318,33 @@ window.addEventListener('drop', (event) => {
   }
 });
 
-// Installable: when the browser offers the app for the home screen, a button offers it too.
+// Installable: a button offers the app for the home screen. Chromium browsers make the offer
+// (beforeinstallprompt) and the button starts it. Safari on iPhone and iPad makes no offer, so there
+// the button explains the Share menu instead.
+const installStyle = 'position:fixed;right:12px;bottom:12px;z-index:9;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:8px;border:0;background:#3a3c8c;color:#fff;font:inherit;text-align:left;cursor:pointer';
+const installed = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 let installPrompt = null;
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   installPrompt = event;
-  const button = document.createElement('button');
-  button.textContent = 'Install Locora';
-  button.setAttribute('style', 'position:fixed;right:12px;bottom:12px;z-index:9;padding:8px 12px;border-radius:8px;border:0;background:#3a3c8c;color:#fff;font:inherit;cursor:pointer');
-  button.addEventListener('click', async () => {
-    button.remove();
+  offerInstall('Install Locora', async () => {
     await installPrompt.prompt();
     installPrompt = null;
   });
-  document.body.append(button);
 });
+if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !installed) {
+  offerInstall('To install: tap Share, then Add to Home Screen', () => {});
+}
+
+function offerInstall(label, onClick) {
+  const button = document.createElement('button');
+  button.textContent = label;
+  button.setAttribute('style', installStyle);
+  button.addEventListener('click', () => {
+    button.remove();
+    onClick();
+  });
+  document.body.append(button);
+}
 
 window.__TAURI__ = { core: { invoke, convertFileSrc } };
