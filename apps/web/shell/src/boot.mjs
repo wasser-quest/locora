@@ -31,11 +31,11 @@ let pluginDb = null;
 let fileSystem = null;
 let saving = Promise.resolve();
 
-// The service worker is switched off: it is suspected of crashing the browser on Android. A worker
-// registered earlier is removed, with its cache, so the device returns to the plain web app. The
-// data stays in IndexedDB. A persistent request asks the browser not to evict that storage.
-navigator.serviceWorker?.getRegistrations().then((registrations) => registrations.forEach((registration) => registration.unregister())).catch(() => {});
-caches?.keys().then((keys) => keys.filter((key) => key.startsWith('locora-')).forEach((key) => caches.delete(key))).catch(() => {});
+// The app works offline through its service worker, and keeps its data safe from the browser's
+// cleanup: a persistent request asks the browser not to evict the device's storage.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch((error) => console.warn('offline mode unavailable', error));
+}
 navigator.storage?.persist?.().catch(() => {});
 
 const started = start();
@@ -298,15 +298,14 @@ window.addEventListener('message', (event) => {
   const { hash, file } = event.data;
   if (typeof file === 'string') {
     if (!/^splash\/[a-z-]+\.svg$/.test(file)) return;
-    // The frame may be removed while the file loads (the splash ends early); then nothing is sent.
     fetch(file)
       .then((response) => (response.ok ? response.text() : null))
-      .then((svg) => svg && frame.contentWindow?.postMessage({ locoraGraphic: 'svg', svg }, '*'));
+      .then((svg) => svg && event.source.postMessage({ locoraGraphic: 'svg', svg }, '*'));
     return;
   }
   if (!core || !/^[0-9a-f]{64}$/.test(String(hash))) return;
   const reply = core('sply_svg', { hash, markers: false });
-  if (reply.ok !== undefined) frame.contentWindow?.postMessage({ locoraGraphic: 'svg', svg: reply.ok }, '*');
+  if (reply.ok !== undefined) event.source.postMessage({ locoraGraphic: 'svg', svg: reply.ok }, '*');
 });
 
 window.addEventListener('dragover', (event) => event.preventDefault());
