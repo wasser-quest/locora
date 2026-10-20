@@ -169,6 +169,26 @@ pub async fn cloud_logout(app: tauri::AppHandle) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Deletes the cloud account after its password is confirmed, then forgets it on this device.
+#[tauri::command]
+pub async fn cloud_delete_account(app: tauri::AppHandle, password: String) -> Result<(), String> {
+    if password.is_empty() || password.chars().count() > 256 {
+        return Err("Cloud-Passwort eingeben".into());
+    }
+    let (data, busy) = begin(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _busy = busy;
+        let password = zeroize::Zeroizing::new(password);
+        let state = cloud::load(&data)
+            .map_err(err)?
+            .ok_or_else(|| "Kein Cloud-Konto angemeldet".to_owned())?;
+        cloud::delete_account(&state, &password).map_err(err)?;
+        cloud::remove(&data).map_err(err)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn cloud_refresh(app: tauri::AppHandle) -> Result<CloudStatus, String> {
     let (data, busy) = begin(&app)?;

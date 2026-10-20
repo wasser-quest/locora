@@ -73,6 +73,10 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid 
 button.primary { background: var(--indigo); color: #fff; border-color: var(--indigo); }
 button.primary:hover { background: var(--indigo-deep); }
 button:disabled { opacity: .5; cursor: default; }
+/* Deleting cloud data or the account: a separate, folded section with red buttons. */
+button.danger { background: var(--again); color: #fff; border-color: var(--again); }
+.cloud-delete { margin-top: 16px; }
+.cloud-delete summary { cursor: pointer; color: var(--muted); }
 input[type=text] { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); width: 100%; }
 main { max-width: min(1200px, 100%); margin: 0 auto; padding: 16px; }

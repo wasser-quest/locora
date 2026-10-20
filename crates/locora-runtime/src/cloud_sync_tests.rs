@@ -321,3 +321,34 @@ fn app_sync_checks_access_before_fetching_keys() {
         .to_string();
     assert!(error.contains("Keine gültige Cloud-Freischaltung"));
 }
+
+#[test]
+fn a_new_generation_of_the_server_starts_the_device_over() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    store.set_sync_cursor("push", 5).unwrap();
+    store.set_sync_cursor("pull", 9).unwrap();
+    let passphrase = "passphrase for the new generation";
+    let account = locora_crypto::create(passphrase).unwrap();
+    let (mut state, _) = responses(Vec::new());
+    state.server = "https://cloud.example".into();
+    let mut flow = UnlockSync::new(state, &store, passphrase.into());
+    let reply = |body: Value| Some(Reply { status: 200, body: body.to_string().into_bytes() });
+    let url = |step: Step<SyncReport>| match step {
+        Step::Call(call) => call.url,
+        Step::Done(_) => panic!("the sync ended early"),
+    };
+    assert!(url(flow.step(None).unwrap()).ends_with("/v1/keys"));
+    assert!(url(flow.step(reply(json!(account.bundle))).unwrap()).ends_with("/v1/sync/retention"));
+    // Expired data is restored from this device: the rebuild is asked for first.
+    let expired = json!({"state": "expired", "last_successful_sync_at": 0, "expires_at": 0, "generation": 2});
+    assert!(url(flow.step(reply(expired)).unwrap()).ends_with("/v1/sync/rebuild"));
+    let rebuilding = json!({"state": "rebuilding", "last_successful_sync_at": 0, "expires_at": 0, "generation": 2});
+    // The device adopts the generation before the sync itself (which needs an unlock this test
+    // cannot sign, so it stops there).
+    let refused = flow.step(reply(rebuilding)).err().expect("no unlock in this test").to_string();
+    assert!(refused.contains("Freischaltung"), "{refused}");
+    assert_eq!(flow.new_generation, Some(2));
+    assert_eq!(store.sync_cursor("push").unwrap(), 0);
+    assert_eq!(store.sync_cursor("pull").unwrap(), 0);
+}

@@ -9,8 +9,8 @@ use std::cell::RefCell;
 use anyhow::{Result, anyhow, bail};
 use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, CloudSyncResult};
 use locora_cloud_api::api::KeyBundle;
-use locora_runtime::cloud::{self, CloudState, Connect, Refresh};
-use locora_runtime::cloud_http::{Body, Call, Exchange, Flow, Method, Reply, Step, failure};
+use locora_runtime::cloud::{self, CloudState, Connect, Refresh, RetentionStatus};
+use locora_runtime::cloud_http::{Body, Call, Exchange, Flow, Method, Reply, Step, failure, json as cloud_http_json};
 use locora_runtime::cloud_sync::{SyncReport, UnlockSync};
 use serde_json::{Value, json};
 
@@ -95,7 +95,38 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
                 bail!("Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren");
             }
             let store = crate::with_backend(|backend| Ok(backend.profile.store.clone()))?;
-            drive(Box::new(Map::new(UnlockSync::new(state, store, passphrase), sync_result)), None)
+            drive(Box::new(Map::new(UnlockSync::new(state, store, passphrase), move |report: SyncReport| {
+                // A new generation of the server (deleted or expired cloud data) is kept for the next sync.
+                if let Some(generation) = report.new_generation {
+                    let mut state = saved(&data)?;
+                    state.sync_generation = generation;
+                    cloud::save(&data, &state)?;
+                }
+                sync_result(report)
+            })), None)
+        }
+        "cloud_erase" => {
+            let state = saved(&data)?;
+            let call = cloud::erase_call(&state)?;
+            drive(Box::new(Map::new(Exchange::new(call, cloud_http_json), move |remote: RetentionStatus| {
+                let mut state = saved(&data)?;
+                let store = crate::with_backend(|backend| Ok(backend.profile.store.clone()))?;
+                cloud::adopt_generation(&mut state, &store, remote.generation)?;
+                cloud::save(&data, &state)?;
+                Ok(Value::Null)
+            })), None)
+        }
+        "cloud_delete_account" => {
+            let password = args.get("password").and_then(Value::as_str).unwrap_or_default().to_owned();
+            if password.is_empty() || password.chars().count() > 256 {
+                bail!("Cloud-Passwort eingeben");
+            }
+            let state = saved(&data)?;
+            let call = cloud::delete_account_call(&state, &password)?;
+            drive(Box::new(Map::new(Exchange::new(call, cloud::delete_account_reply), move |()| {
+                cloud::remove(&data)?;
+                Ok(Value::Null)
+            })), None)
         }
         other => bail!("unknown cloud command {other}"),
     }

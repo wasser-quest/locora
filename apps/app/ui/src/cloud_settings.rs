@@ -4,8 +4,8 @@ use crate::i18n::t;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_CLOUD_CONNECT, CMD_CLOUD_KEYS_SETUP, CMD_CLOUD_KEYS_STATUS, CMD_CLOUD_LOGOUT,
-    CMD_CLOUD_REFRESH, CMD_CLOUD_STATUS, CMD_CLOUD_SYNC, CloudConnect, CloudKeyCreated,
+    CMD_CLOUD_CONNECT, CMD_CLOUD_DELETE_ACCOUNT, CMD_CLOUD_ERASE, CMD_CLOUD_KEYS_SETUP,
+    CMD_CLOUD_KEYS_STATUS, CMD_CLOUD_LOGOUT, CMD_CLOUD_REFRESH, CMD_CLOUD_STATUS, CMD_CLOUD_SYNC, CloudConnect, CloudKeyCreated,
     CloudKeySetup, CloudStatus, CloudSyncResult,
 };
 use serde::Serialize;
@@ -27,6 +27,11 @@ struct KeyArgs {
 #[derive(Serialize)]
 struct SyncArgs {
     passphrase: String,
+}
+
+#[derive(Serialize)]
+struct DeleteAccountArgs {
+    password: String,
 }
 
 fn refresh_keys_for(
@@ -124,6 +129,7 @@ pub fn CloudSettings() -> impl IntoView {
                     <button type="button" disabled=move || busy.get() on:click=move |_| logout()>
                         {t("Auf diesem Gerät abmelden")}
                     </button>
+                    <DeleteCloud status=status message=message busy=busy recovery=recovery />
                     {move || match keys.get() {
                         None => view! { <p class="progress">{t("Verschlüsselung wird geprüft …")}</p> }.into_any(),
                         Some(Err(error)) => view! {
@@ -177,6 +183,86 @@ pub fn CloudSettings() -> impl IntoView {
                 Err(value) => view! { <p class="notes" role="alert">{value}</p> }.into_any(),
             })}
         </section>
+    }
+}
+
+/// Deleting by hand: the synced data on the server, or the whole account. The devices keep their data.
+#[component]
+fn DeleteCloud(
+    status: RwSignal<Option<Result<CloudStatus, String>>>,
+    message: RwSignal<Option<Result<String, String>>>,
+    busy: RwSignal<bool>,
+    recovery: RwSignal<Option<CloudKeyCreated>>,
+) -> impl IntoView {
+    let confirming = RwSignal::new(false);
+    let password = RwSignal::new(String::new());
+    let erase = move || {
+        if busy.get_untracked() {
+            return;
+        }
+        busy.set(true);
+        message.set(None);
+        spawn_local(async move {
+            match call::<()>(CMD_CLOUD_ERASE, NoArgs {}).await {
+                Ok(()) => message.set(Some(Ok(t("Cloud-Daten gelöscht. Die Daten auf diesem Gerät bleiben; der nächste Sync lädt sie wieder hoch.").into()))),
+                Err(error) => message.set(Some(Err(error))),
+            }
+            confirming.set(false);
+            busy.set(false);
+        });
+    };
+    let delete_account = move || {
+        if busy.get_untracked() {
+            return;
+        }
+        let secret = password.get_untracked();
+        if secret.is_empty() {
+            message.set(Some(Err(t("Cloud-Passwort eingeben.").into())));
+            return;
+        }
+        busy.set(true);
+        message.set(None);
+        spawn_local(async move {
+            match call::<()>(CMD_CLOUD_DELETE_ACCOUNT, DeleteAccountArgs { password: secret }).await {
+                Ok(()) => {
+                    password.set(String::new());
+                    recovery.set(None);
+                    status.set(Some(Ok(CloudStatus { account: None, server: None, access: false })));
+                    message.set(Some(Ok(t("Cloud-Konto gelöscht. Die Daten auf diesem Gerät bleiben.").into())));
+                }
+                Err(error) => message.set(Some(Err(error))),
+            }
+            busy.set(false);
+        });
+    };
+    view! {
+        <details class="cloud-delete">
+            <summary>{t("Daten in der Cloud löschen")}</summary>
+            <p class="notes">{t("Nur die Kopie auf dem Server wird gelöscht. Die Daten auf deinen Geräten bleiben erhalten.")}</p>
+            <Show
+                when=move || confirming.get()
+                fallback=move || view! {
+                    <button type="button" disabled=move || busy.get() on:click=move |_| confirming.set(true)>
+                        {t("Cloud-Daten löschen …")}
+                    </button>
+                }
+            >
+                <p role="alert">{t("Alle synchronisierten Änderungen und Medien werden vom Server gelöscht. Andere angemeldete Geräte laden ihre Daten beim nächsten Sync wieder hoch.")}</p>
+                <button type="button" class="danger" disabled=move || busy.get() on:click=move |_| erase()>
+                    {t("Ja, Cloud-Daten löschen")}
+                </button>
+                <button type="button" disabled=move || busy.get() on:click=move |_| confirming.set(false)>
+                    {t("Abbrechen")}
+                </button>
+            </Show>
+            <form on:submit=move |event| { event.prevent_default(); delete_account(); }>
+                <p class="notes">{t("Konto löschen entfernt das Konto mit allen Daten vom Server und meldet dieses Gerät ab. Ein Abo beim Zahlungsanbieter bitte dort kündigen.")}</p>
+                <label class="input"><span>{t("Cloud-Passwort")}</span>
+                    <input type="password" autocomplete="current-password" bind:value=password />
+                </label>
+                <button type="submit" class="danger" disabled=move || busy.get()>{t("Konto endgültig löschen")}</button>
+            </form>
+        </details>
     }
 }
 

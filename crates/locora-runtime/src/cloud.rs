@@ -190,6 +190,44 @@ pub fn create_keys_call(state: &CloudState, bundle: &KeyBundle) -> Result<Call> 
     call(Method::Post, &state.server, "/v1/keys", Some(&state.token), Some(json_body(bundle)?))
 }
 
+pub fn retention_call(state: &CloudState) -> Result<Call> {
+    call(Method::Get, &state.server, "/v1/sync/retention", Some(&state.token), None)
+}
+
+pub fn rebuild_call(state: &CloudState, generation: i64) -> Result<Call> {
+    let body = serde_json::json!({ "generation": generation });
+    call(Method::Post, &state.server, "/v1/sync/rebuild", Some(&state.token), Some(json_body(&body)?))
+}
+
+/// Deletes the account's synced operations and media on the server; the reply is the new
+/// generation (see `adopt_generation`).
+pub fn erase_call(state: &CloudState) -> Result<Call> {
+    call(Method::Delete, &state.server, "/v1/sync/data", Some(&state.token), None)
+}
+
+/// Deletes the account with all its data on the server, once its password is confirmed.
+pub fn delete_account_call(state: &CloudState, password: &str) -> Result<Call> {
+    let body = serde_json::json!({ "password": password });
+    call(Method::Post, &state.server, "/v1/me/delete", Some(&state.token), Some(json_body(&body)?))
+}
+
+/// Starts over with the server's generation: the next sync sends all local data and reads all of
+/// the server's again. Needed after the cloud data was deleted or expired.
+/// The answer to `delete_account_call`: a refusal there means the password was wrong.
+pub fn delete_account_reply(reply: Reply) -> Result<()> {
+    if reply.status == 401 {
+        bail!("Das Cloud-Passwort stimmt nicht");
+    }
+    cloud_http::expect_success(reply)
+}
+
+pub fn adopt_generation(state: &mut CloudState, store: &locora_store::Store, generation: i64) -> Result<()> {
+    store.set_sync_cursor("push", 0)?;
+    store.set_sync_cursor("pull", 0)?;
+    state.sync_generation = generation;
+    Ok(())
+}
+
 pub fn logout_call(state: &CloudState) -> Result<Call> {
     call(Method::Delete, &state.server, "/v1/sessions", Some(&state.token), None)
 }
@@ -213,7 +251,8 @@ pub(crate) fn media_call(state: &CloudState, method: Method, id: &str, body: Opt
         Some(&state.token),
         body,
     )?;
-    if method == Method::Put {
+    // Uploads and downloads move whole files (up to 500 MiB); a check only asks.
+    if matches!(method, Method::Put | Method::Get) {
         call.timeout_secs = MEDIA_TIMEOUT_SECS;
     }
     Ok(call)
@@ -424,6 +463,16 @@ mod blocking {
 
     pub fn begin_rebuild(state: &CloudState, generation: i64) -> Result<RetentionStatus> {
         post(&state.server, "/v1/sync/rebuild", Some(&state.token), &serde_json::json!({"generation": generation}))
+    }
+
+    /// Deletes the synced data on the server; the reply carries the new generation.
+    pub fn erase(state: &CloudState) -> Result<RetentionStatus> {
+        run(Exchange::new(erase_call(state)?, json::<RetentionStatus>))
+    }
+
+    /// Deletes the account on the server; the caller then removes the local session.
+    pub fn delete_account(state: &CloudState, password: &str) -> Result<()> {
+        run(Exchange::new(delete_account_call(state, password)?, delete_account_reply))
     }
 
     /// All-time ranking of this account's world, or of its friends.
@@ -687,6 +736,7 @@ mod tests {
         let upload = media_call(&state, Method::Put, "abc", Some(Body::Bytes(vec![1]))).unwrap();
         assert_eq!(upload.timeout_secs, MEDIA_TIMEOUT_SECS);
         assert_eq!(upload.url, "https://cloud.example/v1/media/abc?generation=3");
+        assert_eq!(media_call(&state, Method::Get, "abc", None).unwrap().timeout_secs, MEDIA_TIMEOUT_SECS);
         assert_eq!(media_call(&state, Method::Head, "abc", None).unwrap().timeout_secs, TIMEOUT_SECS);
     }
 }

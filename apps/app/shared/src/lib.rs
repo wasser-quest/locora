@@ -97,6 +97,10 @@ pub const CMD_CLOUD_KEYS_STATUS: &str = "cloud_keys_status";
 pub const CMD_CLOUD_KEYS_SETUP: &str = "cloud_keys_setup";
 pub const CMD_CLOUD_LOGOUT: &str = "cloud_logout";
 pub const CMD_CLOUD_REFRESH: &str = "cloud_refresh";
+/// Deletes the synced data on the server; the devices keep theirs.
+pub const CMD_CLOUD_ERASE: &str = "cloud_erase";
+/// Deletes the cloud account (its password confirms it) and signs this device out.
+pub const CMD_CLOUD_DELETE_ACCOUNT: &str = "cloud_delete_account";
 
 /// Credentials go directly to the Tauri backend; the UI never persists them.
 #[derive(Clone, Serialize, Deserialize)]

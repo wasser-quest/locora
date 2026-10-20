@@ -46,6 +46,9 @@ pub struct SyncReport {
     /// Newly quarantined operations, retained locally with payload and reason.
     pub quarantined: Vec<String>,
     pub cloud_expires_at: Option<i64>,
+    /// Set when this sync started over with a new generation of the server (its cloud data was
+    /// deleted or had expired): the caller saves it in the cloud state.
+    pub new_generation: Option<i64>,
 }
 
 /// App entry point for the same encrypted sync used by the CLI. The passphrase
@@ -56,7 +59,13 @@ pub fn sync_with_passphrase(data: &Path, store: &Store, passphrase: &str) -> Res
     if cloud::access(&state, cloud::now_secs()).is_none() {
         bail!("Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren");
     }
-    cloud_http::run(UnlockSync::new(state, store, passphrase.to_owned()))
+    let mut state = state;
+    let report = cloud_http::run(UnlockSync::new(state.clone(), store, passphrase.to_owned()))?;
+    if let Some(generation) = report.new_generation {
+        state.sync_generation = generation;
+        cloud::save(data, &state)?;
+    }
+    Ok(report)
 }
 
 #[cfg(feature = "cloud")]
@@ -66,11 +75,21 @@ pub fn sync(state: &CloudState, store: &Store, dek: &Dek) -> Result<SyncReport> 
 
 /// Unlocks the account key with the passphrase (after fetching the wrapped keys), then syncs.
 /// `S` is the store, borrowed on the desktop and shared in the browser.
+/// Before the sync, the server's generation is checked: after the cloud data was deleted (or had
+/// expired, which is restored from this device), the device starts over and sends all its data.
 pub struct UnlockSync<S> {
     state: CloudState,
     store: S,
     passphrase: String,
+    stage: Stage,
+    new_generation: Option<i64>,
     syncing: Option<SyncFlow<S, Box<Dek>>>,
+}
+
+enum Stage {
+    Keys,
+    Retention(Box<Dek>),
+    Rebuild(Box<Dek>),
 }
 
 impl<S: Clone + Deref<Target = Store>> UnlockSync<S> {
@@ -79,7 +98,31 @@ impl<S: Clone + Deref<Target = Store>> UnlockSync<S> {
             state,
             store,
             passphrase,
+            stage: Stage::Keys,
+            new_generation: None,
             syncing: None,
+        }
+    }
+
+    /// Adopts the server's generation when it differs, then runs the sync itself.
+    fn start(&mut self, dek: Box<Dek>, status: RetentionStatus) -> Result<Step<SyncReport>> {
+        if status.generation != self.state.sync_generation {
+            cloud::adopt_generation(&mut self.state, &self.store, status.generation)?;
+            self.new_generation = Some(status.generation);
+        }
+        let mut flow = SyncFlow::new(self.state.clone(), self.store.clone(), dek)?;
+        let first = flow.step(None)?;
+        self.syncing = Some(flow);
+        Ok(self.finish(first))
+    }
+
+    fn finish(&self, step: Step<SyncReport>) -> Step<SyncReport> {
+        match step {
+            Step::Done(mut report) => {
+                report.new_generation = self.new_generation;
+                Step::Done(report)
+            }
+            call => call,
         }
     }
 }
@@ -89,19 +132,36 @@ impl<S: Clone + Deref<Target = Store>> Flow for UnlockSync<S> {
 
     fn step(&mut self, reply: Option<Reply>) -> Result<Step<SyncReport>> {
         if let Some(flow) = self.syncing.as_mut() {
-            return flow.step(reply);
+            let step = flow.step(reply)?;
+            return Ok(self.finish(step));
         }
         let Some(reply) = reply else {
             return Ok(Step::Call(cloud::keys_call(&self.state)?));
         };
-        let Some(bundle) = cloud::keys_reply(reply)? else {
-            bail!("Verschlüsselung fehlt. In den Einstellungen einrichten");
-        };
-        let dek = locora_crypto::unlock(&bundle, &self.passphrase)?;
-        let mut flow = SyncFlow::new(self.state.clone(), self.store.clone(), Box::new(dek))?;
-        let first = flow.step(None)?;
-        self.syncing = Some(flow);
-        Ok(first)
+        match std::mem::replace(&mut self.stage, Stage::Keys) {
+            Stage::Keys => {
+                let Some(bundle) = cloud::keys_reply(reply)? else {
+                    bail!("Verschlüsselung fehlt. In den Einstellungen einrichten");
+                };
+                let dek = Box::new(locora_crypto::unlock(&bundle, &self.passphrase)?);
+                self.stage = Stage::Retention(dek);
+                Ok(Step::Call(cloud::retention_call(&self.state)?))
+            }
+            Stage::Retention(dek) => {
+                let status: RetentionStatus = json(reply)?;
+                if status.state == "expired" {
+                    // Expired data is restored from this device.
+                    let call = cloud::rebuild_call(&self.state, status.generation)?;
+                    self.stage = Stage::Rebuild(dek);
+                    return Ok(Step::Call(call));
+                }
+                self.start(dek, status)
+            }
+            Stage::Rebuild(dek) => {
+                let status: RetentionStatus = json(reply)?;
+                self.start(dek, status)
+            }
+        }
     }
 }
 

@@ -39,6 +39,10 @@ pub enum CloudCommand {
     Rebuild,
     /// Freischaltung beim Server erneuern (nur mit aktivem Abo)
     Refresh,
+    /// Alle synchronisierten Daten (Änderungen und Medien) vom Server löschen; die Geräte behalten ihre
+    Erase,
+    /// Das Cloud-Konto mit allen Daten auf dem Server löschen (ein Abo beim Zahlungsanbieter bleibt)
+    DeleteAccount,
     /// Änderungen mit Locora Cloud austauschen (Ende-zu-Ende-verschlüsselt, fragt das Verschlüsselungs-Passwort ab)
     Sync,
     /// Verschlüsselung einrichten oder wiederherstellen
@@ -156,10 +160,13 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
                 )
             })?;
             let passphrase = read_password("Verschlüsselungs-Passwort: ")?;
-            let dek =
-                locora_crypto::unlock(&bundle, &passphrase).map_err(|e| anyhow::anyhow!("{e}"))?;
+            locora_crypto::unlock(&bundle, &passphrase).map_err(|e| anyhow::anyhow!("{e}"))?;
             let app = crate::app::App::open(Some(&data))?;
-            let report = cloud_sync::sync(&state, &app.store, &dek)?;
+            // Also starts over with a new generation of the server (deleted or expired cloud data).
+            let report = cloud_sync::sync_with_passphrase(&data, &app.store, &passphrase)?;
+            if report.new_generation.is_some() {
+                println!("  Neuer Cloud-Stand: alle Daten dieses Geräts werden gesendet.");
+            }
             println!(
                 "✓ Sync: {} gesendet, {} Medien hochgeladen, {} empfangen, {} Medien geladen",
                 report.pushed, report.media_uploaded, report.pulled, report.media_downloaded
@@ -192,6 +199,31 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             );
             println!("Cloud-Löschung ab: {}", date(retention.expires_at as u64));
             println!("Sync-Generation: {}", retention.generation);
+            Ok(())
+        }
+        CloudCommand::Erase => {
+            let mut state = signed_in(&data)?;
+            if !confirm("Alle synchronisierten Daten auf dem Server löschen? Tippe „löschen“: ")? {
+                bail!("Abgebrochen");
+            }
+            let remote = cloud::erase(&state)?;
+            let app = crate::app::App::open(Some(&data))?;
+            cloud::adopt_generation(&mut state, &app.store, remote.generation)?;
+            cloud::save(&data, &state)?;
+            println!("✓ Cloud-Daten gelöscht. Die Daten auf diesem Gerät bleiben.");
+            println!("  Andere angemeldete Geräte senden ihre Daten beim nächsten Sync wieder.");
+            Ok(())
+        }
+        CloudCommand::DeleteAccount => {
+            let state = signed_in(&data)?;
+            if !confirm("Das Cloud-Konto mit allen Daten löschen? Tippe „löschen“: ")? {
+                bail!("Abgebrochen");
+            }
+            let password = read_password("Cloud-Passwort: ")?;
+            cloud::delete_account(&state, &password)?;
+            cloud::remove(&data)?;
+            println!("✓ Cloud-Konto gelöscht. Die Daten auf diesem Gerät bleiben.");
+            println!("  Ein laufendes Abo beim Zahlungsanbieter bitte dort kündigen.");
             Ok(())
         }
         CloudCommand::Rebuild => {
@@ -419,6 +451,16 @@ fn server_or_default(server: Option<String>, data: &Path) -> Result<String> {
 }
 
 /// Reads a password from the terminal without echo, or one line from a pipe.
+/// Asks for the word „löschen“ before something is deleted.
+fn confirm(prompt: &str) -> Result<bool> {
+    use std::io::Write;
+    print!("{prompt}");
+    io::stdout().flush()?;
+    let mut line = String::new();
+    io::stdin().lock().read_line(&mut line)?;
+    Ok(line.trim() == "löschen")
+}
+
 fn read_password(prompt: &str) -> Result<String> {
     if io::stdin().is_terminal() {
         return Ok(rpassword::prompt_password(prompt)?);

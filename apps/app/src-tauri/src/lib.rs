@@ -756,6 +756,37 @@ async fn cloud_sync(
     .map_err(|error| format!("Cloud-Sync konnte nicht abgeschlossen werden: {error}"))?
 }
 
+/// Deletes the synced data on the server. This device starts over with the new generation, so its
+/// next sync sends everything it has.
+#[tauri::command]
+async fn cloud_erase(app: tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<Shared>();
+    let (data, store, busy) = {
+        let backend = lock(&state)?;
+        (
+            backend.data.clone(),
+            backend.profile.store.clone(),
+            backend.cloud_sync_busy.clone(),
+        )
+    };
+    if busy.swap(true, Ordering::AcqRel) {
+        return Err("Ein Cloud-Sync läuft gerade".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = (|| {
+            use locora_runtime::cloud;
+            let mut saved = cloud::load(&data)?.ok_or_else(|| anyhow::anyhow!("Kein Cloud-Konto angemeldet"))?;
+            let remote = cloud::erase(&saved)?;
+            cloud::adopt_generation(&mut saved, &store, remote.generation)?;
+            cloud::save(&data, &saved)
+        })();
+        busy.store(false, Ordering::Release);
+        result.map_err(err)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// The UI sends the system's UTC offset at every start (summer time included).
 #[tauri::command]
 async fn set_utc_offset(
@@ -1057,6 +1088,8 @@ pub fn run() {
             cloud_setup::cloud_keys_setup,
             cloud_setup::cloud_logout,
             cloud_setup::cloud_refresh,
+            cloud_setup::cloud_delete_account,
+            cloud_erase,
             ui_assets,
             gamification_status,
             activity,
