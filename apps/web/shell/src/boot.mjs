@@ -357,42 +357,69 @@ window.addEventListener('drop', (event) => {
 
 // Installable: a button offers the app for the home screen. Chromium browsers make the offer
 // (beforeinstallprompt) and the button starts it. Safari on iPhone and iPad makes no offer, so there
-// the button explains the Share menu instead.
-const installStyle = 'position:fixed;right:12px;bottom:80px;z-index:1000;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:8px;border:0;background:#3a3c8c;color:#fff;font:inherit;text-align:left;cursor:pointer';
+// the button explains the Share menu instead. The × hides the offer for good; the choice is kept on
+// this device (localStorage), and nothing else changes.
+const installWrapStyle = 'position:fixed;right:12px;bottom:80px;z-index:1000;display:flex;gap:6px;align-items:center;max-width:calc(100vw - 24px)';
+const installStyle = 'padding:8px 12px;border-radius:8px;border:0;background:#3a3c8c;color:#fff;font:inherit;text-align:left;cursor:pointer';
+const installCloseStyle = 'padding:6px 10px;border-radius:8px;border:0;background:#2a2c5c;color:#fff;font:inherit;cursor:pointer';
+const installHintKey = 'locora-install-hint';
 const installed = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const installHidden = () => {
+  try {
+    return localStorage.getItem(installHintKey) === 'hidden';
+  } catch (_) {
+    return false;
+  }
+};
 let installPrompt = null;
 let installOffered = false;
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   installPrompt = event;
   installOffered = true;
-  document.querySelectorAll('[data-install]').forEach((button) => button.remove());
+  if (installHidden()) return;
+  document.querySelectorAll('[data-install]').forEach((element) => element.remove());
   offerInstall('Install Locora', async () => {
     await installPrompt.prompt();
     installPrompt = null;
   });
 });
-if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !installed) {
+if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !installed && !installHidden()) {
   offerInstall('To install: tap Share, then Add to Home Screen', () => {});
 }
 // Chrome makes its own offer only when its checks pass (a worker in control, some engagement), and it
 // may not make it at all. When it has not after a few seconds, the button shows where the menu has it.
 if (/Android/.test(navigator.userAgent) && !installed) {
   setTimeout(() => {
-    if (!installOffered) offerInstall('Install Locora: menu ⋮ → Install app', () => {});
+    if (!installOffered && !installHidden()) offerInstall('Install Locora: menu ⋮ → Install app', () => {});
   }, 3000);
 }
 
 function offerInstall(label, onClick) {
+  const wrap = document.createElement('div');
+  wrap.dataset.install = '';
+  wrap.setAttribute('style', installWrapStyle);
   const button = document.createElement('button');
   button.textContent = label;
-  button.dataset.install = '';
   button.setAttribute('style', installStyle);
   button.addEventListener('click', () => {
-    button.remove();
+    wrap.remove();
     onClick();
   });
-  document.body.append(button);
+  const close = document.createElement('button');
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Hide the install hint');
+  close.setAttribute('style', installCloseStyle);
+  close.addEventListener('click', () => {
+    try {
+      localStorage.setItem(installHintKey, 'hidden');
+    } catch (_) {
+      // Storage is not available: the hint is hidden for this page view only.
+    }
+    document.querySelectorAll('[data-install]').forEach((element) => element.remove());
+  });
+  wrap.append(button, close);
+  document.body.append(wrap);
 }
 
 window.__TAURI__ = { core: { invoke, convertFileSrc } };
