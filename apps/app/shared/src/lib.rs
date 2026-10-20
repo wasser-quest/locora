@@ -90,6 +90,12 @@ pub struct ImportedPalace {
 pub const CMD_SETTINGS: &str = "settings";
 pub const CMD_SETTINGS_SET: &str = "settings_set";
 pub const CMD_SETTINGS_OPTIMIZE: &str = "settings_optimize";
+/// The formulas of a palace: its tables, the shared tables and the bindings of its loci.
+pub const CMD_WORKBOOK: &str = "workbook";
+/// One change to a table cell or a binding; the reply is the workbook as it now reads.
+pub const CMD_WORKBOOK_CHANGE: &str = "workbook_change";
+/// The value of a formula with the palace's tables, without saving anything.
+pub const CMD_WORKBOOK_CALC: &str = "workbook_calc";
 pub const CMD_CLOUD_STATUS: &str = "cloud_status";
 pub const CMD_CLOUD_SYNC: &str = "cloud_sync";
 pub const CMD_CLOUD_CONNECT: &str = "cloud_connect";
@@ -774,4 +780,57 @@ mod tests {
         };
         assert_eq!(png.path(), "media/cd");
     }
+}
+
+/// One cell of a workbook table: its column, its type (`text`, `number`, `boolean`, `json`,
+/// `formula`, `asset`, `palace`, `room`) and its value as written.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkbookCell {
+    pub column: String,
+    pub kind: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkbookRow {
+    pub table: String,
+    pub key: String,
+    pub cells: Vec<WorkbookCell>,
+}
+
+/// A formula bound to a locus field, with what it gives now (or why it fails).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkbookBinding {
+    pub field: String,
+    pub expression: String,
+    pub value: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkbookLocus {
+    pub id: String,
+    pub number: u32,
+    pub place: String,
+    pub bindings: Vec<WorkbookBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkbookView {
+    pub palace_id: String,
+    /// The palace's own tables, then the tables all palaces share.
+    pub rows: Vec<WorkbookRow>,
+    pub shared: Vec<WorkbookRow>,
+    /// Every locus in route order, with its bindings.
+    pub loci: Vec<WorkbookLocus>,
+}
+
+/// A change to a palace's workbook. `shared` edits the tables all palaces share.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "change", rename_all = "snake_case")]
+pub enum WorkbookChange {
+    SetCell { shared: bool, table: String, key: String, column: String, kind: String, value: String },
+    RemoveCell { shared: bool, table: String, key: String, column: String },
+    Bind { locus_id: String, field: String, expression: String },
+    Unbind { locus_id: String, field: String },
 }

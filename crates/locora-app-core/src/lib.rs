@@ -9,3 +9,4 @@ pub mod settings;
 pub mod sply;
 pub mod transfer;
 pub mod views;
+pub mod workbook;

@@ -8,6 +8,7 @@ mod dashboard;
 mod dashboard_editor;
 mod look;
 mod editor;
+mod formulas;
 mod i18n;
 mod i18n_catalog;
 mod journey;

@@ -4,7 +4,7 @@
 mod cloud_setup;
 mod drops;
 pub use locora_app_core::journey;
-use locora_app_core::{assets, editor, settings, sply, transfer};
+use locora_app_core::{assets, editor, settings, sply, transfer, workbook};
 mod media;
 #[cfg(any(mobile, test))]
 #[cfg_attr(not(mobile), allow(dead_code))]
@@ -153,6 +153,29 @@ async fn palace(state: State<'_, Shared>, id: String) -> Result<PalaceView, Stri
     let mut b = lock(&state)?;
     let marker = b.default_marker.clone();
     views::palace(&mut b.profile, &id, &marker).map_err(err)
+}
+
+/// The formulas of a palace: its tables, the shared tables and the bindings of its loci.
+#[tauri::command]
+async fn workbook(state: State<'_, Shared>, palace_id: String) -> Result<locora_app_api::WorkbookView, String> {
+    let b = lock(&state)?;
+    workbook::view(&b.profile.store, &palace_id).map_err(err)
+}
+
+#[tauri::command]
+async fn workbook_change(
+    state: State<'_, Shared>,
+    palace_id: String,
+    change: locora_app_api::WorkbookChange,
+) -> Result<locora_app_api::WorkbookView, String> {
+    let b = lock(&state)?;
+    workbook::change(&b.profile.store, &palace_id, change).map_err(err)
+}
+
+#[tauri::command]
+async fn workbook_calc(state: State<'_, Shared>, palace_id: String, expression: String) -> Result<String, String> {
+    let b = lock(&state)?;
+    workbook::calc(&b.profile.store, &palace_id, &expression).map_err(err)
 }
 
 /// Rename a palace; the reply is the palace as it now reads.
@@ -317,6 +340,19 @@ async fn home_pick_media(
     let staged = selected
         .map(|s| mobile_files::stage(&app, s, mobile_files::Kind::Media))
         .transpose()?;
+    // A video becomes MP4 with H.264 first, encoded by the device; it can take a while.
+    #[cfg(target_os = "android")]
+    let staged = match staged {
+        Some(staged) => {
+            let converter = app.clone();
+            Some(
+                tauri::async_runtime::spawn_blocking(move || mobile_files::as_mp4(&converter, staged))
+                    .await
+                    .map_err(|e| format!("Umwandlung fehlgeschlagen: {e}"))??,
+            )
+        }
+        None => None,
+    };
     #[cfg(mobile)]
     let path = staged.as_ref().map(|s| s.path());
     #[cfg(desktop)]
@@ -1003,6 +1039,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_locora_video::init())
         .setup(|app| {
             // The window comes first; the profile opens behind it and commands wait for it.
             app.manage::<Shared>(Shared::new());
@@ -1068,6 +1105,9 @@ pub fn run() {
             notification_shown,
             editor_change,
             palace_rename,
+            workbook,
+            workbook_change,
+            workbook_calc,
             room_rename,
             room_move,
             room_delete,

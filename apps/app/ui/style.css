@@ -407,3 +407,20 @@ iframe.sply.medal-art, img.sply.medal-art { width: 72px; height: 72px; max-heigh
   .grades button { font-size: 1.15rem; padding: .6rem .5rem; }
   .answer .picture { width: min(120px, 12vh); }
 }
+
+/* The formula editor (formulas.rs): a modal over the room editor, scrolling on its own. */
+.formula-editor { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; padding: 16px 20px; }
+.formula-editor section { margin-top: 16px; }
+.formula-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.formula-head h2 { margin: 0; }
+.formula-binding { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.formula-cells { display: grid; gap: 6px; margin: 8px 0; }
+.formula-cell { display: grid; grid-template-columns: minmax(0, 1.4fr) auto minmax(0, 1.4fr) auto auto; gap: 6px; align-items: center; }
+.formula-cell code { overflow-wrap: anywhere; }
+.formula-new { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; align-items: end; }
+.formula-calc { display: flex; gap: 8px; align-items: end; }
+.formula-calc .input { flex: 1; }
+@media (max-width: 560px) {
+  .formula-cell { grid-template-columns: 1fr 1fr; }
+  .formula-cell code { grid-column: 1 / -1; }
+}

@@ -98,7 +98,7 @@ fn palaces_from_files_with_labels_positions_and_video_times() {
     );
 
     let video = d.join("vortrag.mp4");
-    std::fs::write(&video, b"not really a video").unwrap();
+    std::fs::write(&video, locora_media::fixtures::mp4()).unwrap();
     let out = run(
         d,
         T0,
@@ -140,7 +140,7 @@ fn export_and_import_between_profiles() {
     let a = tempfile::tempdir().unwrap();
     let b = tempfile::tempdir().unwrap();
     let image = a.path().join("kueche.png");
-    std::fs::write(&image, b"\x89PNG not really").unwrap();
+    std::fs::write(&image, locora_media::fixtures::png()).unwrap();
     ok(
         a.path(),
         T0,

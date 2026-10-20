@@ -574,6 +574,11 @@ struct PalaceIdArgs {
     palace_id: String,
 }
 
+#[derive(Serialize)]
+struct PalaceReloadArgs {
+    id: String,
+}
+
 /// Deleting the palace leaves the editor for the start screen.
 fn delete_palace(editor: Editor, screen: Option<RwSignal<crate::Screen>>, palace_id: String) {
     if editor.busy.get_untracked() || editor.dirty.get_untracked() {
@@ -766,6 +771,28 @@ pub fn Rooms(
                 .collect::<Vec<_>>()
         })
     });
+    // The formula editor opens over the room editor; closing it reloads the palace, whose bound
+    // fields may have changed.
+    let formulas_open = RwSignal::new(false);
+    let formulas_editor = editor.clone();
+    let formulas_closed = {
+        let editor = editor.clone();
+        Callback::new(move |()| {
+            formulas_open.set(false);
+            let editor = editor.clone();
+            let id = editor.data.with_untracked(|p| p.id.clone());
+            spawn_local(async move {
+                match call::<PalaceView>(locora_app_api::CMD_PALACE, PalaceReloadArgs { id }).await {
+                    Ok(palace) => {
+                        editor.data.set(palace);
+                        // The open locus form is rebuilt, so newly bound fields become read-only.
+                        editor.history_epoch.update(|epoch| *epoch += 1);
+                    }
+                    Err(error) => editor.message.set(error),
+                }
+            });
+        })
+    };
     let drop_message = editor.message;
     let drop_selection = editor.selected;
     crate::tauri::on_file_drop(move |_| {
@@ -850,6 +877,14 @@ pub fn Rooms(
                         </div>
                     </details>
                 </Show>
+                <details class="editor-group">
+                    <summary>{t("Formeln")}</summary>
+                    <div class="editor-group-body">
+                        <p class="notes">{t("Tabellen und Formeln dieses Palasts; eine Formel kann Ort, Inhalt, Position und Sichtbarkeit eines Orts setzen.")}</p>
+                        <button disabled=move || busy.get() || dirty.get() || dragging.get()
+                            on:click=move |_| formulas_open.set(true)>{t("Formeln bearbeiten …")}</button>
+                    </div>
+                </details>
                 <details class="editor-group" open>
                     <summary>{t("Palast und Räume")}</summary>
                     <div class="editor-group-body"><PalaceNames editor=editor.clone() /></div>
@@ -895,6 +930,18 @@ pub fn Rooms(
             view! { <RoomStage editor=stage room=room live=live editing=editing adding=adding revealed=revealed playhead=playhead /> }.into_any()
         }}
         </div>
+        <Show when=move || formulas_open.get()>
+            {
+                let editor = formulas_editor.clone();
+                move || view! {
+                    <crate::formulas::FormulaEditor
+                        palace_id=editor.data.with_untracked(|p| p.id.clone())
+                        locus=editor.selected.get_untracked()
+                        on_close=formulas_closed
+                    />
+                }
+            }
+        </Show>
         <p role="status" class="notes">{move || message.get()}</p>
         {
             let undo = toast_editor.clone();

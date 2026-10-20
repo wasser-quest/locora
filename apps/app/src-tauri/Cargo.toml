@@ -35,6 +35,7 @@ tauri = { version = "2.12.4", features = [] }
 tauri-plugin-dialog = "2.8.3"
 tauri-plugin-fs = "2.7.1"
 tauri-plugin-notification = "2.7.0"
+tauri-plugin-locora-video = { path = "../plugins/video" }
 tempfile = "3"
 zeroize = "1"
 

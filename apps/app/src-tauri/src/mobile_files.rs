@@ -50,6 +50,29 @@ pub fn stage(app: &AppHandle, selected: FilePath, kind: Kind) -> Result<Staged, 
     result.map(|file| Staged { file, name })
 }
 
+/// A staged video as MP4 with H.264, converted by the device (see `tauri-plugin-locora-video`);
+/// pictures stay as they are. The core then removes the metadata.
+#[cfg(target_os = "android")]
+pub fn as_mp4(app: &AppHandle, staged: Staged) -> Result<Staged, String> {
+    let extension = staged
+        .path()
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    if !matches!(extension.as_deref(), Some("mp4" | "m4v" | "webm" | "mov")) {
+        return Ok(staged);
+    }
+    let output = tempfile::Builder::new()
+        .suffix(".mp4")
+        .tempfile()
+        .map_err(|e| format!("Temporäre Datei anlegen: {e}"))?;
+    tauri_plugin_locora_video::convert(app, staged.path(), output.path())?;
+    Ok(Staged {
+        file: output,
+        name: staged.name,
+    })
+}
+
 fn selected_name(selected: &FilePath) -> Option<String> {
     let file_name = match selected {
         FilePath::Path(path) => path.file_name()?.to_str()?.to_owned(),

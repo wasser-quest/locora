@@ -60,7 +60,7 @@ fn build_check_replace_and_dump() {
     let dir = tempfile::tempdir().unwrap();
     let d = dir.path();
     let profile = d.join("profil");
-    std::fs::write(d.join("wohnung.png"), b"\x89PNG fake").unwrap();
+    std::fs::write(d.join("wohnung.png"), locora_media::fixtures::png()).unwrap();
     let file = d.join("planeten.locora.toml");
     std::fs::write(&file, SOURCE).unwrap();
     let f = file.to_str().unwrap();

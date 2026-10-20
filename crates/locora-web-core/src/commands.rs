@@ -11,7 +11,7 @@ use locora_app_api::{
     PictureTarget, Reply, SettingsChange, Step, Summary, TourAction, UtcOffset,
 };
 use locora_app_core::journey::Journey;
-use locora_app_core::{editor, settings, sply, transfer, views};
+use locora_app_core::{editor, settings, sply, transfer, views, workbook};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -162,6 +162,26 @@ struct SplyArgs {
     hash: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkbookArgs {
+    palace_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkbookChangeArgs {
+    palace_id: String,
+    change: locora_app_api::WorkbookChange,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkbookCalcArgs {
+    palace_id: String,
+    expression: String,
+}
+
 /// The running journey; a finished one only takes actions on its last answer.
 fn running(journey: Option<&mut Journey>) -> Result<&mut Journey> {
     match journey {
@@ -181,6 +201,9 @@ pub const NAMES: &[&str] = &[
     "room_move",
     "palace_delete",
     "editor_change",
+    "workbook",
+    "workbook_change",
+    "workbook_calc",
     "tutorial",
     "formula_guide",
     "tour",
@@ -270,6 +293,18 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         "palace" => {
             let a: IdArgs = take(args)?;
             out(views::palace(profile, &a.id, default_marker)?)
+        }
+        "workbook" => {
+            let a: WorkbookArgs = take(args)?;
+            out(workbook::view(&profile.store, &a.palace_id)?)
+        }
+        "workbook_change" => {
+            let a: WorkbookChangeArgs = take(args)?;
+            out(workbook::change(&profile.store, &a.palace_id, a.change)?)
+        }
+        "workbook_calc" => {
+            let a: WorkbookCalcArgs = take(args)?;
+            out(workbook::calc(&profile.store, &a.palace_id, &a.expression)?)
         }
         "palace_rename" => {
             let a: PalaceRenameArgs = take(args)?;

@@ -3,7 +3,7 @@
 # main workspace builds without WebKit/GTK development packages.
 [workspace]
 resolver = "3"
-members = ["shared", "src-tauri", "ui"]
+members = ["plugins/video", "shared", "src-tauri", "ui"]
 
 [workspace.package]
 version = "0.1.0"

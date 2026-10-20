@@ -1,0 +1,17 @@
+[package]
+name = "tauri-plugin-locora-video"
+description = "Converts videos to MP4 with H.264 on Android, with the device's encoder (Media3 Transformer)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+links = "tauri-plugin-locora-video"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tauri = "2.12.4"
+
+[build-dependencies]
+tauri-plugin = { version = "2.7.1", features = ["build"] }
