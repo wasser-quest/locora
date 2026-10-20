@@ -7,7 +7,7 @@ import os, re, sys
 from html.parser import HTMLParser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ALLOWED_FILES = {"index.html", "privacy.html", "impressum.html", "style.css", "_headers", "README.md", "check.py", "Dockerfile", "nginx.conf"}
+ALLOWED_FILES = {"index.html", "privacy.html", "impressum.html", "konto-loeschen.html", "style.css", "_headers", "README.md", "check.py", "Dockerfile", "nginx.conf"}
 # Only these are allowed to leave the site: the project's own repository, as a plain link.
 # The forum and the browser app run as their own services at their public addresses.
 ALLOWED_LINKS = ("https://github.com/wasser-quest/locora", "https://bb.locora.cloud/", "https://app.locora.cloud/")
@@ -76,7 +76,7 @@ def main():
         if required not in names:
             findings.append(f"missing {required}")
     if not findings:
-        for page in ("index.html", "privacy.html"):
+        for page in ("index.html", "privacy.html", "konto-loeschen.html"):
             checker = Checker()
             checker.feed(open(os.path.join(HERE, page), encoding="utf-8").read())
             findings += [f"{page}: {f}" for f in checker.findings]
@@ -84,7 +84,7 @@ def main():
         headers = open(os.path.join(HERE, "_headers"), encoding="utf-8").read()
         if CSP_TOKEN not in headers or "Content-Security-Policy:" not in headers:
             findings.append("_headers has no strict Content-Security-Policy")
-        for page in ("index.html", "privacy.html"):
+        for page in ("index.html", "privacy.html", "konto-loeschen.html"):
             if CSP_TOKEN not in open(os.path.join(HERE, page), encoding="utf-8").read():
                 findings.append(f"{page} has no strict Content-Security-Policy meta tag")
     if findings:

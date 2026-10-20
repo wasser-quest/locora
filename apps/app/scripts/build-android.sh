@@ -53,6 +53,23 @@ if [[ ! -d src-tauri/gen/android ]]; then
 fi
 # Keep an existing generated project in sync with the versioned launcher icons.
 cp -R src-tauri/icons/android/. src-tauri/gen/android/app/src/main/res/
+
+# RELEASE=1 builds the Play Store bundle (.aab), signed with the upload key whose properties file
+# LOCORA_ANDROID_KEYSTORE names (storeFile, storePassword, keyAlias, keyPassword). The file and the
+# key stay outside the repository; the generated project reads them at build time.
+if [[ "${RELEASE:-0}" == 1 ]]; then
+  keystore="${LOCORA_ANDROID_KEYSTORE:-$HOME/locora-deploy-setup/android/keystore.properties}"
+  [[ -f "$keystore" ]] || fail "Schlüsseldatei fehlt: $keystore"
+  export LOCORA_ANDROID_KEYSTORE="$keystore"
+  python3 "$app_dir/scripts/android-release-signing.py" src-tauri/gen/android/app/build.gradle.kts
+  cargo tauri android build --ci --target aarch64 --aab
+  aab="$app_dir/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab"
+  [[ -s "$aab" ]] || fail "AAB wurde nicht erzeugt: $aab"
+  jarsigner -verify "$aab" | grep -q "jar verified" || fail "AAB ist nicht signiert: $aab"
+  printf 'AAB: %s\n' "$aab"
+  exit 0
+fi
+
 cargo tauri android build --ci --debug --target aarch64 --apk
 apk="$app_dir/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
 [[ -s "$apk" ]] || fail "APK wurde nicht erzeugt: $apk"

@@ -114,6 +114,14 @@ cargo tauri android init --ci --skip-targets-install
 cargo tauri android build --ci --debug --target aarch64 --apk
 ```
 
+For the Play Store, `RELEASE=1 scripts/build-android.sh` builds a release bundle
+(`gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`) signed with
+the upload key. `LOCORA_ANDROID_KEYSTORE` names its properties file (`storeFile`,
+`storePassword`, `keyAlias`, `keyPassword`; default
+`~/locora-deploy-setup/android/keystore.properties`), which never enters the repository;
+`scripts/android-release-signing.py` adds the signing to the generated project. Raise `version`
+in `src-tauri/tauri.conf.json` for every upload.
+
 CI uploads `locora-android-arm64-debug` from
 `src-tauri/gen/android/app/build/outputs/apk/**/*.apk` (14-day retention).
 This is a debug-key-signed, installable ARM64 APK, not a Play Store release/AAB.
