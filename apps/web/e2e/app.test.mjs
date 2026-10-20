@@ -177,29 +177,21 @@ test('a palace exports as a .locora file that the app saves to the device', asyn
   }
 });
 
-test('the app reloads and opens offline: the service worker keeps the app and the palaces', async () => {
+test('the app runs without a service worker: none is registered and the page still works after a reload', async () => {
   const { context, page, problems } = await openApp();
   try {
     await page.getByRole('button', { name: 'Start the tutorial' }).click();
     await page.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 15000 });
-    // The worker must control the page before the network goes away.
-    await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20000 });
-    await context.setOffline(true);
+    await page.waitForFunction(() => navigator.serviceWorker.getRegistrations().then((r) => r.length === 0), null, { timeout: 20000 });
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 20000 });
-    // A new page in the same browser profile opens offline too.
-    const second = await context.newPage();
-    second.on('pageerror', (error) => problems.push(`offline page error: ${error.message}`));
-    await second.goto(origin + '/', { waitUntil: 'load' });
-    await second.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 20000 });
-    await context.setOffline(false);
     assert.deepEqual(problems, []);
   } finally {
     await context.close();
   }
 });
 
-test('the app can be installed: manifest, icons and the offline worker are in place', async () => {
+test('the app can be installed: manifest and icons are in place', async () => {
   const { context, page } = await openApp();
   try {
     const manifest = await page.evaluate(async () => (await fetch('manifest.webmanifest')).json());
@@ -211,7 +203,6 @@ test('the app can be installed: manifest, icons and the offline worker are in pl
       assert.equal(await page.evaluate(async (src) => (await fetch(src)).ok, icon.src), true, icon.src);
     }
     assert.equal(await page.locator('link[rel="manifest"]').getAttribute('href'), 'manifest.webmanifest');
-    await page.waitForFunction(() => navigator.serviceWorker.getRegistration().then((r) => !!r), null, { timeout: 20000 });
   } finally {
     await context.close();
   }
