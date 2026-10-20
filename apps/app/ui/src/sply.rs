@@ -390,7 +390,7 @@ pub fn Sply(
         timed_ready.set(false);
         push();
         if let Some(graphic) = target() {
-            if still || holds_first_frame() {
+            if still {
                 let message = js_sys::Object::new();
                 let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
                 let _ = js_sys::Reflect::set(&message, &"still".into(), &true.into());

@@ -42,17 +42,18 @@ function keyOf(url) {
   return path === '' ? 'index.html' : path;
 }
 
+// Network first: online, every file comes from the server, so a new deploy is never mixed with the
+// files of an older one. The cache answers when the network does not (offline).
 async function answer(request, url) {
   const cache = await caches.open(CACHE);
-  const key = keyOf(url);
-  const cached = await cache.match(new URL(key, self.registration.scope).href);
-  if (cached) return cached;
+  const href = new URL(keyOf(url), self.registration.scope).href;
   try {
     const response = await fetch(request);
-    // Files that were not in the list (none today) are kept for the next time.
-    if (response.ok && response.type === 'basic') cache.put(new URL(key, self.registration.scope).href, response.clone());
+    if (response.ok && response.type === 'basic') cache.put(href, response.clone());
     return response;
   } catch (error) {
+    const cached = await cache.match(href);
+    if (cached) return cached;
     // Offline and not stored: the app's start page answers, so the app still opens.
     if (request.mode === 'navigate') {
       const start = await cache.match(new URL('index.html', self.registration.scope).href);

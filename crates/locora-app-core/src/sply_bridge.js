@@ -24,7 +24,15 @@ function attach(svg, host) {
       return out;
     }
     function targetAt(x, y) {
-      var el = document.elementFromPoint(x, y);
+      // x and y are the graphic's own coordinates (its box, in CSS pixels). The page hit-tests in viewport
+      // coordinates; in a frame the box starts at the origin, in the page it does not.
+      var box = svg.getBoundingClientRect();
+      // The page keeps the graphic out of pointer hit tests (pointer-events: none on its box), so the
+      // graphic is hit-testable for this one lookup only. Touches still arrive through the app.
+      var previous = svg.style.pointerEvents;
+      svg.style.pointerEvents = 'auto';
+      var el = document.elementFromPoint(box.left + x, box.top + y);
+      svg.style.pointerEvents = previous;
       return el && el !== svg && svg.contains(el) ? el : null;
     }
     function pointerEvent(type, x, y, bubbles) {
