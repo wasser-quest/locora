@@ -49,7 +49,7 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             })), None)
         }
         "cloud_connect" => {
-            let request: CloudConnect = serde_json::from_value(args.clone())?;
+            let request: CloudConnect = serde_json::from_value(request_of(args))?;
             validate_connect(&request)?;
             if cloud::load(&data)?.is_some() {
                 bail!("Auf diesem Gerät ist bereits ein Cloud-Konto angemeldet");
@@ -78,7 +78,7 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             })), None)
         }
         "cloud_keys_setup" => {
-            let request: CloudKeySetup = serde_json::from_value(args.clone())?;
+            let request: CloudKeySetup = serde_json::from_value(request_of(args))?;
             if !(12..=1024).contains(&request.passphrase.chars().count()) {
                 bail!("Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen");
             }
@@ -184,6 +184,15 @@ fn sync_result(report: SyncReport) -> Result<Value> {
         quarantined: report.quarantined.len(),
         cloud_expires_at: report.cloud_expires_at,
     }))
+}
+
+/// The arguments of a command the UI sends as `{ request: … }`, the shape of the desktop app's
+/// commands; a bare object is taken as it is.
+fn request_of(args: &Value) -> Value {
+    match args.get("request") {
+        Some(request) if request.is_object() => request.clone(),
+        _ => args.clone(),
+    }
 }
 
 /// The same checks the desktop app makes before it contacts the server.
@@ -313,6 +322,16 @@ impl Flow for KeysSetup {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ui_wraps_its_request_and_both_shapes_are_read() {
+        let fields = serde_json::json!({ "server": "https://api.example.com", "email": "a@example.com",
+            "password": "long enough password", "register": true });
+        let wrapped: CloudConnect = serde_json::from_value(request_of(&serde_json::json!({ "request": fields.clone() }))).unwrap();
+        let bare: CloudConnect = serde_json::from_value(request_of(&fields)).unwrap();
+        assert_eq!(wrapped.server, "https://api.example.com");
+        assert_eq!(bare.server, wrapped.server);
+    }
 
     #[test]
     fn a_connect_request_is_checked_before_the_network() {

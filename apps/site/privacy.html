@@ -83,6 +83,7 @@
         <p>Ein Konto ist freiwillig. Die App funktioniert auch ohne. Mit Konto synchronisieren wir deine Paläste zwischen deinen Geräten.</p>
         <ul>
           <li><strong>Konto:</strong> E-Mail-Adresse, Anzeigename, Passwort-Hash (Argon2id).</li>
+          <li><strong>Schutz vor Missbrauch:</strong> Damit niemand massenhaft Konten anlegt, zählen wir Registrierungen je IP-Adresse im Arbeitsspeicher des Servers, höchstens einen Tag lang. Die Adresse wird nicht in der Datenbank gespeichert.</li>
           <li><strong>Sitzungen:</strong> Hash des Anmeldetokens und Ablaufdatum. Das Token selbst zeigt der Server nur einmal an.</li>
           <li><strong>Synchronisation und Medien:</strong> Deine Daten werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Wir speichern nur Chiffrat und den verschlüsselten Schlüssel. Wir können den Inhalt nicht lesen.</li>
           <li><strong>Gastkonto:</strong> Neue Konten sind Gastkonten, bis ein Abo besteht. Die Daten bleiben sechs Monate, wenn das Konto nicht synchronisiert wird; danach werden sie gelöscht. Vorher schicken wir eine Warnung.</li>
