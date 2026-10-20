@@ -105,13 +105,16 @@ collect(parse(html));
 const hashes = [...new Set(inlineScripts)].map(
   (code) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`,
 );
+// The cloud servers the app may talk to (sync). LOCORA_CLOUD_ORIGINS adds others, space-separated
+// (e.g. a self-hosted server); nothing else may be contacted.
+const cloudOrigins = (process.env.LOCORA_CLOUD_ORIGINS ?? 'https://api.locora.cloud').trim();
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'wasm-unsafe-eval' ${hashes.join(' ')}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
   "media-src 'self' blob: data:",
-  "connect-src 'self' blob:",
+  `connect-src 'self' blob: ${cloudOrigins}`,
   "frame-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'none'",
