@@ -15,7 +15,7 @@
       html, body { margin: 0; background: #f3eee3; }
       #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.25rem; padding: 1rem; color: #22234f; font: 500 1.05rem system-ui, sans-serif; text-align: center; }
       #splash-art { width: min(70vw, 300px); height: min(70vw, 300px); }
-      #splash-art svg { width: 100%; height: 100%; }
+      #splash-art svg, #splash-art img { width: 100%; height: 100%; }
       #splash-tip { max-width: 22rem; margin: 0; line-height: 1.4; }
       @media (prefers-color-scheme: dark) {
         html, body { background: #16173a; }
@@ -6937,8 +6937,16 @@ if(controls && (data.audioAssets || []).length) {
         var started = Date.now();
         var art = document.getElementById("splash-art");
         var template = document.getElementById(pick(scenes));
-        // The animation is already in the page: it is inserted at once.
-        if (template) art.appendChild(document.importNode(template.content, true));
+        // The animation is already in the page: it is inserted at once. On Chrome for Android a still
+        // image is shown instead: the browser closes while an animation runs there, and an image runs no script.
+        var androidChrome = /Android/.test(navigator.userAgent) && /Chrome\//.test(navigator.userAgent) && !/Firefox\//.test(navigator.userAgent);
+        if (template && androidChrome) {
+          var still = document.createElement("img");
+          still.className = "sply";
+          still.alt = "";
+          still.src = "splash/" + template.id + ".svg";
+          art.appendChild(still);
+        } else if (template) art.appendChild(document.importNode(template.content, true));
         document.getElementById("splash-tip").textContent = pick(tips[lang] || tips.en);
         var hideRequested = false, removed = false;
         // The splash gives way as soon as the app is mounted; the short minimum only avoids a flicker.

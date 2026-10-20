@@ -62,6 +62,14 @@ fn send_timed(frame: &web_sys::HtmlIFrameElement, action: &str, time: Option<f64
     let _ = window.post_message(&message, "*");
 }
 
+/// Chrome on Android closes the whole browser while an animation plays, so there every animation
+/// holds its first frame. Other browsers play them.
+fn holds_first_frame() -> bool {
+    web_sys::window()
+        .and_then(|window| window.navigator().user_agent().ok())
+        .is_some_and(|agent| agent.contains("Android") && agent.contains("Chrome/") && !agent.contains("Firefox/"))
+}
+
 /// A `.sply` animation. With `state`, the event is sent to the state machine
 /// `machine` whenever it changes (and once the frame has loaded).
 #[component]
@@ -78,6 +86,10 @@ pub fn Sply(
     #[prop(optional)] on_timed_position: Option<Box<dyn Fn(f64) + Send + Sync>>,
     #[prop(optional)] on_timed_error: Option<Box<dyn Fn() + Send + Sync>>,
 ) -> impl IntoView {
+    // On Chrome for Android the graphic is an image: an image runs no script, so the browser stays up.
+    if holds_first_frame() {
+        return view! { <img class=format!("sply {class}") src=url(&media) alt="" /> }.into_any();
+    }
     let frame = NodeRef::<Iframe>::new();
     let ready = RwSignal::new(false);
     let failed = RwSignal::new(false);
@@ -341,7 +353,7 @@ pub fn Sply(
                 ready.set(false);
                 timed_ready.set(false);
                 push();
-                if still {
+                if still || holds_first_frame() {
                     if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
                         let message = js_sys::Object::new();
                         let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
@@ -366,6 +378,7 @@ pub fn Sply(
             <span class="notes" role="alert">{t("Splinely-Runtime nicht gestartet – Animation konnte nicht geladen werden.")}</span>
         </Show>
     }
+    .into_any()
 }
 
 /// Any stored media, filling its box.

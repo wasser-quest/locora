@@ -273,12 +273,29 @@ async function showNotification(item) {
   return true;
 }
 
+// Chrome for Android: the browser closes while an animated graphic runs in its frame, so there a
+// graphic is shown as an image (an image runs no script). The UI makes the same choice (sply.rs).
+const holdsFirstFrame = /Android/.test(navigator.userAgent) && /Chrome\//.test(navigator.userAgent) && !/Firefox\//.test(navigator.userAgent);
+const stillGraphics = new Map();
+
+/** The SVG of a stored graphic as a blob URL, for an image element. */
+function stillGraphicUrl(hash) {
+  if (stillGraphics.has(hash)) return stillGraphics.get(hash);
+  const reply = core ? core('sply_svg', { hash, markers: false }) : { err: 'not ready' };
+  if (reply.err !== undefined) return '';
+  const url = URL.createObjectURL(new Blob([reply.ok], { type: 'image/svg+xml' }));
+  stillGraphics.set(hash, url);
+  return url;
+}
+
 /**
  * The URL of a media path, as the UI shows it: images and videos as blob URLs of the stored bytes;
- * animated graphics as their own frame document.
+ * animated graphics as their own frame document (as an image on Chrome for Android).
  */
 function convertFileSrc(path) {
-  if (path.startsWith('sply/')) return `shell/graphic.html?hash=${path.split('/')[1]}`;
+  if (path.startsWith('sply/')) {
+    return holdsFirstFrame ? stillGraphicUrl(path.split('/')[1]) : `shell/graphic.html?hash=${path.split('/')[1]}`;
+  }
   if (mediaUrls.has(path)) return mediaUrls.get(path);
   const reply = core ? core('media_file', { hash: path.split('/')[1] }) : { err: 'not ready' };
   if (reply.err !== undefined) return '';
