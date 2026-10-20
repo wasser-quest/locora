@@ -6,7 +6,7 @@ use crate::i18n::t;
 use leptos::{html::Iframe, task::spawn_local};
 use leptos::prelude::*;
 use locora_app_api::{Media, MediaKind};
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{JsCast, JsValue};
 
 use crate::tauri::url;
 
@@ -62,6 +62,38 @@ fn send_timed(frame: &web_sys::HtmlIFrameElement, action: &str, time: Option<f64
     let _ = window.post_message(&message, "*");
 }
 
+/// Whether the page mounts graphics inline (boot.mjs defines `locoraMountGraphic`). The desktop app
+/// does not, and keeps the frame.
+fn inline_available() -> bool {
+    web_sys::window().is_some_and(|window| js_sys::Reflect::has(&window, &"locoraMountGraphic".into()).unwrap_or(false))
+}
+
+/// A graphic mounted inline: SVG in the page with no frame of its own, like a Rive artboard. The page
+/// (boot.mjs) fetches and mounts it with splinely-mount.js and removes it again on unmount.
+fn inline_graphic(media: Media, class: String, still: bool) -> AnyView {
+    let host = NodeRef::<leptos::html::Div>::new();
+    let mounted = StoredValue::new_local(None::<JsValue>);
+    Effect::new(move |_| {
+        let Some(element) = host.get() else { return };
+        let element: JsValue = element.into();
+        let Some(window) = web_sys::window() else { return };
+        let Ok(mount) = js_sys::Reflect::get(&window, &"locoraMountGraphic".into()) else { return };
+        let Ok(mount) = mount.dyn_into::<js_sys::Function>() else { return };
+        let _ = mount.call3(&JsValue::NULL, &element, &JsValue::from_str(&media.path()), &JsValue::from_bool(still));
+        mounted.set_value(Some(element));
+    });
+    on_cleanup(move || {
+        let Some(element) = mounted.get_value() else { return };
+        let Some(window) = web_sys::window() else { return };
+        if let Ok(unmount) = js_sys::Reflect::get(&window, &"locoraUnmountGraphic".into()) {
+            if let Ok(unmount) = unmount.dyn_into::<js_sys::Function>() {
+                let _ = unmount.call1(&JsValue::NULL, &element);
+            }
+        }
+    });
+    view! { <div node_ref=host class=format!("sply-inline {class}")></div> }.into_any()
+}
+
 /// Chrome on Android closes the whole browser while an animation plays, so there every animation
 /// holds its first frame. Other browsers play them.
 fn holds_first_frame() -> bool {
@@ -86,6 +118,10 @@ pub fn Sply(
     #[prop(optional)] on_timed_position: Option<Box<dyn Fn(f64) + Send + Sync>>,
     #[prop(optional)] on_timed_error: Option<Box<dyn Fn() + Send + Sync>>,
 ) -> impl IntoView {
+    // A graphic without a state machine or timed playback is mounted inline: no frame of its own.
+    if state.is_none() && timed.is_none() && inline_available() {
+        return inline_graphic(media, class, still).into_any();
+    }
     // On Chrome for Android the graphic is an image: an image runs no script, so the browser stays up.
     if holds_first_frame() {
         return view! { <img class=format!("sply {class}") src=url(&media) alt="" /> }.into_any();

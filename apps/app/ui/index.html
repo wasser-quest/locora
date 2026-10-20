@@ -6891,6 +6891,8 @@ if(controls && (data.audioAssets || []).length) {
 </script>
 </svg>
   </template>
+    <script src="shell/splinely.js"></script>
+    <script src="shell/splinely-mount.js"></script>
     <script>
       (function () {
         var scenes = ['splash-arch', 'splash-ball', 'splash-firefly', 'splash-route'];
@@ -6940,7 +6942,13 @@ if(controls && (data.audioAssets || []).length) {
         // The animation is already in the page: it is inserted at once. On Chrome for Android a still
         // image is shown instead: the browser closes while an animation runs there, and an image runs no script.
         var androidChrome = /Android/.test(navigator.userAgent) && /Chrome\//.test(navigator.userAgent) && !/Firefox\//.test(navigator.userAgent);
-        if (template && androidChrome) {
+        if (template && window.SplinelyMount) {
+          // Inline, like a Rive artboard: the graphic is SVG in the page, with no frame of its own.
+          fetch("splash/" + template.id + ".svg")
+            .then(function (response) { return response.text(); })
+            .then(function (svgText) { window.SplinelyMount.mount(art, svgText, { autoTick: true, focusRing: false }); })
+            .catch(function () {});
+        } else if (template && androidChrome) {
           var still = document.createElement("img");
           still.className = "sply";
           still.alt = "";

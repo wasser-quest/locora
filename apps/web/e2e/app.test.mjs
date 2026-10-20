@@ -57,7 +57,7 @@ test('the app starts with its welcome page, a live graphic and no errors', async
     await page.waitForTimeout(1500);
     const text = await page.locator('body').innerText();
     assert.match(text, /Welcome to Locora/);
-    assert.equal(await page.locator('iframe').count() >= 1, true, 'the mascot is a frame of its own');
+    assert.equal(await page.locator('.sply-inline svg').count() >= 1, true, 'the mascot is a graphic in the page');
     assert.deepEqual(problems, []);
   } finally {
     await context.close();
@@ -117,13 +117,13 @@ test('nothing leaves the device: every request stays on this site or in local bl
   }
 });
 
-test('an animated graphic cannot reach the network: its own policy blocks it', async () => {
+test('an animated graphic cannot reach the network: it carries no script and the page blocks the request', async () => {
   const { context, page } = await openApp();
   try {
     await page.waitForTimeout(2000);
-    const graphic = page.frames().find((frame) => frame.url().startsWith('blob:'));
-    assert.ok(graphic, 'a graphic frame is shown');
-    const outcome = await graphic.evaluate(() =>
+    assert.ok((await page.locator('.sply-inline svg').count()) >= 1, 'a graphic is shown in the page');
+    assert.equal(await page.locator('.sply-inline script').count(), 0, 'the graphic carries no script');
+    const outcome = await page.evaluate(() =>
       fetch('http://127.0.0.1:9/probe').then(
         () => 'reached the network',
         () => 'blocked',

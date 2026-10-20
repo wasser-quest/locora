@@ -288,6 +288,26 @@ function stillGraphicUrl(hash) {
   return url;
 }
 
+/** The SVG text of a stored graphic, from the core; null when it is not available. */
+function storedGraphicText(hash) {
+  const reply = core ? core('sply_svg', { hash, markers: false }) : { err: 'not ready' };
+  return reply.err === undefined ? reply.ok : null;
+}
+
+// The UI shows a graphic inline (see splinely-mount.js): no frame of its own. `still` holds the first frame.
+window.locoraMountGraphic = (element, path, still) => {
+  const text = path.startsWith('sply/') ? storedGraphicText(path.split('/')[1]) : fetch(path).then((response) => response.text());
+  return Promise.resolve(text).then((svgText) => {
+    if (!svgText || !window.SplinelyMount) return null;
+    element.splinelyGraphic = window.SplinelyMount.mount(element, svgText, { autoTick: !still, focusRing: false });
+    return element.splinelyGraphic;
+  });
+};
+window.locoraUnmountGraphic = (element) => {
+  element.splinelyGraphic?.destroy();
+  element.splinelyGraphic = null;
+};
+
 /**
  * The URL of a media path, as the UI shows it: images and videos as blob URLs of the stored bytes;
  * animated graphics as their own frame document (as an image on Chrome for Android).
@@ -338,12 +358,15 @@ window.addEventListener('drop', (event) => {
 // Installable: a button offers the app for the home screen. Chromium browsers make the offer
 // (beforeinstallprompt) and the button starts it. Safari on iPhone and iPad makes no offer, so there
 // the button explains the Share menu instead.
-const installStyle = 'position:fixed;right:12px;bottom:12px;z-index:9;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:8px;border:0;background:#3a3c8c;color:#fff;font:inherit;text-align:left;cursor:pointer';
+const installStyle = 'position:fixed;right:12px;bottom:80px;z-index:1000;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:8px;border:0;background:#3a3c8c;color:#fff;font:inherit;text-align:left;cursor:pointer';
 const installed = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 let installPrompt = null;
+let installOffered = false;
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   installPrompt = event;
+  installOffered = true;
+  document.querySelectorAll('[data-install]').forEach((button) => button.remove());
   offerInstall('Install Locora', async () => {
     await installPrompt.prompt();
     installPrompt = null;
@@ -352,10 +375,18 @@ window.addEventListener('beforeinstallprompt', (event) => {
 if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !installed) {
   offerInstall('To install: tap Share, then Add to Home Screen', () => {});
 }
+// Chrome makes its own offer only when its checks pass (a worker in control, some engagement), and it
+// may not make it at all. When it has not after a few seconds, the button shows where the menu has it.
+if (/Android/.test(navigator.userAgent) && !installed) {
+  setTimeout(() => {
+    if (!installOffered) offerInstall('Install Locora: menu ⋮ → Install app', () => {});
+  }, 3000);
+}
 
 function offerInstall(label, onClick) {
   const button = document.createElement('button');
   button.textContent = label;
+  button.dataset.install = '';
   button.setAttribute('style', installStyle);
   button.addEventListener('click', () => {
     button.remove();

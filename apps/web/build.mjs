@@ -74,6 +74,10 @@ for (const file of readdirSync(splashSource)) {
   if (file.endsWith('.svg')) copyFileSync(join(splashSource, file), join(out, 'splash', file));
 }
 copyFileSync(join(shell, 'graphic.js'), join(out, 'shell', 'graphic.js'));
+// The Splinely runtime and its inline mount (see splinely-mount.js): graphics run in the page, not in frames.
+const vendor = join(web, '..', '..', 'crates', 'locora-app-core', 'vendor');
+copyFileSync(join(vendor, 'splinely-0.5.4.js'), join(out, 'shell', 'splinely.js'));
+copyFileSync(join(vendor, 'splinely-mount.js'), join(out, 'shell', 'splinely-mount.js'));
 cpSync(shim, join(out, 'shim'), { recursive: true });
 
 // 3. The page's content security policy. Scripts run only from this site, or inline with a hash

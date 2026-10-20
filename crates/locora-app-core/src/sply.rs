@@ -5,7 +5,7 @@
 use anyhow::{Result, anyhow};
 use splinely_document::Project;
 
-const RUNTIME: &str = include_str!("../vendor/splinely-0.5.2.js");
+const RUNTIME: &str = include_str!("../vendor/splinely-0.5.4.js");
 
 /// Fill the frame; listen for state machine events from the app.
 const BRIDGE: &str = r#"<style>:root{width:100% !important;height:100% !important;background:transparent !important}</style>

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" data-splinely-version="1" role="img" aria-labelledby="splinely-title" aria-describedby="splinely-desc">
-<!-- Created with Splinely 0.5.2 -->
-<metadata><splinely:generator xmlns:splinely="urn:splinely:metadata" name="Splinely" version="0.5.2" schemaVersion="1"/></metadata>
+<!-- Created with Splinely 0.5.4 -->
+<metadata><splinely:generator xmlns:splinely="urn:splinely:metadata" name="Splinely" version="0.5.4" schemaVersion="1"/></metadata>
 <title id="splinely-title">Ball</title>
 <desc id="splinely-desc">Ein Ball hüpft mit Quetschen und Strecken, wie ein Gummiball.</desc>
 <path id="shadow" data-splinely-node="shadow" transform="translate(104 253) rotate(0) scale(1 1)" fill="rgb(10.196078431372548% 10.588235294117647% 29.80392156862745%)" fill-opacity="1" stroke="none" stroke-opacity="1" stroke-width="1" opacity="0.35" d="M9 0 L103 0 Q112 0 112 9 L112 9 Q112 18 103 18 L9 18 Q0 18 0 9 L0 9 Q0 0 9 0 Z" fill-rule="nonzero"/>
@@ -1500,6 +1500,8 @@
       }
       function showRing(el) {
         hideRing();
+        // A host that draws its own focus can switch the ring off: createRuntime(svg, project, { focusRing: false }).
+        if(options.focusRing===false)return;
         if(!doc || typeof doc.createElementNS!=='function' || !el.parentNode || !el.parentNode.insertBefore)return;
         const f=forced(),shape=(stroke,width)=>make('rect',{fill:'none',stroke,'stroke-width':width,'vector-effect':'non-scaling-stroke',rx:'3'});
         ring=make('g',{'data-splinely-focus-ring':'','pointer-events':'none','aria-hidden':'true'});

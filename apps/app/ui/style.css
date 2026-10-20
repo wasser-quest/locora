@@ -335,6 +335,11 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .medal-art { width: 72px; height: 72px; }
 /* The medal is a frame of its own: the general frame rule would stretch it to the card. */
 iframe.sply.medal-art, img.sply.medal-art { width: 72px; height: 72px; max-height: none; flex: none; }
+/* Inline graphics (sply.rs, inline_graphic): the SVG fills the box, at most 300 px tall, as the image does. */
+.sply-inline { display: block; width: 100%; height: 100%; max-height: min(70vw, 300px); }
+.sply-inline > svg { display: block; width: 100%; height: 100%; }
+.locus-picture > .sply-inline { aspect-ratio: 1; height: auto; }
+.sply-inline.medal-art { width: 72px; height: 72px; max-height: none; flex: none; }
 .medal-title { font-weight: 600; }
 .medal-hint { color: var(--muted); font-size: .85rem; }
 .medal.locked .medal-title { color: var(--muted); }
