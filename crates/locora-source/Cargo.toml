@@ -12,6 +12,7 @@ locora-api.workspace = true
 locora-formula = { path = "../locora-formula" }
 locora-store = { path = "../locora-store" }
 serde = { version = "1", features = ["derive"] }
+sha2.workspace = true
 thiserror.workspace = true
 toml = "1"
 

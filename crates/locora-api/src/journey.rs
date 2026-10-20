@@ -79,13 +79,18 @@ impl Answer {
     /// up to three wrong ones, chosen and ordered by `seed` (pass something
     /// that changes per question, e.g. the time). Returns indices into `options`.
     pub fn quiz_selection(&self, seed: u64) -> Vec<u32> {
+        self.quiz_selection_with(seed, QUIZ_WRONG_SHOWN)
+    }
+
+    /// Like `quiz_selection`, but with up to `wrong_shown` of the wrong options.
+    pub fn quiz_selection_with(&self, seed: u64, wrong_shown: usize) -> Vec<u32> {
         let indices = 0..self.options.len() as u32;
         let mut wrong: Vec<u32> = indices
             .clone()
             .filter(|&i| !self.options[i as usize].correct)
             .collect();
         shuffle(&mut wrong, seed);
-        wrong.truncate(QUIZ_WRONG_SHOWN);
+        wrong.truncate(wrong_shown);
         let mut shown: Vec<u32> = indices
             .filter(|&i| self.options[i as usize].correct)
             .collect();

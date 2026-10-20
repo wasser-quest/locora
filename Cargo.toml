@@ -20,7 +20,7 @@ postcard = { version = "1.1", default-features = false, features = ["alloc"] }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 sha2 = "0.10"
 thiserror = "2"
-wasmtime = { version = "49", default-features = false, features = ["anyhow", "component-model", "cranelift", "runtime", "std", "parallel-compilation"] }
+wasmtime = { version = "49", default-features = false, features = ["anyhow", "component-model", "cranelift", "pulley", "runtime", "std", "parallel-compilation"] }
 wasmtime-wasi = "49"
 
 [profile.release]

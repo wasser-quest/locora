@@ -1,0 +1,5 @@
+# Only the build output goes into the image.
+*
+!dist
+!Dockerfile
+!nginx.conf

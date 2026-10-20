@@ -7,9 +7,15 @@ __pycache__/
 
 # Codex local configuration
 .codex/
-# Claude Flow runtime data
-.claude-flow/data/
-.claude-flow/logs/
+# Local coordination state and worktrees
+.claude-flow/
+.swarm/
+agentdb.rvf
+agentdb.rvf.lock
+ruvector.db
 # Environment variables
 .env.local
 .env.*.local
+.rvf
+.db
+

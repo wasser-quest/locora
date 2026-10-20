@@ -68,6 +68,17 @@ pub const fn default_zoom() -> f64 {
     1.0
 }
 
+/// The palace a room belongs to; an unknown room is an error.
+fn room_palace(conn: &Connection, room_id: &str) -> Result<String> {
+    conn.query_row(
+        "SELECT palace_id FROM rooms WHERE id = ?1",
+        [room_id],
+        |r| r.get(0),
+    )
+    .optional()?
+    .ok_or_else(|| StoreError::NotFound(format!("Raum {room_id}")))
+}
+
 /// Zoom is finite and from 1 (whole room) to 4.
 pub fn check_zoom(zoom: f64) -> Result<()> {
     if (1.0..=4.0).contains(&zoom) {
@@ -321,6 +332,16 @@ fn new_id() -> String {
     uuid::Uuid::now_v7().simple().to_string()
 }
 
+fn check_stable_id(id: &str) -> Result<()> {
+    if id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err(StoreError::Invalid(
+            "ID muss aus 32 Hex-Zeichen bestehen".into(),
+        ))
+    }
+}
+
 fn check_position(x: f64, y: f64) -> Result<()> {
     if (0.0..=1.0).contains(&x) && (0.0..=1.0).contains(&y) {
         Ok(())
@@ -434,6 +455,12 @@ impl Store {
     // ------------------------------------------------------------ palaces
 
     pub fn create_palace(&self, name: &str) -> Result<Palace> {
+        self.create_palace_with_id(name, &new_id())
+    }
+
+    /// Create a bundled palace with a stable ID shared by installations.
+    pub fn create_palace_with_id(&self, name: &str, id: &str) -> Result<Palace> {
+        check_stable_id(id)?;
         let name = name.trim();
         if name.is_empty() {
             return Err(StoreError::Invalid("Der Palast braucht einen Namen".into()));
@@ -451,7 +478,7 @@ impl Store {
         }
         let now = now_secs();
         let palace = Palace {
-            id: new_id(),
+            id: id.to_owned(),
             name: name.to_owned(),
             created_at: now,
             updated_at: now,
@@ -758,10 +785,19 @@ impl Store {
             return Err(StoreError::Invalid("Der Palast braucht einen Namen".into()));
         }
         let conn = self.conn();
-        let changed = conn.execute(
-            "UPDATE palaces SET name = ?1, updated_at = ?2 WHERE id = ?3",
-            params![name, now_secs(), id],
-        )?;
+        let changed = conn
+            .execute(
+                "UPDATE palaces SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                params![name, now_secs(), id],
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::SqliteFailure(f, _)
+                    if f.code == rusqlite::ErrorCode::ConstraintViolation =>
+                {
+                    StoreError::Invalid(format!("Es gibt schon einen Palast namens „{name}“"))
+                }
+                e => e.into(),
+            })?;
         if changed == 0 {
             return Err(StoreError::NotFound(format!("Palast {id}")));
         }
@@ -793,6 +829,19 @@ impl Store {
         kind: RoomKind,
         media: Option<&str>,
     ) -> Result<Room> {
+        self.add_room_with_id(palace_id, name, kind, media, &new_id())
+    }
+
+    /// Add a room whose ID is fixed across installations of a bundled palace.
+    pub fn add_room_with_id(
+        &self,
+        palace_id: &str,
+        name: &str,
+        kind: RoomKind,
+        media: Option<&str>,
+        id: &str,
+    ) -> Result<Room> {
+        check_stable_id(id)?;
         if kind != RoomKind::Blank && media.is_none() {
             return Err(StoreError::Invalid(
                 "Räume mit Bild oder Video brauchen eine Mediendatei".into(),
@@ -805,7 +854,7 @@ impl Store {
             |r| r.get(0),
         )?;
         let room = Room {
-            id: new_id(),
+            id: id.to_owned(),
             palace_id: palace_id.to_owned(),
             position,
             name: name.trim().to_owned(),
@@ -835,10 +884,117 @@ impl Store {
         Ok(room)
     }
 
+    /// Rename a room. Room names may repeat across palaces and within one.
+    pub fn rename_room(&self, room_id: &str, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(StoreError::Invalid("Der Raum braucht einen Namen".into()));
+        }
+        let conn = self.conn();
+        let palace_id = room_palace(&conn, room_id)?;
+        conn.execute(
+            "UPDATE rooms SET name = ?1 WHERE id = ?2",
+            params![name, room_id],
+        )?;
+        self.touch(&conn, &palace_id)?;
+        self.log(
+            &conn,
+            "room",
+            room_id,
+            "update",
+            Some(serde_json::json!({ "name": name })),
+        )
+    }
+
+    /// Delete a room with its loci. Returns false if it did not exist.
+    pub fn delete_room(&self, room_id: &str) -> Result<bool> {
+        let conn = self.conn();
+        let palace_id: Option<String> = conn
+            .query_row(
+                "SELECT palace_id FROM rooms WHERE id = ?1",
+                [room_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let Some(palace_id) = palace_id else {
+            return Ok(false);
+        };
+        conn.execute("DELETE FROM rooms WHERE id = ?1", [room_id])?;
+        self.touch(&conn, &palace_id)?;
+        self.log(&conn, "room", room_id, "delete", None)?;
+        Ok(true)
+    }
+
+    /// Move a room one place left (`-1`) or right (`+1`) in its palace. Moving past the
+    /// first or last room changes nothing.
+    pub fn move_room(&self, room_id: &str, step: i32) -> Result<()> {
+        if step.abs() != 1 {
+            return Err(StoreError::Invalid(
+                "Räume lassen sich um einen Platz verschieben".into(),
+            ));
+        }
+        let mut conn = self.conn();
+        let palace_id = room_palace(&conn, room_id)?;
+        let position: u32 =
+            conn.query_row("SELECT position FROM rooms WHERE id = ?1", [room_id], |r| {
+                r.get(0)
+            })?;
+        let Some(target) = position.checked_add_signed(step) else {
+            return Ok(());
+        };
+        let neighbour: Option<String> = conn
+            .query_row(
+                "SELECT id FROM rooms WHERE palace_id = ?1 AND position = ?2",
+                params![palace_id, target],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let Some(neighbour) = neighbour else {
+            return Ok(());
+        };
+        // Rooms have no unique position, so the two swaps need no temporary value.
+        let tx = conn.transaction()?;
+        tx.execute(
+            "UPDATE rooms SET position = ?1 WHERE id = ?2",
+            params![target, room_id],
+        )?;
+        tx.execute(
+            "UPDATE rooms SET position = ?1 WHERE id = ?2",
+            params![position, neighbour],
+        )?;
+        self.touch(&tx, &palace_id)?;
+        self.log(
+            &tx,
+            "room",
+            room_id,
+            "update",
+            Some(serde_json::json!({ "position": target })),
+        )?;
+        self.log(
+            &tx,
+            "room",
+            &neighbour,
+            "update",
+            Some(serde_json::json!({ "position": position })),
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
     // ------------------------------------------------------------ loci
 
     pub fn add_locus(&self, room_id: &str, locus: NewLocus) -> Result<Locus> {
         Ok(self.add_loci(room_id, vec![locus])?.remove(0))
+    }
+
+    /// Add a bundled locus with a stable ID.
+    pub fn add_locus_with_id(&self, room_id: &str, locus: NewLocus, id: &str) -> Result<Locus> {
+        check_stable_id(id)?;
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        let added = self.insert_locus(&tx, room_id, locus, Some(id))?;
+        tx.commit()?;
+        Ok(added)
     }
 
     /// Append a batch, including palace timestamp and operation log, atomically.
@@ -847,13 +1003,19 @@ impl Store {
         let tx = conn.transaction()?;
         let mut added = Vec::with_capacity(loci.len());
         for locus in loci {
-            added.push(self.insert_locus(&tx, room_id, locus)?);
+            added.push(self.insert_locus(&tx, room_id, locus, None)?);
         }
         tx.commit()?;
         Ok(added)
     }
 
-    fn insert_locus(&self, conn: &Connection, room_id: &str, locus: NewLocus) -> Result<Locus> {
+    fn insert_locus(
+        &self,
+        conn: &Connection,
+        room_id: &str,
+        locus: NewLocus,
+        id: Option<&str>,
+    ) -> Result<Locus> {
         check_image_size(locus.image_size)?;
         check_zoom(locus.zoom)?;
         check_position(locus.x, locus.y)?;
@@ -878,7 +1040,7 @@ impl Store {
             |r| r.get(0),
         )?;
         let locus = Locus {
-            id: new_id(),
+            id: id.map(str::to_owned).unwrap_or_else(new_id),
             room_id: room_id.to_owned(),
             position,
             place: locus.place.trim().to_owned(),

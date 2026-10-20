@@ -1,0 +1,78 @@
+# Das Tutorial: Locora mit der Loci-Methode lernen.
+# Jeder Ort zeigt eine animierte Grafik (.sply), die die App mit der Splinely-Runtime abspielt.
+# Bauen: locora tutorial (oder locora build assets/tutorial/locora-lernen.locora.toml)
+
+name = "Learn Locora"
+
+[[room]]
+name = "Entrance hall"
+image = "halle.sply"
+
+[[room.locus]]
+place = "The gate – what is a memory palace?"
+item = "A place you know well"
+at = [0.5, 0.45]
+image = "../mascot/simo.sply"
+
+[[room.locus]]
+place = "The rug – what sets the order?"
+item = "The route through the places"
+at = [0.5, 0.88]
+image = "teppich.sply"
+
+[[room.locus]]
+place = "The lantern – what do you put at each place?"
+item = "A vivid picture"
+at = [0.82, 0.3]
+image = "laterne.sply"
+
+[[room]]
+name = "Library"
+image = "bibliothek.sply"
+
+[[room.locus]]
+place = "The shelf – which pictures stick?"
+item = "The stranger, the better"
+at = [0.3, 0.4]
+image = "regal.sply"
+
+[[room.locus]]
+place = "The reading nook – how do you practise?"
+item = "Walk the route and recall every place"
+at = [0.6, 0.75]
+image = "leseplatz.sply"
+
+[[room.locus]]
+place = "The clock – when do you review?"
+item = "Just before you forget"
+at = [0.82, 0.12]
+image = "uhr.sply"
+
+[[room]]
+name = "Garden"
+image = "garten.sply"
+
+[[room.locus]]
+place = "The fountain – how do you rate an answer?"
+item = "Honestly, from 1 to 4"
+at = [0.2, 0.75]
+image = "brunnen.sply"
+answer = { type = "quiz", options = [
+  { text = "Always 4, then it goes faster", correct = false },
+  { text = "Honestly, from 1 to 4", correct = true },
+  { text = "Not at all", correct = false },
+] }
+
+[[room.locus]]
+place = "The tree – which command creates your own palace?"
+item = "locora new"
+at = [0.55, 0.6]
+image = "baum.sply"
+answer = { type = "guess", accept = ["new", "locora new NAME"] }
+note = "A new palace grows from the tree – “new” is on the sign on the trunk"
+
+[[room.locus]]
+place = "The firefly – what do you use to practise what is due?"
+item = "locora review"
+at = [0.8, 0.35]
+image = "../mascot/gluehwuermchen.sply"

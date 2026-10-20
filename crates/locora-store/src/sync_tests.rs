@@ -297,3 +297,40 @@ fn finished_journeys_replicate_once_with_their_answers() {
     b.apply_remote(&ship(&a, 0)).unwrap();
     assert_eq!(b.journeys(10).unwrap().len(), 1);
 }
+
+#[test]
+fn room_order_and_names_replicate_field_by_field() {
+    let (_a_dir, a, _b_dir, b, palace, _tur) = setup();
+    let names = |store: &Store| -> Vec<String> {
+        store
+            .palace(&palace)
+            .unwrap()
+            .rooms
+            .iter()
+            .map(|r| r.room.name.clone())
+            .collect()
+    };
+    let cursor = last_seq(&a);
+    let second = a.add_room(&palace, "Hof", RoomKind::Blank, None).unwrap();
+    b.apply_remote(&ship(&a, cursor)).unwrap();
+
+    let (cursor_a, cursor_b) = (last_seq(&a), last_seq(&b));
+    // One device moves a room while the other renames it: both changes must survive.
+    a.move_room(&second.id, -1).unwrap();
+    b.rename_room(&second.id, "Innenhof").unwrap();
+    b.apply_remote(&ship(&a, cursor_a)).unwrap();
+    a.apply_remote(&ship(&b, cursor_b)).unwrap();
+    assert_eq!(names(&a), ["Innenhof", "Küche"]);
+    assert_eq!(names(&b), ["Innenhof", "Küche"]);
+}
+
+#[test]
+fn a_deleted_room_is_deleted_on_the_other_device() {
+    let (_a_dir, a, _b_dir, b, palace, tur) = setup();
+    let cursor = last_seq(&a);
+    let room = a.palace(&palace).unwrap().rooms[0].room.id.clone();
+    a.delete_room(&room).unwrap();
+    b.apply_remote(&ship(&a, cursor)).unwrap();
+    assert!(b.palace(&palace).unwrap().rooms.is_empty());
+    assert!(loci(&b, &palace).is_empty(), "loci of the room go with it: {tur}");
+}

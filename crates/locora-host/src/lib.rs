@@ -352,6 +352,10 @@ impl PluginHost {
         palaces: Option<Arc<locora_store::Store>>,
     ) -> Result<Self> {
         let mut config = Config::new();
+        // iOS apps cannot generate executable pages at runtime. Interpret WASM
+        // components with Pulley there, including on physical devices.
+        #[cfg(target_os = "ios")]
+        config.target("pulley64")?;
         config.wasm_component_model(true);
         config.consume_fuel(true);
         let engine = Engine::new(&config)?;
@@ -892,6 +896,14 @@ fn api_compatible(plugin_api: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ios_pulley_engine_configuration_is_available() {
+        let mut config = Config::new();
+        config.target("pulley64").unwrap();
+        config.wasm_component_model(true);
+        Engine::new(&config).unwrap();
+    }
 
     #[test]
     fn api_versions() {

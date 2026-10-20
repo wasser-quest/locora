@@ -94,15 +94,18 @@ pub fn file_name(name: &str) -> String {
     )
 }
 
-/// `<dir>/.<name>.<pid>-<nanos>.tmp` next to `output`.
+/// `<dir>/.<name>.<n>-<nanos>.tmp` next to `output`. The counter keeps names apart within a run;
+/// the process id is not used because WASI has none.
 fn temporary_sibling(output: &Path) -> std::path::PathBuf {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
+    let count = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let name = output
         .file_name()
         .map_or_else(|| "export".into(), |n| n.to_string_lossy().into_owned());
-    output.with_file_name(format!(".{name}.{}-{nanos}.tmp", std::process::id()))
+    output.with_file_name(format!(".{name}.{count}-{nanos}.tmp"))
 }
 
 /// Open a `.locora` file and check everything before anything is imported,

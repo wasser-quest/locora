@@ -9,6 +9,7 @@ use locora_api::core::Grade;
 use locora_api::review::{
     Configure, ConfigureRequest, Log, LogEntry, LogRequest, ScheduledLocus, Settings,
 };
+use serde::{Deserialize, Serialize};
 
 use locora_fsrs::DEFAULT_WEIGHTS;
 pub use locora_fsrs::optimize::MIN_REVIEWS;
@@ -196,6 +197,27 @@ pub struct Stats {
     pub streak: usize,
     pub scheduled: usize,
     pub due: usize,
+}
+
+/// Answers per learning day for the last `days` days up to today, oldest first. Days without
+/// answers count as zero, so the overview shows the inactive days too.
+pub fn activity_days(entries: &[LogEntry], now: u64, clock: &DayClock, days: usize) -> Vec<(u64, u32)> {
+    let mut counts: HashMap<u64, u32> = HashMap::new();
+    for entry in entries {
+        *counts.entry(clock.day_start(entry.answered_at)).or_default() += 1;
+    }
+    let mut day = clock.day_start(now);
+    let mut out = Vec::with_capacity(days);
+    for _ in 0..days {
+        out.push((day, counts.get(&day).copied().unwrap_or(0)));
+        let previous = clock.previous_day(day);
+        if previous >= day {
+            break;
+        }
+        day = previous;
+    }
+    out.reverse();
+    out
 }
 
 pub fn stats(
@@ -469,6 +491,15 @@ impl Profile {
     }
 
     /// Statistics; `None` without the review plugin.
+    /// Answers per learning day for the last `days` days (see `activity_days`).
+    pub fn activity(&mut self, days: usize) -> Result<Vec<(u64, u32)>> {
+        if !self.has_review() {
+            return Ok(Vec::new());
+        }
+        let entries = self.review_log()?;
+        Ok(activity_days(&entries, now(), &self.day_clock()?, days))
+    }
+
     pub fn stats(&mut self) -> Result<Option<Stats>> {
         if !self.has_review() {
             return Ok(None);
@@ -502,11 +533,213 @@ impl Profile {
         let clock = self.day_clock()?;
         Ok(limit.saturating_sub(introduced_today(&self.review_log()?, now(), &clock)))
     }
+
+    /// The stored reminder settings; off until the user turns them on.
+    pub fn reminders(&self) -> Result<Reminders> {
+        Ok(self.setting(REMINDERS)?.unwrap_or_default())
+    }
+
+    /// Store new reminder settings and make the notify plugin's daily schedules match
+    /// them. Without the plugin only the settings are stored.
+    pub fn set_reminders(&mut self, reminders: Reminders) -> Result<()> {
+        let times = reminders.times()?;
+        if self.has_notify() {
+            // Cancel what the previous settings planted, then plant the new times.
+            for at in self.reminders()?.times().unwrap_or_default() {
+                self.schedule_reminder(at, false)?;
+            }
+            if reminders.enabled {
+                for at in times {
+                    self.schedule_reminder(at, true)?;
+                }
+            }
+        }
+        self.store.kv_set(
+            "host",
+            REMINDERS,
+            serde_json::to_string(&reminders)?.as_bytes(),
+        )?;
+        Ok(())
+    }
+
+    /// Plant (`on`) or cancel the daily reminder at `at` seconds past midnight.
+    fn schedule_reminder(&mut self, at: u64, on: bool) -> Result<()> {
+        self.host
+            .call::<locora_api::notify::Schedule>(&locora_api::notify::ScheduleRequest {
+                key: format!("reminder-{at}"),
+                channel: REMINDER_CHANNEL.into(),
+                priority: 1,
+                title: "Locora".into(),
+                body: REMINDER_TEXT.into(),
+                action: String::new(),
+                plan: on.then_some(locora_api::notify::Plan::Daily { seconds: at }),
+            })?;
+        Ok(())
+    }
+}
+
+/// Daily reminders in local time: from `start` to `end` (both included), every `every`
+/// hours. The notify plugin holds the matching schedules; this is what the user sets.
+const REMINDERS: &str = "settings.reminders";
+const REMINDER_CHANNEL: &str = "erinnerung";
+pub const REMINDER_TEXT: &str = "Zeit zum Lernen: fällige Orte warten.";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Reminders {
+    pub enabled: bool,
+    /// Minutes past midnight of the first reminder (local time).
+    pub start: u16,
+    /// Minutes past midnight of the last reminder that may fire (local time).
+    pub end: u16,
+    /// Hours between two reminders, 1 to 12.
+    pub every: u8,
+}
+
+impl Default for Reminders {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            start: 9 * 60,
+            end: 21 * 60,
+            every: 4,
+        }
+    }
+}
+
+impl Reminders {
+    /// The reminder times of a day, seconds past midnight, oldest first.
+    pub fn times(&self) -> Result<Vec<u64>> {
+        if self.start > 23 * 60 + 59 || self.end > 23 * 60 + 59 {
+            bail!("Erinnerungen liegen zwischen 00:00 und 23:59");
+        }
+        if self.start > self.end {
+            bail!("Die erste Erinnerung liegt nach der letzten");
+        }
+        if !(1..=12).contains(&self.every) {
+            bail!("Erinnerungen lassen sich alle 1 bis 12 Stunden einstellen");
+        }
+        let step = u64::from(self.every) * 3600;
+        let last = u64::from(self.end) * 60;
+        let mut at = u64::from(self.start) * 60;
+        let mut times = Vec::new();
+        while at <= last {
+            times.push(at);
+            at += step;
+        }
+        Ok(times)
+    }
+}
+
+/// Minutes past midnight for a 24-hour „HH:MM“.
+pub fn parse_clock(text: &str) -> Result<u16> {
+    let invalid = || anyhow::anyhow!("Uhrzeit als HH:MM angeben, nicht „{text}“");
+    let (hours, minutes) = text.trim().split_once(':').ok_or_else(invalid)?;
+    let hours: u16 = hours.parse().map_err(|_| invalid())?;
+    let minutes: u16 = minutes.parse().map_err(|_| invalid())?;
+    if hours > 23 || minutes > 59 {
+        return Err(invalid());
+    }
+    Ok(hours * 60 + minutes)
+}
+
+/// „HH:MM“ for minutes past midnight.
+pub fn format_clock(minutes: u16) -> String {
+    format!("{:02}:{:02}", minutes / 60, minutes % 60)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reminders_repeat_daily_and_stop_when_switched_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        assert!(!profile.reminders().unwrap().enabled);
+        profile
+            .set_reminders(Reminders {
+                enabled: true,
+                start: 9 * 60,
+                end: 10 * 60,
+                every: 1,
+            })
+            .unwrap();
+        assert_eq!(
+            profile.reminders().unwrap().times().unwrap(),
+            [9 * 3600, 10 * 3600]
+        );
+
+        let day = 10 * DAY;
+        assert_eq!(reminders_due(&mut profile, day + 9 * 3600 + 1), 1);
+        assert_eq!(
+            reminders_due(&mut profile, day + 9 * 3600 + 2),
+            0,
+            "each reminder fires once a day"
+        );
+        assert_eq!(reminders_due(&mut profile, day + 10 * 3600 + 1), 1);
+
+        profile
+            .set_reminders(Reminders {
+                enabled: false,
+                start: 9 * 60,
+                end: 10 * 60,
+                every: 1,
+            })
+            .unwrap();
+        assert_eq!(
+            reminders_due(&mut profile, day + DAY + 9 * 3600 + 1),
+            0,
+            "switched off: nothing fires"
+        );
+    }
+
+    /// Reminders due at `now`, acknowledged as shown the way the app does.
+    fn reminders_due(profile: &mut Profile, now: u64) -> usize {
+        let due = profile
+            .host
+            .call::<locora_api::notify::Due>(&locora_api::notify::DueRequest {
+                now,
+                day_seconds: (now % DAY) as u32,
+            })
+            .unwrap();
+        let mine: Vec<_> = due
+            .into_iter()
+            .filter(|queued| queued.body == REMINDER_TEXT)
+            .collect();
+        for queued in &mine {
+            profile
+                .shown_notification(&locora_api::notify::Message {
+                    plugin: "notify".into(),
+                    channel: queued.channel.clone(),
+                    priority: queued.priority,
+                    title: queued.title.clone(),
+                    body: queued.body.clone(),
+                    action: queued.action.clone(),
+                    shown_at: now,
+                })
+                .unwrap();
+        }
+        mine.len()
+    }
+
+    #[test]
+    fn clock_times_are_checked() {
+        assert_eq!(parse_clock("09:30").unwrap(), 9 * 60 + 30);
+        assert_eq!(format_clock(9 * 60 + 5), "09:05");
+        assert!(parse_clock("24:00").is_err());
+        assert!(parse_clock("9-30").is_err());
+        assert!(
+            Reminders {
+                enabled: true,
+                start: 600,
+                end: 540,
+                every: 1
+            }
+            .times()
+            .is_err()
+        );
+    }
 
     fn entry(locus: &str, at: u64, grade: Grade) -> LogEntry {
         LogEntry {

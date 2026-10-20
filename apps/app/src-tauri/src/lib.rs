@@ -1,19 +1,21 @@
 //! Locora app backend: opens the same profile as the CLI, answers the UI's
 //! commands and serves media and `.sply` animations over `locora://`.
 
-mod assets;
+mod cloud_setup;
 mod drops;
-mod editor;
-mod journey;
+pub use locora_app_core::journey;
+use locora_app_core::{assets, editor, settings, sply, transfer};
 mod media;
-mod settings;
-mod sply;
-mod transfer;
-mod views;
+#[cfg(any(mobile, test))]
+#[cfg_attr(not(mobile), allow(dead_code))]
+mod mobile_files;
+pub use locora_app_core::views;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use locora_app_api::{
     ActionDone, Feedback, Home, ImportResult, InputField, JourneyStart, NotificationView,
@@ -37,9 +39,62 @@ pub struct Backend {
     assets: assets::Assets,
     /// Protocol kind + `.sply` hash → immutable SVG template, converted once per run.
     svg: HashMap<String, String>,
+    data: std::path::PathBuf,
+    cloud_sync_busy: Arc<AtomicBool>,
 }
 
-type Shared = Mutex<Backend>;
+/// The profile opens in the background while the window is already on screen. Commands wait for
+/// it (see `lock`); the media protocol answers "not found" until then.
+pub struct Shared {
+    opening: Mutex<Opening>,
+    ready: std::sync::Condvar,
+}
+
+enum Opening {
+    Opening,
+    Ready(Box<Backend>),
+    Failed(String),
+}
+
+impl Shared {
+    fn new() -> Self {
+        Self {
+            opening: Mutex::new(Opening::Opening),
+            ready: std::sync::Condvar::new(),
+        }
+    }
+
+    fn finish(&self, result: Result<Backend, String>) {
+        let mut opening = self.opening.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        *opening = match result {
+            Ok(backend) => Opening::Ready(Box::new(backend)),
+            Err(error) => Opening::Failed(error),
+        };
+        self.ready.notify_all();
+    }
+}
+
+/// The backend, once it is open.
+pub struct BackendGuard<'a>(std::sync::MutexGuard<'a, Opening>);
+
+impl std::ops::Deref for BackendGuard<'_> {
+    type Target = Backend;
+    fn deref(&self) -> &Backend {
+        match &*self.0 {
+            Opening::Ready(backend) => backend,
+            _ => unreachable!("handed out only once the backend is open"),
+        }
+    }
+}
+
+impl std::ops::DerefMut for BackendGuard<'_> {
+    fn deref_mut(&mut self) -> &mut Backend {
+        match &mut *self.0 {
+            Opening::Ready(backend) => backend,
+            _ => unreachable!("handed out only once the backend is open"),
+        }
+    }
+}
 // Native UI callbacks must never wait for profile/import operations.
 type DropInbox = Mutex<drops::Inbox>;
 
@@ -56,10 +111,24 @@ fn err(e: anyhow::Error) -> String {
     format!("{e:#}")
 }
 
-fn lock<'a>(state: &'a State<'_, Shared>) -> Result<std::sync::MutexGuard<'a, Backend>, String> {
-    state
-        .lock()
-        .map_err(|_| "Interner Fehler: Zustand blockiert".to_owned())
+fn lock<'a>(state: &'a State<'_, Shared>) -> Result<BackendGuard<'a>, String> {
+    let poisoned = || "Interner Fehler: Zustand blockiert".to_owned();
+    let mut opening = state.opening.lock().map_err(|_| poisoned())?;
+    loop {
+        if let Opening::Ready(_) = *opening {
+            return Ok(BackendGuard(opening));
+        }
+        if let Opening::Failed(error) = &*opening {
+            return Err(error.clone());
+        }
+        opening = state.ready.wait(opening).map_err(|_| poisoned())?;
+    }
+}
+
+/// The backend if it is open already; never waits.
+fn ready<'a>(state: &'a State<'_, Shared>) -> Option<BackendGuard<'a>> {
+    let opening = state.opening.lock().ok()?;
+    matches!(*opening, Opening::Ready(_)).then_some(BackendGuard(opening))
 }
 
 #[tauri::command]
@@ -84,6 +153,72 @@ async fn palace(state: State<'_, Shared>, id: String) -> Result<PalaceView, Stri
     let mut b = lock(&state)?;
     let marker = b.default_marker.clone();
     views::palace(&mut b.profile, &id, &marker).map_err(err)
+}
+
+/// Rename a palace; the reply is the palace as it now reads.
+#[tauri::command]
+async fn palace_rename(
+    state: State<'_, Shared>,
+    palace_id: String,
+    name: String,
+) -> Result<PalaceView, String> {
+    let mut b = lock(&state)?;
+    b.profile.store.rename_palace(&palace_id, &name).map_err(|e| e.to_string())?;
+    let marker = b.default_marker.clone();
+    views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
+}
+
+/// Rename a room of a palace.
+#[tauri::command]
+async fn room_rename(
+    state: State<'_, Shared>,
+    palace_id: String,
+    room_id: String,
+    name: String,
+) -> Result<PalaceView, String> {
+    let mut b = lock(&state)?;
+    b.profile.store.rename_room(&room_id, &name).map_err(|e| e.to_string())?;
+    let marker = b.default_marker.clone();
+    views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
+}
+
+/// Delete a room with its loci; the reply is the palace without it.
+#[tauri::command]
+async fn room_delete(
+    state: State<'_, Shared>,
+    palace_id: String,
+    room_id: String,
+) -> Result<PalaceView, String> {
+    let mut b = lock(&state)?;
+    if !b.profile.store.delete_room(&room_id).map_err(|e| e.to_string())? {
+        return Err("Der Raum ist nicht mehr vorhanden".into());
+    }
+    let marker = b.default_marker.clone();
+    views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
+}
+
+/// Delete a palace with its rooms and loci.
+#[tauri::command]
+async fn palace_delete(state: State<'_, Shared>, palace_id: String) -> Result<(), String> {
+    let b = lock(&state)?;
+    if !b.profile.store.delete_palace(&palace_id).map_err(|e| e.to_string())? {
+        return Err("Der Palast ist nicht mehr vorhanden".into());
+    }
+    Ok(())
+}
+
+/// Move a room one place left (`-1`) or right (`1`) in its palace.
+#[tauri::command]
+async fn room_move(
+    state: State<'_, Shared>,
+    palace_id: String,
+    room_id: String,
+    step: i32,
+) -> Result<PalaceView, String> {
+    let mut b = lock(&state)?;
+    b.profile.store.move_room(&room_id, step).map_err(|e| e.to_string())?;
+    let marker = b.default_marker.clone();
+    views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
 }
 
 #[tauri::command]
@@ -118,8 +253,10 @@ async fn editor_pick_picture(
         editor::picture_target(&b.profile.store, &target).map_err(err)?;
     }
     // Blocking native dialog off the main thread, without holding the profile lock.
+    let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
+        picker_app
+            .dialog()
             .file()
             .set_title("Bild am Ort wählen")
             .add_filter(
@@ -133,6 +270,11 @@ async fn editor_pick_picture(
     let Some(selected) = selected else {
         return Ok(None);
     };
+    #[cfg(mobile)]
+    let staged = mobile_files::stage(&app, selected, mobile_files::Kind::Picture)?;
+    #[cfg(mobile)]
+    let path = staged.path().to_path_buf();
+    #[cfg(desktop)]
     let path = selected
         .into_path()
         .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())?;
@@ -154,8 +296,10 @@ async fn home_pick_media(
     state: State<'_, Shared>,
 ) -> Result<Option<PalaceView>, String> {
     use tauri_plugin_dialog::DialogExt;
+    let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
+        picker_app
+            .dialog()
             .file()
             .set_title("Neuen Palast aus Bild oder Video anlegen")
             .add_filter(
@@ -169,6 +313,13 @@ async fn home_pick_media(
     })
     .await
     .map_err(|e| format!("Dateiauswahl fehlgeschlagen: {e}"))?;
+    #[cfg(mobile)]
+    let staged = selected
+        .map(|s| mobile_files::stage(&app, s, mobile_files::Kind::Media))
+        .transpose()?;
+    #[cfg(mobile)]
+    let path = staged.as_ref().map(|s| s.path());
+    #[cfg(desktop)]
     let path = selected
         .map(|s| {
             s.into_path()
@@ -176,6 +327,14 @@ async fn home_pick_media(
         })
         .transpose()?;
     let b = lock(&state)?;
+    #[cfg(mobile)]
+    let tree = editor::import_palace_named(
+        &b.profile.store,
+        path,
+        Some(staged.as_ref().and_then(|s| s.name()).unwrap_or("")),
+    )
+    .map_err(err)?;
+    #[cfg(desktop)]
     let tree = editor::import_palace(&b.profile.store, path.as_deref()).map_err(err)?;
     // New rooms contain no loci: no fallible plugin call after committing.
     Ok(tree.map(|tree| {
@@ -237,11 +396,20 @@ async fn import_pick(
     state: State<'_, Shared>,
 ) -> Result<Option<ImportResult>, String> {
     use tauri_plugin_dialog::DialogExt;
+    let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
+        picker_app
+            .dialog()
             .file()
             .set_title("Paläste importieren")
-            .add_filter("Locora-Paläste", &["locora", "toml"])
+            .add_filter(
+                "Locora-Paläste",
+                if cfg!(mobile) {
+                    &["locora"]
+                } else {
+                    &["locora", "toml"]
+                },
+            )
             .blocking_pick_file()
     })
     .await
@@ -249,6 +417,15 @@ async fn import_pick(
     let Some(selected) = selected else {
         return Ok(None);
     };
+    #[cfg(mobile)]
+    let staged = mobile_files::stage(&app, selected, mobile_files::Kind::Archive)?;
+    #[cfg(mobile)]
+    if staged.path().extension().is_none_or(|ext| ext != "locora") {
+        return Err("Auf dem Handy bitte eine .locora-Datei importieren; TOML mit separaten Medien benötigt einen gemeinsamen Ordner".into());
+    }
+    #[cfg(mobile)]
+    let path = staged.path().to_path_buf();
+    #[cfg(desktop)]
     let path = selected
         .into_path()
         .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())?;
@@ -270,8 +447,10 @@ async fn export_pick(
         let b = lock(&state)?;
         transfer::suggested_name(&b.profile, &id).map_err(err)?
     };
+    let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
+        picker_app
+            .dialog()
             .file()
             .set_title("Palast exportieren")
             .set_file_name(suggested)
@@ -283,10 +462,26 @@ async fn export_pick(
     let Some(selected) = selected else {
         return Ok(None);
     };
+    #[cfg(mobile)]
+    {
+        let staged = tempfile::Builder::new()
+            .suffix(".locora")
+            .tempfile()
+            .map_err(|e| format!("Export vorbereiten: {e}"))?;
+        {
+            let mut b = lock(&state)?;
+            transfer::export_path(&mut b.profile, &id, staged.path()).map_err(err)?;
+        }
+        mobile_files::save(&app, selected, staged.path())?;
+        return Ok(Some("Palast als .locora exportiert".to_owned()));
+    }
+    #[cfg(desktop)]
     let path = selected
         .into_path()
         .map_err(|_| "Dieses Ziel ist keine lokale Datei".to_owned())?;
+    #[cfg(desktop)]
     let mut b = lock(&state)?;
+    #[cfg(desktop)]
     transfer::export_path(&mut b.profile, &id, &transfer::with_extension(path))
         .map(Some)
         .map_err(err)
@@ -336,9 +531,13 @@ async fn dump_pick(
 
 /// Build (or rebuild) the tutorial palace; returns its id.
 #[tauri::command]
-async fn tutorial(state: State<'_, Shared>) -> Result<String, String> {
+async fn tutorial(state: State<'_, Shared>, lang: String) -> Result<String, String> {
     let mut b = lock(&state)?;
-    let (tree, _) = locora_runtime::tutorial::install(&mut b.profile).map_err(err)?;
+    // Built once per language: an existing palace keeps its progress.
+    if let Some(existing) = locora_runtime::tutorial::find_in(&b.profile, &lang).map_err(err)? {
+        return Ok(existing.id);
+    }
+    let (tree, _) = locora_runtime::tutorial::install_in(&mut b.profile, &lang).map_err(err)?;
     Ok(tree.palace.id)
 }
 
@@ -353,31 +552,66 @@ async fn tour(
 
 /// Open the existing formula guide or build it once.
 #[tauri::command]
-async fn formula_guide(state: State<'_, Shared>) -> Result<String, String> {
+async fn formula_guide(state: State<'_, Shared>, lang: String) -> Result<String, String> {
     let mut b = lock(&state)?;
-    if let Some(existing) = locora_runtime::formula_guide::find(&b.profile).map_err(err)? {
+    if let Some(existing) = locora_runtime::formula_guide::find_in(&b.profile, &lang).map_err(err)? {
         return Ok(existing.id);
     }
-    let (tree, _) = locora_runtime::formula_guide::install(&mut b.profile).map_err(err)?;
+    let (tree, _) = locora_runtime::formula_guide::install_in(&mut b.profile, &lang).map_err(err)?;
     Ok(tree.palace.id)
 }
 
 /// Everything that may be shown now (quiet hours, muting and the daily
 /// per-channel limit were already applied by the plugin).
+/// Due notifications leave as system notifications (Android or desktop), not as banners in the app.
+/// A message counts as shown once the system accepted it, so the queue drops it.
 #[tauri::command]
-async fn notifications(state: State<'_, Shared>) -> Result<Vec<NotificationView>, String> {
+async fn notifications(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+) -> Result<Vec<NotificationView>, String> {
+    use tauri_plugin_notification::{NotificationExt, PermissionState};
+    // The backend lock covers only reading and writing the profile. The system calls below can
+    // wait for the OS; holding the lock meanwhile would block every other command, the palace
+    // delete included.
+    let messages = {
+        let mut b = lock(&state)?;
+        b.profile.notifications().map_err(err)?
+    };
+    if messages.is_empty() {
+        return Ok(Vec::new());
+    }
+    let system = app.notification();
+    if system.permission_state().map_or(true, |state| state != PermissionState::Granted) {
+        let _ = system.request_permission();
+    }
+    let mut sent = Vec::new();
+    for message in messages {
+        let shown = system
+            .builder()
+            .title(message.title.clone())
+            .body(message.body.clone())
+            .show()
+            .is_ok();
+        if shown {
+            sent.push(message);
+        }
+    }
     let mut b = lock(&state)?;
-    let messages = b.profile.notifications().map_err(err)?;
-    Ok(messages
-        .into_iter()
-        .map(|message| NotificationView {
-            channel: message.channel,
-            priority: message.priority,
-            title: message.title,
-            body: message.body,
-            action: message.action,
-        })
-        .collect())
+    for message in sent {
+        b.profile
+            .shown_notification(&locora_api::notify::Message {
+                plugin: "notify".into(),
+                channel: message.channel,
+                priority: message.priority,
+                title: message.title,
+                body: message.body,
+                action: message.action,
+                shown_at: locora_runtime::now(),
+            })
+            .map_err(err)?;
+    }
+    Ok(Vec::new())
 }
 
 /// Confirm that a notification was shown, so the queue drops it.
@@ -425,10 +659,101 @@ async fn ui_assets(state: State<'_, Shared>) -> Result<locora_app_api::UiAssets,
     Ok(lock(&state)?.assets.ui())
 }
 
+/// Built-in achievements and whether each is unlocked.
+#[tauri::command]
+async fn achievements(state: State<'_, Shared>) -> Result<Vec<locora_app_api::AchievementView>, String> {
+    journey::achievements(&lock(&state)?.profile).map_err(err)
+}
+
+/// Days shown in the activity overview: one year.
+const ACTIVITY_DAYS: usize = 365;
+
+/// Answers per learning day for the last year (days without answers included).
+#[tauri::command]
+async fn activity(state: State<'_, Shared>) -> Result<Vec<locora_app_api::ActivityDay>, String> {
+    let days = lock(&state)?.profile.activity(ACTIVITY_DAYS).map_err(err)?;
+    Ok(days
+        .into_iter()
+        .map(|(day, answers)| locora_app_api::ActivityDay { day, answers })
+        .collect())
+}
+
+#[tauri::command]
+async fn gamification_status(
+    state: State<'_, Shared>,
+) -> Result<Option<locora_app_api::GamificationStatus>, String> {
+    lock(&state)?.profile.gamification_status().map_err(err)
+}
+
 #[tauri::command]
 async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
     let mut b = lock(&state)?;
     settings::view(&mut b.profile).map_err(err)
+}
+
+#[tauri::command]
+async fn cloud_status(state: State<'_, Shared>) -> Result<locora_app_api::CloudStatus, String> {
+    let data = lock(&state)?.data.clone();
+    let saved = locora_runtime::cloud::load(&data).map_err(err)?;
+    Ok(locora_app_api::CloudStatus {
+        account: saved.as_ref().map(|state| state.account.email.clone()),
+        server: saved
+            .as_ref()
+            .and_then(|state| locora_runtime::cloud::check_server(&state.server).ok()),
+        access: saved.as_ref().is_some_and(|state| {
+            locora_runtime::cloud::access(state, locora_runtime::cloud::now_secs()).is_some()
+        }),
+    })
+}
+
+/// Argon2 and network I/O run off the UI thread. Only one sync may mutate the
+/// profile's cursors at once; other app actions keep access to the backend.
+#[tauri::command]
+async fn cloud_sync(
+    app: tauri::AppHandle,
+    passphrase: String,
+) -> Result<locora_app_api::CloudSyncResult, String> {
+    if !(12..=1024).contains(&passphrase.chars().count()) {
+        return Err("Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen".into());
+    }
+    let state = app.state::<Shared>();
+    let (data, store, busy) = {
+        let backend = lock(&state)?;
+        (
+            backend.data.clone(),
+            backend.profile.store.clone(),
+            backend.cloud_sync_busy.clone(),
+        )
+    };
+    if busy.swap(true, Ordering::AcqRel) {
+        return Err("Ein Cloud-Sync läuft bereits".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        struct Reset(Arc<AtomicBool>);
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::Release);
+            }
+        }
+        let _reset = Reset(busy);
+        let passphrase = zeroize::Zeroizing::new(passphrase);
+        let report = locora_runtime::cloud_sync::sync_with_passphrase(&data, &store, &passphrase)
+            .map_err(err)?;
+        Ok(locora_app_api::CloudSyncResult {
+            pushed: report.pushed,
+            media_uploaded: report.media_uploaded,
+            pulled: report.pulled,
+            media_downloaded: report.media_downloaded,
+            applied: report.applied.applied,
+            stale: report.applied.stale,
+            missing: report.applied.missing,
+            failed: report.applied.failed.len(),
+            quarantined: report.quarantined.len(),
+            cloud_expires_at: report.cloud_expires_at,
+        })
+    })
+    .await
+    .map_err(|error| format!("Cloud-Sync konnte nicht abgeschlossen werden: {error}"))?
 }
 
 /// The UI sends the system's UTC offset at every start (summer time included).
@@ -541,7 +866,7 @@ fn not_found() -> Response<Cow<'static, [u8]>> {
     )
 }
 
-/// Content-addressed media, standalone `.sply` and shared room-marker layers.
+/// Content-addressed media and standalone `.sply` graphics.
 fn serve(
     backend: &mut Backend,
     path: &str,
@@ -569,20 +894,14 @@ fn serve(
             Ok(response) => response,
             Err(_) => not_found(),
         },
-        "sply" | "markers" if found.mime == SPLINELY => {
+        "sply" if found.mime == SPLINELY => {
             let key = format!("{kind}/{hash}");
             if let Some(svg) = backend.svg.get(&key) {
                 return respond(StatusCode::OK, "image/svg+xml", svg.clone().into_bytes());
             }
             let converted = std::fs::read(&file)
                 .map_err(anyhow::Error::from)
-                .and_then(|bytes| {
-                    if kind == "markers" {
-                        sply::to_marker_layer(&bytes)
-                    } else {
-                        sply::to_svg(&bytes)
-                    }
-                });
+                .and_then(|bytes| sply::to_svg(&bytes));
             match converted {
                 Ok(svg) => {
                     backend.svg.insert(key, svg.clone());
@@ -599,7 +918,7 @@ fn serve(
     }
 }
 
-fn open(app: &tauri::App) -> anyhow::Result<Backend> {
+fn open(app: &tauri::AppHandle) -> anyhow::Result<Backend> {
     // Desktop shares the CLI's profile; mobile keeps it in the app's sandbox.
     #[cfg(mobile)]
     let data = Some(app.path().app_data_dir()?);
@@ -608,7 +927,8 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
         let _ = app;
         None
     };
-    let profile = Profile::open(data.as_deref())?;
+    let data = locora_runtime::data_dir(data.as_deref())?;
+    let profile = Profile::open(Some(&data))?;
     let default_marker = profile
         .store
         .put_media(locora_runtime::tutorial::DEFAULT_MARKER, SPLINELY)?
@@ -625,17 +945,53 @@ fn open(app: &tauri::App) -> anyhow::Result<Backend> {
         simo,
         assets,
         svg: HashMap::new(),
+        data,
+        cloud_sync_busy: Arc::new(AtomicBool::new(false)),
     })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    // A test or explicit alternate profile must also own the WebKit storage.
+    // Otherwise localStorage preferences leak between otherwise isolated DBs.
+    if let Some(data_dir) = std::env::var_os("LOCORA_DATA") {
+        let path = std::path::PathBuf::from(data_dir);
+        let path = if path.is_absolute() {
+            path
+        } else {
+            std::env::current_dir()
+                .expect("Arbeitsverzeichnis bestimmen")
+                .join(path)
+        };
+        context.config_mut().app.app_directories_override =
+            Some(tauri::utils::config::AppDirectoriesOverride::Root(path));
+    }
     tauri::Builder::default()
         .manage(DropInbox::default())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let backend = open(app).map_err(|e| format!("Profil öffnen: {e:#}"))?;
-            app.manage::<Shared>(Mutex::new(backend));
+            // The window comes first; the profile opens behind it and commands wait for it.
+            app.manage::<Shared>(Shared::new());
+            let window = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|window| window.label == "main")
+                .ok_or("Fensterkonfiguration 'main' fehlt")?
+                .clone();
+            tauri::WebviewWindowBuilder::from_config(app, &window)?.build()?;
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                // A panic must still end the wait of the commands, so it becomes an error.
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| open(&handle)))
+                    .map_err(|_| "Profil öffnen: Abbruch beim Start".to_owned())
+                    .and_then(|opened| opened.map_err(|e| format!("Profil öffnen: {e:#}")));
+                handle.state::<Shared>().finish(result);
+            });
             Ok(())
         })
         // A window's own content webview reports drops as a window event
@@ -661,7 +1017,7 @@ pub fn run() {
         })
         .register_uri_scheme_protocol(locora_app_api::SCHEME, |ctx, request| {
             let state = ctx.app_handle().state::<Shared>();
-            let Ok(mut backend) = state.lock() else {
+            let Some(mut backend) = ready(&state) else {
                 return not_found();
             };
             serve(
@@ -680,6 +1036,11 @@ pub fn run() {
             notifications,
             notification_shown,
             editor_change,
+            palace_rename,
+            room_rename,
+            room_move,
+            room_delete,
+            palace_delete,
             editor_pick_picture,
             home_pick_media,
             home_import_drop,
@@ -689,7 +1050,17 @@ pub fn run() {
             formula_guide,
             journey_inputs,
             settings,
+            cloud_status,
+            cloud_sync,
+            cloud_setup::cloud_connect,
+            cloud_setup::cloud_keys_status,
+            cloud_setup::cloud_keys_setup,
+            cloud_setup::cloud_logout,
+            cloud_setup::cloud_refresh,
             ui_assets,
+            gamification_status,
+            activity,
+            achievements,
             import_pick,
             export_pick,
             dump_pick,
@@ -702,6 +1073,6 @@ pub fn run() {
             journey_answer,
             journey_stop
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("Locora konnte nicht starten");
 }

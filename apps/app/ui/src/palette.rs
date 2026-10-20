@@ -1,10 +1,12 @@
 //! Command palette (Ctrl/⌘+K): type to find a palace or a command, arrows
 //! to choose, Enter to run, Escape to close.
 
+use crate::i18n::t;
 use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{CMD_HOME, Home, JourneyStart};
+use web_sys::PointerEvent;
 
 use crate::Screen;
 use crate::tauri::{NoArgs, call};
@@ -24,7 +26,7 @@ struct Command {
 fn commands(home: &Home) -> Vec<Command> {
     let mut list = vec![
         Command {
-            label: "Weiter – fällige Loci wiederholen".into(),
+            label: t("Weiter – fällige Loci wiederholen").into(),
             hint: "Journey",
             target: Screen::Journey(JourneyStart {
                 due_only: true,
@@ -32,24 +34,24 @@ fn commands(home: &Home) -> Vec<Command> {
             }),
         },
         Command {
-            label: "Übersicht".into(),
+            label: t("Übersicht").into(),
             hint: "Start",
             target: Screen::Home,
         },
         Command {
-            label: "Einstellungen & Statistik".into(),
+            label: t("Einstellungen & Statistik").into(),
             hint: "⚙",
             target: Screen::Settings,
         },
     ];
     for p in &home.palaces {
         list.push(Command {
-            label: format!("{} öffnen", p.name),
+            label: crate::i18n::tf("{0} öffnen", &[&p.name]),
             hint: "Palast",
             target: Screen::Palace(p.id.clone()),
         });
         list.push(Command {
-            label: format!("{} üben", p.name),
+            label: crate::i18n::tf("{0} üben", &[&p.name]),
             hint: "▶ Route",
             target: Screen::Journey(JourneyStart {
                 palace_id: Some(p.id.clone()),
@@ -67,6 +69,37 @@ fn matches(label: &str, query: &str) -> bool {
         .to_lowercase()
         .split_whitespace()
         .all(|word| label.contains(word))
+}
+
+#[derive(Clone, Copy)]
+struct SwipeStart {
+    pointer: i32,
+    x: f64,
+    y: f64,
+    time_ms: f64,
+    scroll_y: f64,
+}
+
+fn is_palette_swipe(start: SwipeStart, end_x: f64, end_y: f64, elapsed_ms: f64, scroll_y: f64) -> bool {
+    let down = end_y - start.y;
+    down >= 88.0
+        && (end_x - start.x).abs() <= down * 0.55
+        && elapsed_ms >= 0.0
+        && elapsed_ms <= 900.0
+        && (scroll_y - start.scroll_y).abs() < 2.0
+}
+
+fn swipe_may_start(event: &PointerEvent) -> bool {
+    if event.pointer_type() != "touch" || !event.is_primary() || event.client_y() > 64 {
+        return false;
+    }
+    let interactive = event.target()
+        .and_then(|target| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(target).ok())
+        .and_then(|element| element.closest(
+            "button, a, input, textarea, select, canvas, video, [contenteditable], [role='textbox'], [role='slider']"
+        ).ok().flatten())
+        .is_some();
+    !interactive
 }
 
 #[component]
@@ -128,7 +161,7 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
     };
     let run = move |command: Command| {
         if editing.0.get_untracked() {
-            note.set("Erst die Änderungen im Editor speichern oder verwerfen.".into());
+            note.set(t("Erst die Änderungen im Editor speichern oder verwerfen.").into());
             return;
         }
         open.set(false);
@@ -177,16 +210,67 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
             _ => {}
         }
     });
-    on_cleanup(move || keys.remove());
+    let swipe = StoredValue::new(None::<SwipeStart>);
+    let pointer_down = window_event_listener(ev::pointerdown, move |event: PointerEvent| {
+        swipe.set_value(None);
+        if open.get_untracked() || !swipe_may_start(&event) {
+            return;
+        }
+        let scroll_y = web_sys::window()
+            .and_then(|window| window.scroll_y().ok())
+            .unwrap_or(f64::INFINITY);
+        if scroll_y > 1.0 {
+            return;
+        }
+        swipe.set_value(Some(SwipeStart {
+            pointer: event.pointer_id(),
+            x: f64::from(event.client_x()),
+            y: f64::from(event.client_y()),
+            time_ms: js_sys::Date::now(),
+            scroll_y,
+        }));
+    });
+    let pointer_up = window_event_listener(ev::pointerup, move |event: PointerEvent| {
+        let start = swipe.get_value();
+        swipe.set_value(None);
+        let Some(start) = start.filter(|start| start.pointer == event.pointer_id()) else { return; };
+        let scroll_y = web_sys::window()
+            .and_then(|window| window.scroll_y().ok())
+            .unwrap_or(f64::INFINITY);
+        if !open.get_untracked() && is_palette_swipe(
+            start,
+            f64::from(event.client_x()),
+            f64::from(event.client_y()),
+            js_sys::Date::now() - start.time_ms,
+            scroll_y,
+        ) {
+            show();
+        }
+    });
+    let pointer_cancel = window_event_listener(ev::pointercancel, move |event: PointerEvent| {
+        if swipe.get_value().is_some_and(|start| start.pointer == event.pointer_id()) {
+            swipe.set_value(None);
+        }
+    });
+    on_cleanup(move || {
+        keys.remove();
+        pointer_down.remove();
+        pointer_up.remove();
+        pointer_cancel.remove();
+    });
 
     view! {
+        <Show when=move || !open.get()>
+            <button class="palette-mobile-trigger" type="button" aria-label=t("Befehlspalette öffnen")
+                on:click=move |_| show()>{t("Befehle")}</button>
+        </Show>
         <Show when=move || open.get()>
             <div class="palette-backdrop" on:click=move |_| close()>
                 <div
                     class="palette card"
                     role="dialog"
                     aria-modal="true"
-                    aria-label="Befehlspalette"
+                    aria-label=t("Befehlspalette")
                     on:click=|e| e.stop_propagation()
                 >
                     <input
@@ -200,14 +284,14 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
                             (!shown.with(Vec::is_empty))
                                 .then(|| format!("palette-option-{}", selected.get()))
                         }
-                        placeholder="Palast oder Befehl suchen …"
+                        placeholder=t("Palast oder Befehl suchen …")
                         prop:value=move || query.get()
                         on:input=move |e| {
                             query.set(event_target_value(&e));
                             selected.set(0);
                         }
                     />
-                    <ul role="listbox" id="palette-list" aria-label="Treffer">
+                    <ul role="listbox" id="palette-list" aria-label=t("Treffer")>
                         {move || {
                             shown
                                 .get()
@@ -241,12 +325,22 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use super::matches;
+    use super::{SwipeStart, is_palette_swipe, matches};
 
     #[test]
     fn every_word_must_match() {
         assert!(matches("Planeten üben", "plan üb"));
         assert!(matches("Planeten üben", ""));
         assert!(!matches("Planeten öffnen", "plan üb"));
+    }
+
+    #[test]
+    fn swipe_requires_a_quick_vertical_pull_without_scrolling() {
+        let start = SwipeStart { pointer: 1, x: 100.0, y: 20.0, time_ms: 0.0, scroll_y: 0.0 };
+        assert!(is_palette_swipe(start, 120.0, 130.0, 400.0, 0.0));
+        assert!(!is_palette_swipe(start, 180.0, 130.0, 400.0, 0.0));
+        assert!(!is_palette_swipe(start, 120.0, 100.0, 400.0, 0.0));
+        assert!(!is_palette_swipe(start, 120.0, 130.0, 950.0, 0.0));
+        assert!(!is_palette_swipe(start, 120.0, 130.0, 400.0, 20.0));
     }
 }

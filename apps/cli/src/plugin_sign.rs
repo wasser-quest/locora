@@ -32,6 +32,9 @@ pub fn keygen(path: &Path) -> Result<()> {
 
 /// Signs the plugin file and writes `<file>.sig` next to it.
 pub fn sign(file: &Path, key_path: &Path) -> Result<()> {
+    if file.extension().is_none_or(|ext| ext != "wasm") {
+        bail!("`plugin sign` erwartet eine .wasm-Datei; erst signieren, dann `plugin pack`");
+    }
     let bytes =
         locora_runtime::read_regular(file).with_context(|| format!("{} lesen", file.display()))?;
     let key = read_key(key_path)?;
@@ -80,8 +83,8 @@ pub fn signer_of(file: &Path, bytes: &[u8]) -> Result<Option<String>> {
 
 /// Replaces an installed plugin with a newer version from the same publisher.
 pub fn update(file: &Path, data: &Path, yes: bool) -> Result<()> {
-    let bytes =
-        locora_runtime::read_regular(file).with_context(|| format!("{} lesen", file.display()))?;
+    let input = crate::plugin_package::read_input(file)?;
+    let bytes = input.bytes;
     let host = PluginHost::new(None)?;
     let manifest = host.inspect_bytes(&bytes)?;
     validate_install(&manifest)?;
@@ -107,11 +110,13 @@ pub fn update(file: &Path, data: &Path, yes: bool) -> Result<()> {
             manifest.id
         );
     };
-    let Some(new_signer) = signer_of(file, &bytes)? else {
-        bail!(
-            "Das Update braucht eine Signatur ({})",
-            signature_path(file).display()
-        );
+    let Some(new_signer) = input.signer else {
+        let signature = if file.extension().is_some_and(|ext| ext == "locora-plugin") {
+            "plugin.wasm.sig im Paket".to_owned()
+        } else {
+            signature_path(file).display().to_string()
+        };
+        bail!("Das Update braucht eine Signatur ({})", signature);
     };
     if new_signer != old_signer {
         bail!("Das Update ist von einem anderen Herausgeber signiert");

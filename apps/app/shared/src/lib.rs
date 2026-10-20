@@ -20,6 +20,11 @@ pub const CMD_HOME: &str = "home";
 pub const CMD_HOME_PICK_MEDIA: &str = "home_pick_media";
 pub const CMD_PALACE: &str = "palace";
 pub const CMD_TUTORIAL: &str = "tutorial";
+/// The language a built-in palace is built in (`de`, `en`, `fr`, `ja`, `zh`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LanguageArgs {
+    pub lang: String,
+}
 pub const CMD_FORMULA_GUIDE: &str = "formula_guide";
 pub const CMD_TOUR: &str = "tour";
 pub use locora_api::tutorial::TourAction;
@@ -27,6 +32,10 @@ pub use locora_api::ui::HighlightRequest;
 pub const CMD_NOTIFICATIONS: &str = "notifications";
 pub const CMD_NOTIFICATION_SHOWN: &str = "notification_shown";
 pub const CMD_JOURNEY_START: &str = "journey_start";
+pub const CMD_GAMIFICATION_STATUS: &str = "gamification_status";
+pub const CMD_ACTIVITY: &str = "activity";
+pub const CMD_ACHIEVEMENTS: &str = "achievements";
+pub use locora_api::gamification::{StatusResponse as GamificationStatus, Trophy};
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
 pub const CMD_JOURNEY_INPUTS: &str = "journey_inputs";
@@ -40,6 +49,11 @@ pub struct UiAssets {
     pub right: Media,
     pub again: Media,
     pub done: Media,
+    /// Journey progress symbols.
+    pub heart: Media,
+    pub combo: Media,
+    pub trophy: Media,
+    pub streak: Media,
     /// Room kinds (tabs): no picture, picture, video.
     pub room_blank: Media,
     pub room_image: Media,
@@ -47,6 +61,11 @@ pub struct UiAssets {
     /// The Locora logo (loading) and Simo (resting, nothing due).
     pub logo: Media,
     pub simo: Media,
+    /// Achievement medals: coloured once unlocked (clickable), grey while locked.
+    pub medal_tutorial: Media,
+    pub medal_tutorial_locked: Media,
+    pub medal_formulas: Media,
+    pub medal_formulas_locked: Media,
 }
 pub const CMD_EXPORT_PICK: &str = "export_pick";
 pub const CMD_DUMP_PICK: &str = "dump_pick";
@@ -71,6 +90,62 @@ pub struct ImportedPalace {
 pub const CMD_SETTINGS: &str = "settings";
 pub const CMD_SETTINGS_SET: &str = "settings_set";
 pub const CMD_SETTINGS_OPTIMIZE: &str = "settings_optimize";
+pub const CMD_CLOUD_STATUS: &str = "cloud_status";
+pub const CMD_CLOUD_SYNC: &str = "cloud_sync";
+pub const CMD_CLOUD_CONNECT: &str = "cloud_connect";
+pub const CMD_CLOUD_KEYS_STATUS: &str = "cloud_keys_status";
+pub const CMD_CLOUD_KEYS_SETUP: &str = "cloud_keys_setup";
+pub const CMD_CLOUD_LOGOUT: &str = "cloud_logout";
+pub const CMD_CLOUD_REFRESH: &str = "cloud_refresh";
+
+/// Credentials go directly to the Tauri backend; the UI never persists them.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CloudConnect {
+    pub server: String,
+    pub email: String,
+    pub password: String,
+    pub display_name: Option<String>,
+    pub register: bool,
+    /// With `register`: a guest account (data kept six months, trial access).
+    #[serde(default)]
+    pub guest: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CloudKeySetup {
+    pub passphrase: String,
+}
+
+/// Returned once after the wrapped account key was stored on the server.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CloudKeyCreated {
+    pub recovery_key: String,
+    pub stored: bool,
+    pub warning: Option<String>,
+}
+
+/// Cloud account saved in this profile; status is available without a network call.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudStatus {
+    pub account: Option<String>,
+    pub server: Option<String>,
+    pub access: bool,
+}
+
+/// Result of one encrypted, manually started sync.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudSyncResult {
+    pub pushed: usize,
+    pub media_uploaded: usize,
+    pub pulled: usize,
+    pub media_downloaded: usize,
+    pub applied: usize,
+    pub stale: usize,
+    pub missing: usize,
+    pub failed: usize,
+    pub quarantined: usize,
+    pub cloud_expires_at: Option<i64>,
+}
 /// The system's offset from UTC in minutes, sent by the UI at every start.
 pub const CMD_SET_UTC_OFFSET: &str = "set_utc_offset";
 
@@ -91,6 +166,8 @@ pub struct SettingsView {
     /// Personal FSRS weights (from `locora optimize`) are in use.
     pub personal_weights: bool,
     pub stats: Option<StatsView>,
+    #[serde(default)]
+    pub reminders: RemindersView,
     /// Reviews at least a day apart (what fitting weights learns from) and
     /// how many it needs at least.
     #[serde(default)]
@@ -128,6 +205,20 @@ pub struct StatsView {
     pub due: u32,
 }
 
+/// A built-in achievement. It lives apart from the palaces, so it stays when they are removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AchievementView {
+    pub id: String,
+    pub unlocked: bool,
+}
+
+/// Answers on one learning day, for the activity overview. `day` is the start of that day in seconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActivityDay {
+    pub day: u64,
+    pub answers: u32,
+}
+
 /// Change settings; `None` keeps a value.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SettingsChange {
@@ -136,6 +227,28 @@ pub struct SettingsChange {
     pub retention: Option<String>,
     #[serde(default)]
     pub day_start_hour: Option<u8>,
+    #[serde(default)]
+    pub reminders: Option<RemindersChange>,
+}
+
+/// Daily reminders as typed: times „HH:MM“, local time.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RemindersChange {
+    pub enabled: bool,
+    pub start: String,
+    pub end: String,
+    pub every: u8,
+}
+
+/// Daily reminders as the settings screen shows them.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct RemindersView {
+    pub enabled: bool,
+    pub start: String,
+    pub end: String,
+    pub every: u8,
+    /// The day's reminder times, „HH:MM“, oldest first; empty when off.
+    pub times: Vec<String>,
 }
 pub const CMD_JOURNEY_ACTION: &str = "journey_action";
 
@@ -166,6 +279,31 @@ pub struct Home {
     /// No palaces yet: Simo welcomes and points to the tutorial.
     #[serde(default)]
     pub welcome: Option<Media>,
+    /// Cards plugins declared (`ui.block`), in plugin order.
+    #[serde(default)]
+    pub blocks: Vec<PluginBlock>,
+    /// Pages plugins suggest (`ui.page`), in plugin order.
+    #[serde(default)]
+    pub pages: Vec<PluginPage>,
+}
+
+/// A card a plugin declared. `id` is unique within the plugin; the app addresses it as
+/// `plugin/id`. Titles and texts may be translation templates, as for tiles.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PluginBlock {
+    pub plugin: String,
+    pub id: String,
+    pub title: String,
+    pub text: String,
+}
+
+/// A page a plugin suggests: `blocks` are block ids of the same plugin.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PluginPage {
+    pub plugin: String,
+    pub id: String,
+    pub name: String,
+    pub blocks: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -193,12 +331,25 @@ pub struct NotificationView {
 pub struct PalaceCard {
     pub id: String,
     pub name: String,
+    /// `tutorial` or `formulas` for the built-in palaces, in any language.
+    #[serde(default)]
+    pub built_in: Option<String>,
     pub rooms: u32,
     pub loci: u32,
     pub due: u32,
     pub fresh: u32,
     /// The first room's backdrop, as a thumbnail.
     pub cover: Option<Media>,
+    /// Rooms with a backdrop that can be selected as the card thumbnail.
+    #[serde(default)]
+    pub previews: Vec<RoomPreview>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoomPreview {
+    pub id: String,
+    pub name: String,
+    pub media: Media,
 }
 
 /// A stored file the UI can show.
@@ -318,6 +469,11 @@ pub enum EditorAction {
     CreateVideo {
         time: f64,
     },
+    CreateTimed {
+        time: f64,
+        x: f64,
+        y: f64,
+    },
     Paste {
         items: Vec<String>,
     },
@@ -329,6 +485,10 @@ pub enum EditorAction {
         id: String,
         x: f64,
         y: f64,
+    },
+    Retime {
+        id: String,
+        time: f64,
     },
     Resize {
         id: String,
@@ -419,6 +579,17 @@ pub struct JourneyStart {
     /// Values for workbook inputs (`Inputs` table), asked before the start.
     #[serde(default)]
     pub inputs: Vec<InputValue>,
+    /// Quiz: how many answers each question shows in all (the correct ones always count);
+    /// `None` shows four.
+    #[serde(default)]
+    pub quiz_answers: Option<u8>,
+    /// Sudden death: the journey ends at the first wrong answer.
+    #[serde(default)]
+    pub sudden_death: bool,
+    /// Seconds per question. A question left unanswered in time counts as wrong;
+    /// `None` means no limit.
+    #[serde(default)]
+    pub time_limit: Option<u8>,
 }
 
 /// A workbook input a journey asks for before it starts.
@@ -473,8 +644,14 @@ pub struct Question {
     pub room: String,
     /// Video position for this locus, in seconds.
     pub time: Option<f64>,
+    /// At the first zero-second video stop, show all loci placed at the start.
+    #[serde(default)]
+    pub video_preview: Vec<VideoPreviewItem>,
     pub backdrop: Option<Media>,
     pub marker: Media,
+    /// Route markers in the same room, relative to this question.
+    #[serde(default)]
+    pub nearby: Vec<NearbyLocus>,
     pub x: f64,
     pub y: f64,
     /// The stage zooms in on the locus by this factor (1 = whole room).
@@ -489,6 +666,26 @@ pub struct Question {
     /// Workbook actions of this palace, run with `journey_action`.
     #[serde(default)]
     pub actions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NearbyLocus {
+    pub id: String,
+    pub offset: i32,
+    pub number: u32,
+    pub x: f64,
+    pub y: f64,
+    pub time: Option<f64>,
+    /// The locus picture, shown on the stage once the locus is revealed.
+    pub picture: Option<Media>,
+    /// Picture width as a fraction of the room width.
+    pub image_size: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VideoPreviewItem {
+    pub place: String,
+    pub item: String,
 }
 
 /// What the learner did.

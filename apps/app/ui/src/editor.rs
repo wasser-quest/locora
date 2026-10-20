@@ -1,4 +1,5 @@
 //! Room editor and pointer gestures; mutations and validation go through IPC.
+use crate::i18n::t;
 use leptos::{html, prelude::*, task::spawn_local};
 use locora_app_api::{
     CMD_EDITOR_CHANGE, EditorAction, EditorAnswer, EditorAnswerKind, EditorChange, EditorUpdated,
@@ -9,7 +10,7 @@ use web_sys::PointerEvent;
 
 use crate::{
     Answer,
-    sply::{Shown, VideoBackdrop},
+    sply::{Shown, Sply, TimedCommand, VideoBackdrop, fit_stage},
     tauri::call,
 };
 
@@ -75,7 +76,7 @@ fn parse_answer(kind: &str, accept: &str, quiz: &str) -> Result<EditorAnswer, St
                         (false, text)
                     } else {
                         return Err(
-                            "Quiz: Jede Zeile muss mit + (richtig) oder - (falsch) beginnen"
+                            {t("Quiz: Jede Zeile muss mit + (richtig) oder - (falsch) beginnen")}
                                 .to_owned(),
                         );
                     };
@@ -411,8 +412,8 @@ impl Editor {
         let toast_text = match (&action, replay) {
             (EditorAction::Delete { .. }, None) => Some("Ort gelöscht".to_owned()),
             (EditorAction::Paste { items }, None) => Some(match items.len() {
-                1 => "1 Ort eingefügt".to_owned(),
-                n => format!("{n} Orte eingefügt"),
+                1 => t("1 Ort eingefügt").to_owned(),
+                n => crate::i18n::tf("{0} Orte eingefügt", &[&n]),
             }),
             _ => None,
         };
@@ -503,6 +504,179 @@ impl Editor {
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RenamePalaceArgs {
+    palace_id: String,
+    name: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RenameRoomArgs {
+    palace_id: String,
+    room_id: String,
+    name: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MoveRoomArgs {
+    palace_id: String,
+    room_id: String,
+    step: i32,
+}
+
+/// Palace and room names and room order apply at once; undo covers loci only. `follow`
+/// keeps the selected tab on a room that moved.
+fn palace_command(
+    editor: Editor,
+    command: &'static str,
+    args: impl Serialize + 'static,
+    follow: Option<String>,
+) {
+    if editor.busy.get_untracked() || editor.dirty.get_untracked() {
+        return;
+    }
+    editor.busy.set(true);
+    spawn_local(async move {
+        match call::<PalaceView>(command, args).await {
+            Ok(palace) => {
+                if let Some(index) = follow
+                    .as_ref()
+                    .and_then(|id| palace.rooms.iter().position(|room| &room.id == id))
+                {
+                    editor.room.set(index);
+                }
+                let last = palace.rooms.len().saturating_sub(1);
+                if editor.room.get_untracked() > last {
+                    editor.room.set(last);
+                }
+                editor.data.set(palace);
+                editor.message.set(String::new());
+            }
+            Err(error) => editor.message.set(error),
+        }
+        editor.busy.set(false);
+    });
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DeleteRoomArgs {
+    palace_id: String,
+    room_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PalaceIdArgs {
+    palace_id: String,
+}
+
+/// Deleting the palace leaves the editor for the start screen.
+fn delete_palace(editor: Editor, screen: Option<RwSignal<crate::Screen>>, palace_id: String) {
+    if editor.busy.get_untracked() || editor.dirty.get_untracked() {
+        return;
+    }
+    editor.busy.set(true);
+    spawn_local(async move {
+        match call::<()>("palace_delete", PalaceIdArgs { palace_id }).await {
+            Ok(()) => {
+                if let Some(screen) = screen {
+                    screen.set(crate::start_screen());
+                }
+            }
+            Err(error) => {
+                editor.message.set(error);
+                editor.busy.set(false);
+            }
+        }
+    });
+}
+
+/// Palace name, then the rooms in route order: rename by typing, move with the arrows,
+/// delete with a second press. Deleting the palace takes a second press as well.
+#[component]
+fn PalaceNames(editor: Editor) -> impl IntoView {
+    // What the next press on a delete button removes: `room:<id>` or `palace`.
+    let pending = RwSignal::new(None::<String>);
+    let screen = use_context::<RwSignal<crate::Screen>>();
+    view! {
+        {move || {
+            let palace = editor.data.get();
+            let palace_id = palace.id.clone();
+            let name_editor = editor.clone();
+            let name_id = palace_id.clone();
+            let rooms = palace.rooms.clone();
+            let last = rooms.len().saturating_sub(1);
+            let rows = rooms.into_iter().enumerate().map(|(index, room)| {
+                let room_id = room.id.clone();
+                let key = format!("room:{room_id}");
+                let rename_editor = editor.clone();
+                let rename_palace = palace_id.clone();
+                let rename_room = room_id.clone();
+                let left_editor = editor.clone();
+                let left_palace = palace_id.clone();
+                let left_room = room_id.clone();
+                let right_editor = editor.clone();
+                let right_palace = palace_id.clone();
+                let right_room = room_id.clone();
+                let delete_editor = editor.clone();
+                let delete_palace_id = palace_id.clone();
+                let delete_room_id = room_id.clone();
+                let delete_key = key.clone();
+                let label_key = key.clone();
+                view! {
+                    <li class="room-row">
+                        <button type="button" title=t("Raum nach links") aria-label=t("Raum nach links")
+                            disabled=index == 0
+                            on:click=move |_| palace_command(left_editor.clone(), "room_move",
+                                MoveRoomArgs { palace_id: left_palace.clone(), room_id: left_room.clone(), step: -1 },
+                                Some(left_room.clone()))>"←"</button>
+                        <input type="text" aria-label=t("Raumname") prop:value=room.name.clone()
+                            on:change=move |ev| palace_command(rename_editor.clone(), "room_rename",
+                                RenameRoomArgs { palace_id: rename_palace.clone(), room_id: rename_room.clone(), name: event_target_value(&ev) },
+                                Some(rename_room.clone()))/>
+                        <button type="button" title=t("Raum nach rechts") aria-label=t("Raum nach rechts")
+                            disabled=index == last
+                            on:click=move |_| palace_command(right_editor.clone(), "room_move",
+                                MoveRoomArgs { palace_id: right_palace.clone(), room_id: right_room.clone(), step: 1 },
+                                Some(right_room.clone()))>"→"</button>
+                        <button type="button" title=t("Raum löschen")
+                            on:click=move |_| {
+                                if pending.get_untracked().as_deref() == Some(delete_key.as_str()) {
+                                    pending.set(None);
+                                    palace_command(delete_editor.clone(), "room_delete",
+                                        DeleteRoomArgs { palace_id: delete_palace_id.clone(), room_id: delete_room_id.clone() }, None);
+                                } else {
+                                    pending.set(Some(delete_key.clone()));
+                                }
+                            }>{move || if pending.get().as_deref() == Some(label_key.as_str()) { "Endgültig?" } else { "Löschen" }}</button>
+                    </li>
+                }
+            }).collect_view();
+            let palace_editor = editor.clone();
+            view! {
+                <label>{t("Palastname")}
+                    <input type="text" prop:value=palace.name.clone()
+                        on:change=move |ev| palace_command(name_editor.clone(), "palace_rename",
+                            RenamePalaceArgs { palace_id: name_id.clone(), name: event_target_value(&ev) }, None)/>
+                </label>
+                <ol class="room-order">{rows}</ol>
+                <button type="button" on:click=move |_| {
+                    if pending.get_untracked().as_deref() == Some("palace") {
+                        pending.set(None);
+                        delete_palace(palace_editor.clone(), screen, palace_id.clone());
+                    } else {
+                        pending.set(Some("palace".into()));
+                    }
+                }>{move || if pending.get().as_deref() == Some("palace") { "Palast endgültig löschen?" } else { "Palast löschen" }}</button>
+            }
+        }}
+    }
+}
+
 #[component]
 pub fn Rooms(
     palace: PalaceView,
@@ -563,13 +737,25 @@ pub fn Rooms(
         video_editor.data.with(|p| {
             p.rooms
                 .get(video_editor.room.get())
-                .is_some_and(|r| r.video)
+                .is_some_and(|r| r.video || r.backdrop.as_ref().is_some_and(|m| m.kind == locora_app_api::MediaKind::Sply))
+        })
+    });
+    // What the stage (and its video) depends on: the room itself, not its loci. An edit
+    // to a locus must not remount the picture, or a playing video restarts.
+    let identity_data = editor.data;
+    let identity_room = editor.room;
+    let identity = Memo::new(move |_| {
+        let index = identity_room.get();
+        identity_data.with(|p| {
+            p.rooms
+                .get(index)
+                .map(|r| (index, r.id.clone(), r.video, r.backdrop.clone()))
         })
     });
     let video_time = RwSignal::new(String::from("0"));
+    let playhead = RwSignal::new(0.0_f64);
     let create_video = StoredValue::new(editor.clone());
     let shortcuts = editor.clone();
-    let layer = editor.clone();
     let toast_editor = editor.clone();
     let marker_data = editor.data;
     let tab_rooms = Memo::new(move |_| {
@@ -580,7 +766,6 @@ pub fn Rooms(
                 .collect::<Vec<_>>()
         })
     });
-    let marker_media = Memo::new(move |_| marker_data.with(|p| p.marker.clone()));
     let drop_message = editor.message;
     let drop_selection = editor.selected;
     crate::tauri::on_file_drop(move |_| {
@@ -589,7 +774,7 @@ pub fn Rooms(
         }
     });
     view! {
-        <div class="room-editor"
+        <div class="room-editor card editor-panel"
             on:dragover=move |ev: web_sys::DragEvent| {
                 if ev.data_transfer().is_some_and(|data| data.types().includes(&"Files".into(), 0)) {
                     ev.prevent_default();
@@ -622,38 +807,59 @@ pub fn Rooms(
             }
         }>
         <div class="modes">
-            <label><input type="checkbox" prop:checked=move || editing.get()
+            <label><input id="tour-editor-toggle" type="checkbox" prop:checked=move || editing.get()
                 disabled=move || busy.get() || dirty.get() || dragging.get()
-                on:change=move |ev| { editing.set(event_target_checked(&ev)); adding.set(false); } />"Bearbeiten"</label>
-            <Show when=move || editing.get()>
-                <label><input type="checkbox" bind:checked=adding disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get() />"Ort setzen (Bühne anklicken)"</label>
-                <button disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get()
-                    on:click={let editor = editor.clone(); move |_| {
-                        revealed.set(false);
-                        editor.change(EditorAction::Create { x: 0.5, y: 0.5 });
-                    }}>"Ort in der Mitte hinzufügen"</button>
-                <Show when=move || video_room.get()>
-                    <label>"Zeit in Sekunden "<input type="number" min="0" step="any"
-                        bind:value=video_time disabled=move || busy.get() || dirty.get() || dragging.get() /></label>
-                    <button disabled=move || busy.get() || dirty.get() || dragging.get()
-                        on:click=move |_| {
-                            let editor = create_video.get_value();
-                            match video_time.get_untracked().parse::<f64>() {
-                                Ok(time) if time.is_finite() && time >= 0.0 => {
-                                    revealed.set(false);
-                                    editor.change(EditorAction::CreateVideo { time });
-                                }
-                                _ => editor.message.set("Bitte eine nichtnegative Sekundenzahl eingeben".into()),
-                            }
-                        }>"Video-Ort hinzufügen"</button>
-                </Show>
-                <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.undo.is_empty())}
-                    on:click={let e = editor.clone(); move |_| e.replay(false)}>"Rückgängig"</button>
-                <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.redo.is_empty())}
-                    on:click={let e = editor.clone(); move |_| e.replay(true)}>"Wiederholen"</button>
-                <span>"Marker ziehen (Tastatur: Pfeiltasten) · Änderungen speichern automatisch. Rückgängig (Strg/⌘+Z): Hinzufügen, Löschen, Inhalte/Bilder, Position und Größe; ein Raumwechsel beginnt einen neuen Verlauf."</span>
-            </Show>
+                on:change=move |ev| { editing.set(event_target_checked(&ev)); adding.set(false); } />{t("Bearbeiten")}</label>
         </div>
+        <Show when=move || editing.get()>
+            <div class="editor-groups">
+                <details class="editor-group" open>
+                    <summary>{t("Orte")}</summary>
+                    <div class="editor-group-body">
+                        <label><input type="checkbox" bind:checked=adding disabled=move || busy.get() || dirty.get() || dragging.get() />{t("Ort setzen (Bühne anklicken)")}</label>
+                        <button disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get()
+                            on:click={let editor = editor.clone(); move |_| {
+                                revealed.set(false);
+                                editor.change(EditorAction::Create { x: 0.5, y: 0.5 });
+                            }}>{t("Ort in der Mitte hinzufügen")}</button>
+                        <div class="tabs">
+                            <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.undo.is_empty())}
+                                on:click={let e = editor.clone(); move |_| e.replay(false)}>{t("Rückgängig")}</button>
+                            <button disabled={let e = editor.clone(); move || busy.get() || dirty.get() || dragging.get() || e.history.with(|h| h.redo.is_empty())}
+                                on:click={let e = editor.clone(); move |_| e.replay(true)}>{t("Wiederholen")}</button>
+                        </div>
+                    </div>
+                </details>
+                <Show when=move || video_room.get()>
+                    <details class="editor-group" open>
+                        <summary>{t("Video")}</summary>
+                        <div class="editor-group-body">
+                            <label>{t("Zeit in Sekunden ")}<input type="number" min="0" step="any"
+                                bind:value=video_time disabled=move || busy.get() || dirty.get() || dragging.get() /></label>
+                            <button disabled=move || busy.get() || dirty.get() || dragging.get()
+                                on:click=move |_| {
+                                    let editor = create_video.get_value();
+                                    match video_time.get_untracked().parse::<f64>() {
+                                        Ok(time) if time.is_finite() && time >= 0.0 => {
+                                            revealed.set(false);
+                                            editor.change(EditorAction::CreateVideo { time });
+                                        }
+                                        _ => editor.message.set("Bitte eine nichtnegative Sekundenzahl eingeben".into()),
+                                    }
+                                }>{t("Zeitgebundenen Ort hinzufügen")}</button>
+                        </div>
+                    </details>
+                </Show>
+                <details class="editor-group" open>
+                    <summary>{t("Palast und Räume")}</summary>
+                    <div class="editor-group-body"><PalaceNames editor=editor.clone() /></div>
+                </details>
+                <details class="editor-group">
+                    <summary>{t("Hilfe")}</summary>
+                    <p class="notes">{t("Marker ziehen (Tastatur: Pfeiltasten) · Änderungen speichern automatisch. Rückgängig (Strg/⌘+Z): Hinzufügen, Löschen, Inhalte/Bilder, Position und Größe; ein Raumwechsel beginnt einen neuen Verlauf.")}</p>
+                </details>
+            </div>
+        </Show>
         <Show when=move || editing.get()>
             <ListPaste editor=paste.clone() />
         </Show>
@@ -667,7 +873,7 @@ pub fn Rooms(
                         <span class="room-tab">
                             <crate::RoomIcon backdrop=backdrop />
                             <button class:on=move || tabs.room.get() == i disabled=move || busy.get() || dirty.get() || dragging.get()
-                                on:click=move |_| { tabs.history.set(History::default()); tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); }>
+                                on:click=move |_| { tabs.history.set(History::default()); tabs.room.set(i); tabs.selected.set(None); revealed.set(false); adding.set(false); tabs.message.set(String::new()); playhead.set(0.0); }>
                                 {name}
                             </button>
                         </span>
@@ -677,31 +883,16 @@ pub fn Rooms(
         </div>
         <div class="stage-wrap">
         {move || {
-            // Only rebuild the stage on room changes / committed mutations, never on pointer moves.
+            // Rebuilt only when the room changes; locus edits reach the markers through `live`.
+            identity.get();
             let stage = stage.clone();
-            let data = stage.data.get();
-            let Some(room) = data.rooms.get(stage.room.get()).cloned() else {
-                return view! { <p class="empty">"Dieser Palast hat noch keine Räume."</p> }.into_any();
+            let index = stage.room.get_untracked();
+            let Some(room) = stage.data.with_untracked(|p| p.rooms.get(index).cloned()) else {
+                return view! { <p class="empty">{t("Dieser Palast hat noch keine Räume.")}</p> }.into_any();
             };
-            view! { <RoomStage editor=stage room=room editing=editing adding=adding revealed=revealed /> }.into_any()
-        }}
-        // Outside the rebuilt stage: autosave rebuilds it per keystroke, and
-        // churning a frame per rebuild left new marker frames unloaded.
-        {move || {
-            let layer = layer.clone();
-            let marker = marker_media.get();
-            let loci = Signal::derive(move || {
-                let preview = layer.gesture.get();
-                layer.data.with(|p| {
-                    p.rooms.get(layer.room.get()).map(|room| {
-                        room.loci.iter().map(|locus| {
-                            let (x, y) = preview_position(locus, preview.as_ref());
-                            crate::sply::MarkerLocus { id: locus.id.clone(), x, y, status: locus.status.event() }
-                        }).collect::<Vec<_>>()
-                    }).unwrap_or_default()
-                })
-            });
-            view! { <crate::sply::MarkerLayer media=marker loci=loci /> }
+            let data = stage.data;
+            let live = Signal::derive(move || data.with(|p| p.rooms.get(index).cloned()));
+            view! { <RoomStage editor=stage room=room live=live editing=editing adding=adding revealed=revealed playhead=playhead /> }.into_any()
         }}
         </div>
         <p role="status" class="notes">{move || message.get()}</p>
@@ -712,7 +903,7 @@ pub fn Rooms(
                 view! {
                     <div class="toast" role="status">
                         <span>{text}</span>
-                        <button disabled=move || busy.get() || dirty.get() on:click=move |_| undo.replay(false)>"Rückgängig"</button>
+                        <button disabled=move || busy.get() || dirty.get() on:click=move |_| undo.replay(false)>{t("Rückgängig")}</button>
                     </div>
                 }
             })
@@ -730,8 +921,8 @@ pub fn Rooms(
                 panel.selected_locus().map(|locus| {
                     let answer = StoredValue::new(locus.clone());
                     view! {
-                        <section class="card panel">
-                            <div class="progress">{format!("Ort {}", locus.number)}</div>
+                        <section class="panel">
+                            <div class="progress">{crate::i18n::tf("Ort {0}", &[&locus.number])}</div>
                             <div class="prompt">{locus.place}</div>
                             <button on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { "Verbergen" } else { "Aufdecken" }}</button>
                             <Show when=move || revealed.get()>{move || {
@@ -762,20 +953,20 @@ fn ListPaste(editor: Editor) -> impl IntoView {
     view! {
         // Collapsed by default so the stage stays above the fold; Ctrl/⌘+V on
         // the focused stage works without opening it.
-        <details class="card panel editor-form list-paste">
-            <summary>"Liste als Route einfügen (oder Strg/⌘+V auf der Bühne)"</summary>
-            <label>"Ein Begriff pro Zeile"
+        <details class="panel editor-form list-paste">
+            <summary>{t("Liste als Route einfügen (oder Strg/⌘+V auf der Bühne)")}</summary>
+            <label>{t("Ein Begriff pro Zeile")}
                 <textarea rows="4" bind:value=text maxlength="65536"
                     disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some()) || unavailable.get() />
             </label>
-            <p class="notes">"1–100 Begriffe, je höchstens 500 Bytes. Leerzeilen werden ignoriert. Neue Orte werden als Schlangenroute angehängt; vorhandene Orte bleiben unverändert. Positionen danach per Ziehen korrigieren. Nicht für Video-Räume."</p>
+            <p class="notes">{t("1–100 Begriffe, je höchstens 500 Bytes. Leerzeilen werden ignoriert. Neue Orte werden als Schlangenroute angehängt; vorhandene Orte bleiben unverändert. Positionen danach per Ziehen korrigieren. Nicht für Video-Räume.")}</p>
             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some()) || unavailable.get()
                 on:click=move |_| {
                     match parse_list(&text.get_untracked()) {
                         Ok(items) => editor.change(EditorAction::Paste { items }),
                         Err(error) => editor.message.set(error),
                     }
-                }>"Liste als Route hinzufügen"</button>
+                }>{t("Liste als Route hinzufügen")}</button>
         </details>
     }
 }
@@ -784,10 +975,15 @@ fn ListPaste(editor: Editor) -> impl IntoView {
 fn RoomStage(
     editor: Editor,
     room: locora_app_api::RoomView,
+    /// The same room as the palace holds it now (loci included).
+    live: Signal<Option<locora_app_api::RoomView>>,
     editing: RwSignal<bool>,
     adding: RwSignal<bool>,
     revealed: RwSignal<bool>,
+    playhead: RwSignal<f64>,
 ) -> impl IntoView {
+    // A committed edit remounts this stage; the playhead stays where it was and the
+    // new element seeks there (see `on_loaded` below). Room changes reset it instead.
     let node = NodeRef::<html::Div>::new();
     let busy = editor.busy;
     let dirty = editor.dirty;
@@ -866,9 +1062,13 @@ fn RoomStage(
     let pick_editor = editor.clone();
     let paste_editor = editor.clone();
     let video = room.video;
+    let timed_sply = !video && room.backdrop.as_ref().is_some_and(|media| media.kind == locora_app_api::MediaKind::Sply);
+    let timed = video || timed_sply;
+    let display = crate::locus_display::signal();
+    let leads = crate::locus_display::leads();
     let player = NodeRef::<html::Video>::new();
     let video_duration = RwSignal::new(None::<f64>);
-    let playhead = RwSignal::new(0.0_f64);
+    let sply_command = RwSignal::new(TimedCommand { serial: 0, time: 0.0, start: None, play: false });
     let mut timeline: Vec<_> = room
         .loci
         .iter()
@@ -891,24 +1091,34 @@ fn RoomStage(
         {
             return;
         }
-        let Some(player) = player.get() else {
-            return;
+        let time = if timed_sply {
+            if video_duration.get_untracked().is_none() {
+                timed_editor.message.set("Die Animation ist noch nicht geladen".into());
+                return;
+            }
+            playhead.get_untracked()
+        } else {
+            let Some(player) = player.get() else { return; };
+            if player.ready_state() == 0 {
+                timed_editor.message.set("Das Video ist noch nicht geladen".into());
+                return;
+            }
+            if player.pause().is_err() {
+                timed_editor.message.set("Video konnte nicht angehalten werden".into());
+                return;
+            }
+            player.current_time()
         };
-        if player.ready_state() == 0 {
-            timed_editor
-                .message
-                .set("Das Video ist noch nicht geladen".into());
-            return;
-        }
-        let time = player.current_time();
         if !time.is_finite() || time < 0.0 {
             return;
         }
-        if player.pause().is_err() {
-            timed_editor
-                .message
-                .set("Video konnte nicht angehalten werden".into());
-            return;
+        if timed_sply {
+            sply_command.update(|command| {
+                command.serial += 1;
+                command.time = time;
+                command.start = None;
+                command.play = false;
+            });
         }
         revealed.set(false);
         timed_editor.change(EditorAction::CreateVideo { time });
@@ -943,16 +1153,16 @@ fn RoomStage(
         ));
     });
     view! {
-        <Show when=move || editing.get() && video>
-            <p class="notes">"Video: An die gewünschte Stelle spulen und einen Ort hinzufügen. Taste L funktioniert, wenn die Bühne selbst fokussiert ist; , und . springen einen Frame zurück bzw. vor."</p>
+        <Show when=move || editing.get() && timed>
+            <p class="notes">{if video { "Video: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken. Taste L setzt einen Ort in der Mitte; , und . springen einen Frame." } else { "Splinely: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken." }}</p>
             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
                 on:click=move |_| create_at_playhead.with_value(|create| create())>
-                "Ort an aktueller Videozeit"
+                {t("Ort an aktueller Zeit")}
             </button>
         </Show>
-        {if video {
+        {if timed {
             Some(view! {
-                <nav class="video-timeline" aria-label="Video-Orte nach Zeit">
+                <nav class="video-timeline" aria-label=t("Orte nach Zeit")>
                     <Show when=move || video_duration.get().is_some()>
                         <div class="video-timeline-scale" aria-hidden="true">
                             {timeline_marks.clone().into_iter().map(|(time, _, _, _)| view! {
@@ -970,48 +1180,163 @@ fn RoomStage(
                         </div>
                     </Show>
                     <p class="notes video-playhead">{move || format!("Position {:.2} s", playhead.get())}</p>
+                    <div class="video-transport" role="group" aria-label=t("Wiedergabe")>
+                        <button type="button" disabled=move || video_duration.get().is_none()
+                            on:click=move |_| {
+                                if let Some(video) = player.get_untracked() {
+                                    let _ = video.play();
+                                }
+                            }>{t("▶ Abspielen")}</button>
+                        // Stop holds the picture where it is; the start button goes back.
+                        <button type="button" disabled=move || video_duration.get().is_none()
+                            on:click=move |_| {
+                                if let Some(video) = player.get_untracked() {
+                                    let _ = video.pause();
+                                    playhead.set(video.current_time());
+                                }
+                            }>{t("■ Stopp")}</button>
+                        <button type="button" disabled=move || video_duration.get().is_none()
+                            on:click=move |_| {
+                                if let Some(video) = player.get_untracked() {
+                                    let _ = video.pause();
+                                    video.set_current_time(0.0);
+                                    playhead.set(0.0);
+                                }
+                            }>{t("⏮ Zum Anfang")}</button>
+                    </div>
+                    <label class="video-seek">{t("Zeitpunkt wählen")}
+                        <input type="range" min="0" step="0.01"
+                            max=move || video_duration.get().unwrap_or(0.0).to_string()
+                            prop:value=move || playhead.get().to_string()
+                            disabled=move || video_duration.get().is_none_or(|d| !d.is_finite() || d <= 0.0)
+                            on:input=move |ev| {
+                                let Ok(time) = event_target_value(&ev).parse::<f64>() else { return; };
+                                let Some(duration) = video_duration.get_untracked() else { return; };
+                                if !time.is_finite() || !(0.0..=duration).contains(&time) { return; }
+                                if timed_sply {
+                                    sply_command.update(|command| { command.serial += 1; command.time = time; command.start = None; command.play = false; });
+                                } else if let Some(video) = player.get_untracked() {
+                                    let _ = video.pause();
+                                    video.set_current_time(time);
+                                }
+                                playhead.set(time);
+                            }
+                        />
+                    </label>
+                    {timed_sply.then(|| view! {
+                        <div class="row">
+                            <button disabled=move || video_duration.get().is_none()
+                                on:click=move |_| {
+                                    if let Some(duration) = video_duration.get_untracked() {
+                                        sply_command.update(|command| {
+                                            command.serial += 1;
+                                            command.time = duration;
+                                            command.start = Some(0.0);
+                                            command.play = true;
+                                        });
+                                    }
+                                }>{t("Animation abspielen")}</button>
+                            <button disabled=move || video_duration.get().is_none()
+                                on:click=move |_| {
+                                    let time = playhead.get_untracked();
+                                    sply_command.update(|command| {
+                                        command.serial += 1;
+                                        command.time = time;
+                                        command.start = None;
+                                        command.play = false;
+                                    });
+                                }>{t("Pause")}</button>
+                        </div>
+                    })}
                     <div class="video-timeline-loci">
                     {timeline.into_iter().map(|(time, id, number, place)| {
                         let selected_id = id.clone();
+                        let retime_id = id.clone();
+                        let lead_id = id.clone();
+                        let lead_write_id = id.clone();
                         view! {
+                            <div class="video-timeline-locus">
                             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
                                 class:on=move || timeline_editor.with_value(|e| e.selected.get().as_ref() == Some(&selected_id))
                                 class:invalid=move || video_duration.get().is_some_and(|duration| time > duration)
                                 on:click=move |_| {
                                     let editor = timeline_editor.get_value();
                                     if busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) { return; }
-                                    let Some(player) = player.get() else { return; };
-                                    if player.ready_state() == 0 {
-                                        editor.message.set("Das Video ist noch nicht geladen".into());
-                                        return;
+                                    if timed_sply {
+                                        let Some(duration) = video_duration.get_untracked() else {
+                                            editor.message.set("Die Animation ist noch nicht geladen".into());
+                                            return;
+                                        };
+                                        if time > duration {
+                                            editor.message.set("Der Ort liegt hinter dem Ende der Animation".into());
+                                            return;
+                                        }
+                                        sply_command.update(|command| {
+                                            command.serial += 1;
+                                            command.time = time;
+                                            command.start = None;
+                                            command.play = false;
+                                        });
+                                    } else {
+                                        let Some(player) = player.get() else { return; };
+                                        if player.ready_state() == 0 {
+                                            editor.message.set("Das Video ist noch nicht geladen".into());
+                                            return;
+                                        }
+                                        let duration = player.duration();
+                                        if duration.is_finite() && time > duration {
+                                            editor.message.set("Der Ort liegt hinter dem Ende des Videos".into());
+                                            return;
+                                        }
+                                        if player.pause().is_err() {
+                                            editor.message.set("Video konnte nicht angehalten werden".into());
+                                            return;
+                                        }
+                                        player.set_current_time(time);
                                     }
-                                    let duration = player.duration();
-                                    if duration.is_finite() && time > duration {
-                                        editor.message.set("Der Ort liegt hinter dem Ende des Videos".into());
-                                        return;
-                                    }
-                                    if player.pause().is_err() {
-                                        editor.message.set("Video konnte nicht angehalten werden".into());
-                                        return;
-                                    }
-                                    player.set_current_time(time);
                                     revealed.set(false);
                                     editor.selected.set(Some(id.clone()));
                                 }>
                                 {format!("{time:.2} s · {number}. {place}")}
                             </button>
+                            <input type="range" min="0" step="0.033333333"
+                                max=move || video_duration.get().unwrap_or(time).max(0.001).to_string()
+                                prop:value=time.to_string()
+                                disabled=move || !editing.get() || busy.get() || dirty.get() || video_duration.get().is_none_or(|d| !d.is_finite() || d <= 0.0)
+                                aria-label=crate::i18n::tf("Zeitpunkt von Ort {0} verschieben", &[&number])
+                                on:change=move |ev| {
+                                    let Ok(time) = event_target_value(&ev).parse::<f64>() else { return; };
+                                    let Some(duration) = video_duration.get_untracked() else { return; };
+                                    if !time.is_finite() || !duration.is_finite() || !(0.0..=duration).contains(&time) { return; }
+                                    let editor = timeline_editor.get_value();
+                                    editor.change(EditorAction::Retime { id: retime_id.clone(), time });
+                                }
+                            />
+                            <label>{t("Marker vorher (s)")}
+                                <input type="number" min="0" max="30" step="0.1"
+                                    prop:value=move || leads.get().get(&lead_id).copied().unwrap_or(display.get().video_lead).to_string()
+                                    on:change=move |ev| {
+                                        if let Ok(value) = event_target_value(&ev).parse::<f64>() {
+                                            if value.is_finite() && (0.0..=30.0).contains(&value) {
+                                                leads.update(|values| { values.insert(lead_write_id.clone(), value); });
+                                                crate::locus_display::save_leads(&leads.get_untracked());
+                                            }
+                                        }
+                                    } />
+                            </label>
+                            </div>
                         }
                     }).collect_view()}
                     </div>
                 </nav>
             })
         } else { None }}
-        <div class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
-            aria-label=if video { "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
+        <div id="tour-editor-stage" class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
+            aria-label=if video { "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame" } else if timed_sply { "Animationsraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
             on:keydown=move |ev: web_sys::KeyboardEvent| {
                 // Only the stage itself, never native video controls or markers.
                 let stage_focused = ev.target().is_some() && ev.target() == ev.current_target();
-                if video && stage_focused && editing.get_untracked() && !ev.repeat()
+                if timed && stage_focused && editing.get_untracked() && !ev.repeat()
                     && !ev.is_composing() && !ev.ctrl_key() && !ev.meta_key()
                     && !ev.alt_key() && ev.key().eq_ignore_ascii_case("l") {
                     ev.prevent_default();
@@ -1027,7 +1352,7 @@ fn RoomStage(
             on:paste=move |ev: web_sys::ClipboardEvent| {
                 // Text fields are outside the stage, so ordinary text paste
                 // never reaches this handler. Do not request clipboard access.
-                if !editing.get_untracked() || video || busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) {
+                if !editing.get_untracked() || timed || busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) {
                     return;
                 }
                 let Some(data) = ev.clipboard_data() else { return; };
@@ -1041,7 +1366,7 @@ fn RoomStage(
                 }
             }
             on:pointerdown=move |ev| {
-                if editing.get() && adding.get() && !video { begin.with_value(|begin| begin(ev, DragKind::Create)); }
+                if editing.get() && adding.get() { begin.with_value(|begin| begin(ev, DragKind::Create)); }
             }
             on:pointermove=move |ev| { if !busy.get_untracked() { update(&ev); } }
             on:pointerup=move |ev| {
@@ -1050,7 +1375,26 @@ fn RoomStage(
                 let Some(g) = gesture.get_untracked().filter(|g| g.pointer == ev.pointer_id()) else { return; };
                 if let Some(stage) = node.get() { let _ = stage.release_pointer_capture(g.pointer); }
                 let action = match g.kind {
-                    DragKind::Create if !g.moved => { revealed.set(false); Some(EditorAction::Create { x: g.point.0, y: g.point.1 }) }
+                    DragKind::Create if !g.moved => {
+                        revealed.set(false);
+                        if timed {
+                            let time = if timed_sply {
+                                let time = playhead.get_untracked();
+                                sply_command.update(|command| { command.serial += 1; command.time = time; command.start = None; command.play = false; });
+                                time
+                            } else if let Some(video) = player.get_untracked() {
+                                let _ = video.pause();
+                                video.current_time()
+                            } else { playhead.get_untracked() };
+                            playhead.set(time);
+                            if video_duration.get_untracked().is_none() {
+                                finish.message.set("Zeitgesteuertes Medium ist noch nicht geladen".into());
+                                None
+                            } else {
+                                Some(EditorAction::CreateTimed { time, x: g.point.0, y: g.point.1 })
+                            }
+                        } else { Some(EditorAction::Create { x: g.point.0, y: g.point.1 }) }
+                    }
                     DragKind::Move(ref l) if g.moved => {
                         let (x, y) = preview_position(l, Some(&g));
                         Some(EditorAction::Move { id: l.id.clone(), x, y })
@@ -1070,16 +1414,34 @@ fn RoomStage(
         >
             {room.backdrop.map(|media| {
                 if video {
-                    view! { <VideoBackdrop media=media class="backdrop" controls=true muted=true node_ref=player
+                    // No native controls or click-to-toggle here: the transport buttons above drive playback.
+                    view! { <VideoBackdrop media=media class="backdrop editor-video" controls=false muted=true autoplay=false node_ref=player
                         on_loaded=Box::new(move || {
                             video_duration.set(player.get_untracked().map(|video| video.duration())
                                 .filter(|duration| duration.is_finite() && *duration > 0.0));
+                            if let Some(video) = player.get_untracked() {
+                                fit_stage(video.as_ref(), f64::from(video.video_width()), f64::from(video.video_height()));
+                                // Back where the edit left off, paused; a new room starts at zero.
+                                let at = playhead.get_untracked();
+                                if at > 0.0 && at < video.duration() {
+                                    video.set_current_time(at);
+                                }
+                            }
                         })
                         on_timeupdate=Box::new(move || {
                             if let Some(video) = player.get_untracked() {
                                 playhead.set(video.current_time());
                             }
                         })
+                    /> }.into_any()
+                } else if timed_sply {
+                    view! { <Sply media=media class="backdrop" timed=sply_command
+                        on_timed_ready=Box::new(move |duration| {
+                            video_duration.set(Some(duration));
+                        })
+                        on_timed_position=Box::new(move |time| playhead.set(time))
+                        on_timed_at=Box::new(move |time| playhead.set(time))
+                        on_timed_error=Box::new({ let message = editor.message; move || message.set("Splinely-Zeitleiste konnte nicht gesteuert werden".into()) })
                     /> }.into_any()
                 } else {
                     view! { <Shown media=media class="backdrop" /> }.into_any()
@@ -1107,7 +1469,7 @@ fn RoomStage(
                     >
                         <Shown media=media />
                         <Show when=move || editing.get()>
-                            <button class="resize-handle" title="Bildgröße ziehen" aria-label="Bildgröße ziehen"
+                            <button class="resize-handle" title=t("Bildgröße ziehen") aria-label=t("Bildgröße ziehen")
                                 disabled=move || busy.get() || dirty.get()
                                 on:pointerdown={let l = resize_locus.clone(); move |ev: PointerEvent| { ev.stop_propagation(); begin.with_value(|begin| begin(ev, DragKind::Resize(l.clone()))); }}
                             >"↔"</button>
@@ -1115,17 +1477,26 @@ fn RoomStage(
                     </div>
                 })
             }}
-            {room.loci.into_iter().map(|locus| {
+            {move || live.get().map(|r| r.loci).unwrap_or_default().into_iter().map(|locus| {
                 let editor = pick_editor.clone();
                 let keyboard_editor = editor.clone();
+                let selected = editor.selected;
                 let l = StoredValue::new(locus.clone());
                 let fixed = locus.is_bound("x") || locus.is_bound("y");
                 view! {
                     <div class="marker"
+                        style:display=move || {
+                            let locus = l.get_value();
+                            let lead = leads.get().get(&locus.id).copied().unwrap_or(display.get().video_lead);
+                            let visible_at_time = !timed || crate::locus_display::at_video_time(locus.time, playhead.get(), lead);
+                            let hide_revealed = !editing.get() && revealed.get() && display.get().hide_revealed
+                                && selected.get().as_ref() == Some(&locus.id);
+                            if visible_at_time && !hide_revealed { "block" } else { "none" }
+                        }
                         style:left=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).0 * 100.0)
                         style:top=move || format!("{}%", preview_position(&l.get_value(), gesture.get().as_ref()).1 * 100.0)
                     >
-                        <button title=format!("Ort {}: {}", locus.number, locus.place)
+                        <button title=crate::i18n::tf("Ort {0}: {1}", &[&locus.number, &locus.place])
                             disabled=move || busy.get() || dirty.get()
                             on:pointerdown=move |ev: PointerEvent| {
                                 ev.stop_propagation();
@@ -1151,7 +1522,7 @@ fn RoomStage(
                                 }
                             }
                         ></button>
-                        <span class="num">{locus.number}</span>
+                        <span class="num" aria-hidden="true" style:display=move || if editing.get() || display.get().numbers { "grid" } else { "none" }>{locus.number}</span>
                     </div>
                 }
             }).collect_view()}
@@ -1260,7 +1631,6 @@ fn ContentForm(
         dirty.set(true);
     }
     let busy = editor.busy;
-    let confirm_delete = RwSignal::new(false);
     let gesture = editor.gesture;
     let dragging = Memo::new(move |_| gesture.with(|g| g.is_some()));
     let save = editor.clone();
@@ -1483,7 +1853,7 @@ fn ContentForm(
         quiz.set(draft.quiz);
     });
     view! {
-        <form class="card panel editor-form" on:submit=move |ev| ev.prevent_default()
+        <form class="panel editor-form" on:submit=move |ev| ev.prevent_default()
             on:keydown=move |ev: web_sys::KeyboardEvent| {
                 let single_line = ev.target().and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlInputElement>(t).ok()).is_some();
                 if single_line && ev.key() == "Enter" && !ev.is_composing() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() && recovery.get_untracked().is_none() {
@@ -1491,43 +1861,41 @@ fn ContentForm(
                     finish_requested.set(true);
                 }
             }>
-            <div class="progress">{format!("Ort {} bearbeiten", locus.number)}</div>
-            <p class="notes">"Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen."</p>
+            <div class="progress">{crate::i18n::tf("Ort {0} bearbeiten", &[&locus.number])}</div>
+            <p class="notes">{t("Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen.")}</p>
             <Show when=move || recovery.get().is_some()>
-                <p role="alert">"Ein lokaler, noch nicht gespeicherter Entwurf wurde gefunden. Wiederherstellen speichert gültige Inhalte automatisch."</p>
+                <p role="alert">{t("Ein lokaler, noch nicht gespeicherter Entwurf wurde gefunden. Wiederherstellen speichert gültige Inhalte automatisch.")}</p>
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {
                     if let Some(draft) = recovery.get_untracked() {
                         restore_fields.with_value(|restore| restore(draft));
                         recovery.set(None);
                     }
-                }>"Entwurf wiederherstellen"</button>
+                }>{t("Entwurf wiederherstellen")}</button>
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {
                     match persist_draft(&storage_key.get_value(), None) {
                         Ok(()) => { recovery.set(None); dirty.set(false); storage_error.set(String::new()); }
                         Err(error) => storage_error.set(error),
                     }
-                }>"Lokalen Entwurf verwerfen"</button>
+                }>{t("Lokalen Entwurf verwerfen")}</button>
             </Show>
             <Show when=move || !storage_error.get().is_empty()><p role="alert">{move || storage_error.get()}</p></Show>
             <Show when=move || locus.bound><p class="notes">{bound_note.clone()}</p></Show>
-            <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get()
-                on:input=move |_| confirm_delete.set(false)
-                on:change=move |_| confirm_delete.set(false)>
-                <label>"Ort"<input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
-                <label>"Inhalt"<input type="text" bind:value=item disabled=item_bound /></label>
-                <label>"Merkhilfe"<textarea bind:value=note /></label>
+            <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get()>
+                <label>{t("Ort")}<input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
+                <label id="tour-editor-content">{t("Inhalt")}<input type="text" bind:value=item disabled=item_bound /></label>
+                <label>{t("Merkhilfe")}<textarea bind:value=note /></label>
                 <div class="tabs">
-                    <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=pick>"Bild wählen…"</button>
+                    <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=pick>{t("Bild wählen…")}</button>
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() || image.get().is_empty()
-                        on:click=move |_| image.set(String::new())>"Bild entfernen"</button>
+                        on:click=move |_| image.set(String::new())>{t("Bild entfernen")}</button>
                 </div>
-                <label>"Bildgröße (Anteil der Raumbreite, 0.05–1)"<input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
+                <label>{t("Bildgröße (Anteil der Raumbreite, 0.05–1)")}<input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
                 <label>"Zoom beim Abfragen (1 = ganzer Raum bis 4)"<input type="text" inputmode="decimal" bind:value=zoom /></label>
-                <label>"Antwortart"<select bind:value=kind>
-                    <option value="recall">"Recall (Selbstbewertung)"</option><option value="guess">"Guess (Eingabe)"</option><option value="quiz">"Quiz"</option>
+                <label id="tour-editor-answer">{t("Antwortart")}<select bind:value=kind>
+                    <option value="recall">{t("Recall (Selbstbewertung)")}</option><option value="guess">{t("Guess (Eingabe)")}</option><option value="quiz">{t("Quiz")}</option>
                 </select></label>
-                <Show when=move || kind.get() == "guess"><label>"Weitere gültige Antworten (eine pro Zeile)"<textarea bind:value=accept /></label></Show>
-                <Show when=move || kind.get() == "quiz"><label>"Quizoptionen (eine pro Zeile: + richtig, - falsch)"<textarea rows="5" bind:value=quiz /></label></Show>
+                <Show when=move || kind.get() == "guess"><label>{t("Weitere gültige Antworten (eine pro Zeile)")}<textarea bind:value=accept /></label></Show>
+                <Show when=move || kind.get() == "quiz"><label>{t("Quizoptionen (eine pro Zeile: + richtig, - falsch; beliebig viele + pro Frage möglich)")}<textarea rows="5" bind:value=quiz /></label></Show>
             </fieldset>
             <div class="tabs">
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {
@@ -1541,15 +1909,14 @@ fn ContentForm(
                     last_persisted.set_value(draft.clone());
                     place.set(draft.place); item.set(draft.item); note.set(draft.note); image.set(draft.image); size.set(draft.size); zoom.set(draft.zoom);
                     kind.set(draft.kind); accept.set(draft.accept); quiz.set(draft.quiz);
-                    dirty.set(false); confirm_delete.set(false); cancel.message.set(String::new());
-                }>"Änderungen verwerfen"</button>
+                    dirty.set(false); cancel.message.set(String::new());
+                }>{t("Änderungen verwerfen")}</button>
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { "Bild verbergen" } else { "Bild aufdecken" }}</button>
-                <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=move |_| {
-                    if confirm_delete.get() { delete.change(EditorAction::Delete { id: id.get_value() }); }
-                    else { confirm_delete.set(true); }
-                }>{move || if confirm_delete.get() { "Endgültig löschen?" } else { "Ort löschen" }}</button>
+                // One click: „Rückgängig“ brings the locus back, so no second confirmation.
+                <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get()
+                    on:click=move |_| delete.change(EditorAction::Delete { id: id.get_value() })>{t("Ort löschen")}</button>
             </div>
-            <Show when=move || dirty.get()><p>"Noch nicht gespeichert – ungültige Eingaben korrigieren oder verwerfen, bevor du den Ort wechselst."</p></Show>
+            <Show when=move || dirty.get()><p>{t("Noch nicht gespeichert – ungültige Eingaben korrigieren oder verwerfen, bevor du den Ort wechselst.")}</p></Show>
         </form>
     }
 }

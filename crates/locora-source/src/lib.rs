@@ -224,9 +224,27 @@ pub fn media_type(path: &Path) -> Option<(RoomKind, &'static str)> {
 
 const SPLY_MAGIC: &[u8] = b"\x89SPLY\r\n\x1a";
 
-/// A picture file for a locus: an image or a `.sply` animation that exists.
-fn check_picture(base: &Path, file: &str, where_: &str) -> Result<(PathBuf, &'static str)> {
+/// A media file named in the source, resolved against `base`. It must resolve inside `root`, the folder
+/// the palace was loaded from. Canonical paths are compared, so `..`, absolute paths and symlinks that
+/// lead out are all refused. Otherwise a palace someone else wrote could make the import read any file
+/// on this device.
+fn inside(root: &Path, base: &Path, file: &str) -> Result<PathBuf> {
     let path = base.join(file);
+    let folder = root
+        .canonicalize()
+        .map_err(|e| SourceError::File(root.display().to_string(), e))?;
+    let real = path
+        .canonicalize()
+        .map_err(|e| SourceError::File(file.to_owned(), e))?;
+    if !real.starts_with(&folder) {
+        return Err(invalid(format!("{file}: liegt außerhalb des Palast-Ordners")));
+    }
+    Ok(path)
+}
+
+/// A picture file for a locus: an image or a `.sply` animation that exists.
+fn check_picture(base: &Path, root: &Path, file: &str, where_: &str) -> Result<(PathBuf, &'static str)> {
+    let path = inside(root, base, file)?;
     let (kind, media_type) = media_type(&path).ok_or_else(|| {
         invalid(format!(
             "{where_}: {file}: unbekanntes Format (png, jpg, webp, gif, avif, sply)"
@@ -484,8 +502,14 @@ pub fn parse(text: &str) -> Result<Source> {
 }
 
 /// Check a source completely (files, times, answers, formulas, tables) without writing anything.
-/// Relative media paths are resolved against `base`.
+/// Relative media paths are resolved against `base` and must stay inside it.
 pub fn check(source: &Source, base: &Path) -> Result<Plan> {
+    check_within(source, base, base)
+}
+
+/// Like [`check`], but media may sit anywhere inside `root`, which can be above `base`. The bundled
+/// tutorial keeps its pictures in a sibling folder of its source.
+pub fn check_within(source: &Source, base: &Path, root: &Path) -> Result<Plan> {
     let name = source.name.trim();
     if name.is_empty() {
         return Err(invalid("`name` darf nicht leer sein"));
@@ -507,7 +531,7 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                 )));
             }
             (Some(file), None) | (None, Some(file)) => {
-                let path = base.join(file);
+                let path = inside(root, base, file)?;
                 let (kind, media_type) = media_type(&path)
                     .ok_or_else(|| invalid(format!("{where_room}: {file}: unbekanntes Format (png, jpg, webp, gif, avif, mp4, webm, mov)")))?;
                 let wanted = if room.video.is_some() {
@@ -608,7 +632,7 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
                 .map_err(|e| invalid(format!("{where_}: {e}")))?;
             locora_store::check_zoom(locus.zoom).map_err(|e| invalid(format!("{where_}: {e}")))?;
             let picture = match &locus.image {
-                Some(file) => Some(check_picture(base, file, &where_)?),
+                Some(file) => Some(check_picture(base, root, file, &where_)?),
                 None => None,
             };
             loci.push((
@@ -656,7 +680,7 @@ pub fn check(source: &Source, base: &Path) -> Result<Plan> {
     let marker = match &source.marker {
         None => None,
         Some(file) => {
-            let path = base.join(file);
+            let path = inside(root, base, file)?;
             if media_type(&path).map(|(_, t)| t) != Some(locora_store::SPLINELY) {
                 return Err(invalid(format!(
                     "`marker`: {file} muss eine .sply-Datei sein"
@@ -703,13 +727,46 @@ fn read_media(path: &Path) -> Result<Vec<u8>> {
 /// Write a checked plan into the store as a new palace. If anything fails
 /// half-way, the partly built palace is removed again.
 pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
+    build_inner(store, plan, None)
+}
+
+/// Import an official bundled palace with IDs stable across devices.
+/// The namespace is a versioned identifier owned by the bundle, not its title.
+pub fn build_bundled(store: &Store, plan: &Plan, namespace: &str) -> Result<PalaceTree> {
+    if namespace.is_empty() {
+        return Err(invalid("Leerer Kennungsraum für eingebauten Palast"));
+    }
+    build_inner(store, plan, Some(namespace))
+}
+
+fn bundled_id(namespace: &str, kind: &str, room: usize, locus: usize) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(format!(
+        "locora-builtin/v1/{namespace}/{kind}/{room}/{locus}"
+    ));
+    digest[..16]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// Stable palace ID used to recognize a built-in bundle after a sync rename.
+pub fn bundled_palace_id(namespace: &str) -> String {
+    bundled_id(namespace, "palace", 0, 0)
+}
+
+fn build_inner(store: &Store, plan: &Plan, namespace: Option<&str>) -> Result<PalaceTree> {
     if store.find_palace(&plan.name)?.is_some() {
         return Err(invalid(format!(
             "Es gibt schon einen Palast „{}“",
             plan.name
         )));
     }
-    let palace = store.create_palace(&plan.name)?;
+    let palace = if let Some(namespace) = namespace {
+        store.create_palace_with_id(&plan.name, &bundled_id(namespace, "palace", 0, 0))?
+    } else {
+        store.create_palace(&plan.name)?
+    };
     let result = (|| -> Result<()> {
         if let Some((path, media_type)) = &plan.marker {
             let bytes = read_media(path)?;
@@ -719,7 +776,7 @@ pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
         for row in &plan.tables {
             store.set_row(Some(&palace.id), row)?;
         }
-        for room in &plan.rooms {
+        for (room_index, room) in plan.rooms.iter().enumerate() {
             let media = match &room.media {
                 Some((path, media_type)) => {
                     let bytes = read_media(path)?;
@@ -727,14 +784,32 @@ pub fn build(store: &Store, plan: &Plan) -> Result<PalaceTree> {
                 }
                 None => None,
             };
-            let created = store.add_room(&palace.id, &room.name, room.kind, media.as_deref())?;
-            for (locus, bindings, picture) in &room.loci {
+            let created = if let Some(namespace) = namespace {
+                store.add_room_with_id(
+                    &palace.id,
+                    &room.name,
+                    room.kind,
+                    media.as_deref(),
+                    &bundled_id(namespace, "room", room_index, 0),
+                )?
+            } else {
+                store.add_room(&palace.id, &room.name, room.kind, media.as_deref())?
+            };
+            for (locus_index, (locus, bindings, picture)) in room.loci.iter().enumerate() {
                 let mut locus = locus.clone();
                 if let Some((path, media_type)) = picture {
                     let bytes = read_media(path)?;
                     locus.image = Some(store.put_media(&bytes, media_type)?.hash);
                 }
-                let new = store.add_locus(&created.id, locus)?;
+                let new = if let Some(namespace) = namespace {
+                    store.add_locus_with_id(
+                        &created.id,
+                        locus,
+                        &bundled_id(namespace, "locus", room_index, locus_index),
+                    )?
+                } else {
+                    store.add_locus(&created.id, locus)?
+                };
                 for binding in bindings {
                     store.set_binding(&new.id, binding)?;
                 }

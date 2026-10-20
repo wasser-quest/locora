@@ -52,10 +52,6 @@ pub fn on_file_drop(callback: impl Fn(Result<String, String>) + 'static) {
     on_cleanup(move || listener.remove());
 }
 
-pub fn marker_url(media: &Media) -> String {
-    convert_file_src(&format!("markers/{}", media.hash), SCHEME)
-}
-
 /// URL of a stored file (or a `.sply` as interactive SVG).
 pub fn url(media: &Media) -> String {
     convert_file_src(&media.path(), SCHEME)
@@ -64,7 +60,26 @@ pub fn url(media: &Media) -> String {
 /// GStreamer in WebKitGTK rejects custom schemes (`locora://`) as media
 /// sources; videos play from blob URLs fetched over the custom scheme instead.
 /// Byte ranges stay in the WebView: a blob needs no backend round-trip.
+thread_local! {
+    /// The video on stage as (media hash, blob URL). A new question re-mounts the player;
+    /// reusing this URL avoids fetching the whole file again, which made the video reload.
+    static LAST_VIDEO: std::cell::RefCell<Option<(String, String)>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The stage's video URL when that video is already loaded; no fetch is needed.
+pub fn cached_video_url(media: &Media) -> Option<String> {
+    LAST_VIDEO.with(|last| {
+        last.borrow()
+            .as_ref()
+            .filter(|(hash, _)| *hash == media.hash)
+            .map(|(_, object)| object.clone())
+    })
+}
+
 pub async fn video_url(media: &Media) -> Result<String, String> {
+    if let Some(object) = cached_video_url(media) {
+        return Ok(object);
+    }
     let read = "Video konnte nicht gelesen werden";
     // Plain `fetch` needs CORS headers the custom scheme never sends; the
     // request still reaches the handler and dies on the response, so use
@@ -107,8 +122,24 @@ pub async fn video_url(media: &Media) -> Result<String, String> {
     .await
     .map_err(|_| read.to_string())?;
     let blob: web_sys::Blob = blob.dyn_into().map_err(|_| read.to_string())?;
-    Url::create_object_url_with_blob(&blob)
-        .map_err(|_| "Video konnte nicht geöffnet werden".to_string())
+    let object = Url::create_object_url_with_blob(&blob)
+        .map_err(|_| "Video konnte nicht geöffnet werden".to_string())?;
+    // Another question for the same video may have fetched it meanwhile; keep that URL.
+    let kept = LAST_VIDEO.with(|last| {
+        let mut last = last.borrow_mut();
+        if let Some((hash, cached)) = last.as_ref()
+            && *hash == media.hash
+        {
+            let cached = cached.clone();
+            revoke_object_url(&object);
+            return cached;
+        }
+        if let Some((_, previous)) = last.replace((media.hash.clone(), object.clone())) {
+            revoke_object_url(&previous);
+        }
+        object.clone()
+    });
+    Ok(kept)
 }
 
 /// Release a blob URL once no element uses it anymore.

@@ -41,13 +41,25 @@ def walk(node, depth=0):
 
 
 class Scenario:
-    def __init__(self, binary, artifacts):
+    def __init__(self, binary, artifacts, sply_video=None, only_sply=False, only_tour=False, only_core=False, only_video_marker=False):
+        self.binary = binary
         self.artifacts = artifacts
+        self.sply_video = sply_video
+        self.only_sply = only_sply
+        self.only_tour = only_tour
+        self.only_core = only_core
+        self.only_video_marker = only_video_marker
         self.profile = artifacts / "profile"
         self.profile.mkdir()
+        self.environment = {**os.environ, "LOCORA_DATA": str(self.profile)}
+        for name, directory in (("XDG_DATA_HOME", "xdg-data"), ("XDG_CONFIG_HOME", "xdg-config"),
+                                ("XDG_CACHE_HOME", "xdg-cache")):
+            path = self.profile / directory
+            path.mkdir(exist_ok=True)
+            self.environment[name] = str(path)
         self.log = open(artifacts / "app.log", "w")
         started = time.monotonic()
-        self.process = subprocess.Popen([str(binary)], env={**os.environ, "LOCORA_DATA": str(self.profile)}, stdout=self.log, stderr=self.log)
+        self.process = subprocess.Popen([str(binary)], env=self.environment, stdout=self.log, stderr=self.log)
         self.steps = []
         self.clicks = 0
         self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
@@ -155,10 +167,171 @@ class Scenario:
         self.steps.append({"check": name, "status": "passed", **values})
         print(json.dumps(self.steps[-1], ensure_ascii=False), flush=True)
 
+    def check_sply(self):
+        assert self.sply_video is not None
+        if not self.find("Bild/Video wählen…", "button"):
+            self.click("←")
+            self.until(lambda: self.find("Bild/Video wählen…", "button"))
+        frame = self.until(lambda: self.find("Locora", "frame"))
+        self.drag_file(self.sply_video, frame)
+        self.until(lambda: self.find("Animationsraum –", "section", True))
+        self.until(lambda: (lambda button: button and button.get_state_set().contains(Atspi.StateType.ENABLED))(self.find("Animation abspielen", "button")))
+        adding = self.until(lambda: self.find("Ort setzen (Bühne anklicken)", "check box"))
+        if not adding.get_state_set().contains(Atspi.StateType.CHECKED):
+            self.click("Ort setzen (Bühne anklicken)", "check box")
+        stage = self.until(lambda: self.find("Animationsraum –", "section", True))
+        slider = self.until(lambda: next((n for n in walk(self.app) if n.get_role_name() == "slider"), None))
+        assert slider.grab_focus()
+        track = slider.get_extents(Atspi.CoordType.SCREEN)
+        self.x("mousemove", str(track.x + track.width*3//5), str(track.y + track.height//2), "click", "1")
+        def position():
+            for node in walk(self.app):
+                text = node_text(node) if node.get_role_name() == "paragraph" else ""
+                if text.startswith("Position "):
+                    return float(text.split()[1])
+            return None
+        seek_time = self.until(lambda: (lambda value: value if value and value > 1.0 else None)(position()))
+        self.record("sply-free-seek", time=seek_time)
+        assert stage.grab_focus()
+        rect = stage.get_extents(Atspi.CoordType.SCREEN)
+        self.x("windowfocus", "--sync", self.window)
+        self.x("mousemove", str(rect.x + rect.width//4), str(rect.y + rect.height*2//5), "click", "1")
+        locus = self.until(lambda: self.sql("SELECT l.x,l.y,l.time FROM loci l JOIN rooms r ON r.id=l.room_id JOIN palaces p ON p.id=r.palace_id WHERE p.name=?", (self.sply_video.stem,)) or None)
+        x, y, at = locus[-1]
+        assert .20 <= x <= .30 and .35 <= y <= .45 and at is not None and at > 1.0, (x, y, at)
+        self.record("sply-timed-stage-click-position", x=round(x, 2), y=round(y, 2), time=at)
+        self.until(lambda: True if self.find("Ort 1:", "button", True) is None else None)
+        self.until(lambda: (lambda button: button and button.get_state_set().contains(Atspi.StateType.ENABLED))(self.find("Animation abspielen", "button")))
+        slider = self.until(lambda: next((n for n in walk(self.app) if n.get_role_name() == "slider"), None))
+        assert slider.grab_focus()
+        track = slider.get_extents(Atspi.CoordType.SCREEN)
+        self.x("mousemove", str(track.x + track.width*3//5), str(track.y + track.height//2), "click", "1")
+        self.until(lambda: self.find("Ort 1:", "button", True))
+        self.record("sply-marker-visible-at-stop-only")
+
+    def check_video_marker(self):
+        video = self.artifacts / "Marker window.webm"
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                        "testsrc=size=320x240:rate=10:duration=3", "-c:v", "libvpx",
+                        "-b:v", "200k", str(video)], check=True)
+        frame = self.until(lambda: self.find("Locora", "frame"))
+        self.drag_file(video.resolve(), frame)
+        stage = self.until(lambda: self.find("Videoraum", "section", True))
+        adding = self.until(lambda: self.find("Ort setzen (Bühne anklicken)", "check box"))
+        if not adding.get_state_set().contains(Atspi.StateType.CHECKED):
+            self.click("Ort setzen (Bühne anklicken)", "check box")
+        slider = self.until(lambda: next((n for n in walk(self.app) if n.get_role_name() == "slider"
+                                         and n.get_state_set().contains(Atspi.StateType.ENABLED)), None))
+        track = slider.get_extents(Atspi.CoordType.SCREEN)
+        def position():
+            for node in walk(self.app):
+                text = node_text(node) if node.get_role_name() == "paragraph" else ""
+                if text.startswith("Position "):
+                    return float(text.split()[1])
+            return None
+        def seek(target):
+            self.x("mousemove", str(round(track.x + track.width * target / 3)),
+                   str(track.y + track.height // 2), "click", "1")
+            self.until(lambda: (lambda value: value is not None and abs(value - target) < .12)(position()))
+        seek(1.8)
+        assert stage.grab_focus()
+        rect = stage.get_extents(Atspi.CoordType.SCREEN)
+        self.x("windowfocus", "--sync", self.window)
+        self.x("mousemove", str(rect.x + rect.width//4), str(rect.y + rect.height*2//5), "click", "1")
+        rows = self.until(lambda: self.sql("SELECT l.time FROM loci l JOIN rooms r ON r.id=l.room_id JOIN palaces p ON p.id=r.palace_id WHERE p.name=?", (video.stem,)) or None)
+        at = rows[0][0]
+        assert 1.65 < at < 1.95, at
+        inputs = [n for n in walk(self.app) if n.get_name() == "Marker vorher (s)"
+                  and n.get_role_name() in ("entry", "spin button")]
+        assert len(inputs) == 1, [(n.get_name(), n.get_role_name()) for n in inputs]
+        assert inputs[0].grab_focus()
+        self.x("key", "--clearmodifiers", "ctrl+a")
+        self.x("type", "--clearmodifiers", "--delay", "1", "--", "0.5")
+        self.x("key", "--clearmodifiers", "Tab")
+        marker = lambda: self.find("Ort 1:", "button", True)
+        seek(at - .8)
+        assert marker() is None, "Video marker appeared before its per-locus lead"
+        self.shot("video-marker-before-lead", settle=.2)
+        seek(at - .25)
+        self.until(marker)
+        self.shot("video-marker-in-lead", settle=.2)
+        seek(at + .7)
+        assert marker() is None, "Video marker stayed visible after the stop window"
+        self.record("video-marker-window-and-per-locus-lead", locus_time=round(at, 2), lead=.5)
+
+    def check_tour_all(self):
+        titles = ["Ein Bild wird zum Palast", "Vorhandene Paläste mitnehmen",
+                  "Lernen nach deinem Rhythmus", "Deine Route", "Orte bearbeiten", "Am Ort erinnern"]
+        self.click("App-Tour")
+        for title in titles:
+            self.until(lambda: self.find(title, "heading"))
+            if title != titles[-1]:
+                self.click("Weiter")
+        for title in reversed(titles[:-1]):
+            self.click("Zurück")
+            self.until(lambda: self.find(title, "heading"))
+        self.click("Schließen")
+        self.until(lambda: not self.find("App-Tour", "region"))
+        self.record("tour-all-steps-forward-back")
+
+    def check_core_start(self):
+        self.click("⚙")
+        self.until(lambda: self.find("Einstellungen & Statistik", "heading"))
+        option = self.until(lambda: self.find("Direkt in Core starten", "check box"))
+        assert not option.get_state_set().contains(Atspi.StateType.CHECKED)
+        self.click("Direkt in Core starten", "check box")
+        self.until(lambda: self.find("Direkt in Core starten", "check box").get_state_set().contains(Atspi.StateType.CHECKED))
+        self.click("←")
+        self.until(lambda: self.find("Core", "heading"))
+        self.click("Startseite")
+        self.until(lambda: self.find("Tutorial starten", "button"))
+        self.click("Core")
+        self.until(lambda: self.find("Core", "heading"))
+        self.process.terminate()
+        self.process.wait(timeout=8)
+        self.process = subprocess.Popen([str(self.binary)], env=self.environment, stdout=self.log, stderr=self.log)
+        self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
+        self.until(lambda: self.find("Core", "heading"))
+        self.record("core-start-persists-after-restart")
+        self.click("Startseite")
+        self.click("Tutorial starten")
+        self.until(lambda: self.find("▶ Route ablaufen", "button"))
+        self.click("←")
+        self.until(lambda: self.find("Eingangshalle ↻", "button"))
+        self.click("Eingangshalle ↻")
+        self.until(lambda: self.find("Bibliothek ↻", "button"))
+        self.process.terminate()
+        self.process.wait(timeout=8)
+        self.process = subprocess.Popen([str(self.binary)], env=self.environment, stdout=self.log, stderr=self.log)
+        self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
+        self.until(lambda: self.find("Bibliothek ↻", "button"))
+        self.record("palace-room-preview-persists-after-restart")
+
     def run(self):
         self.record("startup-to-interactive", ms=self.startup_ms, budget_ms=self.startup_budget, enforced=self.startup_budget is not None)
         if self.startup_budget is not None:
             assert self.startup_ms <= self.startup_budget, f"startup {self.startup_ms} ms > {self.startup_budget} ms"
+        if self.only_sply:
+            self.check_sply()
+            return
+        if self.only_video_marker:
+            self.check_video_marker()
+            return
+        if self.only_tour:
+            self.check_tour_all()
+            return
+        if self.only_core:
+            self.check_core_start()
+            return
+        self.click("App-Tour")
+        self.until(lambda: self.find("Ein Bild wird zum Palast", "heading"))
+        self.click("Weiter")
+        self.until(lambda: self.find("Vorhandene Paläste mitnehmen", "heading"))
+        self.click("Zurück")
+        self.until(lambda: self.find("Ein Bild wird zum Palast", "heading"))
+        self.click("Schließen")
+        self.until(lambda: not self.find("App-Tour", "region"))
+        self.record("tour-back-and-close")
         self.click("Tutorial starten")
         self.until(lambda: self.find("▶ Route ablaufen", "button"))
         assert self.sql("SELECT count(*) FROM loci")[0][0] == 9
@@ -216,22 +389,7 @@ class Scenario:
         self.until(lambda: self.sql("SELECT x,y FROM loci WHERE id=?", (locus_id,))[0] == moved)
         self.record("keyboard-move-undo-redo-persisted")
 
-        stage = self.until(lambda: self.find("Raum – im Bearbeitungsmodus", "section", True))
-        before = self.sql("SELECT count(*) FROM loci")[0][0]
-        self.paste(stage, "\n".join(f"E2E Begriff {n}" for n in range(1, 11)))
-        self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before + 10)
-        positions = self.sql("SELECT x,y FROM loci WHERE item LIKE 'E2E Begriff %'")
-        assert len(positions) == len(set(positions)) == 10
-        assert all(0 <= x <= 1 and 0 <= y <= 1 for x,y in positions)
-        self.record("list-route-native-paste-budget", mouse_clicks=0, paste_shortcuts=1, loci=10)
-        # Touch-friendly undo: the toast undoes the whole list via a backend receipt.
-        # Toolbar and toast both offer it; the toast comes later in document order.
-        toast = self.until(lambda: ([n for n in walk(self.app) if n.get_name() == "Rückgängig" and n.get_role_name() == "button"] + [None, None])[1])
-        assert toast.do_action(0)
-        self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before)
-        self.click("Wiederholen")
-        self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before + 10)
-        self.record("undo-toast-and-redo-list", toast_clicks=1)
+        stage = self.until(lambda: self.find("Animationsraum –", "section", True))
         assert stage.grab_focus()
         self.shot("tutorial-room-markers", settle=2)
 
@@ -263,6 +421,21 @@ class Scenario:
         assert self.find("Ort setzen (Bühne anklicken)", "check box").get_state_set().contains(Atspi.StateType.CHECKED)
         self.record("place-name-enter-budget", mouse_clicks=1, enter_keys=1, ready_for_next=True)
         self.shot("dropped-palace-first-locus")
+
+        before = self.sql("SELECT count(*) FROM loci")[0][0]
+        self.paste(stage, "\n".join(f"E2E Begriff {n}" for n in range(1, 11)))
+        self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before + 10)
+        positions = self.sql("SELECT x,y FROM loci WHERE item LIKE 'E2E Begriff %'")
+        assert len(positions) == len(set(positions)) == 10
+        assert all(0 <= x <= 1 and 0 <= y <= 1 for x,y in positions)
+        self.record("list-route-native-paste-budget", mouse_clicks=0, paste_shortcuts=1, loci=10)
+        # Touch-friendly undo: the toast undoes the whole list via a backend receipt.
+        toast = self.until(lambda: ([n for n in walk(self.app) if n.get_name() == "Rückgängig" and n.get_role_name() == "button"] + [None, None])[1])
+        assert toast.do_action(0)
+        self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before)
+        self.click("Wiederholen")
+        self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before + 10)
+        self.record("undo-toast-and-redo-list", toast_clicks=1)
 
         # Video locus budget: drop a video (= palace + video room + editor), then L.
         video = self.artifacts / "Native E2E video.webm"
@@ -334,7 +507,7 @@ class Scenario:
         # Video journey: play muted to each locus, hold there, keyboard reveal/grade.
         self.click("←")
         self.until(lambda: self.find("Bild/Video wählen…", "button"))
-        self.click("Native E2E video", prefix=True)
+        self.click("Native E2E video")
         self.until(lambda: self.find("▶ Route ablaufen", "button"))
         clicks = self.clicks
         self.click("▶ Route ablaufen")
@@ -359,7 +532,7 @@ class Scenario:
         # Reverse direction: same journey, prompt and answer swap.
         self.click("Zur Übersicht")
         self.until(lambda: self.find("Bild/Video wählen…", "button"))
-        self.click("Native E2E video", prefix=True)
+        self.click("Native E2E video")
         self.until(lambda: self.find("Rückwärts (Inhalt → Ort)", "check box"))
         self.click("Rückwärts (Inhalt → Ort)", "check box")
         self.click("▶ Route ablaufen")
@@ -380,6 +553,33 @@ class Scenario:
         self.record("video-journey-reverse-direction")
         self.shot("video-journey-reverse-summary")
 
+        self.click("Zur Übersicht")
+        self.until(lambda: self.find("Bild/Video wählen…", "button"))
+        self.click("Native E2E video")
+        self.until(lambda: self.find("Bearbeiten", "check box"))
+        self.click("Bearbeiten", "check box")
+        self.click("Ort setzen (Bühne anklicken)", "check box")
+        stage = self.until(lambda: self.find("Videoraum", "section", True))
+        assert stage.grab_focus()
+        slider = self.until(lambda: next((n for n in walk(self.app) if n.get_role_name() == "slider"), None))
+        assert slider.grab_focus()
+        track = slider.get_extents(Atspi.CoordType.SCREEN)
+        self.x("mousemove", str(track.x + track.width*3//5), str(track.y + track.height//2), "click", "1")
+        seek_time = self.until(lambda: (lambda value: value if value > .8 else None)(position()))
+        self.record("video-free-seek", time=seek_time)
+        assert stage.grab_focus()
+        before = self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id=l.room_id JOIN palaces p ON p.id=r.palace_id WHERE p.name=?", (video.stem,))[0][0]
+        rect = stage.get_extents(Atspi.CoordType.SCREEN)
+        self.x("windowfocus", "--sync", self.window)
+        self.x("mousemove", str(rect.x + rect.width//4), str(rect.y + rect.height*2//5), "click", "1")
+        self.until(lambda: self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id=l.room_id JOIN palaces p ON p.id=r.palace_id WHERE p.name=?", (video.stem,))[0][0] == before + 1)
+        x, y, at = self.sql("SELECT l.x,l.y,l.time FROM loci l JOIN rooms r ON r.id=l.room_id JOIN palaces p ON p.id=r.palace_id WHERE p.name=? ORDER BY l.rowid DESC LIMIT 1", (video.stem,))[0]
+        assert .20 <= x <= .30 and .35 <= y <= .45 and at is not None, (x, y, at)
+        self.record("timed-stage-click-position", x=round(x, 2), y=round(y, 2), time=at)
+
+        if self.sply_video:
+            self.check_sply()
+
         # Persistence is checked from SQLite, not merely optimistic UI text.
         self.record("no-runtime-start-error", checked_views="welcome, tutorial room, first recall")
         assert not any("Animation konnte nicht" in n.get_name() for n in walk(self.app))
@@ -399,6 +599,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, default=Path("apps/app/target/debug/locora-app"))
     parser.add_argument("--artifacts", type=Path)
+    parser.add_argument("--sply-video", type=Path, help="Optional animated .sply fixture for stage-click placement")
+    parser.add_argument("--only-sply", action="store_true", help="Run only the optional animated .sply checks")
+    parser.add_argument("--only-tour", action="store_true", help="Run only the complete app tour forward and back")
+    parser.add_argument("--only-core", action="store_true", help="Verify Core start preference across a native restart")
+    parser.add_argument("--only-video-marker", action="store_true", help="Verify a video marker's time window and per-locus lead")
     # PLAN target is 300 ms for a release build on real hardware; CI runs a
     # debug build under Xvfb, so the budget is opt-in.
     parser.add_argument("--startup-budget-ms", type=int)
@@ -409,7 +614,7 @@ def main():
     try:
         scenario = Scenario.__new__(Scenario)
         scenario.startup_budget = args.startup_budget_ms
-        scenario.__init__(args.binary.resolve(), artifacts)
+        scenario.__init__(args.binary.resolve(), artifacts, args.sply_video.resolve() if args.sply_video else None, args.only_sply, args.only_tour, args.only_core, args.only_video_marker)
         scenario.run()
     except Exception as error:
         if scenario and hasattr(scenario, "steps"):

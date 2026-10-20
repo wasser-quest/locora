@@ -1,3 +1,5 @@
 /target
 /ui/dist
 /src-tauri/gen/schemas
+/src-tauri/gen/android
+/src-tauri/gen/apple

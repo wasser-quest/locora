@@ -14,7 +14,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #17183a;
     --surface: #22244f;
     --text: #f3eee3;
@@ -25,9 +25,49 @@
     color-scheme: dark;
   }
 }
+/* Chosen in Einstellungen → Darstellung; these come after the system palette so they win. */
+:root[data-theme="light"] {
+  --bg: #f3eee3;
+  --surface: #fffaf0;
+  --text: #22234f;
+  --muted: #5f6089;
+  --line: #d3cbb9;
+  --ok: #3c8d4a;
+  --again: #b8473a;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #17183a;
+  --surface: #22244f;
+  --text: #f3eee3;
+  --muted: #b3b4d8;
+  --line: #3a3d72;
+  --ok: #8fd18a;
+  --again: #ff9a8a;
+  color-scheme: dark;
+}
+:root[data-theme="contrast"] {
+  --bg: #000000;
+  --surface: #0d0d0d;
+  --text: #ffffff;
+  --muted: #e8e8ff;
+  --line: #ffffff;
+  --indigo: #2f5cff;
+  --indigo-deep: #0b2a9e;
+  --lime: #ffff00;
+  --glow: #ffff66;
+  --ok: #66ff7a;
+  --again: #ff7a66;
+  color-scheme: dark;
+}
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text);
   font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+/* Android draws edge to edge: keep the header clear of the status bar, and let
+   scrolled content disappear behind a solid strip instead of the status icons. */
+body { padding-top: env(safe-area-inset-top); }
+body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top);
+  background: var(--bg); z-index: 20; pointer-events: none; }
 button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); padding: .5rem .9rem; }
 button.primary { background: var(--indigo); color: #fff; border-color: var(--indigo); }
@@ -35,7 +75,7 @@ button.primary:hover { background: var(--indigo-deep); }
 button:disabled { opacity: .5; cursor: default; }
 input[type=text] { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); width: 100%; }
-main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+main { max-width: min(1200px, 100%); margin: 0 auto; padding: 16px; }
 header.bar { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
 /* Tour copy remains text; the highlighted control is addressed by a stable ID. */
 [data-tour-active="true"] { position: relative; z-index: 11; outline: 3px solid var(--lime); outline-offset: 4px; box-shadow: 0 0 0 7px var(--indigo-deep); }
@@ -61,6 +101,12 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .palace .meta { color: var(--muted); font-size: .9rem; }
 .palace .row { display: flex; align-items: center; gap: .5rem; }
 .palace .row .meta { flex: 1; }
+.palace-cover { position: relative; height: 120px; overflow: hidden; border-radius: 10px; background: var(--surface, #1b1b2b); }
+.palace-cover-media { width: 100%; height: 100%; object-fit: cover; }
+/* The canvas shows the first frame; the hidden-behind video only supplies it. */
+.palace-thumb-source, .palace-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.palace-cover-open { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border: 0; background: transparent; cursor: pointer; }
+.palace-cover-change { position: absolute; z-index: 2; right: .4rem; bottom: .4rem; max-width: calc(100% - .8rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .play { border-radius: 50%; width: 2.4rem; height: 2.4rem; padding: 0; }
 .notes { color: var(--again); font-size: .9rem; }
 .empty { text-align: center; color: var(--muted); padding: 2rem 1rem; }
@@ -72,30 +118,88 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .video-timeline-mark.invalid { border-color: var(--again); }
 .video-timeline-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: .8rem; }
 .video-timeline-loci { display: flex; gap: .4rem; overflow-x: auto; padding: .5rem 0; }
+.video-timeline-locus { display: flex; flex: 0 0 11rem; flex-direction: column; gap: .25rem; }
+.video-timeline-locus input[type="range"] { width: 100%; }
+.video-seek { display: flex; gap: .75rem; align-items: center; }
+.video-transport { display: flex; gap: .5rem; margin: .25rem 0 .5rem; }
+/* Editor options in named groups: each group folds, so the screen shows what the step needs. */
+.editor-groups { display: grid; gap: .5rem; margin: .5rem 0; }
+.editor-group { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: .5rem .75rem; }
+.editor-group > summary { cursor: pointer; font-weight: 600; }
+.editor-group-body { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding-top: .5rem; }
+.editor-group-body > label { display: flex; gap: .4rem; align-items: center; }
+.room-order { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.room-row { display: grid; grid-template-columns: auto 1fr auto; gap: .4rem; align-items: center; }
+.room-row input { min-width: 0; }
+/* The editor's picture takes no clicks: loci are placed on the stage, not on a playing frame. */
+.editor-video { pointer-events: none; }
+.video-seek input { flex: 1; min-width: 8rem; }
+.video-start-preview { padding: .5rem .75rem; border-bottom: 1px solid var(--line); }
+.video-start-preview ul { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: .25rem 0 0; padding-left: 1.25rem; }
 .video-timeline button { white-space: nowrap; }
 .video-timeline button.on { background: var(--indigo); color: #fff; }
 .video-timeline button.invalid { border-color: var(--again); }
 .tabs button.on { background: var(--indigo); color: #fff; }
-.stage { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
+/* The ratio follows the picture (`fit_stage`), so stage percentages match what is shown.
+   Height is capped so the question below stays on screen. */
+.stage { position: relative; width: min(100%, calc(58vh * var(--stage-ratio, 1.3333))); margin: 0 auto;
+  aspect-ratio: var(--stage-ratio, 1.3333); border-radius: 14px; overflow: hidden;
   background: linear-gradient(160deg, var(--indigo-deep), var(--indigo)); }
 .stage .backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; }
+/* The room gets the height left after the status strip, the text and the picture, so the answer
+   and the grades fit on one screen; the reserve of 400px leaves room for the combo line and "Weiter" after grading. */
+.stage:not(.editing) { width: min(100%, calc(max(100px, 100vh - 400px - min(110px, 14vh)) * var(--stage-ratio, 1.3333))); }
+/* Only the small button in the control bar; the large centre button hides loci. */
+video::-webkit-media-controls-overlay-play-button { display: none !important; }
 .locus-picture { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
+/* Where a reverse question was answered: green inside the radius, red outside. */
+.guess-marker { position: absolute; width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--lime);
+  transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 0 2px #0008; }
+.guess-marker.hit { border-color: var(--ok); }
+.guess-marker.miss { border-color: var(--again); }
 .locus-picture > img { display: block; width: 100%; height: auto; }
-.locus-picture > iframe.sply { display: block; width: 100%; aspect-ratio: 1; height: auto; }
-.marker { z-index: 1; position: absolute; width: 56px; height: 56px; transform: translate(-50%, -50%); }
-.marker iframe { width: 100%; height: 100%; border: 0; pointer-events: none; background: transparent; }
+/* The text of a revealed locus without a picture, where the picture would stand. */
+.locus-text { position: absolute; transform: translate(-50%, -50%); pointer-events: none; max-width: 40%; padding: .3rem .6rem; border-radius: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--line); font-weight: 600; text-align: center; overflow-wrap: anywhere; }
+.locus-picture > iframe.sply, .locus-picture > img.sply { display: block; width: 100%; aspect-ratio: 1; height: auto; }
+.marker { z-index: 2; position: absolute; width: 56px; height: 56px; transform: translate(-50%, -50%); }
+/* With a dark colour scheme WebViews paint frames white unless the frame opts out. */
+.marker iframe { width: 100%; height: 100%; border: 0; pointer-events: none; background: transparent; color-scheme: normal; }
 .marker button { position: absolute; inset: 0; border: 0; background: transparent; border-radius: 50%; padding: 0; }
-.marker .num { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); font-size: .75rem;
-  color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; pointer-events: none; }
+.marker .num { position: absolute; z-index: 1; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: grid; place-items: center; box-sizing: border-box; min-width: 23px; height: 23px;
+  padding: 0 3px; border: 1px solid #ddf76a; border-radius: 999px;
+  background: #23245e; color: #fff; font-size: .68rem; font-weight: 800;
+  line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
 /* Animations are pictures: clicks go to the stage below (editor, markers) and the
    frame never takes keyboard focus away from the app's shortcuts. */
-iframe.sply { border: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; }
-.picture { width: min(320px, 80vw); max-width: 100%; aspect-ratio: 1; margin: .5rem auto 0; }
+iframe.sply { border: 0; width: 100%; height: 100%; background: transparent; color-scheme: normal; pointer-events: none; }
+/* Chrome for Android shows a graphic as an image (see sply.rs): it fills its box, at most 300 px tall. */
+img.sply { display: block; width: 100%; height: 100%; max-height: min(70vw, 300px); object-fit: contain; border: 0; background: transparent; pointer-events: none; }
+.picture { width: min(120px, 14vh); max-width: 100%; aspect-ratio: 1; margin: .5rem auto 0; }
 .picture > img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .panel { margin-top: 1rem; display: flex; flex-direction: column; gap: .7rem; }
 .prompt { font-size: 1.3rem; font-weight: 600; }
 .progress { color: var(--muted); font-size: .9rem; }
+.game-status { display: grid; gap: .35rem; margin-bottom: .6rem; padding: .45rem .7rem; }
+.game-numbers, .game-stat, .game-hearts, .game-trophy { display: flex; align-items: center; gap: .35rem; }
+.game-numbers { flex-wrap: wrap; gap: .65rem 1rem; }
+.game-hearts { margin-left: auto; gap: .1rem; }
+.game-icon { display: inline-block; width: 22px; height: 22px; flex: none; }
+.game-icon.spent { opacity: .22; filter: grayscale(1); }
+.game-daily { display: grid; gap: .2rem; color: var(--muted); font-size: .85rem; }
+.game-daily-label { display: flex; align-items: center; gap: .35rem; }
+.tile-streak { display: flex; align-items: center; gap: .35rem; color: var(--muted); font-size: .8rem; }
+.game-daily progress { width: 100%; height: .7rem; accent-color: var(--indigo); }
+.game-trophies { display: flex; flex-wrap: wrap; gap: .35rem .8rem; border-top: 1px solid var(--line); padding-top: .45rem; }
+.game-trophy { color: var(--muted); font-size: .8rem; }
+.game-trophy .game-icon { width: 22px; height: 22px; }
 .solution { font-size: 1.2rem; }
+/* Solution and picture share one row: the picture never adds a line below the text. */
+.answer { display: flex; align-items: center; gap: .75rem; }
+.answer .solution { flex: 1 1 auto; min-width: 0; }
+/* Once the answer is shown, the question text and its picture make room for the answer and the next step. */
+.panel.revealed > .prompt, .panel.revealed > .picture { display: none; }
+.answer .picture { flex: none; width: min(110px, 14vh); margin: 0; }
 .note { color: var(--muted); font-style: italic; }
 .grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
 .grades button small { display: block; color: var(--muted); font-size: .75rem; }
@@ -103,6 +207,11 @@ iframe.sply { border: 0; width: 100%; height: 100%; background: transparent; poi
 .options label { display: flex; gap: .6rem; align-items: center; padding: .5rem .7rem; border: 1px solid var(--line);
   border-radius: 10px; background: var(--surface); cursor: pointer; }
 .options label.right { border-color: var(--ok); }
+/* More than three answers sit in a grid: three columns, two on a narrow phone. */
+.options.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 520px) {
+  .options.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .verdict.ok { color: var(--ok); font-weight: 700; }
 .verdict.again { color: var(--again); font-weight: 700; }
 .modes { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-top: .75rem; }
@@ -132,7 +241,8 @@ dl.stats dt { color: var(--muted); }
 dl.stats dd { margin: 0; font-weight: 600; }
 .status { color: var(--ok); font-size: .9rem; }
 .status:empty, .notes:empty { display: none; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-bottom: 1rem; }
+/* auto-fit: a single tile takes the whole row, as the other cards do; several tiles share it. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-bottom: 1rem; }
 .tile { display: flex; align-items: center; gap: .6rem; }
 .tile .icon { width: 48px; height: 48px; flex: none; }
 .tile .text { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
@@ -145,6 +255,24 @@ dl.stats dd { margin: 0; font-weight: 600; }
   cursor: pointer; }
 .palette li.on { background: var(--indigo); color: #fff; }
 .palette li small { color: inherit; opacity: .7; }
+.palette-mobile-trigger { display: none; }
+/* On touch screens the commands sit in a bottom bar, not over the content. */
+@media (pointer: coarse) and (max-width: 800px) {
+  body { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+  .palette-mobile-trigger { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
+    min-height: 56px; padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom)); border: 0; border-radius: 0;
+    background: var(--indigo); color: #fff; font-weight: 600; box-shadow: 0 -4px 18px #17183a55; }
+  .palette-mobile-trigger:focus-visible { outline: 3px solid var(--lime); outline-offset: -3px; }
+  .toast { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .tour-panel { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  /* The progress card is a single compact strip on a phone, so the question and grades fit on screen. */
+  .game-status { gap: .3rem; margin-bottom: .6rem; padding: .4rem .6rem; }
+  .game-numbers { gap: .3rem .7rem; }
+  .game-icon { width: 20px; height: 20px; }
+  .game-daily { font-size: .78rem; gap: .1rem; }
+  .game-daily progress { height: .4rem; }
+  .game-trophies { display: none; }
+}
 .welcome { display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; }
 .welcome .simo { width: min(220px, 40vw); aspect-ratio: 2 / 3; flex: none; }
 .welcome .text { flex: 1 1 260px; display: flex; flex-direction: column; gap: .5rem; }
@@ -180,3 +308,95 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .notification .close { background: transparent; color: inherit; padding: 0 .6rem; }
 .notification[data-priority="2"] { outline: 2px solid var(--lime); }
 .options kbd { display: inline-block; min-width: 1.4em; margin-right: .4em; padding: 0 .3em; border: 1px solid var(--line); border-radius: 4px; font: inherit; font-size: .8rem; text-align: center; color: var(--muted); }
+
+/* Activity overview: one square per learning day, shaded by the answers of that day. */
+.activity-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); gap: 3px;
+  overflow-x: auto; padding: .2rem 0 .5rem; }
+.activity-day { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--line); }
+.activity-day.l1 { background: color-mix(in srgb, var(--ok) 30%, var(--surface)); }
+.activity-day.l2 { background: color-mix(in srgb, var(--ok) 50%, var(--surface)); }
+.activity-day.l3 { background: color-mix(in srgb, var(--ok) 75%, var(--surface)); }
+.activity-day.l4 { background: var(--ok); }
+.activity-legend { display: flex; gap: 3px; align-items: center; color: var(--muted); font-size: .8rem; }
+.activity-legend span:not(.activity-day) { margin: 0 .3rem; }
+
+/* Room tabs are buttons, not text: they cannot be selected or highlighted. */
+.tabs, .tabs * { -webkit-user-select: none; user-select: none; }
+/* While a tour step is shown, everything but the highlighted element is covered. */
+.tour-scrim { position: fixed; inset: 0; z-index: 10; background: rgba(8, 8, 24, .9); }
+
+/* Edit mode: everything sits in one panel; the inner blocks drop their own card frames. */
+.editor-panel { display: flex; flex-direction: column; gap: .6rem; }
+.editor-panel > .panel { margin-top: 0; }
+
+/* Achievements: unlocked medals are coloured and clickable, locked ones grey and still. */
+.medals { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
+.medal { display: flex; flex-direction: column; align-items: center; gap: .3rem; width: 9rem; text-align: center; }
+.medal-art { width: 72px; height: 72px; }
+/* The medal is a frame of its own: the general frame rule would stretch it to the card. */
+iframe.sply.medal-art, img.sply.medal-art { width: 72px; height: 72px; max-height: none; flex: none; }
+/* Inline graphics (sply.rs): the SVG fills the box, at most 300 px tall, as the image does. Touches go to
+   the app, not to the graphic: the pointer is forwarded to it by sply.rs (pointer-events is inherited). */
+.sply-inline { display: block; width: 100%; height: 100%; max-height: min(70vw, 300px); pointer-events: none; }
+.sply-inline > svg { display: block; width: 100%; height: 100%; }
+.locus-picture > .sply-inline { aspect-ratio: 1; height: auto; }
+.sply-inline.medal-art { width: 72px; height: 72px; max-height: none; flex: none; }
+.medal-title { font-weight: 600; }
+.medal-hint { color: var(--muted); font-size: .85rem; }
+.medal.locked .medal-title { color: var(--muted); }
+
+/* Time limit per question: the bar empties while the question waits for an answer. */
+.timer { height: 6px; margin: .4rem 0; border-radius: 3px; background: var(--line); overflow: hidden; }
+.timer > span { display: block; height: 100%; background: var(--indigo); transform-origin: left center; animation: timer-run linear forwards; }
+@keyframes timer-run { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Start page: the plugin blocks fold away under "Plugins" by default; the layout editor lists them. */
+.plugins-fold { margin: .4rem 0 1rem; }
+.plugins-fold > summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: .5rem 0; }
+.dashboard-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.dashboard-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.dashboard-name { flex: 1 1 8rem; font-weight: 600; }
+/* Pages: a tab bar once there is more than the start page. */
+.pages { display: flex; gap: .4rem; flex-wrap: wrap; margin: .6rem 0; }
+.pages > button { border-radius: 999px; padding: .35rem .9rem; }
+.pages > button.active { background: var(--indigo); color: #fff; border-color: var(--indigo); }
+/* Page editor: compact rows, muted explanation. */
+.dashboard-note { color: var(--muted); font-size: .9rem; }
+.dashboard-row { flex-wrap: nowrap; }
+.dashboard-row > button { flex: 0 0 auto; min-width: 2.4rem; padding: .3rem .5rem; }
+.dashboard-row > select { flex: 0 1 auto; max-width: 55%; }
+.dashboard .row { flex-wrap: wrap; align-items: center; }
+/* Sizes of blocks: compact keeps the heading and the actions, drops the explanatory lines. */
+.block.compact .meta, .block.compact .notes { display: none; }
+.block.compact .card, .block.compact .panel, .block.compact .weiter { padding-top: .5rem; padding-bottom: .5rem; }
+.block { display: block; }
+/* Density of the whole app. */
+:root[data-density="compact"] .card { padding: .6rem .8rem; margin-bottom: .5rem; }
+:root[data-density="compact"] .palaces { gap: .5rem; }
+/* Page editor: suggestions and the layout text. */
+.dashboard h3 { margin: 1rem 0 .4rem; }
+.dashboard-suggestions .row { margin-top: .3rem; }
+.layout-text { width: 100%; font-family: ui-monospace, monospace; font-size: .8rem; }
+.plugin-block h2 { margin-top: 0; }
+/* Start page header: the title in the middle, the actions in rows that fit a phone. */
+.home-bar { flex-direction: column; align-items: stretch; gap: .75rem; }
+.home-bar h1 { text-align: center; flex: none; font-size: 1.6rem; }
+.home-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.home-actions button { min-height: 2.75rem; }
+.home-actions .wide { grid-column: 1 / -1; }
+.home-actions .icon { justify-self: end; min-width: 3rem; }
+.modes > summary { cursor: pointer; font-weight: 600; color: var(--muted); margin-bottom: .5rem; }
+
+/* Large screens (1600 by 1000 pixels and up, such as 1920 by 1080): the column uses more of the width,
+   the room takes more of the height, and the question and its answer are set larger. The chrome above
+   and below the room is fixed, so the room only grows where the height allows it. Phones and small
+   windows keep the rules above. */
+@media (min-width: 1400px) {
+  main { max-width: min(1680px, 100%); }
+}
+@media (min-width: 1600px) and (min-height: 1000px) {
+  .stage:not(.editing) { width: min(100%, calc(max(100px, 100vh - 340px - min(110px, 14vh)) * var(--stage-ratio, 1.3333))); }
+  .prompt, .solution { font-size: 1.6rem; }
+  .grades button { font-size: 1.15rem; padding: .6rem .5rem; }
+  .answer .picture { width: min(120px, 12vh); }
+}

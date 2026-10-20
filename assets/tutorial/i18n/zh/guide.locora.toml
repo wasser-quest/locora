@@ -1,0 +1,67 @@
+# Ein kleiner Palast für die Formelsprache. Die Bilder zeigen jeweils die
+# Antwort; beim Fragen bleiben sie wie im Tutorial zunächst verborgen.
+name = "理解公式"
+
+[[room]]
+name = "书房"
+image = "../bibliothek.sply"
+
+[[room.locus]]
+place = "输入册——公式如何读取输入？"
+item = "$zahl"
+note = "输入名前面的美元符号会读取它当前的值。"
+at = [0.22, 0.27]
+image = "eingabe.sply"
+
+[[room.locus]]
+place = "计算台——当 zahl = 3 时，Integer($zahl) + 1 等于多少？"
+item = "4"
+note = "这个位置自己算出答案：Integer($zahl) + 1。zahl 的初始值是 3。"
+at = [0.50, 0.55]
+image = "rechnen.sply"
+bindings = { item = "Integer($zahl) + 1" }
+
+[[room.locus]]
+place = "索引——Major[4] 给出哪个记忆词？"
+item = "狼"
+note = '这个位置从 Major["4"] 读取答案。键以文本形式写在方括号里。'
+at = [0.79, 0.28]
+image = "tabelle.sply"
+bindings = { item = 'Major["4"]' }
+
+[[room]]
+name = "工坊"
+image = "../halle.sply"
+
+[[room.locus]]
+place = "标签——哪个字段可以替代绑定？"
+item = "item"
+note = "item 绑定计算一个位置的内容。place、x、y、visible 和 active 也可以绑定。"
+at = [0.24, 0.56]
+image = "bindung.sply"
+
+[[room.locus]]
+place = "道岔——什么时候一个位置是激活的？"
+item = "active 公式结果为 true 时"
+note = "例如：Integer($zahl) > 2。未激活的位置会在旅程中被跳过。"
+at = [0.53, 0.28]
+image = "aktiv.sply"
+bindings = { active = "Integer($zahl) > 2" }
+
+[[room.locus]]
+place = "大门——在哪里写位置的公式？"
+item = "写在 locora.toml 文件的 bindings 里"
+note = "例：bindings = { item = 'Major[\"4\"]', active = \"Integer($zahl) > 2\" }"
+at = [0.77, 0.62]
+image = "quelle.sply"
+
+[[table]]
+table = "Inputs"
+key = "zahl"
+value = "3"
+type = "number"
+
+[[table]]
+table = "Major"
+key = "4"
+value = "狼"

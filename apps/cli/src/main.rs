@@ -5,6 +5,7 @@ mod cloud;
 mod notify;
 mod palace;
 mod plugin;
+mod plugin_package;
 mod plugin_sign;
 mod practice;
 mod settings;
@@ -20,12 +21,15 @@ use clap::{Parser, Subcommand};
 use locora_store::LocusPatch;
 use notify::NotifyCommand;
 
+/// The guide shown by `locora guide`: the same file the repository root ships as llm.txt.
+const GUIDE: &str = include_str!("../../../llm.txt");
+
 #[derive(Parser)]
 #[command(
     name = "locora",
     version,
     about = "Gedächtnispaläste und Plugins für Locora",
-    after_help = "Beispiele:\n  locora new \"Planeten\" -- Merkur Venus Erde Mars\n  locora practice Planeten\n  locora due\n  locora review"
+    after_help = "Beispiele:\n  locora new \"Planeten\" -- Merkur Venus Erde Mars\n  locora practice Planeten\n  locora due\n  locora review\n\nNeu hier? `locora guide` zeigt, welcher Befehl wann passt."
 )]
 struct Cli {
     /// Datenordner (Standard: $LOCORA_DATA oder der Datenordner des Systems)
@@ -135,6 +139,9 @@ enum Command {
         /// Höchstens so viele neue Loci (mit --due; Standard: was vom Tageslimit übrig ist)
         #[arg(long)]
         new: Option<usize>,
+        /// Die Journey zählt für diese Challenge (Abo und Anmeldung nötig)
+        #[arg(long)]
+        challenge: Option<String>,
         #[command(flatten)]
         modes: practice::Modes,
     },
@@ -170,6 +177,8 @@ enum Command {
     },
     /// Lernstatistik: Antworten, Trefferquote, Serie
     Stats,
+    /// Anleitung: welcher Befehl wann passt (auch für LLMs gedacht; Text aus llm.txt)
+    Guide,
     /// Marker der Orte eines Palasts zeigen oder ändern (eigene .sply-Animation)
     Marker {
         palace: String,
@@ -403,8 +412,10 @@ fn main() -> Result<()> {
             palace,
             due,
             new,
+            challenge,
             modes,
         } => {
+            let live = cloud::live_session(&app::data_dir(data)?, challenge)?;
             let mut app = app::App::open(data)?;
             let daily_limit = new.is_none() && due;
             let new = match new {
@@ -416,6 +427,7 @@ fn main() -> Result<()> {
                 &mut app,
                 Some(&palace),
                 practice::Options {
+                    live,
                     due_only: due,
                     new,
                     daily_limit,
@@ -434,6 +446,7 @@ fn main() -> Result<()> {
                 &mut app,
                 palace.as_deref(),
                 practice::Options {
+                    live: cloud::live_session(&app::data_dir(data)?, None)?,
                     due_only: true,
                     new,
                     daily_limit,
@@ -446,6 +459,11 @@ fn main() -> Result<()> {
             settings::optimize_command(&mut app::App::open(data)?, dry_run, reset)
         }
         Command::Stats => settings::stats(&mut app::App::open(data)?),
+        // Printed without opening the profile, so a guide works before any setup.
+        Command::Guide => {
+            print!("{GUIDE}");
+            Ok(())
+        }
         Command::Marker {
             palace,
             file,

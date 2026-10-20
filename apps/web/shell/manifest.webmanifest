@@ -1,0 +1,17 @@
+{
+  "name": "Locora",
+  "short_name": "Locora",
+  "description": "Memory palaces with the method of loci. Everything stays on this device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#16173a",
+  "theme_color": "#16173a",
+  "lang": "en",
+  "icons": [
+    { "src": "shell/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "shell/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "shell/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

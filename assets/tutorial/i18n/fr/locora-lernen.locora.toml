@@ -1,0 +1,78 @@
+# Das Tutorial: Locora mit der Loci-Methode lernen.
+# Jeder Ort zeigt eine animierte Grafik (.sply), die die App mit der Splinely-Runtime abspielt.
+# Bauen: locora tutorial (oder locora build assets/tutorial/locora-lernen.locora.toml)
+
+name = "Apprendre Locora"
+
+[[room]]
+name = "Hall d’entrée"
+image = "halle.sply"
+
+[[room.locus]]
+place = "La porte – qu’est-ce qu’un palais de mémoire ?"
+item = "Un lieu que tu connais bien"
+at = [0.5, 0.45]
+image = "../mascot/simo.sply"
+
+[[room.locus]]
+place = "Le tapis – qu’est-ce qui fixe l’ordre ?"
+item = "Le parcours à travers les lieux"
+at = [0.5, 0.88]
+image = "teppich.sply"
+
+[[room.locus]]
+place = "La lanterne – que places-tu à chaque endroit ?"
+item = "Une image vivante"
+at = [0.82, 0.3]
+image = "laterne.sply"
+
+[[room]]
+name = "Bibliothèque"
+image = "bibliothek.sply"
+
+[[room.locus]]
+place = "L’étagère – quelles images restent ?"
+item = "Plus c’est bizarre, mieux c’est"
+at = [0.3, 0.4]
+image = "regal.sply"
+
+[[room.locus]]
+place = "La place de lecture – comment t’entraînes-tu ?"
+item = "Parcourir le trajet et rappeler chaque lieu"
+at = [0.6, 0.75]
+image = "leseplatz.sply"
+
+[[room.locus]]
+place = "L’horloge – quand révises-tu ?"
+item = "Juste avant d’oublier"
+at = [0.82, 0.12]
+image = "uhr.sply"
+
+[[room]]
+name = "Jardin"
+image = "garten.sply"
+
+[[room.locus]]
+place = "La fontaine – comment évalues-tu une réponse ?"
+item = "Honnêtement, de 1 à 4"
+at = [0.2, 0.75]
+image = "brunnen.sply"
+answer = { type = "quiz", options = [
+  { text = "Toujours 4, ça va plus vite", correct = false },
+  { text = "Honnêtement, de 1 à 4", correct = true },
+  { text = "Pas du tout", correct = false },
+] }
+
+[[room.locus]]
+place = "L’arbre – avec quelle commande crées-tu ton propre palais ?"
+item = "locora new"
+at = [0.55, 0.6]
+image = "baum.sply"
+answer = { type = "guess", accept = ["new", "locora new NAME"] }
+note = "Un nouveau palais pousse de l’arbre – « new » est écrit sur le panneau du tronc"
+
+[[room.locus]]
+place = "La luciole – avec quoi t’entraînes-tu sur ce qui est dû ?"
+item = "locora review"
+at = [0.8, 0.35]
+image = "../mascot/gluehwuermchen.sply"

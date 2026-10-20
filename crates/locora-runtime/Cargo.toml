@@ -7,13 +7,20 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[features]
+# Cloud accounts, sync and entitlements over HTTPS. Off for the browser build, which keeps all data local.
+default = ["cloud"]
+cloud = ["dep:ureq"]
+
 [dependencies]
+# The plugin host of the target (see crates/locora-host-select).
+locora-host = { path = "../locora-host-select", package = "locora-host-select" }
 anyhow.workspace = true
 dirs = "6"
 locora-api.workspace = true
 locora-cloud-api = { path = "../locora-cloud-api" }
+locora-crypto = { path = "../locora-crypto" }
 locora-signing = { path = "../locora-signing" }
-locora-host.workspace = true
 locora-format = { path = "../locora-format" }
 locora-fsrs = { path = "../locora-fsrs" }
 locora-formula = { path = "../locora-formula" }
@@ -22,7 +29,8 @@ locora-store = { path = "../locora-store" }
 tempfile = "3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-ureq = { version = "3", features = ["json"] }
+ureq = { version = "3", features = ["json"], optional = true }
+url = "2"
 sha2.workspace = true
 percent-encoding = "2"
-
+base64 = "0.22"

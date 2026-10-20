@@ -1,0 +1,67 @@
+# Ein kleiner Palast für die Formelsprache. Die Bilder zeigen jeweils die
+# Antwort; beim Fragen bleiben sie wie im Tutorial zunächst verborgen.
+name = "数式を理解する"
+
+[[room]]
+name = "書斎"
+image = "../bibliothek.sply"
+
+[[room.locus]]
+place = "入力ブック – 数式は入力をどう読む？"
+item = "$zahl"
+note = "入力名の前のドル記号は、その現在の値を読みます。"
+at = [0.22, 0.27]
+image = "eingabe.sply"
+
+[[room.locus]]
+place = "計算台 – zahl = 3 のとき Integer($zahl) + 1 はいくつ？"
+item = "4"
+note = "この場所は答えを自分で計算します: Integer($zahl) + 1。zahl の初期値は 3 です。"
+at = [0.50, 0.55]
+image = "rechnen.sply"
+bindings = { item = "Integer($zahl) + 1" }
+
+[[room.locus]]
+place = "索引 – Major[4] はどの覚え語を返す？"
+item = "ライオン"
+note = 'この場所は Major["4"] から答えを読みます。キーは角かっこの中に文字として書きます。'
+at = [0.79, 0.28]
+image = "tabelle.sply"
+bindings = { item = 'Major["4"]' }
+
+[[room]]
+name = "工房"
+image = "../halle.sply"
+
+[[room.locus]]
+place = "ラベル – どの欄がバインディングの代わりになる？"
+item = "item"
+note = "item のバインディングは場所の内容を計算します。place、x、y、visible、active もバインドできます。"
+at = [0.24, 0.56]
+image = "bindung.sply"
+
+[[room.locus]]
+place = "分岐器 – 場所はいつ有効になる？"
+item = "active の数式が true になるとき"
+note = "例: Integer($zahl) > 2。無効な場所は旅の中で飛ばされます。"
+at = [0.53, 0.28]
+image = "aktiv.sply"
+bindings = { active = "Integer($zahl) > 2" }
+
+[[room.locus]]
+place = "門 – 場所の数式はどこに書く？"
+item = "locora.toml ファイルの bindings の中"
+note = "例: bindings = { item = 'Major[\"4\"]', active = \"Integer($zahl) > 2\" }"
+at = [0.77, 0.62]
+image = "quelle.sply"
+
+[[table]]
+table = "Inputs"
+key = "zahl"
+value = "3"
+type = "number"
+
+[[table]]
+table = "Major"
+key = "4"
+value = "ライオン"

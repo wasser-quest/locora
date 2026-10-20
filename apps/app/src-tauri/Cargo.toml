@@ -18,17 +18,24 @@ tauri-build = { version = "2.7.3", features = [] }
 anyhow = "1"
 infer = "0.22"
 locora-api = { path = "../../../crates/locora-api" }
+locora-app-core = { path = "../../../crates/locora-app-core" }
 locora-app-api.workspace = true
+locora-cloud-api = { path = "../../../crates/locora-cloud-api" }
+locora-crypto = { path = "../../../crates/locora-crypto" }
 locora-formula = { path = "../../../crates/locora-formula" }
 locora-runtime = { path = "../../../crates/locora-runtime" }
 locora-source = { path = "../../../crates/locora-source" }
 locora-format = { path = "../../../crates/locora-format" }
 locora-store = { path = "../../../crates/locora-store" }
+percent-encoding = "2"
 serde.workspace = true
 serde_json.workspace = true
 splinely_document = { git = "https://github.com/wasser-quest/splinely", tag = "v0.5.2" }
 tauri = { version = "2.12.4", features = [] }
 tauri-plugin-dialog = "2.8.3"
+tauri-plugin-fs = "2.7.1"
+tauri-plugin-notification = "2.7.0"
+tempfile = "3"
+zeroize = "1"
 
 [dev-dependencies]
-tempfile = "3"

@@ -87,7 +87,7 @@ impl Store {
         }
         let mut added = Vec::with_capacity(loci.len());
         for locus in loci {
-            added.push(self.insert_locus(&tx, room, locus)?);
+            added.push(self.insert_locus(&tx, room, locus, None)?);
         }
         let token = receipt(&tx, palace, room, &[], &added)?;
         tx.commit()?;

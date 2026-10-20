@@ -9,6 +9,8 @@ lime glow for remembering). Every file moves a little, never hectically.
   kachel-tutorial, kachel-gamification, kachel-plugin (any other plugin).
 - Journey feedback, 192 x 192, transparent: richtig, nochmal, geschafft.
 - Room kinds, 48 x 48, transparent: raum-leer, raum-bild, raum-video.
+- Achievements, 96 x 96, transparent: erfolg-<name> (coloured, clickable) and
+  erfolg-<name>-gesperrt (grey, still) for tutorial and formulas.
 """
 import math, os, sys
 
@@ -184,6 +186,44 @@ def geschafft():
     s.finish("Ein Stern über drei Loci, die nacheinander aufleuchten: Route geschafft.")
 
 
+# ---------------------------------------------------------------- achievements (96 x 96)
+
+GREY, GREY_SH, GREY_HI = "#B7B3AA", "#8F8B83", "#D2CEC5"
+
+
+def erfolg(name, title, tips, fill, shadow, light, description, unlocked):
+    """A medal. Unlocked: coloured, breathing, a click spins it. Locked: grey and still."""
+    s = Scene(name, 96, 96, title)
+    if unlocked:
+        s.glow("halo", 48, 48, 46, strength=0.5)
+    medal = s.add("star", "medal", x=48, y=48, radius=38, tips=tips, inner=0.72, fill=fill, pivot="center")
+    s.crescent(medal, -4, -4, shadow)
+    s.crescent(medal, 3, 3, light)
+    if unlocked:
+        breathe(s, "breathe", "medal", scale=1.06, period=2.4)
+        s.steps += [
+            "clip add --id spin --duration 0.7",
+            "keyframe --clip spin --target medal --property rotation --time 0.7 --value 360 --easing ease-in-out",
+            "on --event click --target medal --play spin",
+            f'a11y --node medal --label "{title}: klicken, dann dreht sich die Medaille"',
+        ]
+    s.finish(description)
+
+
+def erfolg_tutorial(unlocked):
+    erfolg("erfolg-tutorial" if unlocked else "erfolg-tutorial-gesperrt", "Tutorial abgeschlossen", 5,
+           AMBER if unlocked else GREY, AMBER_SH if unlocked else GREY_SH, AMBER_HI if unlocked else GREY_HI,
+           "Eine Medaille mit fünf Spitzen: das Tutorial ist abgeschlossen." if unlocked
+           else "Eine graue Medaille: das Tutorial ist noch nicht abgeschlossen.", unlocked)
+
+
+def erfolg_formeln(unlocked):
+    erfolg("erfolg-formeln" if unlocked else "erfolg-formeln-gesperrt", "Formeln verstanden", 6,
+           t.GREEN if unlocked else GREY, t.GREEN_SH if unlocked else GREY_SH, t.GREEN_HI if unlocked else GREY_HI,
+           "Eine grüne Medaille mit sechs Spitzen: der Formelführer ist abgeschlossen." if unlocked
+           else "Eine graue Medaille: der Formelführer ist noch nicht abgeschlossen.", unlocked)
+
+
 # ---------------------------------------------------------------- room kinds (48 x 48)
 
 def raum_leer():
@@ -225,5 +265,7 @@ def raum_video():
 if __name__ == "__main__":
     os.makedirs(t.OUT, exist_ok=True)
     for build in (kachel_core, kachel_review, kachel_notify, kachel_tutorial, kachel_gamification,
-                  kachel_plugin, richtig, nochmal, geschafft, raum_leer, raum_bild, raum_video):
+                  kachel_plugin, richtig, nochmal, geschafft, raum_leer, raum_bild, raum_video,
+                  lambda: erfolg_tutorial(True), lambda: erfolg_tutorial(False),
+                  lambda: erfolg_formeln(True), lambda: erfolg_formeln(False)):
         build()

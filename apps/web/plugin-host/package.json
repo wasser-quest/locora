@@ -1,0 +1,19 @@
+{
+  "name": "locora-plugin-host",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runs Locora's WebAssembly plugins in the browser (or Node, for tests), keeping all data on the device.",
+  "type": "module",
+  "scripts": {
+    "transpile": "node scripts/transpile.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@bytecodealliance/preview2-shim": "0.30.0"
+  },
+  "devDependencies": {
+    "@bytecodealliance/jco": "1.39.0",
+    "fake-indexeddb": "^6.2.6"
+  },
+  "license": "MIT"
+}

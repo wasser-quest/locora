@@ -1,0 +1,67 @@
+# Ein kleiner Palast für die Formelsprache. Die Bilder zeigen jeweils die
+# Antwort; beim Fragen bleiben sie wie im Tutorial zunächst verborgen.
+name = "Comprendre les formules"
+
+[[room]]
+name = "Bureau d’écriture"
+image = "../bibliothek.sply"
+
+[[room.locus]]
+place = "Le livre des entrées – comment une formule lit-elle une entrée ?"
+item = "$zahl"
+note = "Un signe dollar devant le nom d’une entrée lit sa valeur actuelle."
+at = [0.22, 0.27]
+image = "eingabe.sply"
+
+[[room.locus]]
+place = "La table de calcul – que donne Integer($zahl) + 1 quand zahl = 3 ?"
+item = "4"
+note = "Ce lieu calcule lui-même sa réponse : Integer($zahl) + 1. La valeur de départ de zahl est 3."
+at = [0.50, 0.55]
+image = "rechnen.sply"
+bindings = { item = "Integer($zahl) + 1" }
+
+[[room.locus]]
+place = "Le registre – quel mot-mémoire donne Major[4] ?"
+item = "Renard"
+note = 'Ce lieu lit sa réponse dans Major["4"]. La clé est écrite en texte entre crochets.'
+at = [0.79, 0.28]
+image = "tabelle.sply"
+bindings = { item = 'Major["4"]' }
+
+[[room]]
+name = "Atelier"
+image = "../halle.sply"
+
+[[room.locus]]
+place = "L’étiquette – quel champ remplace une liaison ?"
+item = "item"
+note = "Une liaison item calcule le contenu d’un lieu. place, x, y, visible et active peuvent aussi être liés."
+at = [0.24, 0.56]
+image = "bindung.sply"
+
+[[room.locus]]
+place = "L’aiguillage – quand un lieu est-il actif ?"
+item = "Quand la formule active donne true"
+note = "Par exemple : Integer($zahl) > 2. Un lieu inactif est sauté dans le parcours."
+at = [0.53, 0.28]
+image = "aktiv.sply"
+bindings = { active = "Integer($zahl) > 2" }
+
+[[room.locus]]
+place = "La porte – où écris-tu la formule du lieu ?"
+item = "Dans bindings du fichier locora.toml"
+note = "Exemple : bindings = { item = 'Major[\"4\"]', active = \"Integer($zahl) > 2\" }"
+at = [0.77, 0.62]
+image = "quelle.sply"
+
+[[table]]
+table = "Inputs"
+key = "zahl"
+value = "3"
+type = "number"
+
+[[table]]
+table = "Major"
+key = "4"
+value = "Renard"

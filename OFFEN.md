@@ -2,7 +2,7 @@
 
 Alles, was noch gebaut oder entschieden werden muss. Wird bei jedem Schritt aktualisiert. Erledigtes wird hier gestrichen und in `PLAN.md` (Abschnitt 13) bzw. den Commits festgehalten. Reihenfolge innerhalb eines Abschnitts = Empfehlung.
 
-Stand: 17.10.2026
+Stand: 19.10.2026
 
 ## Jetzt: Phase 2 – die App (Tauri 2 + Leptos)
 
@@ -14,13 +14,13 @@ Stand: 17.10.2026
 - [x] Cursorposition per Bridge an Splinely weiterleiten, ohne Klicks/Fokus abzufangen; Simo-Pupillenbewegung mit REA/WebKit geprüft
 - [x] Splinely-Startprüfung pro Frame: Runtime-Bestätigung per Nachricht, sichtbarer Fehler bei fehlendem Start; expliziter Bootstrap als Fallback
 - [x] Frischen Debug-Build mit separatem Profil nativ geprüft: Willkommens-Simo und Simo am ersten aufgedeckten Tutorial-Locus bewegen sich; REA-Prozessbeleg und Grenzen in `docs/splinely-runtime-smoke.md`
-- [ ] Gemeldeten statischen Zustand im betroffenen Build reproduzieren; Release-Build, alle Tutorial-Loci und Reduced Motion prüfen (Ursache noch nicht bestätigt)
+- [ ] Gemeldeten statischen Zustand im betroffenen Build reproduzieren; WebView-Release-Build, alle Tutorial-Loci und Reduced Motion sichtbar prüfen (UI-Release-Bundle baut, Ursache noch nicht bestätigt)
 - [x] Nativer WebKitGTK-Smoke-Test `apps/app/tests/native_smoke.py` (AT-SPI + xdotool, eigenes Profil): Tutorial, Journey-Start (1 Klick), Recall per Tastatur, Autosave, Tastatur-Verschieben + Undo/Redo persistent, Liste einfügen (0 Mausklicks) bestanden
 - [x] Smoke-Test: Datei-Drop per xdotool-Harness kommt im Fenster an (Palast, Raum und Editor; Videoraum); nativ bestanden in `apps/app/tests/native_smoke.py`
 - [ ] Visuelle WebView-Prüfung von Ortsbildern und Pointer-Gesten (`docs/app-editor-testplan.md`)
 - [x] „Weiter“-Zeile mit fälligen Loci; Einstellungen (neue Loci pro Tag, Behaltensrate) und Statistik (⚙ auf dem Startbildschirm)
 - [x] Import/Export von `.locora` in der App (Dateidialoge, mit Wiederholungsstand)
-- [x] `locora.toml`-Import in der App: relative Medien, neue Kopien bei Namenskonflikten, Validierung vor dem Bauen
+- [x] `locora.toml`-Import auf Desktop: relative Medien, neue Kopien bei Namenskonflikten, Validierung vor dem Bauen; Mobil importiert `.locora`-Archive
 - [x] TOML-Export (`dump`) in der App: nativer Ordnerdialog, Quelle mit Medien, kein Überschreiben, Roundtrip-Test
 - [ ] TOML-Import/-Export im nativen Dialog prüfen (Auswahl, Abbruch, Medien, Fehler)
 - [x] Plugin-Kacheln (`ui.tile`) auf dem Startbildschirm; letzte Kachel je Plugin bleibt im Profil gespeichert
@@ -35,16 +35,24 @@ Stand: 17.10.2026
 - [x] Workbook-Aktionen auch nach dem Bewerten (wie `locora practice`), auch nach der letzten Frage
 - [x] Liste = Route: Strg/⌘+V auf der fokussierten Bühne oder Textfeld/Knopf im Editor, 1–100 Begriffe, Schlangenroute, atomarer Batch mit Validierung und Op-Log (keine Video-Räume)
 - [x] Locus-Mediendatei-Auswahl: nativer Dialog, Bild wählen/entfernen, Raster-MIME-/`.sply`-Validierung, Scope-Prüfung und Fehleranzeige ohne freie Pfad-IPC (64 MiB)
-- [ ] Nativen Locus-Dateipicker im WebView manuell prüfen (Auswahl, Abbruch, Fehler, Entfernen, Neustart); mobile URI-Auswahl noch nicht unterstützt
+- [ ] Nativen Locus-Dateipicker im WebView manuell prüfen (Auswahl, Abbruch, Fehler, Entfernen, Neustart); mobile URI-Auswahl implementiert, Gerätetest offen
 - [x] Startknopf „Bild/Video wählen…“: nativer Dialog, gemeinsame Signaturprüfung (64 MiB), atomarer neuer Palast + passender Raum + Medienmetadaten/Op-Log, Dateiname mit Kollisionssuffix, direkt Editor öffnen; Zurück aktualisiert Home
-- [ ] Start-Dateipicker im WebView manuell prüfen (Bild/Video, Abbruch, Fehler, Editor, Zurück, Neustart); lokale Dateien, keine mobilen Content-URIs
+- [ ] Start-Dateipicker im WebView manuell prüfen (Bild/Video, Abbruch, Fehler, Editor, Zurück, Neustart); mobile Content-URIs implementiert, Gerätetest offen
 - [x] Video-Loci im App-Editor über Sekundenangabe anlegen; validiert und persistent
 - [x] Videozeit aus Wiedergabe übernehmen: Knopf und Taste L auf der fokussierten Bühne, pausiert vor dem Anlegen
 - [x] Video-Ortsnavigation im Editor: chronologische Zeitknöpfe, pausieren/spulen/auswählen, aktive Auswahl
 - [x] Video-Editor im WebView prüfen: Taste L/Fokus, Zeitknopf-Navigation (chronologisch, pausiert/spult/auswählt) und Persistenz nativ getestet; ungeladenes Video (Statusmeldung) und wiederholte Eingabe manuell prüfen
 - [x] Video-Zeitleiste im Editor zeigt Ortszeiten proportional zur geladenen Videodauer; Orte hinter dem Videoende sind markiert und können nicht angesprungen werden
+- [x] Freier Suchregler in Video- und Splinely-Zeitleiste; Bühnenklick setzt einen zeitgebundenen Ort an der angeklickten Position; Marker erscheinen erst im eingestellten Zeitfenster
+- [x] Freier Suchregler und Bühnenklick platzieren Video- und animierte `.sply`-Orte im nativen WebView an Zeit und Bildposition (`native_smoke.py`, Stickfight-Fixture)
+- [x] `.sply`-Marker im nativen WebView vor dem Locus-Zeitpunkt verborgen und am Zeitpunkt sichtbar (`--only-sply`)
+- [ ] Video-Markerfenster und pro-Ort-Vorlauf im nativen WebView sichtbar prüfen
 - [x] Editor-Ausbau: Datei hineinziehen über einmalige Tickets (Startseite → neuer Palast, Editor → Ortsbild); Undo/Redo (Knöpfe, Strg/⌘+Z/Y) mit Backend-Belegen für Hinzufügen/Einfügen/Löschen (Konfliktprüfung, neueste 500); Entwurfswiederherstellung über `localStorage`
 - [x] Tutorial in der App: Erststart mit Simo, „Tutorial starten“ legt den Palast an und öffnet ihn (Animationen über die Runtime)
+- [x] App-Tour: Zurück-Knopf; aufeinanderfolgende Schritte derselben Ansicht lassen die Ansicht und Simo geladen, statt sie neu aufzubauen
+- [x] App-Tour im nativen WebView: alle sechs Schritte vorwärts und rückwärts sowie Schließen geprüft (`native_smoke.py --only-tour`)
+- [ ] App-Tour auf sichtbares Flackern und erhaltenen Journey-Stand bei Routenwechseln prüfen
+- [x] Locus-Anzeige auf diesem Gerät einstellbar: vorherige/nächste Route-Orte (0–10), Nummern direkt im Markerpunkt, aktuellen Marker nach Aufdecken ausblenden, Video-Vorlauf global und pro Ort
 - [x] Locus-Marker als eigene `.sply` (neu/fällig/gewusst), pro Palast austauschbar; Hintergründe ohne Loci
 - [x] Marker in der App an jede Locus-Position setzen und Zustände über die Runtime umschalten
 - [x] Medien über HTTP-Range ausliefern: Einzelbereiche, offene/Suffix-Bereiche, 416 und HEAD; nur angeforderte Bytes lesen
@@ -54,8 +62,11 @@ Stand: 17.10.2026
 - [x] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons, Journey-Feedback (richtig/nochmal/geschafft), Willkommen mit Simo – `assets/ui/src/ui.py`, Simo aus `assets/mascot/src/simo.py`
 - [x] Weitere Grafiken: Raum-Arten in den Tabs, „nichts fällig“ mit Simo, Ladezustand mit dem Locora-Logo
 - [x] Mobile-CI `.github/workflows/mobile.yml`: Android-Debug-APK bei Push/PR, iOS-Simulator-App nur per Hand (macOS-Kontingent); TOML-Ordnerexport auf Mobil mit klarer Fehlermeldung
-- [ ] Mobile-Workflow einmal remote laufen lassen (noch nie ausgeführt); Wasmtime-JIT auf iOS-Geräten klären
-- [ ] Mobile-Geste zum Öffnen der Befehlspalette und Einstellung „Direkt in Core starten“ (PLAN 6.1); Entscheidung nötig: Die Startseite zeigt die Paläste bereits, was genau soll die Core-Ansicht als Start enthalten?
+- [ ] Mobile-Workflow nach Push auf `testing` remote prüfen; iOS verwendet Pulley statt JIT, Gerätetest und Signierung offen
+- [ ] Mobile Befehlspalette per Abwärtswisch vom oberen Rand und sichtbarem „Befehle“-Knopf öffnen; WASM-Check und Gestenlogik-Test bestanden; Abwärtswisch auf dem Gerät noch offen (Knopf ist geprüft, siehe nächster Punkt)
+- [x] Android-Gerätesmoke-Test (Nothing A059P, Android 16, ARM64-Debug-APK aus `b11aad6`, 19.10.2026): Installation über die bestehende App ohne Datenverlust, Startseite mit Bestandsdaten, „Befehle“-Knopf öffnet die Palette mit Tastatur, Palastansicht öffnet sich per Karte; Logcat ohne Abstürze/ANRs. Journey-Ansicht rendert (Fortschritt, Herzen, Raumbild mit Marker; ohne Antwort). Bewertung auf dem Tutorial-Palast „Locora lernen“ geprüft (eine Frage, „Gut“): Combo und Herzen erscheinen, Weiter-Knopf bereit. Nicht geprüft: Marker-Layer, Video-Wiedergabe, Dateipicker. Abwärtswisch per `adb input swipe` nicht ausgelöst (Systemleiste fängt den oberen Rand). Beobachtung, nicht reproduziert: Android-Zurück aus der Journey hat die App einmal beendet
+- [x] Einstellung „Direkt in Core starten“ (PLAN 6.1): Gerätepräferenz, direkte Palastübersicht und wechselbares Raumvorschaubild auf Karten (Video mit Raum-Icon statt geladenem Film)
+- [x] Core-Startpräferenz und Bildwechsel nach App-Neustart im nativen WebView geprüft (`native_smoke.py --only-core`); `LOCORA_DATA` isoliert jetzt auch den WebKit-Speicher
 - [x] Restliche Klick-Budgets (PLAN 6.3) als E2E-Tests: alle sechs Budgets laufen im nativen Smoke-Test
 - [x] Systemvoraussetzungen für Linux-Builds dokumentiert (`apps/app/README.md`)
 
@@ -77,32 +88,40 @@ Stand: 17.10.2026
 - [x] Lerntage in lokaler Zeit: Tagesbeginn einstellbar (Standard 4:00), UTC-Versatz setzt die App bei jedem Start (CLI: `settings day-start`, `settings utc-offset`)
 - [x] Plugin-Zustimmung an Manifest und Hash der tatsächlich installierten WASM-Datei binden; alte Belege erfordern Neuinstallation
 - [x] Plugin-Signaturen (Ed25519) und Update-Befehl: `locora plugin keygen`, `sign` (`<datei>.sig`), `trust`, `publishers`, `update` (nur neuere Version desselben Herausgebers); Installation zeigt den Herausgeber, Approvals speichern ihn (`locora-signing`)
-- [ ] Plugin-Entwicklung: zusätzliche Vorlagen (`befehl`, `locus-typ`, `importer`), Paketformat `locora plugin pack` und mobiles `plugin dev --device` (PLAN 4.4.1)
+- [x] `.locora-plugin`-Paketformat: `locora plugin pack`, `check`, `install` und `update` mit begrenzten ZIP-Einträgen, Manifestabgleich und Signaturprüfung; rohe WASM-Dateien bleiben unterstützt
+- [x] Plugin-Vorlagen `befehl`, `locus-typ`, `importer` als aufrufbare Dienst-Beispiele mit `locora plugin invoke`; `locus-typ` ist noch kein automatisch gerenderter Journey-Typ
+- [ ] Mobiles `plugin dev --device` braucht App-Gegenstelle für Pairing, authentisierten Transfer, Rechtebestätigung und Hot-Reload (PLAN 4.4.1)
 
 ## Phase 3 – Video-Räume in der App und Benachrichtigungen
 
 - [x] Echte Animationsdateien backend-geprüft: `~/tester/cyber-stickfight/cyber-fight.gif` (252 Frames, 12,6 s), `~/tester/stickfight/fight.sply` und testweise MP4-Konvertierung; optionaler Fixture-Test ohne Dateien im Repo
-- [ ] Zeitgebundene Animationsräume auch für GIF und `.sply`: GIF braucht steuerbare Wiedergabe statt `<img>`; Splinely-Zeitsteuerung an Editor/Journey anbinden, weiterhin ausschließlich Splinely-Runtime für `.sply`
+- [x] `.sply`-Animationsräume mit Zeitsteuerung über die Splinely-Runtime in Editor und Journey; Editor-Suchregler und Platzierung mit Stickfight-Fixture nativ bestanden, Journey-Sichtprüfung offen
+- [ ] GIF-Animationsräume brauchen steuerbare Wiedergabe statt `<img>`
 - [x] Editor: Frame-Schritte per , und . auf der fokussierten Bühne, Positionsanzeige; nativ geprüft (`video-frame-steps`, 0,03 s je Schritt)
-- [ ] Video-Journey: Vorschau der Orte bei Zeit 0 (PLAN 7.2); Editor: Zeitpunkte per Ziehen verschieben (braucht eine neue Editor-Aktion im Backend)
+- [x] Video-Journey: Vorschau aller Orte bei Zeit 0 (PLAN 7.2); Editor: Zeitpunkte per Regler ziehen (`Retime`-Aktion mit Raum- und Zeitvalidierung)
 - [ ] Visuelle WebView-Prüfung der Stickfight-Animationen (Backend-Test beweist keine Wiedergabe)
 
 - [x] Video-Journey: Locus-Zeit im IPC; stumm bis zum Locus abspielen, dort bis Bewertung halten; Antworten während der Wiedergabe sperren; Autoplay-Fallback und Fehleranzeige
-- [x] Video-Journey nativ geprüft (2 Loci, Rückwärtsrichtung, Autoplay, Tastatur durch alle Phasen); Start-Vorschau und Timer-Drosselung bleiben offen
+- [x] Video-Journey nativ geprüft (2 Loci, Rückwärtsrichtung, Autoplay, Tastatur durch alle Phasen); 16-ms-Prüftimer endet nach Erreichen des Locus
+- [x] Video-Journey: Vorschau aller Orte bei Zeit 0 und Frame-Prüfung über `requestVideoFrameCallback` mit `timeupdate`-/Timer-Fallback; UI-Release-Bundle baut, native Sichtprüfung steht aus
 - [x] Plugin `notify`: lokale Benachrichtigungen, Ruhezeiten, Bündelung, Tipp öffnet die passende Stelle (send/schedule/due/configure/history; App-Toasts mit Aktion `review.start@…`, CLI `locora notify ls|show|send`; plugin→plugin-Aufrufe wie review→notify bleiben ein Host-Thema für Phase 5)
 
 ## Phase 4 – Tutorial-Plugin
 
 - [x] Tutorial-Palast „Locora lernen“ mit `.sply` an jedem Ort (`locora tutorial`)
 - [x] Erste App-Tour: offizielles `tutorial`-Plugin, geprüfter Host-Dienst `ui.highlight@1`, drei Startseiten-Schritte mit Simo, Weiter/Schließen und gespeichertem Schrittstand
-- [ ] Tour auf Palastansicht, Editor und Journey ausdehnen; fehlende Ziele und Fokusführung nativ prüfen
+- [x] Tour auf Palastansicht, Editor und Journey ausgedehnt
+- [x] Tour stoppt bei fehlenden DOM-Zielen oder Routenfehlern, bietet erneuten Versuch und führt den Fokus zum Ziel bzw. nach dem Schließen zurück
+- [ ] Tour: fehlende Ziele und Fokusführung nativ prüfen
 - [x] Formel-Guide „Formeln verstehen“ als eigener Palast mit sechs `.sply`-Orten und ausführbaren Beispiel-Bindungen (`locora formula-guide` und App)
 
 ## Phase 5 – Gamification und Locora Cloud
 
 - [x] Plugin `gamification` (lokal, kostenlos): XP, Combos, Herzen, vier Trophäen, Tagesziel und Streak; Status in CLI und App-Kachel
 - [x] Herzen und Combo während der Journey zeigen: Rückmeldung nach jeder Antwort (`Feedback.game`); nativ geprüft (`recall-keyboard-reveal-and-grade`)
-- [ ] Erfolge visuell mit `.sply`-Grafiken in App und Journey darstellen (Trophäen, Streak)
+- [x] Combo, Herzen und Trophäen als `.sply`-Grafiken in der Journey darstellen
+- [x] Lernserie mit eigener `.sply`-Grafik in der Journey darstellen
+- [x] Lernserie auch in der Gamification-Kachel auf der Startseite darstellen
 - [x] Privates Repo `locora-cloud` (axum + Postgres, `wasser-quest/locora-cloud`): Konten, Sitzungen, Ranglisten, Freunde, Challenges, Sync, Medien; Tests gegen PostgreSQL
 - [ ] Zahlungsanbieter anbinden: Merchant of Record (Desktop) und In-App-Kauf (iOS/Android); der Webhook ist anbieterneutral, Verträge und Konten fehlen
 - [x] Ed25519-Entitlements mit 14 Tagen Offline-Kulanz: der Server stellt sie aus, `locora cloud status` prüft sie ohne Netz
@@ -110,13 +129,17 @@ Stand: 17.10.2026
 ## Phase 6 und 7
 
 - [x] Sync über das Op-Log (HLC, Last-Writer-Wins pro Feld, Tombstones) mit Locora Cloud: `locora cloud sync`, Medien per Hash, Journeys werden auf dem Server gewertet
-  - Offen: Sync-Auslöser in der App; der Gamification-Fortschritt ist ein Feld mit ganzem Wert (LWW), Fortschritt zweier Geräte wird nicht zusammengeführt
-  - Offen: Paläste, die jedes Gerät selbst anlegt (Formel-Guide, Tutorial), können nach dem Sync doppelt erscheinen; dafür braucht es feste Kennungen
+  - Erledigt: Cloud-Anmeldung/Registrierung, Schlüsseleinrichtung mit einmalig gezeigtem Wiederherstellungsschlüssel und manueller verschlüsselter Sync in den App-Einstellungen; realen Server- und Gerätedurchlauf noch prüfen
+  - Erledigt für neu gebaute Paläste: Tutorial und Formel-Guide erhalten geräteübergreifend feste Kennungen für Palast, Räume und Loci. Bereits vorhandene Profile brauchen einen bewusst ausgelösten Neuaufbau; dieser setzt ihren bisherigen Wiederholungsstand zurück.
+  - Offen: Gamification-Fortschritt wird noch als Ganzwert per LWW repliziert. Verlustfreies Zusammenführen braucht eindeutige Fortschrittsereignisse und eine Migration; alte Clients müssten für Sync aktualisiert werden.
 - [ ] Plugin-Verzeichnis, WASM-Plugins von Dritten mit deklarativer UI, Store-Prüfung für iOS/Android
 
 ## Entscheidungen, die noch anstehen
 
 - [ ] Betrieb von Locora Cloud: Hosting, TLS-Proxy, Sicherung der Datenbank, Konto löschen und exportieren (DSGVO), Passwort zurücksetzen; siehe `locora-cloud/README.md`
+- [x] Angemeldete Cloud-Passwortänderung (`PUT /v1/me/password`, `locora cloud password`) mit altem Passwort, 10 Versuchen je Stunde und Widerruf aller Sitzungen; vergessene Passwörter brauchen weiterhin einen E-Mail-Reset
+- [x] Cloud-Medienuploads pro Konto auf 200 neue Versuche je Stunde begrenzen; fertige Uploads lassen sich ohne weiteres Kontingent wiederholen (atomarer PostgreSQL-Zähler)
+- [ ] Cloud-Integrationstest für das Upload-Limit gegen PostgreSQL ausführen (Test kompiliert; hier ist derzeit keine Testdatenbank erreichbar)
 - [ ] Schlüsselverwaltung: Entitlement-Schlüssel und Webhook-Geheimnis liegen lokal in `~/.config/locora-cloud` (nicht im Repo); vor dem Betrieb in einen Secret-Store verlegen und Rotation planen
 - [x] Splinely-Release 0.5.2 lokal installiert; alle Locora-Grafiken bestehen `check` ohne Hinweise
 - [x] Repo privat; PRs und CI-Status über `gh` mit Token. Actions-Kontingent: CI nur noch auf Linux, macOS/Windows per Hand (`workflow_dispatch`)

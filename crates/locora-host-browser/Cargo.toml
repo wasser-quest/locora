@@ -1,0 +1,18 @@
+[package]
+name = "locora-host-browser"
+description = "The plugin host of the browser build. Same API as locora-host; plugins run in the browser's WebAssembly engine instead."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+locora-api.workspace = true
+locora-store = { path = "../locora-store" }
+serde.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

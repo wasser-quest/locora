@@ -194,6 +194,36 @@ impl Ctx {
         })
     }
 
+    /// Declare a card the user can place on any page. Declaring the same id again replaces it.
+    /// Ids: 1–48 lowercase letters, digits, `-` or `_`; at most 24 blocks per plugin.
+    pub fn block(
+        &mut self,
+        id: impl Into<String>,
+        title: impl Into<String>,
+        text: impl Into<String>,
+    ) -> Result {
+        self.emit(&api::ui::Block {
+            id: id.into(),
+            title: title.into(),
+            text: text.into(),
+        })
+    }
+
+    /// Suggest a page: the user adds it in one step, with these blocks of this plugin.
+    /// At most 8 pages per plugin.
+    pub fn page(&mut self, id: impl Into<String>, name: impl Into<String>, blocks: &[&str]) -> Result {
+        self.emit(&api::ui::Page {
+            id: id.into(),
+            name: name.into(),
+            blocks: blocks.iter().map(|block| (*block).to_owned()).collect(),
+        })
+    }
+
+    /// Remove one of this plugin's blocks or pages.
+    pub fn remove_ui(&mut self, id: impl Into<String>) -> Result {
+        self.emit(&api::ui::Remove { id: id.into() })
+    }
+
     pub fn debug(&mut self, message: impl AsRef<str>) {
         host::log(types::Level::Debug, message.as_ref());
     }

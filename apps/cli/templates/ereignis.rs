@@ -1,6 +1,6 @@
 use locora_sdk::prelude::*;
 
-#[locora_plugin(name = "{{name}}", permissions = [storage])]
+#[locora_plugin(name = {{name_literal}}, permissions = [storage])]
 struct {{type}};
 
 impl Plugin for {{type}} {

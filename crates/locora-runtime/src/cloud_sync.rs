@@ -1,20 +1,37 @@
-//! Sync of the local operation log with Locora Cloud.
+//! Sync of the local operation log with Locora Cloud, end to end encrypted.
 //!
-//! Push: local operations after the push cursor are sent in batches. Media that
-//! an operation refers to is uploaded first, so no other device ever receives a
-//! reference it cannot resolve. Pull: operations of other devices after the pull
-//! cursor are fetched, their media downloaded and verified, then applied in
-//! order. The pull cursor acknowledges durable receipt; pending operations are
-//! retried independently, so one bad operation cannot block later pages.
+//! Every operation and every media file is sealed with the account key before it
+//! leaves the device (see `locora-crypto`). The server stores ciphertext under keyed
+//! ids and cannot read any of it.
+//!
+//! Push: local operations after the push cursor are sealed and sent in batches.
+//! Media that an operation refers to is uploaded first, so no other device receives a
+//! reference it cannot resolve. Pull: pages are queued durably first; only after all
+//! pages arrived does the pull cursor acknowledge receipt. Queued operations are
+//! opened, their media downloaded and checked, then applied in order; failed
+//! operations are retried independently and quarantined, so one bad operation cannot
+//! block later pages.
+//!
+//! The sync is a flow (see `cloud_http`): a queue of jobs, where a job either does local
+//! work or asks for one call. The desktop runs it with ureq, the browser with fetch.
 
+use std::collections::{HashSet, VecDeque};
 use std::fs;
+use std::ops::Deref;
+#[cfg(feature = "cloud")]
+use std::path::Path;
 
 use anyhow::{Context, Result, anyhow, bail};
-use locora_cloud_api::api::{PulledOp, PushOps, PushReply, WireOp};
-use locora_store::{ApplyReport, Op, PullRetry, RemoteOp, Store, StoreError, media_refs};
-use sha2::{Digest, Sha256};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+use locora_cloud_api::api::{EncryptedOp, PulledOp, PushOps};
+use locora_crypto::{Dek, sha256_hex};
+use locora_store::{ApplyReport, Op, PullRetry, RemoteOp, Store, media_refs};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
-use crate::cloud::{self, CloudState};
+use crate::cloud::{self, CloudState, RetentionStatus};
+use crate::cloud_http::{self, Body, Call, Flow, Method, Reply, Step, json};
 
 /// Operations per request; also the page size when pulling.
 pub const BATCH: usize = 500;
@@ -28,192 +45,440 @@ pub struct SyncReport {
     pub applied: ApplyReport,
     /// Newly quarantined operations, retained locally with payload and reason.
     pub quarantined: Vec<String>,
+    pub cloud_expires_at: Option<i64>,
 }
 
-pub fn sync(state: &CloudState, store: &Store) -> Result<SyncReport> {
-    if cloud::access(state, cloud::now_secs()).is_none() {
-        bail!("Keine gültige Freischaltung: `locora cloud refresh` ausführen oder das Abo prüfen");
+/// App entry point for the same encrypted sync used by the CLI. The passphrase
+/// stays on this device and is only used to unlock the account key for this run.
+#[cfg(feature = "cloud")]
+pub fn sync_with_passphrase(data: &Path, store: &Store, passphrase: &str) -> Result<SyncReport> {
+    let state = cloud::load(data)?.ok_or_else(|| anyhow!("Nicht bei Locora Cloud angemeldet"))?;
+    if cloud::access(&state, cloud::now_secs()).is_none() {
+        bail!("Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren");
     }
-    let mut report = SyncReport::default();
-    push(state, store, &mut report)?;
-    pull(state, store, &mut report)?;
-    Ok(report)
+    cloud_http::run(UnlockSync::new(state, store, passphrase.to_owned()))
 }
 
-fn push(state: &CloudState, store: &Store, report: &mut SyncReport) -> Result<()> {
-    let mut cursor = store.sync_cursor("push")?;
-    loop {
-        let batch: Vec<Op> = store.ops_since(cursor)?.into_iter().take(BATCH).collect();
-        let Some(last) = batch.last().map(|op| op.seq) else {
-            return Ok(());
-        };
-        for op in &batch {
-            for hash in media_refs(&remote(op.clone())) {
-                if upload_media_if_missing(state, store, &hash)? {
-                    report.media_uploaded += 1;
-                }
-            }
+#[cfg(feature = "cloud")]
+pub fn sync(state: &CloudState, store: &Store, dek: &Dek) -> Result<SyncReport> {
+    cloud_http::run(SyncFlow::new(state.clone(), store, dek)?)
+}
+
+/// Unlocks the account key with the passphrase (after fetching the wrapped keys), then syncs.
+/// `S` is the store, borrowed on the desktop and shared in the browser.
+pub struct UnlockSync<S> {
+    state: CloudState,
+    store: S,
+    passphrase: String,
+    syncing: Option<SyncFlow<S, Box<Dek>>>,
+}
+
+impl<S: Clone + Deref<Target = Store>> UnlockSync<S> {
+    pub fn new(state: CloudState, store: S, passphrase: String) -> Self {
+        Self {
+            state,
+            store,
+            passphrase,
+            syncing: None,
         }
-        let ops = batch.iter().map(wire).collect();
-        let _: PushReply = cloud::post(
-            &state.server,
-            "/v1/sync/ops",
-            Some(&state.token),
-            &PushOps {
-                device: store.node_id().to_owned(),
-                ops,
-            },
-        )?;
-        store.set_sync_cursor("push", last)?;
-        report.pushed += batch.len();
-        cursor = last;
     }
 }
 
-// Decode each operation separately so a malformed wire item can be quarantined.
+impl<S: Clone + Deref<Target = Store>> Flow for UnlockSync<S> {
+    type Output = SyncReport;
+
+    fn step(&mut self, reply: Option<Reply>) -> Result<Step<SyncReport>> {
+        if let Some(flow) = self.syncing.as_mut() {
+            return flow.step(reply);
+        }
+        let Some(reply) = reply else {
+            return Ok(Step::Call(cloud::keys_call(&self.state)?));
+        };
+        let Some(bundle) = cloud::keys_reply(reply)? else {
+            bail!("Verschlüsselung fehlt. In den Einstellungen einrichten");
+        };
+        let dek = locora_crypto::unlock(&bundle, &self.passphrase)?;
+        let mut flow = SyncFlow::new(self.state.clone(), self.store.clone(), Box::new(dek))?;
+        let first = flow.step(None)?;
+        self.syncing = Some(flow);
+        Ok(first)
+    }
+}
+
+/// The plaintext of one sealed operation. Never leaves the device unsealed.
+#[derive(Debug, Serialize, Deserialize)]
+struct Plain {
+    hlc: String,
+    entity: String,
+    entity_id: String,
+    op: String,
+    data: Option<Value>,
+}
+
+/// One page of pulled operations, decoded loosely so a malformed wire item can be
+/// quarantined instead of stalling the whole sync.
 #[derive(serde::Deserialize)]
 struct PullPage {
     ops: Vec<serde_json::Value>,
     cursor: i64,
 }
 
-fn pull(state: &CloudState, store: &Store, report: &mut SyncReport) -> Result<()> {
-    let pending = store.pending_pull()?;
-    let mut after = store.sync_cursor("pull")?;
-    loop {
-        let page: PullPage = cloud::get(
-            &state.server,
-            &format!("/v1/sync/ops?after={after}&limit={BATCH}"),
-            &state.token,
-        )?;
+/// One unit of work of the sync.
+enum Job {
+    /// The next batch of local operations, or on to the pull when there are none.
+    Push,
+    /// The next page of remote operations after this cursor.
+    Pull { after: i64 },
+    /// Whether the server holds the media file of this hash, and uploads it if not.
+    CheckMedia(String),
+    UploadMedia(String),
+    SendBatch { ops: Vec<Op>, last: i64 },
+    /// Opens one queued operation and works out which media it needs.
+    Apply(PullRetry),
+    FetchMedia { hash: String, entry: i64 },
+    Commit { entry: i64, op: RemoteOp },
+    Complete,
+}
+
+/// What the reply to the last call is for.
+enum Awaiting {
+    Exists(String),
+    Uploaded,
+    Batch { last: i64, count: usize },
+    Page { after: i64 },
+    Fetched { hash: String, entry: i64 },
+    Completed,
+}
+
+/// The sync as steps. `S` and `K` hold the store and the account key: borrowed on the desktop,
+/// shared (`Arc`) in the browser, where the flow outlives one call.
+pub struct SyncFlow<S, K> {
+    store: S,
+    dek: K,
+    state: CloudState,
+    jobs: VecDeque<Job>,
+    awaiting: Option<Awaiting>,
+    /// The queued pull entries, applied after the last page.
+    pending: Vec<PullRetry>,
+    /// Whether the sync ends by telling the cloud (the pull alone in the tests does not).
+    complete: bool,
+    /// Entries whose media could not be fetched: their remaining jobs are skipped.
+    failed: HashSet<i64>,
+    report: SyncReport,
+}
+
+impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
+    /// Refuses to start without a valid entitlement, as the sync always did.
+    pub fn new(state: CloudState, store: S, dek: K) -> Result<Self> {
+        if cloud::access(&state, cloud::now_secs()).is_none() {
+            bail!("Keine gültige Freischaltung: `locora cloud refresh` ausführen oder das Abo prüfen");
+        }
+        Ok(Self::unchecked(state, store, dek))
+    }
+
+    fn unchecked(state: CloudState, store: S, dek: K) -> Self {
+        let mut jobs = VecDeque::new();
+        jobs.push_back(Job::Push);
+        Self {
+            store,
+            dek,
+            state,
+            jobs,
+            awaiting: None,
+            pending: Vec::new(),
+            complete: true,
+            failed: HashSet::new(),
+            report: SyncReport::default(),
+        }
+    }
+
+    /// The pull alone: no push, and no completion at the end (the page tests use this).
+    #[cfg(test)]
+    pub(crate) fn pull_only(state: CloudState, store: S, dek: K) -> Result<Self> {
+        let mut flow = Self::unchecked(state, store, dek);
+        flow.jobs.clear();
+        flow.complete = false;
+        flow.pending = flow.store.pending_pull()?;
+        let after = flow.store.sync_cursor("pull")?;
+        flow.jobs.push_back(Job::Pull { after });
+        Ok(flow)
+    }
+
+    /// Runs local jobs until one needs a call, or the queue is empty.
+    fn advance(&mut self) -> Result<Step<SyncReport>> {
+        while let Some(job) = self.jobs.pop_front() {
+            if let Some((call, awaiting)) = self.start(job)? {
+                self.awaiting = Some(awaiting);
+                return Ok(Step::Call(call));
+            }
+        }
+        Ok(Step::Done(self.report.clone()))
+    }
+
+    /// Starts a job: local work is done here (None), a call is returned with what its reply means.
+    fn start(&mut self, job: Job) -> Result<Option<(Call, Awaiting)>> {
+        match job {
+            Job::Push => self.push_next(),
+            Job::Pull { after } => {
+                let call = cloud::call(
+                    Method::Get,
+                    &self.state.server,
+                    &format!("/v1/sync/ops?after={after}&limit={BATCH}&generation={}", self.state.sync_generation),
+                    Some(&self.state.token),
+                    None,
+                )?;
+                Ok(Some((call, Awaiting::Page { after })))
+            }
+            Job::CheckMedia(hash) => {
+                let id = self.dek.media_id(&hash);
+                let call = cloud::media_call(&self.state, Method::Head, &id, None)?;
+                Ok(Some((call, Awaiting::Exists(hash))))
+            }
+            Job::UploadMedia(hash) => {
+                let id = self.dek.media_id(&hash);
+                let media = self
+                    .store
+                    .media(&hash)?
+                    .ok_or_else(|| anyhow!("Medium {hash} ist auf diesem Gerät nicht vorhanden"))?;
+                let path = self
+                    .store
+                    .media_file(&hash)
+                    .ok_or_else(|| anyhow!("Dieser Speicher hat keine Mediendateien"))?;
+                let bytes = fs::read(&path).with_context(|| format!("{} lesen", path.display()))?;
+                let sealed = self.dek.seal_media(&id, &media.mime, &bytes);
+                let call = cloud::media_call(&self.state, Method::Put, &id, Some(Body::Bytes(sealed)))?;
+                Ok(Some((call, Awaiting::Uploaded)))
+            }
+            Job::SendBatch { ops, last } => {
+                let account = self.state.account.id.clone();
+                let sealed = ops
+                    .iter()
+                    .map(|op| seal(&self.dek, &account, op))
+                    .collect::<Result<Vec<_>>>()?;
+                let count = ops.len();
+                let body = PushOps {
+                    device: self.store.node_id().to_owned(),
+                    ops: sealed,
+                };
+                let call = cloud::call(
+                    Method::Post,
+                    &self.state.server,
+                    &format!("/v1/sync/ops?generation={}", self.state.sync_generation),
+                    Some(&self.state.token),
+                    Some(cloud::json_body(&body)?),
+                )?;
+                Ok(Some((call, Awaiting::Batch { last, count })))
+            }
+            Job::Apply(entry) => {
+                self.apply(entry)?;
+                Ok(None)
+            }
+            Job::FetchMedia { hash, entry } => {
+                if self.failed.contains(&entry) {
+                    return Ok(None);
+                }
+                let id = self.dek.media_id(&hash);
+                let call = cloud::media_call(&self.state, Method::Get, &id, None)?;
+                Ok(Some((call, Awaiting::Fetched { hash, entry })))
+            }
+            Job::Commit { entry, op } => {
+                if !self.failed.contains(&entry) {
+                    let attempt = self.store.apply_pull(entry, &op)?;
+                    self.report.applied.applied += attempt.applied.applied;
+                    self.report.applied.stale += attempt.applied.stale;
+                    self.report.applied.missing += attempt.applied.missing;
+                    self.report.applied.failed.extend(attempt.applied.failed);
+                    self.report.quarantined.extend(attempt.quarantined);
+                }
+                Ok(None)
+            }
+            Job::Complete => {
+                let call = cloud::complete_sync_call(&self.state)?;
+                Ok(Some((call, Awaiting::Completed)))
+            }
+        }
+    }
+
+    /// The next batch: the media of its operations are checked first, then the batch is sent.
+    fn push_next(&mut self) -> Result<Option<(Call, Awaiting)>> {
+        let cursor = self.store.sync_cursor("push")?;
+        let batch: Vec<Op> = self.store.ops_since(cursor)?.into_iter().take(BATCH).collect();
+        let Some(last) = batch.last().map(|op| op.seq) else {
+            // Nothing to push: the pull starts, and its pending entries are applied at its end.
+            self.pending = self.store.pending_pull()?;
+            let after = self.store.sync_cursor("pull")?;
+            self.jobs.push_back(Job::Pull { after });
+            return Ok(None);
+        };
+        self.jobs.push_front(Job::Push);
+        self.jobs.push_front(Job::SendBatch { ops: batch.clone(), last });
+        for op in batch.iter().rev() {
+            for hash in media_refs(&remote(op.clone())).into_iter().rev() {
+                self.jobs.push_front(Job::CheckMedia(hash));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Opens one queued entry and queues the media it needs, then its commit.
+    fn apply(&mut self, entry: PullRetry) -> Result<()> {
+        let pulled: PulledOp = match serde_json::from_str(&entry.operation) {
+            Ok(op) => op,
+            Err(error) => return self.record_failure(entry.id, format!("Ungültige Operation: {error}"), true),
+        };
+        let op = match open(&self.dek, &self.state.account.id, &pulled) {
+            Ok(op) => op,
+            Err(error) => return self.record_failure(entry.id, error.to_string(), true),
+        };
+        let mut missing = Vec::new();
+        for hash in media_refs(&op) {
+            if self.store.media(&hash)?.is_none() {
+                missing.push(hash);
+            }
+        }
+        // Front of the queue, in order: the fetches, then the commit that applies the operation.
+        self.jobs.push_front(Job::Commit { entry: entry.id, op });
+        for hash in missing.into_iter().rev() {
+            self.jobs.push_front(Job::FetchMedia { hash, entry: entry.id });
+        }
+        Ok(())
+    }
+
+    fn record_failure(&mut self, id: i64, reason: String, permanent: bool) -> Result<()> {
+        self.report.quarantined.extend(self.store.fail_pull(id, &reason, permanent)?);
+        self.report.applied.failed.push(reason);
+        Ok(())
+    }
+
+    /// Takes the reply to the call the flow asked for last, and continues the queue.
+    fn answer(&mut self, awaiting: Awaiting, reply: Reply) -> Result<()> {
+        match awaiting {
+            Awaiting::Exists(hash) => {
+                if !cloud::exists_reply(reply)? {
+                    self.jobs.push_front(Job::UploadMedia(hash));
+                }
+            }
+            Awaiting::Uploaded => {
+                cloud_http::expect_success(reply)?;
+                self.report.media_uploaded += 1;
+            }
+            Awaiting::Batch { last, count } => {
+                cloud_http::expect_success(reply)?;
+                self.store.set_sync_cursor("push", last)?;
+                self.report.pushed += count;
+            }
+            Awaiting::Page { after } => self.page(after, reply)?,
+            Awaiting::Fetched { hash, entry } => {
+                if let Err(error) = self.fetched(&hash, reply) {
+                    self.failed.insert(entry);
+                    self.record_failure(entry, error.to_string(), false)?;
+                }
+            }
+            Awaiting::Completed => {
+                let retention: RetentionStatus = json(reply)?;
+                self.report.cloud_expires_at = Some(retention.expires_at);
+            }
+        }
+        Ok(())
+    }
+
+    /// A page of remote operations: its entries are queued durably, then applied; the next page
+    /// follows, or the pending entries and the completion when the page was the last.
+    fn page(&mut self, after: i64, reply: Reply) -> Result<()> {
+        let page: PullPage = json(reply)?;
         if page.cursor < after || (!page.ops.is_empty() && page.cursor == after) {
             bail!("Die Cloud hat keinen fortschreitenden Sync-Cursor geliefert");
         }
         let done = page.ops.is_empty();
-        let ops: Vec<_> = page
+        // The server is trusted to page correctly, not with the plaintext of the
+        // operations; each entry is opened and checked on its own.
+        let ops: Vec<serde_json::Value> = page
             .ops
             .into_iter()
-            .filter(|op| {
-                op.get("device").and_then(serde_json::Value::as_str) != Some(store.node_id())
-            })
+            .filter(|op| op.get("device").and_then(serde_json::Value::as_str) != Some(self.store.node_id()))
             .collect();
-        let entries = store.queue_pull_page(page.cursor, &ops)?;
-        report.pulled += entries.len();
-        for entry in entries {
-            apply_entry(state, store, entry, report)?;
-        }
-        after = page.cursor;
+        let entries = self.store.queue_pull_page(page.cursor, &ops)?;
+        self.report.pulled += entries.len();
+        let mut next: Vec<Job> = entries.into_iter().map(Job::Apply).collect();
         if done {
-            break;
-        }
-    }
-    for entry in pending {
-        apply_entry(state, store, entry, report)?;
-    }
-    Ok(())
-}
-
-fn apply_entry(
-    state: &CloudState,
-    store: &Store,
-    entry: PullRetry,
-    report: &mut SyncReport,
-) -> Result<()> {
-    let pulled: PulledOp = match serde_json::from_str(&entry.operation) {
-        Ok(op) => op,
-        Err(error) => {
-            record_failure(
-                store,
-                entry.id,
-                format!("Ungültige Operation: {error}"),
-                true,
-                report,
-            )?;
-            return Ok(());
-        }
-    };
-    let op = remote_pulled(pulled);
-    for hash in media_refs(&op) {
-        if store.media(&hash)?.is_none() {
-            if let Err(error) = download_media(state, store, &hash) {
-                let permanent = matches!(
-                    error.downcast_ref::<StoreError>(),
-                    Some(StoreError::Invalid(_))
-                );
-                record_failure(
-                    store,
-                    entry.id,
-                    format!("{} {}: {error}", op.entity, op.entity_id),
-                    permanent,
-                    report,
-                )?;
-                return Ok(());
+            next.extend(std::mem::take(&mut self.pending).into_iter().map(Job::Apply));
+            if self.complete {
+                next.push(Job::Complete);
             }
-            report.media_downloaded += 1;
+        } else {
+            next.push(Job::Pull { after: page.cursor });
         }
+        for job in next.into_iter().rev() {
+            self.jobs.push_front(job);
+        }
+        Ok(())
     }
-    let attempt = store.apply_pull(entry.id, &op)?;
-    report.applied.applied += attempt.applied.applied;
-    report.applied.stale += attempt.applied.stale;
-    report.applied.missing += attempt.applied.missing;
-    report.applied.failed.extend(attempt.applied.failed);
-    report.quarantined.extend(attempt.quarantined);
-    Ok(())
+
+    /// Opens a downloaded media file, checks it against its hash, and stores it.
+    fn fetched(&mut self, hash: &str, reply: Reply) -> Result<()> {
+        let sealed = cloud::media_reply(reply)?;
+        let id = self.dek.media_id(hash);
+        let (mime, bytes) = self
+            .dek
+            .open_media(&id, &sealed)
+            .map_err(|_| anyhow!("Das Medium {hash} lässt sich nicht öffnen"))?;
+        if sha256_hex(&bytes) != hash {
+            bail!("Das Medium {hash} passt nicht zu seiner Kennung");
+        }
+        self.store.put_media(&bytes, &mime)?;
+        self.report.media_downloaded += 1;
+        Ok(())
+    }
 }
 
-fn record_failure(
-    store: &Store,
-    id: i64,
-    reason: String,
-    permanent: bool,
-    report: &mut SyncReport,
-) -> Result<()> {
-    report
-        .quarantined
-        .extend(store.fail_pull(id, &reason, permanent)?);
-    report.applied.failed.push(reason);
-    Ok(())
+impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> Flow for SyncFlow<S, K> {
+    type Output = SyncReport;
+
+    fn step(&mut self, reply: Option<Reply>) -> Result<Step<SyncReport>> {
+        if let Some(awaiting) = self.awaiting.take() {
+            let reply = reply.ok_or_else(|| anyhow!("the sync needs the reply to its last call"))?;
+            self.answer(awaiting, reply)?;
+        }
+        self.advance()
+    }
 }
 
-/// Uploads the media file unless the server has it. Returns whether it uploaded.
-fn upload_media_if_missing(state: &CloudState, store: &Store, hash: &str) -> Result<bool> {
-    if cloud::media_exists(state, hash)? {
-        return Ok(false);
-    }
-    let mime = store
-        .media(hash)?
-        .map(|media| media.mime)
-        .ok_or_else(|| anyhow!("Medium {hash} ist auf diesem Gerät nicht vorhanden"))?;
-    let path = store
-        .media_file(hash)
-        .ok_or_else(|| anyhow!("Dieser Speicher hat keine Mediendateien"))?;
-    let bytes = fs::read(&path).with_context(|| format!("{} lesen", path.display()))?;
-    cloud::put_media(state, hash, &mime, bytes)?;
-    Ok(true)
+/// Seals a local operation. Its id is keyed to its timestamp, so it cannot be linked to content.
+fn seal(dek: &Dek, account: &str, op: &Op) -> Result<EncryptedOp> {
+    let plain = Plain {
+        hlc: op.hlc.clone(),
+        entity: op.entity.clone(),
+        entity_id: op.entity_id.clone(),
+        op: op.op.clone(),
+        data: op.data.clone(),
+    };
+    let id = dek.op_id(&op.hlc);
+    let sealed = dek.seal_op(account, &id, &serde_json::to_vec(&plain)?);
+    Ok(EncryptedOp {
+        op_id: id,
+        payload: STANDARD.encode(sealed),
+    })
 }
 
-/// Downloads a media file and stores it only if its SHA-256 is the one asked for.
-fn download_media(state: &CloudState, store: &Store, hash: &str) -> Result<()> {
-    if hash.len() != 64
-        || !hash
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-    {
-        return Err(StoreError::Invalid(format!("Ungültige Medien-Kennung: {hash}")).into());
+/// Opens a pulled operation and checks that its id belongs to its timestamp.
+fn open(dek: &Dek, account: &str, pulled: &PulledOp) -> Result<RemoteOp> {
+    let sealed = STANDARD
+        .decode(&pulled.op.payload)
+        .context("Eine Operation ist kein gültiges Base64")?;
+    let plain = dek
+        .open_op(account, &pulled.op.op_id, &sealed)
+        .context("Eine Operation lässt sich nicht öffnen (falscher Schlüssel oder beschädigt)")?;
+    let plain: Plain = serde_json::from_slice(&plain).context("Eine Operation ist beschädigt")?;
+    if dek.op_id(&plain.hlc) != pulled.op.op_id {
+        bail!("Eine Operation passt nicht zu ihrer Kennung");
     }
-    let (mime, bytes) = cloud::get_media(state, hash)?;
-    let actual: String = Sha256::digest(&bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    if actual != hash {
-        return Err(StoreError::Invalid(format!(
-            "Das Medium {hash} passt nicht zu seiner Kennung"
-        ))
-        .into());
-    }
-    store.put_media(&bytes, &mime)?;
-    Ok(())
+    Ok(RemoteOp {
+        hlc: plain.hlc,
+        entity: plain.entity,
+        entity_id: plain.entity_id,
+        op: plain.op,
+        data: plain.data,
+    })
 }
 
 fn remote(op: Op) -> RemoteOp {
@@ -223,26 +488,6 @@ fn remote(op: Op) -> RemoteOp {
         entity_id: op.entity_id,
         op: op.op,
         data: op.data,
-    }
-}
-
-fn remote_pulled(op: PulledOp) -> RemoteOp {
-    RemoteOp {
-        hlc: op.op.hlc,
-        entity: op.op.entity,
-        entity_id: op.op.entity_id,
-        op: op.op.op,
-        data: op.op.data,
-    }
-}
-
-fn wire(op: &Op) -> WireOp {
-    WireOp {
-        hlc: op.hlc.clone(),
-        entity: op.entity.clone(),
-        entity_id: op.entity_id.clone(),
-        op: op.op.clone(),
-        data: op.data.clone(),
     }
 }
 

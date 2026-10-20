@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Locora",
   "version": "0.1.0",
-  "identifier": "app.locora",
+  "identifier": "cloud.locora",
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:1420",
@@ -14,6 +14,8 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
+        "backgroundColor": "#16173a",
         "title": "Locora",
         "width": 1100,
         "height": 760,

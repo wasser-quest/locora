@@ -15,6 +15,68 @@ use crate::Profile;
 
 pub const NAME: &str = "Locora lernen";
 
+/// Namespaces of the tutorial palace: German keeps the original one, every other language has its own
+/// palace (so progress in one language stays where it is).
+pub const NAMESPACES: [&str; 5] = [
+    "tutorial/v1",
+    "tutorial/v1/en",
+    "tutorial/v1/fr",
+    "tutorial/v1/ja",
+    "tutorial/v1/zh",
+];
+
+/// The language a palace is built in. Codes without a translation get English.
+pub fn language(code: &str) -> &'static str {
+    match code {
+        "de" => "de",
+        "fr" => "fr",
+        "ja" => "ja",
+        "zh" => "zh",
+        _ => "en",
+    }
+}
+
+/// The name of the tutorial palace in a language.
+pub fn name_for(code: &str) -> &'static str {
+    match language(code) {
+        "en" => "Learn Locora",
+        "fr" => "Apprendre Locora",
+        "ja" => "Locora を学ぶ",
+        "zh" => "学习 Locora",
+        _ => NAME,
+    }
+}
+
+/// The namespace of the tutorial palace in a language.
+pub fn namespace_for(code: &str) -> &'static str {
+    NAMESPACES[match language(code) {
+        "en" => 1,
+        "fr" => 2,
+        "ja" => 3,
+        "zh" => 4,
+        _ => 0,
+    }]
+}
+
+/// The files of a bundled palace in a language: the translated file where there is one.
+pub(crate) fn localized(
+    files: &[(&'static str, &'static [u8])],
+    code: &str,
+) -> Vec<(&'static str, &'static [u8])> {
+    let language = language(code);
+    files
+        .iter()
+        .map(|(path, bytes)| {
+            let name = path.rsplit('/').next().unwrap_or(path);
+            let bytes = match language {
+                "de" => *bytes,
+                lang => crate::palace_i18n::file(lang, name).unwrap_or(bytes),
+            };
+            (*path, bytes)
+        })
+        .collect()
+}
+
 /// The default locus marker (assets/STIL.md 8b).
 pub const DEFAULT_MARKER: &[u8] = include_bytes!("../../../assets/marker/locus.sply");
 
@@ -77,42 +139,141 @@ pub const FILES: &[(&str, &[u8])] = &[
     ),
 ];
 
-/// The tutorial palace, if it exists.
+/// The tutorial palace in any language, if it exists.
 pub fn find(profile: &Profile) -> Result<Option<locora_store::Palace>> {
+    for namespace in NAMESPACES {
+        if let Some(palace) = profile
+            .store
+            .find_palace(&locora_source::bundled_palace_id(namespace))?
+        {
+            return Ok(Some(palace));
+        }
+    }
     Ok(profile.store.find_palace(NAME)?)
 }
 
-/// Build the tutorial palace, replacing an existing one. Returns the new
-/// palace and messages from plugins.
-pub fn install(profile: &mut Profile) -> Result<(PalaceTree, Vec<String>)> {
-    install_files(profile, NAME, FILES, FILES[0].0)
+/// The tutorial palace in a language, if it exists.
+pub fn find_in(profile: &Profile, code: &str) -> Result<Option<locora_store::Palace>> {
+    Ok(profile
+        .store
+        .find_palace(&locora_source::bundled_palace_id(namespace_for(code)))?)
 }
 
-/// Import one bundled palace and its local media assets.
+/// Build the German tutorial palace, replacing an existing one. Returns the new
+/// palace and messages from plugins.
+pub fn install(profile: &mut Profile) -> Result<(PalaceTree, Vec<String>)> {
+    install_in(profile, "de")
+}
+
+/// Build the tutorial palace in a language, replacing the one of that language.
+pub fn install_in(profile: &mut Profile, code: &str) -> Result<(PalaceTree, Vec<String>)> {
+    let files = localized(FILES, code);
+    install_files(profile, name_for(code), &files, FILES[0].0, namespace_for(code))
+}
+
+/// Import one bundled palace and its local media assets. The files are staged in the
+/// profile folder, because WASI has no temporary directory.
 pub(crate) fn install_files(
     profile: &mut Profile,
     name: &str,
     files: &[(&str, &[u8])],
     source: &str,
+    namespace: &str,
 ) -> Result<(PalaceTree, Vec<String>)> {
-    let dir = tempfile::tempdir().context("Temporären Ordner anlegen")?;
+    let dir = profile.data_dir.join("staging");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).context("Arbeitsordner anlegen")?;
+    let built = build_staged(profile, &dir, name, files, source, namespace);
+    let _ = fs::remove_dir_all(&dir);
+    built
+}
+
+fn build_staged(
+    profile: &mut Profile,
+    dir: &Path,
+    name: &str,
+    files: &[(&str, &[u8])],
+    source: &str,
+    namespace: &str,
+) -> Result<(PalaceTree, Vec<String>)> {
     for (path, bytes) in files {
-        let target = dir.path().join(path);
+        let target = dir.join(path);
         fs::create_dir_all(target.parent().expect("files live in folders"))?;
         fs::write(&target, bytes)?;
     }
-    let source_file = dir.path().join(source);
+    let source_file = dir.join(source);
     let source = locora_source::parse(&fs::read_to_string(&source_file)?)?;
-    let plan = locora_source::check(&source, source_file.parent().unwrap_or(Path::new(".")))?;
+    // The pictures of a bundled palace may sit next to its folder, so the whole staging folder is the root.
+    let plan = locora_source::check_within(&source, source_file.parent().unwrap_or(Path::new(".")), dir)?;
     let mut notes = Vec::new();
-    if let Some(old) = profile.store.find_palace(name)? {
-        profile.store.delete_palace(&old.id)?;
-        notes.extend(profile.publish(&PalaceDeleted { palace_id: old.id })?);
+    for query in [name, &locora_source::bundled_palace_id(namespace)] {
+        if let Some(old) = profile.store.find_palace(query)?
+            && profile.store.delete_palace(&old.id)?
+        {
+            notes.extend(profile.publish(&PalaceDeleted { palace_id: old.id })?);
+        }
     }
-    let tree = locora_source::build(&profile.store, &plan)?;
+    let tree = locora_source::build_bundled(&profile.store, &plan, namespace)?;
     notes.extend(profile.publish(&PalaceCreated {
         palace_id: tree.palace.id.clone(),
         name: tree.palace.name.clone(),
     })?);
     Ok((tree, notes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ids(tree: &PalaceTree) -> Vec<String> {
+        std::iter::once(tree.palace.id.clone())
+            .chain(tree.rooms.iter().flat_map(|room| {
+                std::iter::once(room.room.id.clone()).chain(room.loci.iter().map(|l| l.id.clone()))
+            }))
+            .collect()
+    }
+
+    #[test]
+    fn bundled_palaces_have_stable_ids_across_devices_and_rebuilds() {
+        let first_dir = tempfile::tempdir().unwrap();
+        let second_dir = tempfile::tempdir().unwrap();
+        let mut first = Profile::open(Some(first_dir.path())).unwrap();
+        let mut second = Profile::open(Some(second_dir.path())).unwrap();
+        let original = install(&mut first).unwrap().0;
+        let other = install(&mut second).unwrap().0;
+        assert_eq!(ids(&original), ids(&other));
+        assert_eq!(ids(&original), ids(&install(&mut first).unwrap().0));
+        let guide = crate::formula_guide::install(&mut first).unwrap().0;
+        assert_ne!(original.palace.id, guide.palace.id);
+    }
+
+    #[test]
+    fn every_language_builds_its_own_palace() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let mut ids = Vec::new();
+        for code in ["de", "en", "fr", "ja", "zh"] {
+            let (tree, _) = install_in(&mut profile, code).unwrap();
+            assert_eq!(tree.palace.name, name_for(code));
+            assert_eq!(
+                tree.rooms.iter().map(|room| room.loci.len()).sum::<usize>(),
+                9,
+                "every place is kept in {code}"
+            );
+            assert_eq!(
+                find_in(&profile, code).unwrap().unwrap().id,
+                tree.palace.id
+            );
+            ids.push(tree.palace.id);
+        }
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 5, "one palace per language");
+        assert!(find(&profile).unwrap().is_some());
+        assert_eq!(language("pt"), "en", "unknown languages get English");
+        for code in ["de", "en", "fr", "ja", "zh"] {
+            let (tree, _) = crate::formula_guide::install_in(&mut profile, code).unwrap();
+            assert_eq!(tree.palace.name, crate::formula_guide::name_for(code));
+        }
+    }
 }

@@ -93,6 +93,55 @@ pub mod ui {
         const TOPIC: &'static str = "ui.tile";
     }
 
+    /// Most blocks one plugin may declare, and most pages.
+    pub const MAX_BLOCKS: usize = 24;
+    pub const MAX_PAGES: usize = 8;
+
+    /// Ids of blocks, pages and removals: 1 to 48 lowercase letters, digits, `-` or `_`.
+    /// The app builds its own addresses from them, so nothing else is accepted.
+    pub fn valid_id(id: &str) -> bool {
+        (1..=48).contains(&id.len())
+            && id
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+    }
+
+    /// A card the user can place on any page of the app (`ui.block`). Declaring the same id
+    /// again replaces the card. The app shows the title and text; plugins send no markup.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Block {
+        pub id: String,
+        pub title: String,
+        pub text: String,
+    }
+
+    impl Event for Block {
+        const TOPIC: &'static str = "ui.block";
+    }
+
+    /// A page the user can add in one step (`ui.page`). `blocks` are this plugin's block ids,
+    /// placed on the new page in this order. Declaring the same id again replaces the page.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Page {
+        pub id: String,
+        pub name: String,
+        pub blocks: Vec<String>,
+    }
+
+    impl Event for Page {
+        const TOPIC: &'static str = "ui.page";
+    }
+
+    /// Remove a block or a page of the publishing plugin by id (`ui.remove`).
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Remove {
+        pub id: String,
+    }
+
+    impl Event for Remove {
+        const TOPIC: &'static str = "ui.remove";
+    }
+
     /// A short, declarative tour step. The app locates `target` by its stable
     /// element ID; no HTML or CSS selector is accepted from a plugin.
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,6 +168,8 @@ pub mod tutorial {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     pub enum TourAction {
         Start,
+        Resume,
+        Previous,
         Next,
         Skip,
     }

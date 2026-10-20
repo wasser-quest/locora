@@ -8,7 +8,8 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
+use serde::{Deserialize, Serialize};
 use locora_api::Service as _;
 use locora_api::core::{Grade, JourneyScore, LearningDayAnswer, LocusAnswered, Score};
 use locora_api::gamification::{
@@ -18,16 +19,26 @@ use locora_api::gamification::{
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
 use locora_api::notify::{Due, DueRequest, Message};
 use locora_api::tutorial::{Tour, TourAction};
-use locora_api::ui::HighlightRequest;
-use locora_api::ui::Tile;
+use locora_api::ui::{Block, HighlightRequest, MAX_BLOCKS, MAX_PAGES, Page, Remove, Tile, valid_id};
 
 /// Latest `ui.tile` per plugin, kept in the profile (reserved id `host`).
 const TILES: &str = "tiles";
+/// The pages and blocks each plugin declared (`ui.page`, `ui.block`, `ui.remove`).
+const UI: &str = "ui";
+
+/// What one plugin declared for the app's pages: its blocks and the pages it suggests.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PluginUi {
+    pub pages: BTreeMap<String, Page>,
+    pub blocks: BTreeMap<String, Block>,
+}
 use locora_api::review::{CardState, Schedule, ScheduleRequest};
 use locora_host::{ApprovalReceipt, HostEvent, KvStore, Level, Manifest, PluginHost};
 use locora_store::{PalaceTree, Store};
 
 pub mod cloud;
+pub mod cloud_http;
+mod palace_i18n;
 pub mod cloud_sync;
 pub mod formula_guide;
 pub mod journey;
@@ -94,6 +105,22 @@ pub fn read_regular(file: &Path) -> Result<Vec<u8>> {
 }
 
 /// Current time in seconds; `LOCORA_NOW` overrides it (tests, demos).
+/// Which built-in palace an id belongs to, in any language: "tutorial" or "formulas".
+pub fn built_in_kind(palace_id: &str) -> Option<&'static str> {
+    let is = |namespaces: &[&str]| {
+        namespaces
+            .iter()
+            .any(|namespace| locora_source::bundled_palace_id(namespace) == palace_id)
+    };
+    if is(&tutorial::NAMESPACES) {
+        Some("tutorial")
+    } else if is(&formula_guide::NAMESPACES) {
+        Some("formulas")
+    } else {
+        None
+    }
+}
+
 pub fn now() -> u64 {
     env::var("LOCORA_NOW")
         .ok()
@@ -108,6 +135,8 @@ pub fn now() -> u64 {
 /// An open profile: local store plus plugin host.
 pub struct Profile {
     pub store: Arc<Store>,
+    /// The folder the profile lives in; scratch files go below it.
+    pub data_dir: PathBuf,
     pub host: PluginHost,
     /// Problems noticed while opening (plugins that did not load).
     pub notes: Vec<String>,
@@ -162,6 +191,7 @@ impl Profile {
         }
         let mut profile = Self {
             store,
+            data_dir,
             host,
             notes,
             highlight: None,
@@ -270,6 +300,22 @@ impl Profile {
                 topic,
                 payload,
             } = event
+                && [
+                    <Page as locora_api::Event>::TOPIC,
+                    <Block as locora_api::Event>::TOPIC,
+                    <Remove as locora_api::Event>::TOPIC,
+                ]
+                .contains(&topic.as_str())
+            {
+                if let Err(e) = self.keep_ui(plugin, topic, payload) {
+                    notes.push(format!("[{plugin}] Seiten/Blöcke nicht übernommen: {e:#}"));
+                }
+            }
+            if let HostEvent::Published {
+                plugin,
+                topic,
+                payload,
+            } = event
                 && topic == <Tile as locora_api::Event>::TOPIC
             {
                 match locora_api::decode::<Tile>(payload) {
@@ -323,6 +369,67 @@ impl Profile {
             .plugins()
             .filter_map(|m| saved.remove(&m.id).map(|tile| (m.id.clone(), tile)))
             .collect())
+    }
+
+    /// The pages and blocks of every loaded plugin, in plugin order. Unreadable saved
+    /// declarations show as none (and are kept, see `keep_ui`).
+    pub fn ui_declarations(&self) -> Result<Vec<(String, PluginUi)>> {
+        let mut saved = self.saved_ui().unwrap_or_default();
+        Ok(self
+            .host
+            .plugins()
+            .filter_map(|m| saved.remove(&m.id).map(|ui| (m.id.clone(), ui)))
+            .collect())
+    }
+
+    fn saved_ui(&self) -> Result<BTreeMap<String, PluginUi>> {
+        Ok(match self.store.kv_get("host", UI)? {
+            // An error, not an empty map: the next write would drop every declaration.
+            Some(bytes) => {
+                serde_json::from_slice(&bytes).context("Gespeicherte Seiten sind unlesbar")?
+            }
+            None => BTreeMap::new(),
+        })
+    }
+
+    /// Apply one `ui.*` event of `plugin`. Ids, sizes and counts are checked here, so the app
+    /// only ever sees declarations within the limits.
+    fn keep_ui(&self, plugin: &str, topic: &str, payload: &[u8]) -> Result<()> {
+        let mut saved = self.saved_ui()?;
+        let ui = saved.entry(plugin.to_owned()).or_default();
+        if topic == <Page as locora_api::Event>::TOPIC {
+            let page: Page = locora_api::decode(payload).context("ungültige Seite")?;
+            ensure!(valid_id(&page.id), "Seiten-Id `{}` ist ungültig", page.id);
+            ensure!(
+                ui.pages.contains_key(&page.id) || ui.pages.len() < MAX_PAGES,
+                "höchstens {MAX_PAGES} Seiten"
+            );
+            ensure!(
+                page.blocks.len() <= MAX_BLOCKS && page.blocks.iter().all(|id| valid_id(id)),
+                "ungültige Blöcke in Seite `{}`",
+                page.id
+            );
+            ui.pages.insert(page.id.clone(), page);
+        } else if topic == <Block as locora_api::Event>::TOPIC {
+            let block: Block = locora_api::decode(payload).context("ungültiger Block")?;
+            ensure!(valid_id(&block.id), "Block-Id `{}` ist ungültig", block.id);
+            ensure!(
+                ui.blocks.contains_key(&block.id) || ui.blocks.len() < MAX_BLOCKS,
+                "höchstens {MAX_BLOCKS} Blöcke"
+            );
+            ensure!(
+                block.title.chars().count() <= 60 && block.text.chars().count() <= 240,
+                "Block `{}` ist zu lang (Titel 60, Text 240 Zeichen)",
+                block.id
+            );
+            ui.blocks.insert(block.id.clone(), block);
+        } else {
+            let remove: Remove = locora_api::decode(payload).context("ungültiges Entfernen")?;
+            ui.pages.remove(&remove.id);
+            ui.blocks.remove(&remove.id);
+        }
+        self.store.kv_set("host", UI, &serde_json::to_vec(&saved)?)?;
+        Ok(())
     }
 
     fn saved_tiles(&self) -> Result<BTreeMap<String, Tile>> {
@@ -616,8 +723,14 @@ mod notify_tests {
             })
             .unwrap();
 
-        // Before the time of day: nothing.
-        let due = profile.notifications().unwrap();
+        // Drive the clock explicitly: wall-clock time can be past 19:00.
+        let due: Vec<locora_api::notify::Queued> = profile
+            .host
+            .call::<locora_api::notify::Due>(&DueRequest {
+                now: 0,
+                day_seconds: 0,
+            })
+            .unwrap();
         assert!(due.is_empty(), "{due:?}");
         // The runtime does not fake time, so this test drives the service
         // directly with a late `day_seconds`.
@@ -753,11 +866,90 @@ mod review_tile_tests {
             .find(|(plugin, _)| plugin == "review")
             .expect("the review plugin published its tile");
         assert_eq!(tile.title, "Wiederholung");
+        // Tile texts are templates the app translates: `@@{0} …` plus its arguments.
         assert!(
-            tile.text.starts_with("1 Locus · fällig ab "),
+            tile.text.starts_with("@@{0} Locus · fällig ab {1}"),
             "{}",
             tile.text
         );
         let _ = plugin;
+    }
+}
+
+#[cfg(test)]
+mod ui_tests {
+    use super::*;
+
+    fn block(id: &str, text: &str) -> Block {
+        Block {
+            id: id.into(),
+            title: "Karte".into(),
+            text: text.into(),
+        }
+    }
+
+    fn keep_block(profile: &Profile, plugin: &str, block: &Block) -> Result<()> {
+        profile.keep_ui(
+            plugin,
+            <Block as locora_api::Event>::TOPIC,
+            &locora_api::encode(block)?,
+        )
+    }
+
+    #[test]
+    fn declared_blocks_and_pages_are_kept_and_checked() {
+        let dir = tempfile::tempdir().unwrap();
+        let profile = Profile::open(Some(dir.path())).unwrap();
+        let mine = |profile: &Profile| {
+            profile
+                .ui_declarations()
+                .unwrap()
+                .into_iter()
+                .find(|(plugin, _)| plugin == "review")
+                .map(|(_, ui)| ui)
+                .unwrap_or_default()
+        };
+        assert!(mine(&profile).blocks.is_empty());
+
+        keep_block(&profile, "review", &block("streak", "3")).unwrap();
+        keep_block(&profile, "review", &block("streak", "4")).unwrap();
+        let page = Page {
+            id: "tag".into(),
+            name: "Heute".into(),
+            blocks: vec!["streak".into()],
+        };
+        profile
+            .keep_ui(
+                "review",
+                <Page as locora_api::Event>::TOPIC,
+                &locora_api::encode(&page).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(mine(&profile).blocks["streak"].text, "4", "declared again");
+        assert_eq!(mine(&profile).pages["tag"], page);
+
+        assert!(keep_block(&profile, "review", &block("Mit Leerzeichen", "x")).is_err());
+        assert!(keep_block(&profile, "review", &block("lang", &"x".repeat(241))).is_err());
+        for i in 0..MAX_BLOCKS - 1 {
+            keep_block(&profile, "review", &block(&format!("b{i}"), "x")).unwrap();
+        }
+        assert!(
+            keep_block(&profile, "review", &block("zu-viel", "x")).is_err(),
+            "at most {MAX_BLOCKS} blocks"
+        );
+
+        profile
+            .keep_ui(
+                "review",
+                <Remove as locora_api::Event>::TOPIC,
+                &locora_api::encode(&Remove { id: "streak".into() }).unwrap(),
+            )
+            .unwrap();
+        assert!(!mine(&profile).blocks.contains_key("streak"));
+
+        drop(profile);
+        let again = Profile::open(Some(dir.path())).unwrap();
+        assert_eq!(mine(&again).blocks.len(), MAX_BLOCKS - 1, "kept across restarts");
+        assert_eq!(mine(&again).pages["tag"], page);
     }
 }
