@@ -11,14 +11,17 @@ pub fn clean(data: &[u8]) -> Result<Vec<u8>> {
     if data.get(..4) != Some(b"RIFF") || data.get(8..12) != Some(b"WEBP") {
         return Err(MediaError::Malformed("keine WebP-Datei"));
     }
-    let riff_end = (8 + le32(data, 4)? as usize).min(data.len());
+    let riff_end = (le32(data, 4)? as usize).saturating_add(8).min(data.len());
     let mut chunks = Vec::new();
     let mut orientation = None;
     let mut extended = None;
     let mut at = 12;
     while at + 8 <= riff_end {
         let size = le32(data, at + 4)? as usize;
-        let end = at + 8 + size + (size & 1);
+        let end = (at + 8)
+            .checked_add(size)
+            .and_then(|end| end.checked_add(size & 1))
+            .ok_or(MediaError::Malformed("Chunk zu groß"))?;
         let chunk = data
             .get(at..end.min(riff_end))
             .ok_or(MediaError::Malformed("Chunk zu kurz"))?;

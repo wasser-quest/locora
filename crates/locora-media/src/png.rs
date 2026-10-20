@@ -18,7 +18,9 @@ pub fn clean(data: &[u8]) -> Result<Vec<u8>> {
     loop {
         let length =
             usize::try_from(be32(data, at)?).map_err(|_| MediaError::Malformed("Chunk zu groß"))?;
-        let end = at + 12 + length;
+        let end = at
+            .checked_add(12 + length)
+            .ok_or(MediaError::Malformed("Chunk zu groß"))?;
         let chunk = data
             .get(at..end)
             .ok_or(MediaError::Malformed("Chunk zu kurz"))?;

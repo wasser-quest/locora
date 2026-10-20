@@ -242,7 +242,9 @@ fn metadata_items(data: &[u8], iinf: &Box) -> Result<Vec<u32>> {
         .iter()
         .filter(|b| &b.kind == b"infe")
     {
-        let version = data[infe.body];
+        let version = *data
+            .get(infe.body)
+            .ok_or(MediaError::Malformed("infe zu kurz"))?;
         if version < 2 {
             continue;
         }
@@ -272,7 +274,9 @@ fn item_extents(
     items: &[u32],
     idat: Option<usize>,
 ) -> Result<Vec<(usize, usize)>> {
-    let version = data[iloc.body];
+    let version = *data
+        .get(iloc.body)
+        .ok_or(MediaError::Malformed("iloc zu kurz"))?;
     let sizes = be16(data, iloc.body + 4)?;
     let (offset_size, length_size) = (usize::from(sizes >> 12), usize::from((sizes >> 8) & 0xF));
     let (base_size, index_size) = (usize::from((sizes >> 4) & 0xF), usize::from(sizes & 0xF));

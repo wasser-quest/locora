@@ -349,3 +349,64 @@ fn an_avif_keeps_its_picture_and_loses_its_exif_item() {
     assert!(contains(&out, b"pixels"));
     assert!(!contains(&out, b"GPS"));
 }
+
+/// Broken and hostile files give an error, never a panic: every prefix and many byte flips of
+/// valid files of each format.
+#[test]
+fn damaged_files_never_panic() {
+    let mut exif = b"Exif\0\0".to_vec();
+    exif.extend_from_slice(&exif_tiff(6));
+    let mut jpeg = vec![0xFF, 0xD8];
+    jpeg.extend(segment(0xE1, &exif));
+    jpeg.extend(segment(0xDA, &[1, 1, 0, 0, 63, 0]));
+    jpeg.extend_from_slice(&[0x12, 0xFF, 0x00, 0xFF, 0xD9]);
+    let samples = [
+        (jpeg, "image/jpeg"),
+        (fixtures::png(), "image/png"),
+        (
+            movie(
+                b"qt  ",
+                vec![track(b"vide", b"avc1"), track(b"soun", b"mp4a")],
+            ),
+            "video/mp4",
+        ),
+        (
+            b"GIF89a\x01\0\x01\0\0\0\0\x2C\0\0\0\0\x01\0\x01\0\0\x02\x02\x44\x01\0\x3B".to_vec(),
+            "image/gif",
+        ),
+        (
+            [
+                b"RIFF\x16\0\0\0WEBP".to_vec(),
+                riff_chunk(b"VP8X", &[0x08; 10]),
+            ]
+            .concat(),
+            "image/webp",
+        ),
+    ];
+    let mut state = 0x2545_F491_4F6C_DD1Du64;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    for (file, mime) in samples {
+        for end in 0..file.len() {
+            let _ = clean(file[..end].to_vec(), mime);
+        }
+        for _ in 0..3000 {
+            let mut damaged = file.clone();
+            for _ in 0..1 + next() % 4 {
+                let at = (next() as usize) % damaged.len();
+                damaged[at] = next() as u8;
+            }
+            let _ = clean(damaged, mime);
+        }
+    }
+    for size in [0u32, 1, 7, 8, 0xFFFF_FFFF] {
+        let mut avif = mp4_box(b"ftyp", &[b"avif".to_vec()]);
+        avif.extend_from_slice(&size.to_be_bytes());
+        avif.extend_from_slice(b"meta\0\0\0\0\0\0\0\x08infe");
+        let _ = clean(avif, "image/avif");
+    }
+}

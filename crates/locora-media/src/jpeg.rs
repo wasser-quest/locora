@@ -44,7 +44,11 @@ pub fn clean(data: &[u8]) -> Result<Vec<u8>> {
             at += 2;
             continue;
         }
+        // The length counts its own two bytes, so it is at least 2.
         let length = usize::from(be16(data, at + 2)?);
+        if length < 2 {
+            return Err(MediaError::Malformed("Segmentlänge"));
+        }
         let end = at + 2 + length;
         let segment = data
             .get(at..end)
