@@ -107,7 +107,7 @@ fn stage_open(
         .write_all(&header[..size])
         .map_err(|e| format!("Temporäre Datei schreiben: {e}"))?;
     let limit = match kind {
-        Kind::Picture | Kind::Media => 64 * 1024 * 1024,
+        Kind::Picture | Kind::Media => locora_format::limits::ADDED_MEDIA_BYTES,
         Kind::Archive => locora_format::limits::MEDIA_BYTES,
     };
     copy_bounded(input, &mut staged, size as u64, limit)?;

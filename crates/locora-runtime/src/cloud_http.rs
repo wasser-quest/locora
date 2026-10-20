@@ -6,7 +6,7 @@ use anyhow::{Context, Result, bail};
 use serde::de::DeserializeOwned;
 
 /// Largest response body accepted from the server (one media file or one page of operations).
-pub const MAX_BODY: usize = 96 * 1024 * 1024;
+pub const MAX_BODY: usize = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {

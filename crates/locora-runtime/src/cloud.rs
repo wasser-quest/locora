@@ -31,7 +31,7 @@ pub const DEFAULT_SERVER: &str = "https://api.locora.cloud";
 const FILE: &str = "cloud.json";
 /// Seconds before an ordinary call gives up, and before a media transfer does.
 const TIMEOUT_SECS: u64 = 20;
-const MEDIA_TIMEOUT_SECS: u64 = 300;
+const MEDIA_TIMEOUT_SECS: u64 = 1800;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloudState {

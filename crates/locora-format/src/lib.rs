@@ -49,6 +49,9 @@ pub mod limits {
     pub const JSON_BYTES: u64 = 16 << 20;
     /// Largest single media file.
     pub const MEDIA_BYTES: u64 = 1 << 30;
+    /// Largest picture or video added on a device (editor, source folders, phone picker); Locora
+    /// Cloud stores files up to this size too.
+    pub const ADDED_MEDIA_BYTES: u64 = 500 << 20;
     pub const TEXT_CHARS: usize = 10_000;
 }
 

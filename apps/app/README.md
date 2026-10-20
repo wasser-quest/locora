@@ -254,7 +254,7 @@ The list is an explicit submission, not an autosaved or durable draft.
 
 **Bild wählen…** opens a native file picker for the selected locus; **Bild entfernen**
 autosaves removal. Supported: PNG, JPEG, WebP, GIF, AVIF and binary `.sply`, up to
-64 MiB. The backend reuses source/CLI extension classification, checks raster MIME
+500 MiB. The backend reuses source/CLI extension classification, checks raster MIME
 signatures and validates `.sply` with the existing SVG converter. Cancellation is a
 no-op; errors appear in German and leave the current assignment intact. Choose only
 when edits have saved; form input is disabled while the picker is open. Files are
@@ -268,7 +268,7 @@ Native dialog interaction still needs a manual desktop/WebView smoke test.
 
 On Home, **Bild/Video wählen…** opens the backend-only native picker for the same
 pictures plus MP4/M4V, WebM and MOV. Extension and content signatures must match;
-regular local files only, bounded to 64 MiB (also for video). This checks signatures,
+regular local files only, bounded to 500 MiB (also for video). This checks signatures,
 not complete video decoding. The filename stem names the palace and first room
 (fallback **Neuer Palast**); existing palace names get ** (2)**, ** (3)**, etc.,
 using the store's NOCASE comparison. The room type follows the media type.

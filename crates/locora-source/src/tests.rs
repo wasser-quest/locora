@@ -456,7 +456,7 @@ items = ["x"]
         build(&store, &plan)
             .unwrap_err()
             .to_string()
-            .contains("64 MiB")
+            .contains("500 MiB")
     );
     assert!(store.palaces().unwrap().is_empty());
     // Marker and locus media use the same bounded reader.
@@ -466,7 +466,7 @@ items = ["x"]
         build(&store, &plan)
             .unwrap_err()
             .to_string()
-            .contains("64 MiB")
+            .contains("500 MiB")
     );
     plan.marker = None;
     plan.rooms[0].kind = RoomKind::Blank;
@@ -475,7 +475,7 @@ items = ["x"]
         build(&store, &plan)
             .unwrap_err()
             .to_string()
-            .contains("64 MiB")
+            .contains("500 MiB")
     );
     assert!(store.palaces().unwrap().is_empty());
 }

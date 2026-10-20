@@ -700,7 +700,7 @@ pub fn check_within(source: &Source, base: &Path, root: &Path) -> Result<Plan> {
 
 // ---------------------------------------------------------------- building
 
-const MEDIA_BYTES: u64 = 64 << 20;
+const MEDIA_BYTES: u64 = 500 << 20;
 
 fn read_media(path: &Path) -> Result<Vec<u8>> {
     let read = || -> std::io::Result<Vec<u8>> {
@@ -717,7 +717,7 @@ fn read_media(path: &Path) -> Result<Vec<u8>> {
     let bytes = read().map_err(|e| SourceError::File(path.display().to_string(), e))?;
     if bytes.len() as u64 > MEDIA_BYTES {
         return Err(invalid(format!(
-            "{}: Medium ist größer als 64 MiB",
+            "{}: Medium ist größer als 500 MiB",
             path.display()
         )));
     }

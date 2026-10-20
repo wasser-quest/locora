@@ -300,7 +300,7 @@ fn read_selected_media(
     );
     // Bound reads as well as allocations, including files that grow during reading.
     use std::io::Read;
-    const LIMIT: u64 = 64 * 1024 * 1024;
+    const LIMIT: u64 = locora_format::limits::ADDED_MEDIA_BYTES;
     // Reject special files before opening: opening a named pipe can block even
     // before the handle metadata check below runs.
     ensure!(
@@ -316,10 +316,7 @@ fn read_selected_media(
     file.take(LIMIT + 1)
         .read_to_end(&mut bytes)
         .context("Bilddatei lesen")?;
-    ensure!(
-        bytes.len() as u64 <= LIMIT,
-        "Bilddatei ist größer als 64 MiB"
-    );
+    ensure!(bytes.len() as u64 <= LIMIT, "Datei ist größer als 500 MiB");
     if mime == locora_store::SPLINELY {
         ensure!(
             bytes.starts_with(b"\x89SPLY\r\n\x1a"),
@@ -516,7 +513,7 @@ mod tests {
         let oversized = dir.path().join("large.png");
         std::fs::File::create(&oversized)
             .unwrap()
-            .set_len(64 * 1024 * 1024 + 1)
+            .set_len(locora_format::limits::ADDED_MEDIA_BYTES + 1)
             .unwrap();
         assert!(import_palace(&store, Some(&oversized)).is_err());
         assert!(import_palace(&store, Some(dir.path())).is_err());
