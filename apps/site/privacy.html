@@ -65,12 +65,14 @@
         <ul>
           <li><strong>Konto:</strong> Benutzername, E-Mail-Adresse, Passwort als Argon2id-Hash (das Passwort selbst speichern wir nicht), Zeitpunkt der Anmeldung, und ein Anzeigetitel oder Profilbild, wenn du sie setzt.</li>
           <li><strong>Inhalte:</strong> Themen, Beiträge, Antworten, Bilder, Umfragestimmen, Reaktionen, Abos von Themen, Benachrichtigungen. Gelöschte Beiträge bleiben als „entfernt“ im Verlauf, damit die Nummerierung stimmt; ihr Inhalt und ihre Bilder werden gelöscht.</li>
-          <li><strong>Bilder:</strong> Hochgeladene Bilder werden so gespeichert, wie sie hochgeladen wurden. Bilder können Metadaten enthalten, zum Beispiel den Aufnahmeort (EXIF). Entferne sie vor dem Hochladen, wenn du den Ort nicht teilen willst.</li>
+          <li><strong>Bilder:</strong> Bilder speichern wir im Objektspeicher (S3-kompatibel, Server in der EU). Vor dem Speichern entfernen wir ihre Metadaten, etwa den Aufnahmeort (EXIF), XMP-Daten und Textkommentare. Die Bilddaten bleiben unverändert.</li>
           <li><strong>Private Nachrichten</strong> (nur wenn die Funktion eingeschaltet ist): sichtbar für die beteiligten Mitglieder. Administratoren haben technisch Zugriff auf die Datenbank.</li>
           <li><strong>Meldungen und Sperren:</strong> Meldungen zu Beiträgen, Grund und Dauer einer Sperre.</li>
           <li><strong>Sitzung:</strong> Ein Anmeldetoken, dessen Hash wir speichern, für 30 Tage. Er liegt in einem Cookie, das nur der Server lesen kann (HttpOnly, Secure, SameSite=Lax).</li>
           <li><strong>IP-Adressen:</strong> Für den Schutz vor Missbrauch (Begrenzung von Anmeldeversuchen und Anfragen) zählen wir Anfragen je Adresse im Arbeitsspeicher des Servers. Sie werden nicht in der Datenbank gespeichert und sind nach einem Neustart weg. Die Zugriffsprotokolle des Webservers speichern IP-Adressen für [Dauer, z. B. 7 Tage].</li>
         </ul>
+        <h3>Konto löschen</h3>
+        <p>Im Forum kannst du dein Konto unter „Einstellungen → Konto löschen“ löschen. Nach Eingabe deines Passworts werden deine E-Mail-Adresse, dein Passwort, deine Sitzungen, dein Profilbild, deine Bilder, Reaktionen, Stimmen und Mitgliedschaften entfernt. Deine Beiträge und Themen bleiben, damit die Antworten anderer verständlich bleiben; sie erscheinen dann als von „[deleted]“ verfasst.</p>
         <h3>Anmeldung und Bestätigung</h3>
         <p>Beim Registrieren schicken wir dir eine E-Mail mit einem Link. Der Link gilt 24 Stunden und funktioniert einmal. Konten, deren E-Mail-Adresse nicht bestätigt wird, löschen wir nach 3 Tagen. Ein Link zum Zurücksetzen des Passworts gilt eine Stunde.</p>
         <h3>Rechtsgrundlagen</h3>
