@@ -193,6 +193,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
     ("Hoher Kontrast", ["High contrast", "Hoher Kontrast", "Contraste élevé", "ハイコントラスト", "高对比度"]),
     ("Sprache", ["Language", "Sprache", "Langue", "言語", "语言"]),
     ("Video lädt…", ["Loading video…", "Video lädt…", "Chargement de la vidéo…", "動画を読み込み中…", "正在加载视频…"]),
+    ("Dieses Video kann der Browser nicht abspielen (häufig HEVC/H.265 vom Handy). Als MP4 (H.264) oder WebM speichern.", ["This browser cannot play this video (often HEVC/H.265 from a phone). Save it as MP4 (H.264) or WebM.", "Dieses Video kann der Browser nicht abspielen (häufig HEVC/H.265 vom Handy). Als MP4 (H.264) oder WebM speichern.", "Ce navigateur ne peut pas lire cette vidéo (souvent du HEVC/H.265 d’un téléphone). Enregistrez-la en MP4 (H.264) ou WebM.", "このブラウザではこの動画を再生できません（スマートフォンの HEVC/H.265 によくあります）。MP4（H.264）または WebM で保存してください。", "此浏览器无法播放该视频（常见于手机拍摄的 HEVC/H.265）。请另存为 MP4（H.264）或 WebM。"]),
     ("Journey", ["Journey", "Journey", "Parcours", "ジャーニー", "旅程"]),
     ("Übersicht", ["Overview", "Übersicht", "Aperçu", "概要", "概览"]),
     ("Weiter – fällige Loci wiederholen", ["Continue – review due places", "Weiter – fällige Loci wiederholen", "Continuer – revoir les lieux dus", "続ける – 期限の場所を復習", "继续——复习到期的位置"]),

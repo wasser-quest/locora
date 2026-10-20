@@ -525,7 +525,12 @@ pub fn VideoBackdrop(
                 src=move || source.get().expect("checked by Show")
                 on:loadedmetadata=move |_| loaded.with_value(|callback| if let Some(cb) = callback { cb(); })
                 on:timeupdate=move |_| ticked.with_value(|callback| if let Some(cb) = callback { cb(); })
-                on:error=move |_| failed.with_value(|callback| if let Some(cb) = callback { cb(); })
+                on:error=move |_| {
+                    // Usually a format the browser cannot decode (often HEVC/H.265 from a phone): say so
+                    // instead of an empty frame.
+                    source.set(Err(t("Dieses Video kann der Browser nicht abspielen (häufig HEVC/H.265 vom Handy). Als MP4 (H.264) oder WebM speichern.").to_string()));
+                    failed.with_value(|callback| if let Some(cb) = callback { cb(); });
+                }
             ></video>
         </Show>
         <Show when=move || source.get().is_err()>
