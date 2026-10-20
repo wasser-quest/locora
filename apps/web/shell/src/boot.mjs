@@ -294,18 +294,35 @@ function storedGraphicText(hash) {
   return reply.err === undefined ? reply.ok : null;
 }
 
-// The UI shows a graphic inline (see splinely-mount.js): no frame of its own. `still` holds the first frame.
-window.locoraMountGraphic = (element, path, still) => {
+// The UI shows a graphic inline (see splinely-mount.js): no frame of its own. `still` holds the first
+// frame; `reply` gets the graphic's replies (its runtime, its timed playback), and the bridge
+// (sply-bridge.js) runs the same protocol the frame did.
+window.locoraMountGraphic = (element, path, still, reply) => {
   const text = path.startsWith('sply/') ? storedGraphicText(path.split('/')[1]) : fetch(path).then((response) => response.text());
   return Promise.resolve(text).then((svgText) => {
     if (!svgText || !window.SplinelyMount) return null;
-    element.splinelyGraphic = window.SplinelyMount.mount(element, svgText, { autoTick: !still, focusRing: false });
-    return element.splinelyGraphic;
+    const graphic = window.SplinelyMount.mount(element, svgText, { autoTick: !still, focusRing: false });
+    element.splinelyGraphic = graphic;
+    element.splinelyListeners = [];
+    if (graphic.svg && window.SplyBridge) {
+      element.splinelyStop = window.SplyBridge.attach(graphic.svg, {
+        reply: (message) => reply(message),
+        onMessage: (listener) => element.splinelyListeners.push(listener),
+      });
+    }
+    return graphic;
   });
 };
+// The app's messages for the graphic (state, timed commands, pointers) reach its bridge.
+window.locoraSendGraphic = (element, message) => {
+  (element.splinelyListeners || []).forEach((listener) => listener(message));
+};
 window.locoraUnmountGraphic = (element) => {
+  element.splinelyStop?.();
+  element.splinelyStop = null;
   element.splinelyGraphic?.destroy();
   element.splinelyGraphic = null;
+  element.splinelyListeners = [];
 };
 
 /**

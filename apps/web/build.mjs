@@ -78,6 +78,9 @@ copyFileSync(join(shell, 'graphic.js'), join(out, 'shell', 'graphic.js'));
 const vendor = join(web, '..', '..', 'crates', 'locora-app-core', 'vendor');
 copyFileSync(join(vendor, 'splinely-0.5.4.js'), join(out, 'shell', 'splinely.js'));
 copyFileSync(join(vendor, 'splinely-mount.js'), join(out, 'shell', 'splinely-mount.js'));
+// The Locora frame bridge (sply_bridge.js) runs in the page too: the same code, as `SplyBridge.attach`.
+const bridge = join(web, '..', '..', 'crates', 'locora-app-core', 'src', 'sply_bridge.js');
+writeFileSync(join(out, 'shell', 'sply-bridge.js'), `${readFileSync(bridge, 'utf8')}\nwindow.SplyBridge = { attach };\n`);
 cpSync(shim, join(out, 'shim'), { recursive: true });
 
 // 3. The page's content security policy. Scripts run only from this site, or inline with a hash

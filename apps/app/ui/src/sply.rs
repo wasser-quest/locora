@@ -24,18 +24,51 @@ pub fn fit_stage(picture: &web_sys::Element, width: f64, height: f64) {
     }
 }
 
-fn send(frame: &web_sys::HtmlIFrameElement, machine: &str, event: &str) {
-    let Some(window) = frame.content_window() else {
-        return;
-    };
+/// Where the messages of a graphic go: the graphic in the page (the web app), or the frame of the
+/// desktop app.
+#[derive(Clone)]
+enum Target {
+    Inline(web_sys::Element),
+    Frame(web_sys::HtmlIFrameElement),
+}
+
+impl Target {
+    /// The element that shows the graphic: its box is the frame of reference for pointers.
+    fn element(&self) -> web_sys::Element {
+        match self {
+            Target::Inline(element) => element.clone(),
+            Target::Frame(frame) => frame.clone().unchecked_into(),
+        }
+    }
+
+    fn post(&self, message: &JsValue) {
+        match self {
+            Target::Inline(element) => {
+                let Some(window) = web_sys::window() else { return };
+                let Ok(send) = js_sys::Reflect::get(&window, &"locoraSendGraphic".into()) else { return };
+                if let Ok(send) = send.dyn_into::<js_sys::Function>() {
+                    let element: &JsValue = element.as_ref();
+                    let _ = send.call2(&JsValue::NULL, element, message);
+                }
+            }
+            Target::Frame(frame) => {
+                if let Some(window) = frame.content_window() {
+                    let _ = window.post_message(message, "*");
+                }
+            }
+        }
+    }
+}
+
+fn send(target: &Target, machine: &str, event: &str) {
     let message = js_sys::Object::new();
-    let set = |key: &str, value: wasm_bindgen::JsValue| {
+    let set = |key: &str, value: JsValue| {
         let _ = js_sys::Reflect::set(&message, &key.into(), &value);
     };
     set("locora", 1.into());
     set("machine", machine.into());
     set("send", event.into());
-    let _ = window.post_message(&message, "*");
+    target.post(&message);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -46,8 +79,7 @@ pub struct TimedCommand {
     pub play: bool,
 }
 
-fn send_timed(frame: &web_sys::HtmlIFrameElement, action: &str, time: Option<f64>, start: Option<f64>) {
-    let Some(window) = frame.content_window() else { return; };
+fn send_timed(target: &Target, action: &str, time: Option<f64>, start: Option<f64>) {
     let message = js_sys::Object::new();
     let timed = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
@@ -59,7 +91,7 @@ fn send_timed(frame: &web_sys::HtmlIFrameElement, action: &str, time: Option<f64
         let _ = js_sys::Reflect::set(&timed, &"start".into(), &start.into());
     }
     let _ = js_sys::Reflect::set(&message, &"timed".into(), &timed);
-    let _ = window.post_message(&message, "*");
+    target.post(&message);
 }
 
 /// Whether the page mounts graphics inline (boot.mjs defines `locoraMountGraphic`). The desktop app
@@ -68,42 +100,35 @@ fn inline_available() -> bool {
     web_sys::window().is_some_and(|window| js_sys::Reflect::has(&window, &"locoraMountGraphic".into()).unwrap_or(false))
 }
 
-/// A graphic mounted inline: SVG in the page with no frame of its own, like a Rive artboard. The page
-/// (boot.mjs) fetches and mounts it with splinely-mount.js and removes it again on unmount.
-fn inline_graphic(media: Media, class: String, still: bool) -> AnyView {
-    let host = NodeRef::<leptos::html::Div>::new();
-    let mounted = StoredValue::new_local(None::<JsValue>);
-    Effect::new(move |_| {
-        let Some(element) = host.get() else { return };
-        let element: JsValue = element.into();
-        let Some(window) = web_sys::window() else { return };
-        let Ok(mount) = js_sys::Reflect::get(&window, &"locoraMountGraphic".into()) else { return };
-        let Ok(mount) = mount.dyn_into::<js_sys::Function>() else { return };
-        let _ = mount.call3(&JsValue::NULL, &element, &JsValue::from_str(&media.path()), &JsValue::from_bool(still));
-        mounted.set_value(Some(element));
-    });
-    on_cleanup(move || {
-        let Some(element) = mounted.get_value() else { return };
-        let Some(window) = web_sys::window() else { return };
-        if let Ok(unmount) = js_sys::Reflect::get(&window, &"locoraUnmountGraphic".into()) {
-            if let Ok(unmount) = unmount.dyn_into::<js_sys::Function>() {
-                let _ = unmount.call1(&JsValue::NULL, &element);
-            }
-        }
-    });
-    view! { <div node_ref=host class=format!("sply-inline {class}")></div> }.into_any()
-}
-
-/// Chrome on Android closes the whole browser while an animation plays, so there every animation
-/// holds its first frame. Other browsers play them.
+/// Chrome on Android closes the whole browser while an animation runs in a frame, so there (without
+/// inline mounting) every animation holds its first frame. Other browsers play them.
 fn holds_first_frame() -> bool {
     web_sys::window()
         .and_then(|window| window.navigator().user_agent().ok())
         .is_some_and(|agent| agent.contains("Android") && agent.contains("Chrome/") && !agent.contains("Firefox/"))
 }
 
+/// Mounts the graphic inline in `element` (boot.mjs: `locoraMountGraphic`): SVG in the page, like a
+/// Rive artboard. `reply` receives the graphic's replies; `mounted` runs once it is in the page.
+fn mount_inline(element: &web_sys::Element, path: &str, still: bool, reply: impl Fn(JsValue) + 'static, mounted: impl Fn() + 'static) {
+    let Some(window) = web_sys::window() else { return };
+    let Ok(mount) = js_sys::Reflect::get(&window, &"locoraMountGraphic".into()) else { return };
+    let Ok(mount) = mount.dyn_into::<js_sys::Function>() else { return };
+    let reply = wasm_bindgen::closure::Closure::<dyn Fn(JsValue)>::new(reply);
+    let reply_fn: JsValue = reply.as_ref().clone();
+    // The reply closure lives as long as the page: the graphic stops replying when it is unmounted.
+    reply.forget();
+    let element: &JsValue = element.as_ref();
+    let Ok(promise) = mount.call4(&JsValue::NULL, element, &JsValue::from_str(path), &JsValue::from_bool(still), &reply_fn) else { return };
+    let Ok(promise) = promise.dyn_into::<js_sys::Promise>() else { return };
+    leptos::task::spawn_local(async move {
+        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+        mounted();
+    });
+}
+
 /// A `.sply` animation. With `state`, the event is sent to the state machine
-/// `machine` whenever it changes (and once the frame has loaded).
+/// `machine` whenever it changes (and once the graphic is there).
 #[component]
 pub fn Sply(
     media: Media,
@@ -118,15 +143,15 @@ pub fn Sply(
     #[prop(optional)] on_timed_position: Option<Box<dyn Fn(f64) + Send + Sync>>,
     #[prop(optional)] on_timed_error: Option<Box<dyn Fn() + Send + Sync>>,
 ) -> impl IntoView {
-    // A graphic without a state machine or timed playback is mounted inline: no frame of its own.
-    if state.is_none() && timed.is_none() && inline_available() {
-        return inline_graphic(media, class, still).into_any();
-    }
-    // On Chrome for Android the graphic is an image: an image runs no script, so the browser stays up.
-    if holds_first_frame() {
+    // The page mounts the graphic inline; the desktop app keeps the frame. Without inline mounting,
+    // Chrome for Android shows an image instead: an image runs no script, so the browser stays up.
+    let inline = inline_available();
+    if !inline && holds_first_frame() {
         return view! { <img class=format!("sply {class}") src=url(&media) alt="" /> }.into_any();
     }
+    let path = media.path();
     let frame = NodeRef::<Iframe>::new();
+    let host = NodeRef::<leptos::html::Div>::new();
     let ready = RwSignal::new(false);
     let failed = RwSignal::new(false);
     let timed_ready = RwSignal::new(false);
@@ -134,16 +159,16 @@ pub fn Sply(
     let timed_at_callback = StoredValue::new(on_timed_at);
     let timed_position_callback = StoredValue::new(on_timed_position);
     let timed_error_callback = StoredValue::new(on_timed_error);
-    let messages = window_event_listener(leptos::ev::message, move |event| {
-        let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) else {
-            return;
-        };
-        // Sandboxed frames have opaque origins: authenticate by source window.
-        let source = js_sys::Reflect::get(event.as_ref(), &"source".into()).ok();
-        if source != Some(window.into()) {
-            return;
+    // Where the messages go now, if the graphic is there.
+    let target = move || -> Option<Target> {
+        if inline {
+            host.try_get_untracked().flatten().map(|element| Target::Inline(element.unchecked_into::<web_sys::Element>()))
+        } else {
+            frame.try_get_untracked().flatten().map(Target::Frame)
         }
-        let data = event.data();
+    };
+    // The graphic's replies: its runtime started, and the timed playback reports.
+    let handle = move |data: JsValue| {
         let get = |key: &str| js_sys::Reflect::get(&data, &key.into()).ok();
         if get("locora").and_then(|v| v.as_f64()) != Some(1.0) {
             return;
@@ -171,28 +196,41 @@ pub fn Sply(
         if get("timedError").and_then(|v| v.as_string()).is_some() {
             failed.set(true);
         }
-    });
-    // Converts a viewport position into the frame and sends it to the runtime.
-    let post_pointer = move |frame: web_sys::HtmlIFrameElement, client_x: f64, client_y: f64| {
-        let Some(window) = frame.content_window() else {
+    };
+    let messages = window_event_listener(leptos::ev::message, move |event| {
+        // Inline graphics reply through the page (see mount_inline); only a frame's replies come here.
+        if inline {
+            return;
+        }
+        let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) else {
             return;
         };
-        let rect = frame.get_bounding_client_rect();
+        // Sandboxed frames have opaque origins: authenticate by source window.
+        let source = js_sys::Reflect::get(event.as_ref(), &"source".into()).ok();
+        if source != Some(window.into()) {
+            return;
+        }
+        handle(event.data());
+    });
+    // Converts a viewport position into the graphic's coordinates and sends it to the runtime.
+    let post_pointer = move |graphic: Target, client_x: f64, client_y: f64| {
+        let element = graphic.element();
+        let rect = element.get_bounding_client_rect();
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             return;
         }
-        // Convert parent viewport coordinates into the iframe viewport, also
-        // accounting for CSS-scaled locus pictures. Coordinates may be outside
-        // the frame so followers can look toward a cursor elsewhere in the app.
-        let x = (client_x - rect.left()) * f64::from(frame.client_width()) / rect.width();
-        let y = (client_y - rect.top()) * f64::from(frame.client_height()) / rect.height();
+        // Convert viewport coordinates into the graphic's box, also accounting for CSS-scaled
+        // locus pictures. Coordinates may be outside the box so followers can look toward a cursor
+        // elsewhere in the app.
+        let x = (client_x - rect.left()) * f64::from(element.client_width()) / rect.width();
+        let y = (client_y - rect.top()) * f64::from(element.client_height()) / rect.height();
         let message = js_sys::Object::new();
         let point = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&point, &"x".into(), &x.into());
         let _ = js_sys::Reflect::set(&point, &"y".into(), &y.into());
         let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
         let _ = js_sys::Reflect::set(&message, &"pointer".into(), &point);
-        let _ = window.post_message(&message, "*");
+        graphic.post(&message);
     };
     // Touch and pen send several moves per frame; only the newest position is sent, once per frame.
     let pending = StoredValue::new(None::<(f64, f64)>);
@@ -214,15 +252,15 @@ pub fn Sply(
                 return;
             };
             let _ = pending.try_set_value(None);
-            if let Some(Some(frame)) = frame.try_get_untracked() {
-                post_pointer(frame, client_x, client_y);
+            if let Some(graphic) = target() {
+                post_pointer(graphic, client_x, client_y);
             }
         });
         if let Some(window) = web_sys::window() {
             let _ = window.request_animation_frame(frame_task.unchecked_ref());
         }
     });
-    // Presses and releases travel as coordinates; the frame turns them into the same
+    // Presses and releases travel as coordinates; the graphic turns them into the same
     // pointer sequence a browser sends, so hover, clicks and drags behave alike.
     let pressed = StoredValue::new(false);
     let presses = window_event_listener(leptos::ev::pointerdown, move |event| {
@@ -230,23 +268,21 @@ pub fn Sply(
         if !ready.get_untracked() || event.button() != 0 {
             return;
         }
-        let Some(target) = event
+        let Some(hit) = event
             .target()
             .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
         else {
             return;
         };
         // Never duplicate an app command or interfere with editor gestures.
-        if target.closest("button, a, input, select, textarea, [role=button], [contenteditable], .stage.editing").ok().flatten().is_some() {
+        if hit.closest("button, a, input, select, textarea, [role=button], [contenteditable], .stage.editing").ok().flatten().is_some() {
             return;
         }
-        let Some(frame) = frame.get_untracked() else {
+        let Some(graphic) = target() else {
             return;
         };
-        let Some(window) = frame.content_window() else {
-            return;
-        };
-        let rect = frame.get_bounding_client_rect();
+        let element = graphic.element();
+        let rect = element.get_bounding_client_rect();
         let x = f64::from(event.client_x()) - rect.left();
         let y = f64::from(event.client_y()) - rect.top();
         if rect.width() <= 0.0
@@ -262,32 +298,30 @@ pub fn Sply(
         let _ = js_sys::Reflect::set(
             &point,
             &"x".into(),
-            &(x * f64::from(frame.client_width()) / rect.width()).into(),
+            &(x * f64::from(element.client_width()) / rect.width()).into(),
         );
         let _ = js_sys::Reflect::set(
             &point,
             &"y".into(),
-            &(y * f64::from(frame.client_height()) / rect.height()).into(),
+            &(y * f64::from(element.client_height()) / rect.height()).into(),
         );
         let message = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
         let _ = js_sys::Reflect::set(&message, &"pointerDown".into(), &point);
-        let _ = window.post_message(&message, "*");
+        graphic.post(&message);
         pressed.set_value(true);
     });
-    // A press that started in the frame ends there, even when the pointer has left it.
+    // A press that started in the graphic ends there, even when the pointer has left it.
     let releases = window_event_listener(leptos::ev::pointerup, move |event| {
         if !pressed.get_value() {
             return;
         }
         pressed.set_value(false);
-        let Some(frame) = frame.get_untracked() else {
+        let Some(graphic) = target() else {
             return;
         };
-        let Some(window) = frame.content_window() else {
-            return;
-        };
-        let rect = frame.get_bounding_client_rect();
+        let element = graphic.element();
+        let rect = element.get_bounding_client_rect();
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             return;
         }
@@ -297,31 +331,31 @@ pub fn Sply(
         let _ = js_sys::Reflect::set(
             &point,
             &"x".into(),
-            &(x * f64::from(frame.client_width()) / rect.width()).into(),
+            &(x * f64::from(element.client_width()) / rect.width()).into(),
         );
         let _ = js_sys::Reflect::set(
             &point,
             &"y".into(),
-            &(y * f64::from(frame.client_height()) / rect.height()).into(),
+            &(y * f64::from(element.client_height()) / rect.height()).into(),
         );
         let message = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
         let _ = js_sys::Reflect::set(&message, &"pointerUp".into(), &point);
-        let _ = window.post_message(&message, "*");
+        graphic.post(&message);
         // A finger leaves no hover behind once it lifts.
         if event.pointer_type() != "mouse" {
             let leave = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&leave, &"locora".into(), &1.into());
             let _ = js_sys::Reflect::set(&leave, &"pointerLeave".into(), &true.into());
-            let _ = window.post_message(&leave, "*");
+            graphic.post(&leave);
         }
     });
     let blur = window_event_listener(leptos::ev::blur, move |_| {
-        if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
+        if let Some(graphic) = target() {
             let message = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
             let _ = js_sys::Reflect::set(&message, &"pointerLeave".into(), &true.into());
-            let _ = window.post_message(&message, "*");
+            graphic.post(&message);
         }
     });
     on_cleanup(move || {
@@ -332,8 +366,8 @@ pub fn Sply(
         blur.remove();
     });
     let push = move || {
-        if let (Some(state), Some(el)) = (state, frame.get_untracked()) {
-            send(&el, machine, state.get_untracked());
+        if let (Some(state), Some(graphic)) = (state, target()) {
+            send(&graphic, machine, state.get_untracked());
         }
     };
     Effect::new(move |_| {
@@ -344,29 +378,60 @@ pub fn Sply(
     });
     Effect::new(move |_| {
         if timed_ready.get() {
-            if let (Some(command), Some(frame)) = (timed, frame.get_untracked()) {
+            if let (Some(command), Some(graphic)) = (timed, target()) {
                 let command = command.get();
-                send_timed(&frame, if command.play { "playTo" } else { "seek" }, Some(command.time), command.start);
+                send_timed(&graphic, if command.play { "playTo" } else { "seek" }, Some(command.time), command.start);
             }
         }
     });
-    // Leptos may reuse an already loaded iframe after an editor save. Ask that
-    // frame for its runtime state even when no new DOM load event fires.
-    Effect::new(move |_| {
-        if let Some(element) = frame.get()
-            && let Some(window) = element.content_window()
-        {
+    // The graphic is there (its frame loaded, or it is mounted inline): it reports its runtime state.
+    let mounted = move || {
+        ready.set(false);
+        timed_ready.set(false);
+        push();
+        if let Some(graphic) = target() {
+            if still || holds_first_frame() {
+                let message = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
+                let _ = js_sys::Reflect::set(&message, &"still".into(), &true.into());
+                graphic.post(&message);
+            }
             let request = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
             let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());
-            let _ = window.post_message(&request, "*");
+            graphic.post(&request);
         }
-    });
+        set_timeout(move || {
+            if ready.try_get_untracked() == Some(false) {
+                failed.try_set(true);
+            }
+        }, std::time::Duration::from_secs(5));
+    };
+    if inline {
+        Effect::new(move |_| {
+            let Some(element) = host.get() else { return };
+            let element: web_sys::Element = element.unchecked_into();
+            mount_inline(&element, &path, still, handle, mounted);
+        });
+    } else {
+        // Leptos may reuse an already loaded iframe after an editor save. Ask that
+        // frame for its runtime state even when no new DOM load event fires.
+        Effect::new(move |_| {
+            if let Some(element) = frame.get()
+                && let Some(window) = element.content_window()
+            {
+                let request = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
+                let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());
+                let _ = window.post_message(&request, "*");
+            }
+        });
+    }
     Effect::new(move |_| {
         if ready.get() && !timed_ready.get() && timed.is_some()
-            && let Some(element) = frame.get_untracked()
+            && let Some(graphic) = target()
         {
-            send_timed(&element, "init", None, None);
+            send_timed(&graphic, "init", None, None);
         }
     });
     Effect::new(move |_| {
@@ -376,40 +441,25 @@ pub fn Sply(
             });
         }
     });
+    let graphic_view = if inline {
+        view! { <div node_ref=host class=format!("sply-inline {class}")></div> }.into_any()
+    } else {
+        view! {
+            <iframe
+                node_ref=frame
+                class=format!("sply {class}")
+                sandbox="allow-scripts"
+                src=url(&media)
+                title=t("Animation")
+                // A focused frame would swallow every key (Ctrl/⌘+K, Space, 1–4).
+                tabindex="-1"
+                on:load=move |_| mounted()
+            ></iframe>
+        }
+        .into_any()
+    };
     view! {
-        <iframe
-            node_ref=frame
-            class=format!("sply {class}")
-            sandbox="allow-scripts"
-            src=url(&media)
-            title=t("Animation")
-            // A focused frame would swallow every key (Ctrl/⌘+K, Space, 1–4).
-            tabindex="-1"
-            on:load=move |_| {
-                ready.set(false);
-                timed_ready.set(false);
-                push();
-                if still || holds_first_frame() {
-                    if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
-                        let message = js_sys::Object::new();
-                        let _ = js_sys::Reflect::set(&message, &"locora".into(), &1.into());
-                        let _ = js_sys::Reflect::set(&message, &"still".into(), &true.into());
-                        let _ = window.post_message(&message, "*");
-                    }
-                }
-                if let Some(window) = frame.get_untracked().and_then(|f| f.content_window()) {
-                    let request = js_sys::Object::new();
-                    let _ = js_sys::Reflect::set(&request, &"locora".into(), &1.into());
-                    let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());
-                    let _ = window.post_message(&request, "*");
-                }
-                set_timeout(move || {
-                    if ready.try_get_untracked() == Some(false) {
-                        failed.try_set(true);
-                    }
-                }, std::time::Duration::from_secs(5));
-            }
-        ></iframe>
+        {graphic_view}
         <Show when=move || failed.get()>
             <span class="notes" role="alert">{t("Splinely-Runtime nicht gestartet – Animation konnte nicht geladen werden.")}</span>
         </Show>
