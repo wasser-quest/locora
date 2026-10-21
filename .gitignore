@@ -19,3 +19,6 @@ ruvector.db
 .rvf
 .db
 
+
+# Netlify CLI link state (site id), created by `netlify deploy`
+.netlify/
