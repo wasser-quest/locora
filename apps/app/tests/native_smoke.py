@@ -120,6 +120,10 @@ class Scenario:
                     pass
             visit(root, 0)
 
+    def tutorial_loci(self):
+        return self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id = l.room_id "
+                        "JOIN palaces p ON p.id = r.palace_id WHERE p.name = 'Locora lernen'")[0][0]
+
     def find(self, name, role=None, prefix=False):
         return next((n for n in walk(self.app) if (n.get_name().startswith(name) if prefix else n.get_name() == name) and (not role or role_is(n, role))), None)
 
@@ -368,7 +372,8 @@ class Scenario:
         start = self.until(lambda: self.find("Tutorial starten", "button") or self.find("Locora lernen", "button", True))
         self.click(start.get_name())
         self.until(lambda: self.find("▶ Route ablaufen", "button"))
-        assert self.sql("SELECT count(*) FROM loci")[0][0] == 9
+        # The built-in formula guide is a palace too: count the tutorial's loci only.
+        assert self.tutorial_loci() == 9
         self.record("tutorial-created", loci=9)
 
         before = self.clicks

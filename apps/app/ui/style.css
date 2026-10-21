@@ -377,6 +377,14 @@ iframe.sply.medal-art, img.sply.medal-art { width: 72px; height: 72px; max-heigh
 .block.compact .meta, .block.compact .notes { display: none; }
 .block.compact .card, .block.compact .panel, .block.compact .weiter { padding-top: .5rem; padding-bottom: .5rem; }
 .block { display: block; }
+/* The blocks of a page stand apart evenly (12 px, as the tiles beside each other), whatever they
+   contain: a block's own outer margin would add up or be missing. */
+.block + .block, .block + .plugins-fold, .plugins-fold + .block { margin-top: 12px; }
+.block > .tiles, .block > .card { margin-top: 0; margin-bottom: 0; }
+/* The welcome screen's parts, with the same spacing. */
+.home-stack { display: flex; flex-direction: column; gap: 12px; }
+.home-stack > * { margin-top: 0; margin-bottom: 0; }
+:root[data-density="compact"] .block + .block { margin-top: .5rem; }
 /* Density of the whole app. */
 :root[data-density="compact"] .card { padding: .6rem .8rem; margin-bottom: .5rem; }
 :root[data-density="compact"] .palaces { gap: .5rem; }
