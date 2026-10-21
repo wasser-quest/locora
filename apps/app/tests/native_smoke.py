@@ -558,20 +558,21 @@ class Scenario:
                 for node in walk(self.app):
                     text = node_text(node) if node.get_role_name() == "paragraph" else ""
                     if text.startswith("Position "):
-                        return float(text.split()[1])
+                        # In a tuple: position 0.0 is a valid reading, not "not yet".
+                        return (float(text.split()[1]),)
                 return None
-            return self.until(read)
+            return self.until(read)[0]
         def moved_from(value):
             current = position()
-            return current if current != value else None
+            return (current,) if current != value else None
         stage = self.until(lambda: self.find("Videoraum", "section", True))
         assert stage.grab_focus()
         before = position()
         self.x("key", "--clearmodifiers", "period")
-        after = self.until(lambda: moved_from(before))
+        after = self.until(lambda: moved_from(before))[0]
         assert .02 <= after - before <= .05, (before, after)
         self.x("key", "--clearmodifiers", "comma")
-        back = self.until(lambda: moved_from(after))
+        back = self.until(lambda: moved_from(after))[0]
         assert .02 <= after - back <= .05, (after, back)
         self.record("video-frame-steps", keys=2, frame_seconds=round(after - before, 3))
 
