@@ -33,7 +33,8 @@ def walk(node, depth=0):
         return
     try:
         yield node
-        if depth < 24:
+        # The home page nests its controls deeply (cards, inline graphics): search far enough.
+        if depth < 64:
             for index in range(node.get_child_count()):
                 yield from walk(node.get_child_at_index(index), depth + 1)
     except GLib.Error:
@@ -87,7 +88,21 @@ class Scenario:
             if result:
                 return result
             time.sleep(.05)
+        self.dump_tree()
         raise AssertionError("Timed out waiting for native UI/database condition")
+
+    def dump_tree(self):
+        """Every accessible node (depth, role, name) into the artifacts, to see why a lookup failed."""
+        root = getattr(self, "app", None) or Atspi.get_desktop(0)
+        with open(self.artifacts / "atspi-tree.txt", "w") as out:
+            def visit(node, depth):
+                try:
+                    out.write(f"{'  ' * depth}{node.get_role_name()}: {node.get_name()!r}\n")
+                    for index in range(node.get_child_count()):
+                        visit(node.get_child_at_index(index), depth + 1)
+                except GLib.Error:
+                    pass
+            visit(root, 0)
 
     def find(self, name, role=None, prefix=False):
         return next((n for n in walk(self.app) if (n.get_name().startswith(name) if prefix else n.get_name() == name) and (not role or n.get_role_name() == role)), None)
