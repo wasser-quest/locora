@@ -341,19 +341,43 @@ async fn editor_pick_picture(
     }))
 }
 
-/// Only the native dialog can authorize a local path; the WebView sends no path.
-#[tauri::command]
-async fn home_pick_media(
-    app: tauri::AppHandle,
-    state: State<'_, Shared>,
-) -> Result<Option<PalaceView>, String> {
+/// A picture, animation or video chosen in the native dialog: the dialog's own path on the
+/// desktop, a staged copy on mobile. The WebView never names a path.
+struct PickedMedia {
+    #[cfg(mobile)]
+    staged: mobile_files::Staged,
+    #[cfg(desktop)]
+    path: std::path::PathBuf,
+}
+
+impl PickedMedia {
+    fn path(&self) -> &std::path::Path {
+        #[cfg(mobile)]
+        return self.staged.path();
+        #[cfg(desktop)]
+        return &self.path;
+    }
+
+    /// The chosen file's own name where a staged copy hides it; `None` uses the file name.
+    fn name(&self) -> Option<&str> {
+        #[cfg(mobile)]
+        return Some(self.staged.name().unwrap_or(""));
+        #[cfg(desktop)]
+        return None;
+    }
+}
+
+async fn pick_media(
+    app: &tauri::AppHandle,
+    title: &'static str,
+) -> Result<Option<PickedMedia>, String> {
     use tauri_plugin_dialog::DialogExt;
     let picker_app = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
         picker_app
             .dialog()
             .file()
-            .set_title("Neuen Palast aus Bild oder Video anlegen")
+            .set_title(title)
             .add_filter(
                 "Bilder, Animationen und Videos",
                 &[
@@ -365,48 +389,70 @@ async fn home_pick_media(
     })
     .await
     .map_err(|e| format!("Dateiauswahl fehlgeschlagen: {e}"))?;
-    #[cfg(mobile)]
-    let staged = selected
-        .map(|s| mobile_files::stage(&app, s, mobile_files::Kind::Media))
-        .transpose()?;
-    // A video becomes MP4 with H.264 first, encoded by the device; it can take a while.
-    #[cfg(target_os = "android")]
-    let staged = match staged {
-        Some(staged) => {
-            let converter = app.clone();
-            Some(
-                tauri::async_runtime::spawn_blocking(move || {
-                    mobile_files::as_mp4(&converter, staged)
-                })
-                .await
-                .map_err(|e| format!("Umwandlung fehlgeschlagen: {e}"))??,
-            )
-        }
-        None => None,
+    let Some(selected) = selected else {
+        return Ok(None);
     };
     #[cfg(mobile)]
-    let path = staged.as_ref().map(|s| s.path());
-    #[cfg(desktop)]
-    let path = selected
-        .map(|s| {
-            s.into_path()
-                .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())
-        })
-        .transpose()?;
-    let b = lock(&state)?;
+    let staged = mobile_files::stage(app, selected, mobile_files::Kind::Media)?;
+    // A video becomes MP4 with H.264 first, encoded by the device; it can take a while.
+    #[cfg(target_os = "android")]
+    let staged = {
+        let converter = app.clone();
+        tauri::async_runtime::spawn_blocking(move || mobile_files::as_mp4(&converter, staged))
+            .await
+            .map_err(|e| format!("Umwandlung fehlgeschlagen: {e}"))??
+    };
     #[cfg(mobile)]
+    return Ok(Some(PickedMedia { staged }));
+    #[cfg(desktop)]
+    return Ok(Some(PickedMedia {
+        path: selected
+            .into_path()
+            .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())?,
+    }));
+}
+
+/// Only the native dialog can authorize a local path; the WebView sends no path.
+#[tauri::command]
+async fn home_pick_media(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+) -> Result<Option<PalaceView>, String> {
+    let picked = pick_media(&app, "Neuen Palast aus Bild oder Video anlegen").await?;
+    let b = lock(&state)?;
     let tree = editor::import_palace_named(
         &b.profile.store,
-        path,
-        Some(staged.as_ref().and_then(|s| s.name()).unwrap_or("")),
+        picked.as_ref().map(PickedMedia::path),
+        picked.as_ref().and_then(PickedMedia::name),
     )
     .map_err(err)?;
-    #[cfg(desktop)]
-    let tree = editor::import_palace(&b.profile.store, path.as_deref()).map_err(err)?;
     // New rooms contain no loci: no fallible plugin call after committing.
     Ok(tree.map(|tree| {
         views::palace_view(&b.profile.store, &tree, &HashMap::new(), &b.default_marker)
     }))
+}
+
+/// One more room for a palace, from a picture, animation or video chosen in the native dialog.
+#[tauri::command]
+async fn editor_pick_room(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+    palace_id: String,
+) -> Result<Option<PalaceView>, String> {
+    let Some(picked) = pick_media(&app, "Raum aus Bild oder Video hinzufügen").await? else {
+        return Ok(None);
+    };
+    let mut b = lock(&state)?;
+    let tree =
+        editor::import_room_named(&b.profile.store, &palace_id, picked.path(), picked.name())
+            .map_err(err)?;
+    let cards = b.profile.schedule(Some(&tree.palace.id)).map_err(err)?;
+    Ok(Some(views::palace_view(
+        &b.profile.store,
+        &tree,
+        &cards,
+        &b.default_marker,
+    )))
 }
 
 /// Import only the path authorized by a recent native drop, never a UI path.
@@ -1154,6 +1200,7 @@ pub fn run() {
             palace_delete,
             editor_pick_picture,
             home_pick_media,
+            editor_pick_room,
             home_import_drop,
             editor_import_drop,
             tutorial,

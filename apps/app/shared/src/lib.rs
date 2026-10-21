@@ -18,6 +18,8 @@ pub struct PictureTarget {
 }
 pub const CMD_HOME: &str = "home";
 pub const CMD_HOME_PICK_MEDIA: &str = "home_pick_media";
+/// One more room for a palace from a picture or video the user chooses; `None` when cancelled.
+pub const CMD_EDITOR_PICK_ROOM: &str = "editor_pick_room";
 pub const CMD_PALACE: &str = "palace";
 pub const CMD_TUTORIAL: &str = "tutorial";
 /// The language a built-in palace is built in (`de`, `en`, `fr`, `ja`, `zh`).

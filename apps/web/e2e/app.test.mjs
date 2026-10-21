@@ -172,6 +172,32 @@ test('a file name that looks like markup is shown as text and never runs', async
   }
 });
 
+test('a palace gets more rooms from pictures, also after its first one', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await openTutorial(page);
+    const tabs = page.locator('.room-tab');
+    const before = await tabs.count();
+    await page.getByRole('checkbox', { name: 'Edit' }).check();
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: '+ Room from a picture or video' }).click(),
+    ]);
+    await chooser.setFiles({ name: 'Kitchen.png', mimeType: 'image/png', buffer: png });
+    await page.getByText('Room added').waitFor({ timeout: 15000 });
+    assert.equal(await tabs.count(), before + 1);
+    // The new room is the last one and opens at once.
+    await page.getByRole('button', { name: 'Kitchen', exact: true }).and(page.locator('.on')).waitFor();
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
 test('a palace exports as a .locora file that the app saves to the device', async () => {
   const { context, page, problems } = await openApp();
   try {

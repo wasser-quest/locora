@@ -143,6 +143,7 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .editor-form label { font-size: 1.05rem; }
 .editor-form input, .editor-form select, .editor-form textarea, .editor-form button { min-height: 44px; font-size: 1rem; }
 .editor-more { margin-top: .5rem; }
+.room-add { border-style: dashed; }
 .editor-more > summary { cursor: pointer; font-weight: 600; padding: .6rem 0; }
 .editor-group-body { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding-top: .5rem; }
 .editor-group-body > label { display: flex; gap: .4rem; align-items: center; }

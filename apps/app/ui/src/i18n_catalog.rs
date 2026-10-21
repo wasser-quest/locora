@@ -1495,13 +1495,63 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen.",
+        "Ein Ortsbild kann auch ins App-Fenster gezogen werden (ausgewählter Ort, keine offenen Änderungen). Weitere Räume: „+ Raum aus Bild oder Video“ neben den Räumen.",
         [
-            "A place picture can also be dropped into the native app window (selected place, no unsaved changes). Please drop videos as new rooms on the palace start page.",
-            "Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen.",
-            "Une image de lieu peut aussi être déposée dans la fenêtre native de l'app (lieu sélectionné, sans modifications en cours). Dépose les vidéos comme nouvelles pièces sur la page d'accueil du palais.",
-            "場所の画像はアプリの画面にもドロップできます（場所を選択中で、未保存の変更がないとき）。動画は、パレスの開始画面に新しい部屋としてドロップしてください。",
-            "也可以把位置图片拖进原生应用窗口（需已选中位置且没有未保存的更改）。视频请拖到宫殿起始页，作为新房间添加。",
+            "A locus picture can also be dragged into the app window (locus selected, no unsaved changes). More rooms: “+ Room from a picture or video” next to the rooms.",
+            "Ein Ortsbild kann auch ins App-Fenster gezogen werden (ausgewählter Ort, keine offenen Änderungen). Weitere Räume: „+ Raum aus Bild oder Video“ neben den Räumen.",
+            "Une image de lieu peut aussi être glissée dans la fenêtre de l'app (lieu sélectionné, sans modifications en cours). D'autres pièces : « + Pièce depuis une image ou une vidéo » à côté des pièces.",
+            "場所の画像はアプリの画面にドラッグすることもできます（場所を選択中で、未保存の変更がないとき）。部屋を増やすには、部屋の横の「＋ 画像や動画から部屋を追加」を使います。",
+            "也可以把位置图片拖进应用窗口（需已选中位置且没有未保存的更改）。添加更多房间：使用房间旁边的“+ 用图片或视频添加房间”。",
+        ],
+    ),
+    (
+        "+ Raum aus Bild oder Video",
+        [
+            "+ Room from a picture or video",
+            "+ Raum aus Bild oder Video",
+            "+ Pièce depuis une image ou une vidéo",
+            "＋ 画像や動画から部屋を追加",
+            "+ 用图片或视频添加房间",
+        ],
+    ),
+    (
+        "Raum hinzugefügt",
+        [
+            "Room added",
+            "Raum hinzugefügt",
+            "Pièce ajoutée",
+            "部屋を追加しました",
+            "已添加房间",
+        ],
+    ),
+    (
+        "Endgültig?",
+        [
+            "Really delete?",
+            "Endgültig?",
+            "Vraiment supprimer ?",
+            "本当に削除しますか？",
+            "确定删除？",
+        ],
+    ),
+    (
+        "Palast löschen",
+        [
+            "Delete palace",
+            "Palast löschen",
+            "Supprimer le palais",
+            "パレスを削除",
+            "删除宫殿",
+        ],
+    ),
+    (
+        "Palast endgültig löschen?",
+        [
+            "Really delete the palace?",
+            "Palast endgültig löschen?",
+            "Vraiment supprimer le palais ?",
+            "パレスを本当に削除しますか？",
+            "确定删除宫殿？",
         ],
     ),
     (

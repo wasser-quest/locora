@@ -579,6 +579,35 @@ struct PalaceReloadArgs {
     id: String,
 }
 
+/// One more room from a picture, animation or video the user picks; it opens as the new last tab.
+fn add_room(editor: Editor) {
+    if editor.busy.get_untracked() || editor.dirty.get_untracked() {
+        return;
+    }
+    editor.busy.set(true);
+    let palace_id = editor.data.with_untracked(|p| p.id.clone());
+    spawn_local(async move {
+        match call::<Option<PalaceView>>(
+            locora_app_api::CMD_EDITOR_PICK_ROOM,
+            PalaceIdArgs { palace_id },
+        )
+        .await
+        {
+            Ok(Some(palace)) => {
+                let last = palace.rooms.len().saturating_sub(1);
+                editor.data.set(palace);
+                editor.history.set(History::default());
+                editor.selected.set(None);
+                editor.room.set(last);
+                editor.message.set(t("Raum hinzugefügt").into());
+            }
+            Ok(None) => {}
+            Err(error) => editor.message.set(error),
+        }
+        editor.busy.set(false);
+    });
+}
+
 /// Deleting the palace leaves the editor for the start screen.
 fn delete_palace(editor: Editor, screen: Option<RwSignal<crate::Screen>>, palace_id: String) {
     if editor.busy.get_untracked() || editor.dirty.get_untracked() {
@@ -657,7 +686,7 @@ fn PalaceNames(editor: Editor) -> impl IntoView {
                                 } else {
                                     pending.set(Some(delete_key.clone()));
                                 }
-                            }>{move || if pending.get().as_deref() == Some(label_key.as_str()) { "Endgültig?" } else { "Löschen" }}</button>
+                            }>{move || if pending.get().as_deref() == Some(label_key.as_str()) { t("Endgültig?") } else { t("Löschen") }}</button>
                     </li>
                 }
             }).collect_view();
@@ -676,7 +705,7 @@ fn PalaceNames(editor: Editor) -> impl IntoView {
                     } else {
                         pending.set(Some("palace".into()));
                     }
-                }>{move || if pending.get().as_deref() == Some("palace") { "Palast endgültig löschen?" } else { "Palast löschen" }}</button>
+                }>{move || if pending.get().as_deref() == Some("palace") { t("Palast endgültig löschen?") } else { t("Palast löschen") }}</button>
             }
         }}
     }
@@ -737,6 +766,7 @@ pub fn Rooms(
     let panel = editor.clone();
     let message = editor.message;
     let paste = editor.clone();
+    let room_adder = editor.clone();
     let video_editor = editor.clone();
     let video_room = Memo::new(move |_| {
         video_editor.data.with(|p| {
@@ -801,7 +831,7 @@ pub fn Rooms(
     let drop_selection = editor.selected;
     crate::tauri::on_file_drop(move |_| {
         if !editing.get_untracked() || drop_selection.get_untracked().is_none() {
-            drop_message.set("Für ein Ortsbild bitte Bearbeiten aktivieren und einen Ort auswählen. Neue Bild-/Videoräume bitte auf der Palast-Startseite ablegen.".into());
+            drop_message.set("Für ein Ortsbild bitte Bearbeiten aktivieren und einen Ort auswählen. Weitere Räume: „+ Raum aus Bild oder Video“.".into());
         }
     });
     view! {
@@ -924,6 +954,10 @@ pub fn Rooms(
                     }
                 }).collect_view()
             }}
+            <Show when=move || editing.get()>
+                <button type="button" class="room-add" disabled=move || busy.get() || dirty.get() || dragging.get()
+                    on:click={let editor = room_adder.clone(); move |_| add_room(editor.clone())}>{t("+ Raum aus Bild oder Video")}</button>
+            </Show>
         </div>
         <div class="stage-wrap">
         {move || {
@@ -1973,7 +2007,7 @@ fn ContentForm(
                     <summary>{t("Weitere Einstellungen")}</summary>
                     <label>{t("Bildgröße (Anteil der Raumbreite, 0.05–1)")}<input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
                     <label>{t("Zoom beim Abfragen (1 = ganzer Raum bis 4)")}<input type="text" inputmode="decimal" bind:value=zoom /></label>
-                    <p class="notes">{t("Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen.")}</p>
+                    <p class="notes">{t("Ein Ortsbild kann auch ins App-Fenster gezogen werden (ausgewählter Ort, keine offenen Änderungen). Weitere Räume: „+ Raum aus Bild oder Video“ neben den Räumen.")}</p>
                 </details>
             </fieldset>
             <div class="tabs">

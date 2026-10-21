@@ -110,6 +110,8 @@ async function invoke(cmd, args = {}) {
   switch (cmd) {
     case 'home_pick_media':
       return pickAndImport(MEDIA_ACCEPT, { kind: 'palace' });
+    case 'editor_pick_room':
+      return pickAndImport(MEDIA_ACCEPT, { kind: 'room', palaceId: args.palaceId });
     case 'editor_pick_picture':
       return pickAndImport(MEDIA_ACCEPT, { kind: 'picture', target: args.target });
     case 'import_pick':
@@ -223,7 +225,7 @@ async function stageAndImport(file, options) {
   const path = `inbox/${name}`;
   fileSystem.putScratch(path, new Uint8Array(await file.arrayBuffer()));
   try {
-    const reply = command('import_file', { name, kind: options.kind, target: options.target ?? null });
+    const reply = command('import_file', { name, kind: options.kind, target: options.target ?? null, palaceId: options.palaceId ?? null });
     if (reply.err !== undefined) throw reply.err;
     return reply.ok;
   } finally {

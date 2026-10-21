@@ -128,9 +128,12 @@ struct ImportArgs {
     /// File name in the inbox.
     name: String,
     /// `archive`: a `.locora` file or TOML source; `palace`: a picture or video as a new palace;
-    /// `picture`: a picture for the locus in `target`.
+    /// `picture`: a picture for the locus in `target`; `room`: a picture or video as one more room
+    /// of the palace `palace_id`.
     kind: String,
     target: Option<PictureTarget>,
+    #[serde(default)]
+    palace_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -483,6 +486,24 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
                         selected,
                         receipt: None,
                     })
+                }
+                "room" => {
+                    let palace_id = a
+                        .palace_id
+                        .ok_or_else(|| anyhow::anyhow!("Kein Palast für den Raum"))?;
+                    let tree = editor::import_room_named(
+                        &profile.store,
+                        &palace_id,
+                        Path::new(&path),
+                        None,
+                    )?;
+                    let cards = profile.schedule(Some(&palace_id))?;
+                    out(views::palace_view(
+                        &profile.store,
+                        &tree,
+                        &cards,
+                        default_marker,
+                    ))
                 }
                 other => bail!("Unbekannte Dateiart: {other}"),
             }

@@ -359,9 +359,56 @@ pub fn import_palace_named(
     Ok(Some(store.create_media_palace(name, kind, &bytes, mime)?))
 }
 
+/// A picture, animation or video as one more room at the end of a palace's route; the room
+/// takes the file's name.
+pub fn import_room_named(
+    store: &Store,
+    palace_id: &str,
+    path: &std::path::Path,
+    selected_name: Option<&str>,
+) -> Result<PalaceTree> {
+    let palace = store.palace(palace_id)?;
+    ensure!(
+        palace.palace.id == palace_id,
+        "Palast-ID muss vollständig sein"
+    );
+    let (kind, mime, bytes) = read_selected_media(path, false)?;
+    let media = store.put_media(&bytes, mime)?;
+    ensure!(
+        store.media(&media.hash)?.is_some_and(|m| m.mime == mime),
+        "Gespeicherter Medientyp passt nicht zum Dateiformat"
+    );
+    let name = selected_name
+        .or_else(|| path.file_stem().and_then(|s| s.to_str()))
+        .unwrap_or("")
+        .trim();
+    let name = if name.is_empty() { "Neuer Raum" } else { name };
+    store.add_room(palace_id, name, kind, Some(&media.hash))?;
+    Ok(store.palace(palace_id)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_picture_becomes_one_more_room_at_the_end_of_the_route() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let palace = store
+            .create_media_palace("Wohnung", RoomKind::Image, b"first", "image/png")
+            .unwrap();
+        let path = dir.path().join("Küche.png");
+        std::fs::write(&path, locora_media::fixtures::png()).unwrap();
+        let id = palace.palace.id.clone();
+        let tree = import_room_named(&store, &id, &path, None).unwrap();
+        assert_eq!(tree.rooms.len(), 2);
+        assert_eq!(tree.rooms[1].room.name, "Küche");
+        assert_eq!(tree.rooms[1].room.kind, RoomKind::Image);
+        assert!(tree.rooms[1].room.media.is_some());
+        // Only a full palace ID: a prefix must not pick some other palace.
+        assert!(import_room_named(&store, &id[..6], &path, None).is_err());
+    }
 
     #[test]
     fn timed_loci_are_allowed_for_splinely_but_not_static_images() {
