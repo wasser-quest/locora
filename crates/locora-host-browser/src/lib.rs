@@ -39,7 +39,11 @@ pub struct ApprovalReceipt {
 
 impl ApprovalReceipt {
     pub fn new(manifest: Manifest, bytes: &[u8]) -> Self {
-        Self { manifest, sha256: format!("{:x}", Sha256::digest(bytes)), signer: None }
+        Self {
+            manifest,
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+            signer: None,
+        }
     }
 
     pub fn signed_by(mut self, publisher: String) -> Self {
@@ -69,14 +73,32 @@ pub enum Level {
 /// Something the host observed that the UI may want to show.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostEvent {
-    Highlighted { plugin: String, step: HighlightRequest },
-    Log { plugin: String, level: Level, message: String },
+    Highlighted {
+        plugin: String,
+        step: HighlightRequest,
+    },
+    Log {
+        plugin: String,
+        level: Level,
+        message: String,
+    },
     Loaded(Manifest),
     Reloaded(Manifest),
     Unloaded(String),
-    Disabled { plugin: String, reason: String },
-    HandlerError { plugin: String, topic: String, message: String },
-    Published { plugin: String, topic: String, payload: Vec<u8> },
+    Disabled {
+        plugin: String,
+        reason: String,
+    },
+    HandlerError {
+        plugin: String,
+        topic: String,
+        message: String,
+    },
+    Published {
+        plugin: String,
+        topic: String,
+        payload: Vec<u8>,
+    },
 }
 
 /// Where plugin key-value storage lives (same contract as the native host).
@@ -91,12 +113,18 @@ pub struct MemoryKv(std::sync::Mutex<BTreeMap<(String, String), Vec<u8>>>);
 
 impl KvStore for MemoryKv {
     fn get(&self, plugin: &str, key: &str) -> Result<Option<Vec<u8>>, String> {
-        let map = self.0.lock().map_err(|_| "storage is poisoned".to_owned())?;
+        let map = self
+            .0
+            .lock()
+            .map_err(|_| "storage is poisoned".to_owned())?;
         Ok(map.get(&(plugin.to_owned(), key.to_owned())).cloned())
     }
 
     fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String> {
-        let mut map = self.0.lock().map_err(|_| "storage is poisoned".to_owned())?;
+        let mut map = self
+            .0
+            .lock()
+            .map_err(|_| "storage is poisoned".to_owned())?;
         map.insert((plugin.to_owned(), key.to_owned()), value.to_vec());
         Ok(())
     }
@@ -127,16 +155,22 @@ const MAX_TOUR_REQUEST: usize = 1_024;
 /// A plugin's palace read, answered while the core is busy. Writes the plugin makes are queued as
 /// events of the command in progress.
 pub fn nested_palace(store: &locora_store::Store, request: &[u8]) -> Result<Vec<u8>, String> {
-    let request: locora_api::palaces::Request = locora_api::decode(request).map_err(|e| e.to_string())?;
+    let request: locora_api::palaces::Request =
+        locora_api::decode(request).map_err(|e| e.to_string())?;
     let outcome = palaces::call(store, request)?;
     PAGE.with(|queue| {
         queue
             .borrow_mut()
-            .extend(outcome.events.into_iter().map(|(topic, payload)| HostEvent::Published {
-                plugin: "core".to_owned(),
-                topic,
-                payload,
-            }))
+            .extend(
+                outcome
+                    .events
+                    .into_iter()
+                    .map(|(topic, payload)| HostEvent::Published {
+                        plugin: "core".to_owned(),
+                        topic,
+                        payload,
+                    }),
+            )
     });
     locora_api::encode(&outcome.response).map_err(|e| e.to_string())
 }
@@ -151,7 +185,10 @@ pub fn nested_highlight(plugin: &str, request: &[u8]) -> Result<Vec<u8>, String>
         locora_api::decode(request).map_err(|e| format!("Ungültiger Tour-Schritt: {e}"))?;
     if !step.target.starts_with("tour-")
         || step.target.len() > 64
-        || !step.target.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+        || !step
+            .target
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-')
         || step.title.trim().is_empty()
         || step.title.chars().count() > 80
         || step.text.trim().is_empty()
@@ -163,14 +200,23 @@ pub fn nested_highlight(plugin: &str, request: &[u8]) -> Result<Vec<u8>, String>
     {
         return Err("Ungültiges Ziel oder Inhalt des Tour-Schritts".into());
     }
-    NESTED.with(|queue| queue.borrow_mut().push(HostEvent::Highlighted { plugin: plugin.to_owned(), step }));
+    NESTED.with(|queue| {
+        queue.borrow_mut().push(HostEvent::Highlighted {
+            plugin: plugin.to_owned(),
+            step,
+        })
+    });
     locora_api::encode(&true).map_err(|e| e.to_string())
 }
 
 /// An event a plugin published, for the core (the UI declarations of plugins are read from these).
 pub fn nested_publish(plugin: &str, topic: &str, payload: Vec<u8>) {
     NESTED.with(|queue| {
-        queue.borrow_mut().push(HostEvent::Published { plugin: plugin.to_owned(), topic: topic.to_owned(), payload })
+        queue.borrow_mut().push(HostEvent::Published {
+            plugin: plugin.to_owned(),
+            topic: topic.to_owned(),
+            payload,
+        })
     });
 }
 
@@ -185,15 +231,29 @@ pub struct PluginHost {
 
 impl PluginHost {
     pub fn new(_cache_dir: Option<PathBuf>) -> Result<Self> {
-        Ok(Self { palaces: None, bridge: None, events: Vec::new(), plugins: Vec::new() })
+        Ok(Self {
+            palaces: None,
+            bridge: None,
+            events: Vec::new(),
+            plugins: Vec::new(),
+        })
     }
 
     pub fn with_kv(cache_dir: Option<PathBuf>, _kv: Arc<dyn KvStore>) -> Result<Self> {
         Self::new(cache_dir)
     }
 
-    pub fn with_palaces(_cache_dir: Option<PathBuf>, _kv: Arc<dyn KvStore>, palaces: Arc<locora_store::Store>) -> Result<Self> {
-        Ok(Self { palaces: Some(palaces), bridge: None, events: Vec::new(), plugins: Vec::new() })
+    pub fn with_palaces(
+        _cache_dir: Option<PathBuf>,
+        _kv: Arc<dyn KvStore>,
+        palaces: Arc<locora_store::Store>,
+    ) -> Result<Self> {
+        Ok(Self {
+            palaces: Some(palaces),
+            bridge: None,
+            events: Vec::new(),
+            plugins: Vec::new(),
+        })
     }
 
     /// Connects the plugins the browser host runs. Until this is set, only the palace service exists.
@@ -209,13 +269,23 @@ impl PluginHost {
         self.load_file(path)
     }
 
-    pub fn load_approved_file(&mut self, path: &Path, _approved: &ApprovalReceipt) -> Result<Manifest> {
+    pub fn load_approved_file(
+        &mut self,
+        path: &Path,
+        _approved: &ApprovalReceipt,
+    ) -> Result<Manifest> {
         self.load_file(path)
     }
 
     /// The built-in plugins are loaded by the page's plugin host, not here: accepting them is enough.
     pub fn load_bytes(&mut self, _bytes: &[u8]) -> Result<Manifest> {
-        Ok(Manifest { id: String::new(), name: String::new(), version: String::new(), api: String::new(), permissions: Vec::new() })
+        Ok(Manifest {
+            id: String::new(),
+            name: String::new(),
+            version: String::new(),
+            api: String::new(),
+            permissions: Vec::new(),
+        })
     }
 
     pub fn inspect_bytes(&self, _bytes: &[u8]) -> Result<Manifest> {
@@ -239,7 +309,11 @@ impl PluginHost {
     }
 
     pub fn publish_raw(&mut self, topic: &str, payload: Vec<u8>) {
-        self.events.push(HostEvent::Published { plugin: "host".to_owned(), topic: topic.to_owned(), payload });
+        self.events.push(HostEvent::Published {
+            plugin: "host".to_owned(),
+            topic: topic.to_owned(),
+            payload,
+        });
     }
 
     pub fn call<S: locora_api::Service>(&mut self, request: &S::Request) -> Result<S::Response> {
@@ -247,18 +321,28 @@ impl PluginHost {
         Ok(locora_api::decode(&bytes)?)
     }
 
-    pub fn call_plugin<S: locora_api::Service>(&mut self, plugin: &str, request: &S::Request) -> Result<S::Response> {
+    pub fn call_plugin<S: locora_api::Service>(
+        &mut self,
+        plugin: &str,
+        request: &S::Request,
+    ) -> Result<S::Response> {
         let bytes = self.bridge_call(Some(plugin), S::NAME, &locora_api::encode(request)?)?;
         Ok(locora_api::decode(&bytes)?)
     }
 
     pub fn plugin_provides(&self, plugin: &str, service: &str) -> bool {
-        self.bridge.as_ref().is_some_and(|bridge| bridge.provides(Some(plugin), service))
+        self.bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.provides(Some(plugin), service))
     }
 
     pub fn provides(&self, service: &str) -> bool {
-        (service == <locora_api::palaces::Palaces as locora_api::Service>::NAME && self.palaces.is_some())
-            || self.bridge.as_ref().is_some_and(|bridge| bridge.provides(None, service))
+        (service == <locora_api::palaces::Palaces as locora_api::Service>::NAME
+            && self.palaces.is_some())
+            || self
+                .bridge
+                .as_ref()
+                .is_some_and(|bridge| bridge.provides(None, service))
     }
 
     pub fn call_raw(&mut self, service: &str, request: &[u8]) -> Result<Vec<u8>> {
@@ -271,16 +355,28 @@ impl PluginHost {
         let request: locora_api::palaces::Request = locora_api::decode(request)?;
         let outcome = palaces::call(&store, request).map_err(anyhow::Error::msg)?;
         for (topic, payload) in outcome.events {
-            self.events.push(HostEvent::Published { plugin: "core".to_owned(), topic, payload });
+            self.events.push(HostEvent::Published {
+                plugin: "core".to_owned(),
+                topic,
+                payload,
+            });
         }
         Ok(locora_api::encode(&outcome.response)?)
     }
 
     fn bridge_call(&self, plugin: Option<&str>, service: &str, request: &[u8]) -> Result<Vec<u8>> {
-        match self.bridge.as_ref().filter(|bridge| bridge.provides(plugin, service)) {
-            Some(bridge) => bridge.call(plugin, service, request).map_err(anyhow::Error::msg),
+        match self
+            .bridge
+            .as_ref()
+            .filter(|bridge| bridge.provides(plugin, service))
+        {
+            Some(bridge) => bridge
+                .call(plugin, service, request)
+                .map_err(anyhow::Error::msg),
             None => match plugin {
-                Some(plugin) => bail!("plugin {plugin} does not provide {service} here: {NOT_IN_BROWSER}"),
+                Some(plugin) => {
+                    bail!("plugin {plugin} does not provide {service} here: {NOT_IN_BROWSER}")
+                }
                 None => bail!("service {service} is not available: {NOT_IN_BROWSER}"),
             },
         }

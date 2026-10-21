@@ -211,7 +211,12 @@ impl Ctx {
 
     /// Suggest a page: the user adds it in one step, with these blocks of this plugin.
     /// At most 8 pages per plugin.
-    pub fn page(&mut self, id: impl Into<String>, name: impl Into<String>, blocks: &[&str]) -> Result {
+    pub fn page(
+        &mut self,
+        id: impl Into<String>,
+        name: impl Into<String>,
+        blocks: &[&str],
+    ) -> Result {
         self.emit(&api::ui::Page {
             id: id.into(),
             name: name.into(),

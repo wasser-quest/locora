@@ -168,7 +168,13 @@ pub fn install(profile: &mut Profile) -> Result<(PalaceTree, Vec<String>)> {
 /// Build the tutorial palace in a language, replacing the one of that language.
 pub fn install_in(profile: &mut Profile, code: &str) -> Result<(PalaceTree, Vec<String>)> {
     let files = localized(FILES, code);
-    install_files(profile, name_for(code), &files, FILES[0].0, namespace_for(code))
+    install_files(
+        profile,
+        name_for(code),
+        &files,
+        FILES[0].0,
+        namespace_for(code),
+    )
 }
 
 /// Import one bundled palace and its local media assets. The files are staged in the
@@ -204,7 +210,8 @@ fn build_staged(
     let source_file = dir.join(source);
     let source = locora_source::parse(&fs::read_to_string(&source_file)?)?;
     // The pictures of a bundled palace may sit next to its folder, so the whole staging folder is the root.
-    let plan = locora_source::check_within(&source, source_file.parent().unwrap_or(Path::new(".")), dir)?;
+    let plan =
+        locora_source::check_within(&source, source_file.parent().unwrap_or(Path::new(".")), dir)?;
     let mut notes = Vec::new();
     for query in [name, &locora_source::bundled_palace_id(namespace)] {
         if let Some(old) = profile.store.find_palace(query)?
@@ -260,10 +267,7 @@ mod tests {
                 9,
                 "every place is kept in {code}"
             );
-            assert_eq!(
-                find_in(&profile, code).unwrap().unwrap().id,
-                tree.palace.id
-            );
+            assert_eq!(find_in(&profile, code).unwrap().unwrap().id, tree.palace.id);
             ids.push(tree.palace.id);
         }
         ids.sort();

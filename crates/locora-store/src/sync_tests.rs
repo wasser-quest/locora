@@ -332,5 +332,8 @@ fn a_deleted_room_is_deleted_on_the_other_device() {
     a.delete_room(&room).unwrap();
     b.apply_remote(&ship(&a, cursor)).unwrap();
     assert!(b.palace(&palace).unwrap().rooms.is_empty());
-    assert!(loci(&b, &palace).is_empty(), "loci of the room go with it: {tur}");
+    assert!(
+        loci(&b, &palace).is_empty(),
+        "loci of the room go with it: {tur}"
+    );
 }

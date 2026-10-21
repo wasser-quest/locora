@@ -89,8 +89,13 @@ fn random<const N: usize>() -> [u8; N] {
 
 /// Argon2id with fixed parameters; the salt makes each account's key unique.
 fn passphrase_key(passphrase: &str, salt: &[u8]) -> Result<Zeroizing<[u8; KEY_LEN]>, CryptoError> {
-    let params = Params::new(KDF_MEMORY_KIB, KDF_ITERATIONS, KDF_PARALLELISM, Some(KEY_LEN))
-        .map_err(|_| CryptoError::Malformed)?;
+    let params = Params::new(
+        KDF_MEMORY_KIB,
+        KDF_ITERATIONS,
+        KDF_PARALLELISM,
+        Some(KEY_LEN),
+    )
+    .map_err(|_| CryptoError::Malformed)?;
     let argon = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
     let mut key = Zeroizing::new([0u8; KEY_LEN]);
     argon
@@ -100,13 +105,17 @@ fn passphrase_key(passphrase: &str, salt: &[u8]) -> Result<Zeroizing<[u8; KEY_LE
 }
 
 fn recovery_secret(recovery_key: &str) -> Result<Zeroizing<[u8; KEY_LEN]>, CryptoError> {
-    let hex: String = recovery_key.chars().filter(|c| !c.is_whitespace() && *c != '-').collect();
+    let hex: String = recovery_key
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != '-')
+        .collect();
     if hex.len() != KEY_LEN * 2 || !hex.is_ascii() {
         return Err(CryptoError::WrongRecoveryKey);
     }
     let mut bytes = Zeroizing::new([0u8; KEY_LEN]);
     for (i, byte) in bytes.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).map_err(|_| CryptoError::WrongRecoveryKey)?;
+        *byte = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16)
+            .map_err(|_| CryptoError::WrongRecoveryKey)?;
     }
     Ok(bytes)
 }
@@ -124,7 +133,13 @@ fn seal_raw(key: &[u8; KEY_LEN], aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
     let nonce: [u8; NONCE_LEN] = random();
     let cipher = XChaCha20Poly1305::new(key.into());
     let ciphertext = cipher
-        .encrypt(XNonce::from_slice(&nonce), Payload { msg: plaintext, aad })
+        .encrypt(
+            XNonce::from_slice(&nonce),
+            Payload {
+                msg: plaintext,
+                aad,
+            },
+        )
         .expect("encryption of in-memory data does not fail");
     [nonce.as_slice(), ciphertext.as_slice()].concat()
 }
@@ -136,7 +151,13 @@ fn open_raw(key: &[u8; KEY_LEN], aad: &[u8], sealed: &[u8]) -> Result<Vec<u8>, C
     let (nonce, ciphertext) = sealed.split_at(NONCE_LEN);
     let cipher = XChaCha20Poly1305::new(key.into());
     cipher
-        .decrypt(XNonce::from_slice(nonce), Payload { msg: ciphertext, aad })
+        .decrypt(
+            XNonce::from_slice(nonce),
+            Payload {
+                msg: ciphertext,
+                aad,
+            },
+        )
         .map_err(|_| CryptoError::Corrupt)
 }
 
@@ -145,9 +166,14 @@ fn wrap_dek(key: &[u8; KEY_LEN], dek: &Dek) -> String {
 }
 
 fn unwrap_dek(key: &[u8; KEY_LEN], wrapped: &str) -> Result<Dek, CryptoError> {
-    let sealed = STANDARD.decode(wrapped).map_err(|_| CryptoError::Malformed)?;
+    let sealed = STANDARD
+        .decode(wrapped)
+        .map_err(|_| CryptoError::Malformed)?;
     let mut raw = open_raw(key, b"locora/dek-wrap/v1", &sealed)?;
-    let bytes: [u8; KEY_LEN] = raw.as_slice().try_into().map_err(|_| CryptoError::Malformed)?;
+    let bytes: [u8; KEY_LEN] = raw
+        .as_slice()
+        .try_into()
+        .map_err(|_| CryptoError::Malformed)?;
     raw.zeroize();
     Ok(Dek(Zeroizing::new(bytes)))
 }
@@ -184,7 +210,9 @@ fn build_bundle(
 /// The account key, using the passphrase. Fails if the passphrase is wrong.
 pub fn unlock(bundle: &KeyBundle, passphrase: &str) -> Result<Dek, CryptoError> {
     check_bundle(bundle)?;
-    let salt = STANDARD.decode(&bundle.salt).map_err(|_| CryptoError::Malformed)?;
+    let salt = STANDARD
+        .decode(&bundle.salt)
+        .map_err(|_| CryptoError::Malformed)?;
     let kek = passphrase_key(passphrase, &salt)?;
     unwrap_dek(&kek, &bundle.wrapped_dek).map_err(|_| CryptoError::WrongPassphrase)
 }
@@ -199,7 +227,11 @@ pub fn unlock_with_recovery(bundle: &KeyBundle, recovery_key: &str) -> Result<De
 
 /// A new bundle for the same account key after the passphrase was forgotten.
 /// The recovery key stays valid.
-pub fn rewrap(dek: &Dek, recovery_key: &str, new_passphrase: &str) -> Result<KeyBundle, CryptoError> {
+pub fn rewrap(
+    dek: &Dek,
+    recovery_key: &str,
+    new_passphrase: &str,
+) -> Result<KeyBundle, CryptoError> {
     check_passphrase(new_passphrase)?;
     let recovery = recovery_secret(recovery_key)?;
     let salt: [u8; 16] = random();
@@ -226,16 +258,21 @@ impl Dek {
     fn subkey(&self, info: &[u8]) -> Zeroizing<[u8; KEY_LEN]> {
         let hk = Hkdf::<Sha256>::new(None, self.0.as_ref());
         let mut key = Zeroizing::new([0u8; KEY_LEN]);
-        hk.expand(info, key.as_mut()).expect("32 bytes is a valid HKDF length");
+        hk.expand(info, key.as_mut())
+            .expect("32 bytes is a valid HKDF length");
         key
     }
 
     /// Server-side id of an operation: keyed, so it reveals neither the timestamp nor the device.
     pub fn op_id(&self, hlc: &str) -> String {
         let key = self.subkey(b"locora/op-id/v1");
-        let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key.as_ref()).expect("any key length works");
+        let mut mac =
+            <Hmac<Sha256> as Mac>::new_from_slice(key.as_ref()).expect("any key length works");
         mac.update(hlc.as_bytes());
-        mac.finalize().into_bytes()[..16].iter().map(|b| format!("{b:02x}")).collect()
+        mac.finalize().into_bytes()[..16]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
     }
 
     /// Seals one plaintext operation for `account_id` under the operation `id`.
@@ -244,7 +281,12 @@ impl Dek {
         seal_raw(&key, &op_aad(account_id, id), plaintext)
     }
 
-    pub fn open_op(&self, account_id: &str, id: &str, sealed: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    pub fn open_op(
+        &self,
+        account_id: &str,
+        id: &str,
+        sealed: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
         let key = self.subkey(b"locora/op/v1");
         open_raw(&key, &op_aad(account_id, id), sealed)
     }
@@ -252,9 +294,14 @@ impl Dek {
     /// Server-side id of a picture or video, from the SHA-256 of its plaintext.
     pub fn media_id(&self, content_sha256_hex: &str) -> String {
         let key = self.subkey(b"locora/media-id/v1");
-        let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key.as_ref()).expect("any key length works");
+        let mut mac =
+            <Hmac<Sha256> as Mac>::new_from_slice(key.as_ref()).expect("any key length works");
         mac.update(content_sha256_hex.as_bytes());
-        mac.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect()
+        mac.finalize()
+            .into_bytes()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
     }
 
     /// Seals a media file. The MIME type travels inside the ciphertext.
@@ -268,7 +315,11 @@ impl Dek {
     }
 
     /// Opens a media file; returns its MIME type and bytes.
-    pub fn open_media(&self, media_id: &str, sealed: &[u8]) -> Result<(String, Vec<u8>), CryptoError> {
+    pub fn open_media(
+        &self,
+        media_id: &str,
+        sealed: &[u8],
+    ) -> Result<(String, Vec<u8>), CryptoError> {
         let key = self.subkey(b"locora/media/v1");
         let plaintext = open_raw(&key, media_id.as_bytes(), sealed)?;
         let length = plaintext
@@ -287,7 +338,10 @@ fn op_aad(account_id: &str, id: &str) -> Vec<u8> {
 
 /// SHA-256 of bytes as lower-case hex (the content hash used across Locora).
 pub fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 #[cfg(test)]
@@ -316,16 +370,31 @@ mod tests {
             unlock_with_recovery(&account.bundle, &"00".repeat(32)).err(),
             Some(CryptoError::WrongRecoveryKey)
         );
-        assert_eq!(create("zu kurz").err(), Some(CryptoError::PassphraseTooShort));
+        assert_eq!(
+            create("zu kurz").err(),
+            Some(CryptoError::PassphraseTooShort)
+        );
     }
 
     #[test]
     fn a_new_passphrase_can_be_set_with_the_recovery_key() {
         let account = create(PASS).unwrap();
-        let bundle = rewrap(&account.dek, &account.recovery_key, "ein neues langes passwort").unwrap();
+        let bundle = rewrap(
+            &account.dek,
+            &account.recovery_key,
+            "ein neues langes passwort",
+        )
+        .unwrap();
         let dek = unlock(&bundle, "ein neues langes passwort").unwrap();
-        assert_eq!(dek.0.as_ref(), account.dek.0.as_ref(), "the data key does not change");
-        assert!(unlock(&bundle, PASS).is_err(), "the old passphrase no longer works");
+        assert_eq!(
+            dek.0.as_ref(),
+            account.dek.0.as_ref(),
+            "the data key does not change"
+        );
+        assert!(
+            unlock(&bundle, PASS).is_err(),
+            "the old passphrase no longer works"
+        );
     }
 
     #[test]
@@ -334,12 +403,26 @@ mod tests {
         let dek = &account.dek;
         let id = dek.op_id("0000000000001-00000-dev");
         let sealed = dek.seal_op("acc_1", &id, b"{\"entity\":\"palace\"}");
-        assert_eq!(dek.open_op("acc_1", &id, &sealed).unwrap(), b"{\"entity\":\"palace\"}");
-        assert_eq!(dek.open_op("acc_2", &id, &sealed), Err(CryptoError::Corrupt), "other account");
-        assert_eq!(dek.open_op("acc_1", "other", &sealed), Err(CryptoError::Corrupt), "other id");
+        assert_eq!(
+            dek.open_op("acc_1", &id, &sealed).unwrap(),
+            b"{\"entity\":\"palace\"}"
+        );
+        assert_eq!(
+            dek.open_op("acc_2", &id, &sealed),
+            Err(CryptoError::Corrupt),
+            "other account"
+        );
+        assert_eq!(
+            dek.open_op("acc_1", "other", &sealed),
+            Err(CryptoError::Corrupt),
+            "other id"
+        );
         let mut tampered = sealed.clone();
         *tampered.last_mut().unwrap() ^= 1;
-        assert_eq!(dek.open_op("acc_1", &id, &tampered), Err(CryptoError::Corrupt));
+        assert_eq!(
+            dek.open_op("acc_1", &id, &tampered),
+            Err(CryptoError::Corrupt)
+        );
     }
 
     #[test]
@@ -347,7 +430,11 @@ mod tests {
         let a = create(PASS).unwrap();
         let b = create(PASS).unwrap();
         assert_eq!(a.dek.op_id("x"), a.dek.op_id("x"));
-        assert_ne!(a.dek.op_id("x"), b.dek.op_id("x"), "another key gives other ids");
+        assert_ne!(
+            a.dek.op_id("x"),
+            b.dek.op_id("x"),
+            "another key gives other ids"
+        );
         assert_ne!(a.dek.op_id("x"), a.dek.op_id("y"));
         let sha = sha256_hex(b"picture");
         assert_eq!(a.dek.media_id(&sha), a.dek.media_id(&sha));

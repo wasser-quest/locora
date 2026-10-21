@@ -829,8 +829,27 @@ pub struct WorkbookView {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "change", rename_all = "snake_case")]
 pub enum WorkbookChange {
-    SetCell { shared: bool, table: String, key: String, column: String, kind: String, value: String },
-    RemoveCell { shared: bool, table: String, key: String, column: String },
-    Bind { locus_id: String, field: String, expression: String },
-    Unbind { locus_id: String, field: String },
+    SetCell {
+        shared: bool,
+        table: String,
+        key: String,
+        column: String,
+        kind: String,
+        value: String,
+    },
+    RemoveCell {
+        shared: bool,
+        table: String,
+        key: String,
+        column: String,
+    },
+    Bind {
+        locus_id: String,
+        field: String,
+        expression: String,
+    },
+    Unbind {
+        locus_id: String,
+        field: String,
+    },
 }

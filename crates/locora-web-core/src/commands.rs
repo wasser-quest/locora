@@ -243,13 +243,15 @@ fn tell_host_plugins(profile: &mut locora_runtime::Profile, plugins: Vec<locora_
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn tell_host_plugins(_profile: &mut locora_runtime::Profile, _plugins: Vec<locora_host::Manifest>) {}
+fn tell_host_plugins(_profile: &mut locora_runtime::Profile, _plugins: Vec<locora_host::Manifest>) {
+}
 
 /// Writes every file below `folder` into a ZIP archive, with names relative to `folder`.
 fn zip_folder(folder: &Path, archive: &Path) -> Result<()> {
     use std::io::Write;
     let mut zip = zip::ZipWriter::new(std::fs::File::create(archive)?);
-    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
     let mut pending = vec![folder.to_path_buf()];
     while let Some(dir) = pending.pop() {
         for entry in std::fs::read_dir(&dir)? {
@@ -258,7 +260,10 @@ fn zip_folder(folder: &Path, archive: &Path) -> Result<()> {
                 pending.push(path);
                 continue;
             }
-            let name = path.strip_prefix(folder)?.to_string_lossy().replace('\\', "/");
+            let name = path
+                .strip_prefix(folder)?
+                .to_string_lossy()
+                .replace('\\', "/");
             zip.start_file(name, options)?;
             zip.write_all(&std::fs::read(&path)?)?;
         }
@@ -341,7 +346,11 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
             let cards = profile.schedule(Some(&a.change.palace_id))?;
             let (tree, selected, receipt) = editor::apply_with_history(&profile.store, &a.change)?;
             let palace = views::palace_view(&profile.store, &tree, &cards, default_marker);
-            out(EditorUpdated { palace, selected, receipt })
+            out(EditorUpdated {
+                palace,
+                selected,
+                receipt,
+            })
         }
         "tutorial" => {
             let a: LanguageArgs = take(args)?;
@@ -406,7 +415,9 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         "journey_action" => {
             let a: ActionArgs = take(args)?;
             let done = if a.after.unwrap_or(false) {
-                let running = journey.as_mut().ok_or_else(|| anyhow::anyhow!("Keine Journey aktiv"))?;
+                let running = journey
+                    .as_mut()
+                    .ok_or_else(|| anyhow::anyhow!("Keine Journey aktiv"))?;
                 running.action_after(profile, &a.key, default_marker)?
             } else {
                 running(journey.as_mut())?.action(profile, &a.key, a.revealed, default_marker)?
@@ -460,14 +471,22 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
                 "palace" => {
                     let tree = editor::import_palace(&profile.store, Some(Path::new(&path)))?;
                     out(tree.map(|tree| {
-                        views::palace_view(&profile.store, &tree, &Default::default(), default_marker)
+                        views::palace_view(
+                            &profile.store,
+                            &tree,
+                            &Default::default(),
+                            default_marker,
+                        )
                     }))
                 }
                 "picture" => {
-                    let target = a.target.ok_or_else(|| anyhow::anyhow!("Kein Ort für das Bild"))?;
+                    let target = a
+                        .target
+                        .ok_or_else(|| anyhow::anyhow!("Kein Ort für das Bild"))?;
                     editor::picture_target(&profile.store, &target)?;
                     let cards = profile.schedule(Some(&target.palace_id))?;
-                    let (tree, selected) = editor::import_picture(&profile.store, &target, Path::new(&path))?;
+                    let (tree, selected) =
+                        editor::import_picture(&profile.store, &target, Path::new(&path))?;
                     out(EditorUpdated {
                         palace: views::palace_view(&profile.store, &tree, &cards, default_marker),
                         selected,
@@ -526,7 +545,11 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         }
         // Without Locora Cloud the account is signed out: the settings page shows that, and the
         // actions that need the server explain why they cannot run here.
-        "cloud_status" | "cloud_refresh" => out(CloudStatus { account: None, server: None, access: false }),
+        "cloud_status" | "cloud_refresh" => out(CloudStatus {
+            account: None,
+            server: None,
+            access: false,
+        }),
         "cloud_keys_status" => out(false),
         "cloud_logout" => out(()),
         cloud if cloud.starts_with("cloud_") => bail!(CLOUD_UNAVAILABLE),

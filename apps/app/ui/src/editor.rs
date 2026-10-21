@@ -75,10 +75,10 @@ fn parse_answer(kind: &str, accept: &str, quiz: &str) -> Result<EditorAnswer, St
                     } else if let Some(text) = line.strip_prefix('-') {
                         (false, text)
                     } else {
-                        return Err(
-                            {t("Quiz: Jede Zeile muss mit + (richtig) oder - (falsch) beginnen")}
-                                .to_owned(),
-                        );
+                        return Err({
+                            t("Quiz: Jede Zeile muss mit + (richtig) oder - (falsch) beginnen")
+                        }
+                        .to_owned());
                     };
                     Ok(QuizOption {
                         text: text.trim().into(),
@@ -740,9 +740,12 @@ pub fn Rooms(
     let video_editor = editor.clone();
     let video_room = Memo::new(move |_| {
         video_editor.data.with(|p| {
-            p.rooms
-                .get(video_editor.room.get())
-                .is_some_and(|r| r.video || r.backdrop.as_ref().is_some_and(|m| m.kind == locora_app_api::MediaKind::Sply))
+            p.rooms.get(video_editor.room.get()).is_some_and(|r| {
+                r.video
+                    || r.backdrop
+                        .as_ref()
+                        .is_some_and(|m| m.kind == locora_app_api::MediaKind::Sply)
+            })
         })
     });
     // What the stage (and its video) depends on: the room itself, not its loci. An edit
@@ -782,7 +785,8 @@ pub fn Rooms(
             let editor = editor.clone();
             let id = editor.data.with_untracked(|p| p.id.clone());
             spawn_local(async move {
-                match call::<PalaceView>(locora_app_api::CMD_PALACE, PalaceReloadArgs { id }).await {
+                match call::<PalaceView>(locora_app_api::CMD_PALACE, PalaceReloadArgs { id }).await
+                {
                     Ok(palace) => {
                         editor.data.set(palace);
                         // The open locus form is rebuilt, so newly bound fields become read-only.
@@ -1109,13 +1113,22 @@ fn RoomStage(
     let pick_editor = editor.clone();
     let paste_editor = editor.clone();
     let video = room.video;
-    let timed_sply = !video && room.backdrop.as_ref().is_some_and(|media| media.kind == locora_app_api::MediaKind::Sply);
+    let timed_sply = !video
+        && room
+            .backdrop
+            .as_ref()
+            .is_some_and(|media| media.kind == locora_app_api::MediaKind::Sply);
     let timed = video || timed_sply;
     let display = crate::locus_display::signal();
     let leads = crate::locus_display::leads();
     let player = NodeRef::<html::Video>::new();
     let video_duration = RwSignal::new(None::<f64>);
-    let sply_command = RwSignal::new(TimedCommand { serial: 0, time: 0.0, start: None, play: false });
+    let sply_command = RwSignal::new(TimedCommand {
+        serial: 0,
+        time: 0.0,
+        start: None,
+        play: false,
+    });
     let mut timeline: Vec<_> = room
         .loci
         .iter()
@@ -1140,18 +1153,26 @@ fn RoomStage(
         }
         let time = if timed_sply {
             if video_duration.get_untracked().is_none() {
-                timed_editor.message.set("Die Animation ist noch nicht geladen".into());
+                timed_editor
+                    .message
+                    .set("Die Animation ist noch nicht geladen".into());
                 return;
             }
             playhead.get_untracked()
         } else {
-            let Some(player) = player.get() else { return; };
+            let Some(player) = player.get() else {
+                return;
+            };
             if player.ready_state() == 0 {
-                timed_editor.message.set("Das Video ist noch nicht geladen".into());
+                timed_editor
+                    .message
+                    .set("Das Video ist noch nicht geladen".into());
                 return;
             }
             if player.pause().is_err() {
-                timed_editor.message.set("Video konnte nicht angehalten werden".into());
+                timed_editor
+                    .message
+                    .set("Video konnte nicht angehalten werden".into());
                 return;
             }
             player.current_time()
@@ -1363,12 +1384,11 @@ fn RoomStage(
                                 <input type="number" min="0" max="30" step="0.1"
                                     prop:value=move || leads.get().get(&lead_id).copied().unwrap_or(display.get().video_lead).to_string()
                                     on:change=move |ev| {
-                                        if let Ok(value) = event_target_value(&ev).parse::<f64>() {
-                                            if value.is_finite() && (0.0..=30.0).contains(&value) {
+                                        if let Ok(value) = event_target_value(&ev).parse::<f64>()
+                                            && value.is_finite() && (0.0..=30.0).contains(&value) {
                                                 leads.update(|values| { values.insert(lead_write_id.clone(), value); });
                                                 crate::locus_display::save_leads(&leads.get_untracked());
                                             }
-                                        }
                                     } />
                             </label>
                             </div>

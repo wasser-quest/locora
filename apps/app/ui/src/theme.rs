@@ -2,7 +2,6 @@
 //! through the `data-theme` attribute of the document (the palettes live in style.css).
 use crate::i18n::t;
 
-
 const KEY: &str = "locora-theme-v1";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,7 +34,10 @@ impl Theme {
     }
 
     pub fn from_key(key: &str) -> Self {
-        Self::ALL.into_iter().find(|theme| theme.key() == key).unwrap_or(Theme::System)
+        Self::ALL
+            .into_iter()
+            .find(|theme| theme.key() == key)
+            .unwrap_or(Theme::System)
     }
 }
 
@@ -49,7 +51,9 @@ pub fn current() -> Theme {
 }
 
 pub fn save(theme: Theme) {
-    if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
+    if let Some(storage) =
+        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
+    {
         let _ = storage.set_item(KEY, theme.key());
     }
 }

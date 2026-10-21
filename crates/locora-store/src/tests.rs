@@ -714,7 +714,9 @@ fn deleting_a_room_removes_its_loci_and_keeps_the_others() {
     store
         .add_room(&palace.id, "Flur", RoomKind::Blank, None)
         .unwrap();
-    store.add_locus(&kitchen.id, locus("Herd", "Topf", 0.5)).unwrap();
+    store
+        .add_locus(&kitchen.id, locus("Herd", "Topf", 0.5))
+        .unwrap();
 
     assert!(store.delete_room(&kitchen.id).unwrap());
     let tree = store.palace(&palace.id).unwrap();

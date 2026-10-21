@@ -11,7 +11,10 @@ use crate::sply::Sply;
 use crate::tauri::{NoArgs, call};
 
 /// The medal, title and unlock hint of one achievement; `None` for an unknown id.
-fn medal(art: &UiAssets, achievement: &AchievementView) -> Option<(Media, &'static str, &'static str)> {
+fn medal(
+    art: &UiAssets,
+    achievement: &AchievementView,
+) -> Option<(Media, &'static str, &'static str)> {
     let (medal, locked, title, hint) = match achievement.id.as_str() {
         "tutorial-done" => (
             &art.medal_tutorial,
@@ -35,7 +38,9 @@ fn medal(art: &UiAssets, achievement: &AchievementView) -> Option<(Media, &'stat
 pub fn Achievements() -> impl IntoView {
     let achievements = RwSignal::new(None::<Result<Vec<AchievementView>, String>>);
     spawn_local(async move {
-        achievements.set(Some(call::<Vec<AchievementView>>(CMD_ACHIEVEMENTS, NoArgs {}).await));
+        achievements.set(Some(
+            call::<Vec<AchievementView>>(CMD_ACHIEVEMENTS, NoArgs {}).await,
+        ));
     });
     let art = expect_context::<Art>().0;
     move || {

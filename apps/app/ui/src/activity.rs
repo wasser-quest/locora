@@ -22,14 +22,21 @@ fn level(answers: u32) -> u8 {
 /// The date of a learning day (its start in seconds) as YYYY-MM-DD, for the square's tooltip.
 fn date_label(day: u64) -> String {
     let date = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(day as f64 * 1000.0));
-    date.to_iso_string().as_string().unwrap_or_default().chars().take(10).collect()
+    date.to_iso_string()
+        .as_string()
+        .unwrap_or_default()
+        .chars()
+        .take(10)
+        .collect()
 }
 
 #[component]
 pub fn Activity() -> impl IntoView {
     let days = RwSignal::new(None::<Result<Vec<ActivityDay>, String>>);
     spawn_local(async move {
-        days.set(Some(call::<Vec<ActivityDay>>(CMD_ACTIVITY, NoArgs {}).await));
+        days.set(Some(
+            call::<Vec<ActivityDay>>(CMD_ACTIVITY, NoArgs {}).await,
+        ));
     });
     move || match days.get() {
         None => None,

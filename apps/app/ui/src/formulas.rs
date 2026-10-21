@@ -6,8 +6,8 @@ use crate::i18n::t;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_WORKBOOK, CMD_WORKBOOK_CALC, CMD_WORKBOOK_CHANGE, WorkbookBinding, WorkbookCell, WorkbookChange,
-    WorkbookRow, WorkbookView,
+    CMD_WORKBOOK, CMD_WORKBOOK_CALC, CMD_WORKBOOK_CHANGE, WorkbookBinding, WorkbookCell,
+    WorkbookChange, WorkbookRow, WorkbookView,
 };
 use serde::Serialize;
 
@@ -43,7 +43,9 @@ const FIELDS: [(&str, &str); 6] = [
     ("active", "Aktiv"),
 ];
 
-const KINDS: [&str; 8] = ["text", "number", "boolean", "json", "formula", "asset", "palace", "room"];
+const KINDS: [&str; 8] = [
+    "text", "number", "boolean", "json", "formula", "asset", "palace", "room",
+];
 
 /// Shared state of the open editor: the workbook, and whether a change is on its way.
 #[derive(Clone, Copy)]
@@ -63,7 +65,8 @@ impl Book {
         self.message.set(None);
         let palace_id = self.palace_id.get_value();
         spawn_local(async move {
-            match call::<WorkbookView>(CMD_WORKBOOK_CHANGE, ChangeArgs { palace_id, change }).await {
+            match call::<WorkbookView>(CMD_WORKBOOK_CHANGE, ChangeArgs { palace_id, change }).await
+            {
                 Ok(view) => {
                     self.view.set(Some(Ok(view)));
                     self.message.set(Some(Ok(t(done).into())));
@@ -78,7 +81,11 @@ impl Book {
 /// The modal. `locus` is the locus selected in the editor, if any; `on_close` runs when it closes,
 /// so the editor reloads the palace (bound fields change what it shows).
 #[component]
-pub fn FormulaEditor(palace_id: String, locus: Option<String>, on_close: Callback<()>) -> impl IntoView {
+pub fn FormulaEditor(
+    palace_id: String,
+    locus: Option<String>,
+    on_close: Callback<()>,
+) -> impl IntoView {
     let book = Book {
         palace_id: StoredValue::new(palace_id.clone()),
         view: RwSignal::new(None),
@@ -86,7 +93,9 @@ pub fn FormulaEditor(palace_id: String, locus: Option<String>, on_close: Callbac
         message: RwSignal::new(None),
     };
     spawn_local(async move {
-        book.view.set(Some(call::<WorkbookView>(CMD_WORKBOOK, WorkbookArgs { palace_id }).await));
+        book.view.set(Some(
+            call::<WorkbookView>(CMD_WORKBOOK, WorkbookArgs { palace_id }).await,
+        ));
     });
     let chosen = RwSignal::new(locus.unwrap_or_default());
     let shared = RwSignal::new(false);
@@ -184,7 +193,12 @@ fn BindingRow(
     label: &'static str,
     current: Option<WorkbookBinding>,
 ) -> impl IntoView {
-    let expression = RwSignal::new(current.as_ref().map(|b| b.expression.clone()).unwrap_or_default());
+    let expression = RwSignal::new(
+        current
+            .as_ref()
+            .map(|b| b.expression.clone())
+            .unwrap_or_default(),
+    );
     let bound = current.is_some();
     let result = current.map(|b| match (b.value, b.error) {
         (_, Some(error)) => Err(error),
@@ -195,12 +209,22 @@ fn BindingRow(
     let save = move || {
         let expression = expression.get_untracked();
         book.apply(
-            WorkbookChange::Bind { locus_id: locus.get_value(), field: field.into(), expression },
+            WorkbookChange::Bind {
+                locus_id: locus.get_value(),
+                field: field.into(),
+                expression,
+            },
             "Bindung gespeichert.",
         );
     };
     let remove = move || {
-        book.apply(WorkbookChange::Unbind { locus_id: locus.get_value(), field: field.into() }, "Bindung entfernt.");
+        book.apply(
+            WorkbookChange::Unbind {
+                locus_id: locus.get_value(),
+                field: field.into(),
+            },
+            "Bindung entfernt.",
+        );
     };
     view! {
         <form class="formula-binding" on:submit=move |e| { e.prevent_default(); save(); }>
@@ -223,7 +247,13 @@ fn BindingRow(
 
 /// One cell of a table: its type and value, changed in place or removed.
 #[component]
-fn CellRow(book: Book, shared: bool, table: String, key: String, cell: WorkbookCell) -> impl IntoView {
+fn CellRow(
+    book: Book,
+    shared: bool,
+    table: String,
+    key: String,
+    cell: WorkbookCell,
+) -> impl IntoView {
     let address = format!("{table}.{key}.{}", cell.column);
     let kind = RwSignal::new(cell.kind.clone());
     let value = RwSignal::new(cell.value.clone());
@@ -231,13 +261,28 @@ fn CellRow(book: Book, shared: bool, table: String, key: String, cell: WorkbookC
     let save = move || {
         let (table, key, column) = place.get_value();
         book.apply(
-            WorkbookChange::SetCell { shared, table, key, column, kind: kind.get_untracked(), value: value.get_untracked() },
+            WorkbookChange::SetCell {
+                shared,
+                table,
+                key,
+                column,
+                kind: kind.get_untracked(),
+                value: value.get_untracked(),
+            },
             "Zelle gespeichert.",
         );
     };
     let remove = move || {
         let (table, key, column) = place.get_value();
-        book.apply(WorkbookChange::RemoveCell { shared, table, key, column }, "Zelle gelöscht.");
+        book.apply(
+            WorkbookChange::RemoveCell {
+                shared,
+                table,
+                key,
+                column,
+            },
+            "Zelle gelöscht.",
+        );
     };
     view! {
         <form class="formula-cell" on:submit=move |e| { e.prevent_default(); save(); }>
@@ -274,7 +319,11 @@ fn NewCell(book: Book, shared: RwSignal<bool>) -> impl IntoView {
         );
         value.set(String::new());
     };
-    let incomplete = move || [table, key, column].iter().any(|s| s.get().trim().is_empty());
+    let incomplete = move || {
+        [table, key, column]
+            .iter()
+            .any(|s| s.get().trim().is_empty())
+    };
     view! {
         <form class="formula-new" on:submit=move |e| { e.prevent_default(); add(); }>
             <label class="input"><span>{t("Tabelle")}</span><input type="text" spellcheck="false" bind:value=table /></label>
@@ -300,7 +349,16 @@ fn Calculator(book: Book) -> impl IntoView {
         let expression = expression.get_untracked();
         let palace_id = book.palace_id.get_value();
         spawn_local(async move {
-            result.set(Some(call::<String>(CMD_WORKBOOK_CALC, CalcArgs { palace_id, expression }).await));
+            result.set(Some(
+                call::<String>(
+                    CMD_WORKBOOK_CALC,
+                    CalcArgs {
+                        palace_id,
+                        expression,
+                    },
+                )
+                .await,
+            ));
         });
     };
     view! {

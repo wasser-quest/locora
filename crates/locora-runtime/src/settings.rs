@@ -201,10 +201,17 @@ pub struct Stats {
 
 /// Answers per learning day for the last `days` days up to today, oldest first. Days without
 /// answers count as zero, so the overview shows the inactive days too.
-pub fn activity_days(entries: &[LogEntry], now: u64, clock: &DayClock, days: usize) -> Vec<(u64, u32)> {
+pub fn activity_days(
+    entries: &[LogEntry],
+    now: u64,
+    clock: &DayClock,
+    days: usize,
+) -> Vec<(u64, u32)> {
     let mut counts: HashMap<u64, u32> = HashMap::new();
     for entry in entries {
-        *counts.entry(clock.day_start(entry.answered_at)).or_default() += 1;
+        *counts
+            .entry(clock.day_start(entry.answered_at))
+            .or_default() += 1;
     }
     let mut day = clock.day_start(now);
     let mut out = Vec::with_capacity(days);

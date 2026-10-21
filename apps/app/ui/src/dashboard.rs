@@ -6,8 +6,8 @@ use leptos::prelude::*;
 use locora_app_api::{PluginBlock, PluginPage, TileView};
 use serde::{Deserialize, Serialize};
 
-use crate::i18n::{plugin_text, t};
 use crate::Tiles;
+use crate::i18n::{plugin_text, t};
 
 pub const KEY: &str = "locora-dashboard-v2";
 
@@ -60,7 +60,10 @@ pub struct Pages {
 
 impl Pages {
     fn index(&self) -> usize {
-        self.list.iter().position(|page| page.id == self.current).unwrap_or(0)
+        self.list
+            .iter()
+            .position(|page| page.id == self.current)
+            .unwrap_or(0)
     }
 
     pub fn current(&self) -> &Page {
@@ -232,7 +235,11 @@ pub fn label(id: &str, catalog: &Catalog) -> String {
 
 /// The view of a plugin's tile or declared card; `None` for built-in or unknown ids.
 pub fn plugin_view(catalog: &Catalog, id: &str) -> Option<AnyView> {
-    if let Some(tile) = catalog.tiles.iter().find(|tile| tile_id(&tile.plugin) == id) {
+    if let Some(tile) = catalog
+        .tiles
+        .iter()
+        .find(|tile| tile_id(&tile.plugin) == id)
+    {
         let tile = tile.clone();
         return Some(view! { <Tiles tiles=vec![tile]/> }.into_any());
     }

@@ -11,8 +11,8 @@ mod commands;
 use std::cell::RefCell;
 use std::path::Path;
 
-use locora_app_core::journey::Journey;
 use locora_app_core::assets::Assets;
+use locora_app_core::journey::Journey;
 use locora_runtime::Profile;
 use locora_store::SPLINELY;
 
@@ -44,7 +44,12 @@ mod plugins {
     #[link(wasm_import_module = "locora_bridge")]
     unsafe extern "C" {
         #[link_name = "provides"]
-        fn host_provides(plugin: *const u8, plugin_len: usize, service: *const u8, service_len: usize) -> u32;
+        fn host_provides(
+            plugin: *const u8,
+            plugin_len: usize,
+            service: *const u8,
+            service_len: usize,
+        ) -> u32;
         #[link_name = "call"]
         fn host_call(
             plugin: *const u8,
@@ -55,7 +60,8 @@ mod plugins {
             request_len: usize,
         ) -> u64;
         #[link_name = "filter"]
-        fn host_filter(hook: *const u8, hook_len: usize, value: *const u8, value_len: usize) -> u64;
+        fn host_filter(hook: *const u8, hook_len: usize, value: *const u8, value_len: usize)
+        -> u64;
     }
 
     pub struct Bridge;
@@ -63,19 +69,39 @@ mod plugins {
     impl ServiceBridge for Bridge {
         fn provides(&self, plugin: Option<&str>, service: &str) -> bool {
             let plugin = plugin.unwrap_or("");
-            unsafe { host_provides(plugin.as_ptr(), plugin.len(), service.as_ptr(), service.len()) == 1 }
+            unsafe {
+                host_provides(
+                    plugin.as_ptr(),
+                    plugin.len(),
+                    service.as_ptr(),
+                    service.len(),
+                ) == 1
+            }
         }
 
-        fn call(&self, plugin: Option<&str>, service: &str, request: &[u8]) -> Result<Vec<u8>, String> {
+        fn call(
+            &self,
+            plugin: Option<&str>,
+            service: &str,
+            request: &[u8],
+        ) -> Result<Vec<u8>, String> {
             let plugin = plugin.unwrap_or("");
             let packed = unsafe {
-                host_call(plugin.as_ptr(), plugin.len(), service.as_ptr(), service.len(), request.as_ptr(), request.len())
+                host_call(
+                    plugin.as_ptr(),
+                    plugin.len(),
+                    service.as_ptr(),
+                    service.len(),
+                    request.as_ptr(),
+                    request.len(),
+                )
             };
             read_reply(packed)
         }
 
         fn filter(&self, hook: &str, value: &[u8]) -> Result<Vec<u8>, String> {
-            let packed = unsafe { host_filter(hook.as_ptr(), hook.len(), value.as_ptr(), value.len()) };
+            let packed =
+                unsafe { host_filter(hook.as_ptr(), hook.len(), value.as_ptr(), value.len()) };
             read_reply(packed)
         }
     }
@@ -99,8 +125,14 @@ fn open(dir: &str) -> anyhow::Result<()> {
     let mut profile = Profile::open(Some(Path::new(dir)))?;
     #[cfg(target_arch = "wasm32")]
     profile.host.set_bridge(Box::new(plugins::Bridge));
-    let default_marker = profile.store.put_media(locora_runtime::tutorial::DEFAULT_MARKER, SPLINELY)?.hash;
-    let simo = profile.store.put_media(locora_runtime::tutorial::SIMO, SPLINELY)?.hash;
+    let default_marker = profile
+        .store
+        .put_media(locora_runtime::tutorial::DEFAULT_MARKER, SPLINELY)?
+        .hash;
+    let simo = profile
+        .store
+        .put_media(locora_runtime::tutorial::SIMO, SPLINELY)?
+        .hash;
     let assets = Assets::register(&profile.store)?;
     let store = profile.store.clone();
     STORE.with(|cell| *cell.borrow_mut() = Some(store));
@@ -116,7 +148,9 @@ fn open(dir: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(crate) fn with_backend<T>(f: impl FnOnce(&mut Backend) -> anyhow::Result<T>) -> anyhow::Result<T> {
+pub(crate) fn with_backend<T>(
+    f: impl FnOnce(&mut Backend) -> anyhow::Result<T>,
+) -> anyhow::Result<T> {
     BACKEND.with(|cell| match cell.borrow_mut().as_mut() {
         Some(backend) => f(backend),
         None => anyhow::bail!("the profile is not open"),
@@ -272,9 +306,17 @@ pub unsafe extern "C" fn dealloc(pointer: *mut u8, len: usize) {
 /// # Safety
 /// The two (pointer, length) pairs must describe valid UTF-8 bytes written by the host.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn invoke(command_ptr: *const u8, command_len: usize, args_ptr: *const u8, args_len: usize) -> u64 {
-    let command = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(command_ptr, command_len)) };
-    let args = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(args_ptr, args_len)) };
+pub unsafe extern "C" fn invoke(
+    command_ptr: *const u8,
+    command_len: usize,
+    args_ptr: *const u8,
+    args_len: usize,
+) -> u64 {
+    let command = unsafe {
+        std::str::from_utf8_unchecked(std::slice::from_raw_parts(command_ptr, command_len))
+    };
+    let args =
+        unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(args_ptr, args_len)) };
     let mut output = dispatch(command, args).into_bytes();
     output.shrink_to_fit();
     let (pointer, len) = (output.as_mut_ptr(), output.len());
@@ -309,4 +351,3 @@ fn pack_bytes(mut output: Vec<u8>) -> u64 {
     std::mem::forget(output);
     ((pointer as u64) << 32) | len as u64
 }
-

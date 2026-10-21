@@ -121,7 +121,10 @@ pub struct Exchange<T> {
 
 impl<T> Exchange<T> {
     pub fn new(call: Call, read: fn(Reply) -> Result<T>) -> Self {
-        Self { call: Some(call), read }
+        Self {
+            call: Some(call),
+            read,
+        }
     }
 }
 
@@ -141,7 +144,11 @@ impl<T> Flow for Exchange<T> {
 
 /// Checks that a reply is a success, and returns nothing else.
 pub fn expect_success(reply: Reply) -> Result<()> {
-    if reply.is_success() { Ok(()) } else { Err(failure(&reply)) }
+    if reply.is_success() {
+        Ok(())
+    } else {
+        Err(failure(&reply))
+    }
 }
 
 #[cfg(feature = "cloud")]
@@ -191,14 +198,31 @@ mod tests {
 
     #[test]
     fn json_reads_a_success_and_the_server_message_of_a_failure() {
-        let ok: serde_json::Value = json(Reply { status: 200, body: br#"{"a":1}"#.to_vec() }).unwrap();
+        let ok: serde_json::Value = json(Reply {
+            status: 200,
+            body: br#"{"a":1}"#.to_vec(),
+        })
+        .unwrap();
         assert_eq!(ok["a"], 1);
-        let empty: Option<u8> = json(Reply { status: 204, body: Vec::new() }).unwrap();
+        let empty: Option<u8> = json(Reply {
+            status: 204,
+            body: Vec::new(),
+        })
+        .unwrap();
         assert_eq!(empty, None);
-        let failed = json::<serde_json::Value>(Reply { status: 403, body: br#"{"error":"no access"}"#.to_vec() });
+        let failed = json::<serde_json::Value>(Reply {
+            status: 403,
+            body: br#"{"error":"no access"}"#.to_vec(),
+        });
         assert_eq!(failed.unwrap_err().to_string(), "no access");
-        let plain = json::<serde_json::Value>(Reply { status: 500, body: b"oops".to_vec() });
-        assert_eq!(plain.unwrap_err().to_string(), "Locora Cloud antwortet mit 500");
+        let plain = json::<serde_json::Value>(Reply {
+            status: 500,
+            body: b"oops".to_vec(),
+        });
+        assert_eq!(
+            plain.unwrap_err().to_string(),
+            "Locora Cloud antwortet mit 500"
+        );
     }
 
     struct Echo;
@@ -228,6 +252,12 @@ mod tests {
             Step::Done(_) => panic!("the flow must ask first"),
         };
         assert_eq!(call.method.as_str(), "GET");
-        assert!(matches!(flow.step(Some(Reply { status: 418, body: Vec::new() })), Ok(Step::Done(418))));
+        assert!(matches!(
+            flow.step(Some(Reply {
+                status: 418,
+                body: Vec::new()
+            })),
+            Ok(Step::Done(418))
+        ));
     }
 }

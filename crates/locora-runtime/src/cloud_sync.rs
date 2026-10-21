@@ -188,15 +188,26 @@ enum Job {
     /// The next batch of local operations, or on to the pull when there are none.
     Push,
     /// The next page of remote operations after this cursor.
-    Pull { after: i64 },
+    Pull {
+        after: i64,
+    },
     /// Whether the server holds the media file of this hash, and uploads it if not.
     CheckMedia(String),
     UploadMedia(String),
-    SendBatch { ops: Vec<Op>, last: i64 },
+    SendBatch {
+        ops: Vec<Op>,
+        last: i64,
+    },
     /// Opens one queued operation and works out which media it needs.
     Apply(PullRetry),
-    FetchMedia { hash: String, entry: i64 },
-    Commit { entry: i64, op: RemoteOp },
+    FetchMedia {
+        hash: String,
+        entry: i64,
+    },
+    Commit {
+        entry: i64,
+        op: RemoteOp,
+    },
     Complete,
 }
 
@@ -231,7 +242,9 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
     /// Refuses to start without a valid entitlement, as the sync always did.
     pub fn new(state: CloudState, store: S, dek: K) -> Result<Self> {
         if cloud::access(&state, cloud::now_secs()).is_none() {
-            bail!("Keine gültige Freischaltung: `locora cloud refresh` ausführen oder das Abo prüfen");
+            bail!(
+                "Keine gültige Freischaltung: `locora cloud refresh` ausführen oder das Abo prüfen"
+            );
         }
         Ok(Self::unchecked(state, store, dek))
     }
@@ -283,7 +296,10 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
                 let call = cloud::call(
                     Method::Get,
                     &self.state.server,
-                    &format!("/v1/sync/ops?after={after}&limit={BATCH}&generation={}", self.state.sync_generation),
+                    &format!(
+                        "/v1/sync/ops?after={after}&limit={BATCH}&generation={}",
+                        self.state.sync_generation
+                    ),
                     Some(&self.state.token),
                     None,
                 )?;
@@ -306,7 +322,8 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
                     .ok_or_else(|| anyhow!("Dieser Speicher hat keine Mediendateien"))?;
                 let bytes = fs::read(&path).with_context(|| format!("{} lesen", path.display()))?;
                 let sealed = self.dek.seal_media(&id, &media.mime, &bytes);
-                let call = cloud::media_call(&self.state, Method::Put, &id, Some(Body::Bytes(sealed)))?;
+                let call =
+                    cloud::media_call(&self.state, Method::Put, &id, Some(Body::Bytes(sealed)))?;
                 Ok(Some((call, Awaiting::Uploaded)))
             }
             Job::SendBatch { ops, last } => {
@@ -362,7 +379,12 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
     /// The next batch: the media of its operations are checked first, then the batch is sent.
     fn push_next(&mut self) -> Result<Option<(Call, Awaiting)>> {
         let cursor = self.store.sync_cursor("push")?;
-        let batch: Vec<Op> = self.store.ops_since(cursor)?.into_iter().take(BATCH).collect();
+        let batch: Vec<Op> = self
+            .store
+            .ops_since(cursor)?
+            .into_iter()
+            .take(BATCH)
+            .collect();
         let Some(last) = batch.last().map(|op| op.seq) else {
             // Nothing to push: the pull starts, and its pending entries are applied at its end.
             self.pending = self.store.pending_pull()?;
@@ -371,7 +393,10 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
             return Ok(None);
         };
         self.jobs.push_front(Job::Push);
-        self.jobs.push_front(Job::SendBatch { ops: batch.clone(), last });
+        self.jobs.push_front(Job::SendBatch {
+            ops: batch.clone(),
+            last,
+        });
         for op in batch.iter().rev() {
             for hash in media_refs(&remote(op.clone())).into_iter().rev() {
                 self.jobs.push_front(Job::CheckMedia(hash));
@@ -384,7 +409,13 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
     fn apply(&mut self, entry: PullRetry) -> Result<()> {
         let pulled: PulledOp = match serde_json::from_str(&entry.operation) {
             Ok(op) => op,
-            Err(error) => return self.record_failure(entry.id, format!("Ungültige Operation: {error}"), true),
+            Err(error) => {
+                return self.record_failure(
+                    entry.id,
+                    format!("Ungültige Operation: {error}"),
+                    true,
+                );
+            }
         };
         let op = match open(&self.dek, &self.state.account.id, &pulled) {
             Ok(op) => op,
@@ -397,15 +428,23 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
             }
         }
         // Front of the queue, in order: the fetches, then the commit that applies the operation.
-        self.jobs.push_front(Job::Commit { entry: entry.id, op });
+        self.jobs.push_front(Job::Commit {
+            entry: entry.id,
+            op,
+        });
         for hash in missing.into_iter().rev() {
-            self.jobs.push_front(Job::FetchMedia { hash, entry: entry.id });
+            self.jobs.push_front(Job::FetchMedia {
+                hash,
+                entry: entry.id,
+            });
         }
         Ok(())
     }
 
     fn record_failure(&mut self, id: i64, reason: String, permanent: bool) -> Result<()> {
-        self.report.quarantined.extend(self.store.fail_pull(id, &reason, permanent)?);
+        self.report
+            .quarantined
+            .extend(self.store.fail_pull(id, &reason, permanent)?);
         self.report.applied.failed.push(reason);
         Ok(())
     }
@@ -455,13 +494,19 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
         let ops: Vec<serde_json::Value> = page
             .ops
             .into_iter()
-            .filter(|op| op.get("device").and_then(serde_json::Value::as_str) != Some(self.store.node_id()))
+            .filter(|op| {
+                op.get("device").and_then(serde_json::Value::as_str) != Some(self.store.node_id())
+            })
             .collect();
         let entries = self.store.queue_pull_page(page.cursor, &ops)?;
         self.report.pulled += entries.len();
         let mut next: Vec<Job> = entries.into_iter().map(Job::Apply).collect();
         if done {
-            next.extend(std::mem::take(&mut self.pending).into_iter().map(Job::Apply));
+            next.extend(
+                std::mem::take(&mut self.pending)
+                    .into_iter()
+                    .map(Job::Apply),
+            );
             if self.complete {
                 next.push(Job::Complete);
             }
@@ -496,7 +541,8 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> Flow for SyncFlow<S, K> {
 
     fn step(&mut self, reply: Option<Reply>) -> Result<Step<SyncReport>> {
         if let Some(awaiting) = self.awaiting.take() {
-            let reply = reply.ok_or_else(|| anyhow!("the sync needs the reply to its last call"))?;
+            let reply =
+                reply.ok_or_else(|| anyhow!("the sync needs the reply to its last call"))?;
             self.answer(awaiting, reply)?;
         }
         self.advance()

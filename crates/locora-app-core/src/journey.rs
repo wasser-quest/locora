@@ -8,8 +8,8 @@ use anyhow::{Context, Result, bail};
 use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{Answer, AnswerKind as Kind, Submission};
 use locora_app_api::{
-    ActionDone, AnswerKind, Feedback, GameView, InputField, JourneyStart, Media, Question, Reply,
-    Revealed, Step, Summary, VideoPreviewItem, NearbyLocus,
+    ActionDone, AnswerKind, Feedback, GameView, InputField, JourneyStart, Media, NearbyLocus,
+    Question, Reply, Revealed, Step, Summary, VideoPreviewItem,
 };
 use locora_formula::workbook::{ActionOutcome, Run};
 use locora_runtime::journey::{PlanOptions, Stop, plan, resolve_text};
@@ -290,20 +290,30 @@ impl Journey {
             video_preview,
             backdrop: room.media.as_deref().and_then(|h| media(&profile.store, h)),
             marker: marker(&profile.store, tree, default_marker),
-            nearby: self.stops.iter().enumerate().filter_map(|(index, nearby)| {
-                if nearby.palace != stop.palace || nearby.room != stop.room { return None; }
-                let locus = nearby.locus(&self.trees);
-                Some(NearbyLocus {
-                    id: locus.id.clone(),
-                    offset: index as i32 - self.at as i32,
-                    number: nearby.number as u32,
-                    x: locus.x,
-                    y: locus.y,
-                    time: locus.time,
-                    picture: locus.image.as_deref().and_then(|h| media(&profile.store, h)),
-                    image_size: locus.image_size,
+            nearby: self
+                .stops
+                .iter()
+                .enumerate()
+                .filter_map(|(index, nearby)| {
+                    if nearby.palace != stop.palace || nearby.room != stop.room {
+                        return None;
+                    }
+                    let locus = nearby.locus(&self.trees);
+                    Some(NearbyLocus {
+                        id: locus.id.clone(),
+                        offset: index as i32 - self.at as i32,
+                        number: nearby.number as u32,
+                        x: locus.x,
+                        y: locus.y,
+                        time: locus.time,
+                        picture: locus
+                            .image
+                            .as_deref()
+                            .and_then(|h| media(&profile.store, h)),
+                        image_size: locus.image_size,
+                    })
                 })
-            }).collect(),
+                .collect(),
             x: locus.x,
             y: locus.y,
             zoom: locus.zoom,
@@ -634,24 +644,56 @@ mod tests {
         let mut profile = Profile::open(Some(dir.path())).unwrap();
         let palace = profile.store.create_palace("Video").unwrap();
         let video = profile.store.put_media(b"video", "video/mp4").unwrap();
-        let room = profile.store.add_room(&palace.id, "Film", RoomKind::Video, Some(&video.hash)).unwrap();
-        for (place, item, time) in [("Tor", "Erster", 0.0), ("Fenster", "Zweiter", 0.0), ("Garten", "Später", 2.0)] {
-            profile.store.add_locus(&room.id, NewLocus {
-                place: place.into(), item: item.into(), time: Some(time),
-                x: 0.5, y: 0.5, answer: Answer::default(), image: None,
-                note: String::new(), image_size: locora_store::default_image_size(),
-                zoom: locora_store::default_zoom(),
-            }).unwrap();
+        let room = profile
+            .store
+            .add_room(&palace.id, "Film", RoomKind::Video, Some(&video.hash))
+            .unwrap();
+        for (place, item, time) in [
+            ("Tor", "Erster", 0.0),
+            ("Fenster", "Zweiter", 0.0),
+            ("Garten", "Später", 2.0),
+        ] {
+            profile
+                .store
+                .add_locus(
+                    &room.id,
+                    NewLocus {
+                        place: place.into(),
+                        item: item.into(),
+                        time: Some(time),
+                        x: 0.5,
+                        y: 0.5,
+                        answer: Answer::default(),
+                        image: None,
+                        note: String::new(),
+                        image_size: locora_store::default_image_size(),
+                        zoom: locora_store::default_zoom(),
+                    },
+                )
+                .unwrap();
         }
-        let journey = Journey::start(&mut profile, JourneyStart {
-            palace_id: Some(palace.id), ..Default::default()
-        }).unwrap().unwrap();
+        let journey = Journey::start(
+            &mut profile,
+            JourneyStart {
+                palace_id: Some(palace.id),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
         let question = journey.question(&profile, "marker");
         assert_eq!(question.time, Some(0.0));
         assert_eq!(question.nearby.len(), 3);
         assert_eq!(question.nearby[0].offset, 0);
         assert_eq!(question.nearby[1].offset, 1);
-        assert_eq!(question.video_preview.iter().map(|item| item.place.as_str()).collect::<Vec<_>>(), vec!["Tor", "Fenster"]);
+        assert_eq!(
+            question
+                .video_preview
+                .iter()
+                .map(|item| item.place.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Tor", "Fenster"]
+        );
     }
 
     #[test]
@@ -914,12 +956,19 @@ mod tests {
             ..Default::default()
         };
         let mut journey = Journey::start(&mut profile, start).unwrap().unwrap();
-        let feedback = journey.answer(&mut profile, Reply::Forfeit, "marker").unwrap();
+        let feedback = journey
+            .answer(&mut profile, Reply::Forfeit, "marker")
+            .unwrap();
         assert!(!feedback.correct);
         let Step::Done(summary) = feedback.next else {
             panic!("sudden death ends the journey")
         };
         assert_eq!(summary.asked, 1);
-        assert!(summary.notes.iter().any(|note| note.starts_with("Sudden Death")));
+        assert!(
+            summary
+                .notes
+                .iter()
+                .any(|note| note.starts_with("Sudden Death"))
+        );
     }
 }

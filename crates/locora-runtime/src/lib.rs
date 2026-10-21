@@ -9,7 +9,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 
 use anyhow::{Context, Result, bail, ensure};
-use serde::{Deserialize, Serialize};
 use locora_api::Service as _;
 use locora_api::core::{Grade, JourneyScore, LearningDayAnswer, LocusAnswered, Score};
 use locora_api::gamification::{
@@ -19,7 +18,10 @@ use locora_api::gamification::{
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
 use locora_api::notify::{Due, DueRequest, Message};
 use locora_api::tutorial::{Tour, TourAction};
-use locora_api::ui::{Block, HighlightRequest, MAX_BLOCKS, MAX_PAGES, Page, Remove, Tile, valid_id};
+use locora_api::ui::{
+    Block, HighlightRequest, MAX_BLOCKS, MAX_PAGES, Page, Remove, Tile, valid_id,
+};
+use serde::{Deserialize, Serialize};
 
 /// Latest `ui.tile` per plugin, kept in the profile (reserved id `host`).
 const TILES: &str = "tiles";
@@ -38,10 +40,10 @@ use locora_store::{PalaceTree, Store};
 
 pub mod cloud;
 pub mod cloud_http;
-mod palace_i18n;
 pub mod cloud_sync;
 pub mod formula_guide;
 pub mod journey;
+mod palace_i18n;
 pub mod publishers;
 pub mod settings;
 pub mod transfer;
@@ -306,11 +308,9 @@ impl Profile {
                     <Remove as locora_api::Event>::TOPIC,
                 ]
                 .contains(&topic.as_str())
-            {
-                if let Err(e) = self.keep_ui(plugin, topic, payload) {
+                && let Err(e) = self.keep_ui(plugin, topic, payload) {
                     notes.push(format!("[{plugin}] Seiten/Blöcke nicht übernommen: {e:#}"));
                 }
-            }
             if let HostEvent::Published {
                 plugin,
                 topic,
@@ -428,7 +428,8 @@ impl Profile {
             ui.pages.remove(&remove.id);
             ui.blocks.remove(&remove.id);
         }
-        self.store.kv_set("host", UI, &serde_json::to_vec(&saved)?)?;
+        self.store
+            .kv_set("host", UI, &serde_json::to_vec(&saved)?)?;
         Ok(())
     }
 
@@ -942,14 +943,21 @@ mod ui_tests {
             .keep_ui(
                 "review",
                 <Remove as locora_api::Event>::TOPIC,
-                &locora_api::encode(&Remove { id: "streak".into() }).unwrap(),
+                &locora_api::encode(&Remove {
+                    id: "streak".into(),
+                })
+                .unwrap(),
             )
             .unwrap();
         assert!(!mine(&profile).blocks.contains_key("streak"));
 
         drop(profile);
         let again = Profile::open(Some(dir.path())).unwrap();
-        assert_eq!(mine(&again).blocks.len(), MAX_BLOCKS - 1, "kept across restarts");
+        assert_eq!(
+            mine(&again).blocks.len(),
+            MAX_BLOCKS - 1,
+            "kept across restarts"
+        );
         assert_eq!(mine(&again).pages["tag"], page);
     }
 }

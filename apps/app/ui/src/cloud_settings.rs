@@ -5,8 +5,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
     CMD_CLOUD_CONNECT, CMD_CLOUD_DELETE_ACCOUNT, CMD_CLOUD_ERASE, CMD_CLOUD_KEYS_SETUP,
-    CMD_CLOUD_KEYS_STATUS, CMD_CLOUD_LOGOUT, CMD_CLOUD_REFRESH, CMD_CLOUD_STATUS, CMD_CLOUD_SYNC, CloudConnect, CloudKeyCreated,
-    CloudKeySetup, CloudStatus, CloudSyncResult,
+    CMD_CLOUD_KEYS_STATUS, CMD_CLOUD_LOGOUT, CMD_CLOUD_REFRESH, CMD_CLOUD_STATUS, CMD_CLOUD_SYNC,
+    CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, CloudSyncResult,
 };
 use serde::Serialize;
 
@@ -17,7 +17,6 @@ use crate::tauri::{NoArgs, call};
 struct ConnectArgs {
     request: CloudConnect,
 }
-
 
 #[derive(Serialize)]
 struct KeyArgs {
@@ -223,12 +222,24 @@ fn DeleteCloud(
         busy.set(true);
         message.set(None);
         spawn_local(async move {
-            match call::<()>(CMD_CLOUD_DELETE_ACCOUNT, DeleteAccountArgs { password: secret }).await {
+            match call::<()>(
+                CMD_CLOUD_DELETE_ACCOUNT,
+                DeleteAccountArgs { password: secret },
+            )
+            .await
+            {
                 Ok(()) => {
                     password.set(String::new());
                     recovery.set(None);
-                    status.set(Some(Ok(CloudStatus { account: None, server: None, access: false })));
-                    message.set(Some(Ok(t("Cloud-Konto gelöscht. Die Daten auf diesem Gerät bleiben.").into())));
+                    status.set(Some(Ok(CloudStatus {
+                        account: None,
+                        server: None,
+                        access: false,
+                    })));
+                    message.set(Some(Ok(t(
+                        "Cloud-Konto gelöscht. Die Daten auf diesem Gerät bleiben.",
+                    )
+                    .into())));
                 }
                 Err(error) => message.set(Some(Err(error))),
             }
@@ -368,9 +379,10 @@ fn KeySetupForm(
         if secret != confirmation.get_untracked() {
             passphrase.set(String::new());
             confirmation.set(String::new());
-            message.set(Some(Err(
-                t("Die Verschlüsselungs-Passwörter stimmen nicht überein.").into(),
-            )));
+            message.set(Some(Err(t(
+                "Die Verschlüsselungs-Passwörter stimmen nicht überein.",
+            )
+            .into())));
             return;
         }
         passphrase.set(String::new());

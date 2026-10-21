@@ -135,7 +135,13 @@ pub fn now_secs() -> u64 {
 }
 
 /// The request for `path` on `server`. Only a checked server address is called.
-pub(crate) fn call(method: Method, server: &str, path: &str, token: Option<&str>, body: Option<Body>) -> Result<Call> {
+pub(crate) fn call(
+    method: Method,
+    server: &str,
+    path: &str,
+    token: Option<&str>,
+    body: Option<Body>,
+) -> Result<Call> {
     Ok(Call {
         method,
         url: format!("{}{path}", check_server(server)?),
@@ -162,20 +168,40 @@ fn state_from_session(server: String, session: Session) -> CloudState {
 
 /// A failing entitlement keeps the account signed in: access stays off until a later refresh.
 fn with_entitlement(mut state: CloudState, reply: Reply) -> CloudState {
-    state.entitlement = json::<EntitlementReply>(reply).ok().map(|reply| reply.token);
+    state.entitlement = json::<EntitlementReply>(reply)
+        .ok()
+        .map(|reply| reply.token);
     state
 }
 
 pub(crate) fn entitlement_call(state: &CloudState) -> Result<Call> {
-    call(Method::Post, &state.server, "/v1/entitlement", Some(&state.token), Some(json_body(&serde_json::Value::Null)?))
+    call(
+        Method::Post,
+        &state.server,
+        "/v1/entitlement",
+        Some(&state.token),
+        Some(json_body(&serde_json::Value::Null)?),
+    )
 }
 
 pub(crate) fn me_call(state: &CloudState) -> Result<Call> {
-    call(Method::Get, &state.server, "/v1/me", Some(&state.token), None)
+    call(
+        Method::Get,
+        &state.server,
+        "/v1/me",
+        Some(&state.token),
+        None,
+    )
 }
 
 pub fn keys_call(state: &CloudState) -> Result<Call> {
-    call(Method::Get, &state.server, "/v1/keys", Some(&state.token), None)
+    call(
+        Method::Get,
+        &state.server,
+        "/v1/keys",
+        Some(&state.token),
+        None,
+    )
 }
 
 /// The wrapped keys, or `None` (a 404) before the encryption was set up.
@@ -187,28 +213,58 @@ pub fn keys_reply(reply: Reply) -> Result<Option<KeyBundle>> {
 }
 
 pub fn create_keys_call(state: &CloudState, bundle: &KeyBundle) -> Result<Call> {
-    call(Method::Post, &state.server, "/v1/keys", Some(&state.token), Some(json_body(bundle)?))
+    call(
+        Method::Post,
+        &state.server,
+        "/v1/keys",
+        Some(&state.token),
+        Some(json_body(bundle)?),
+    )
 }
 
 pub fn retention_call(state: &CloudState) -> Result<Call> {
-    call(Method::Get, &state.server, "/v1/sync/retention", Some(&state.token), None)
+    call(
+        Method::Get,
+        &state.server,
+        "/v1/sync/retention",
+        Some(&state.token),
+        None,
+    )
 }
 
 pub fn rebuild_call(state: &CloudState, generation: i64) -> Result<Call> {
     let body = serde_json::json!({ "generation": generation });
-    call(Method::Post, &state.server, "/v1/sync/rebuild", Some(&state.token), Some(json_body(&body)?))
+    call(
+        Method::Post,
+        &state.server,
+        "/v1/sync/rebuild",
+        Some(&state.token),
+        Some(json_body(&body)?),
+    )
 }
 
 /// Deletes the account's synced operations and media on the server; the reply is the new
 /// generation (see `adopt_generation`).
 pub fn erase_call(state: &CloudState) -> Result<Call> {
-    call(Method::Delete, &state.server, "/v1/sync/data", Some(&state.token), None)
+    call(
+        Method::Delete,
+        &state.server,
+        "/v1/sync/data",
+        Some(&state.token),
+        None,
+    )
 }
 
 /// Deletes the account with all its data on the server, once its password is confirmed.
 pub fn delete_account_call(state: &CloudState, password: &str) -> Result<Call> {
     let body = serde_json::json!({ "password": password });
-    call(Method::Post, &state.server, "/v1/me/delete", Some(&state.token), Some(json_body(&body)?))
+    call(
+        Method::Post,
+        &state.server,
+        "/v1/me/delete",
+        Some(&state.token),
+        Some(json_body(&body)?),
+    )
 }
 
 /// Starts over with the server's generation: the next sync sends all local data and reads all of
@@ -221,7 +277,11 @@ pub fn delete_account_reply(reply: Reply) -> Result<()> {
     cloud_http::expect_success(reply)
 }
 
-pub fn adopt_generation(state: &mut CloudState, store: &locora_store::Store, generation: i64) -> Result<()> {
+pub fn adopt_generation(
+    state: &mut CloudState,
+    store: &locora_store::Store,
+    generation: i64,
+) -> Result<()> {
     store.set_sync_cursor("push", 0)?;
     store.set_sync_cursor("pull", 0)?;
     state.sync_generation = generation;
@@ -229,7 +289,13 @@ pub fn adopt_generation(state: &mut CloudState, store: &locora_store::Store, gen
 }
 
 pub fn logout_call(state: &CloudState) -> Result<Call> {
-    call(Method::Delete, &state.server, "/v1/sessions", Some(&state.token), None)
+    call(
+        Method::Delete,
+        &state.server,
+        "/v1/sessions",
+        Some(&state.token),
+        None,
+    )
 }
 
 pub(crate) fn complete_sync_call(state: &CloudState) -> Result<Call> {
@@ -243,7 +309,12 @@ pub(crate) fn complete_sync_call(state: &CloudState) -> Result<Call> {
 }
 
 /// A call on one media file of the account's storage (the id is keyed, see `locora-crypto`).
-pub(crate) fn media_call(state: &CloudState, method: Method, id: &str, body: Option<Body>) -> Result<Call> {
+pub(crate) fn media_call(
+    state: &CloudState,
+    method: Method,
+    id: &str,
+    body: Option<Body>,
+) -> Result<Call> {
     let mut call = call(
         method,
         &state.server,
@@ -269,7 +340,11 @@ pub(crate) fn exists_reply(reply: Reply) -> Result<bool> {
 
 /// The bytes of a media file, or the server's message.
 pub(crate) fn media_reply(reply: Reply) -> Result<Vec<u8>> {
-    if reply.is_success() { Ok(reply.body) } else { Err(cloud_http::failure(&reply)) }
+    if reply.is_success() {
+        Ok(reply.body)
+    } else {
+        Err(cloud_http::failure(&reply))
+    }
 }
 
 /// A reply whose body is not needed; only a failure is an error.
@@ -286,7 +361,13 @@ pub struct Connect {
 }
 
 impl Connect {
-    pub fn sign_up(server: &str, email: &str, password: &str, display_name: &str, guest: bool) -> Result<Self> {
+    pub fn sign_up(
+        server: &str,
+        email: &str,
+        password: &str,
+        display_name: &str,
+        guest: bool,
+    ) -> Result<Self> {
         let body = Register {
             email: email.to_owned(),
             password: password.to_owned(),
@@ -391,24 +472,65 @@ mod blocking {
     use super::*;
     use crate::cloud_http::{Exchange, expect_success, run};
     use locora_cloud_api::api::{
-        Challenge, CreateChallenge, FinishReply, Friend, FriendRequest, GameAnswer, GameState, JourneyStarted,
-        PasswordChange, Ranking, StartJourney, XpState,
+        Challenge, CreateChallenge, FinishReply, Friend, FriendRequest, GameAnswer, GameState,
+        JourneyStarted, PasswordChange, Ranking, StartJourney, XpState,
     };
 
-    pub(crate) fn get<T: serde::de::DeserializeOwned>(server: &str, path: &str, token: &str) -> Result<T> {
-        run(Exchange::new(call(Method::Get, server, path, Some(token), None)?, json::<T>))
+    pub(crate) fn get<T: serde::de::DeserializeOwned>(
+        server: &str,
+        path: &str,
+        token: &str,
+    ) -> Result<T> {
+        run(Exchange::new(
+            call(Method::Get, server, path, Some(token), None)?,
+            json::<T>,
+        ))
     }
 
-    pub(crate) fn put<T: serde::de::DeserializeOwned, B: Serialize>(server: &str, path: &str, token: &str, body: &B) -> Result<T> {
-        run(Exchange::new(call(Method::Put, server, path, Some(token), Some(json_body(body)?))?, json::<T>))
+    pub(crate) fn put<T: serde::de::DeserializeOwned, B: Serialize>(
+        server: &str,
+        path: &str,
+        token: &str,
+        body: &B,
+    ) -> Result<T> {
+        run(Exchange::new(
+            call(
+                Method::Put,
+                server,
+                path,
+                Some(token),
+                Some(json_body(body)?),
+            )?,
+            json::<T>,
+        ))
     }
 
-    pub(crate) fn post<T: serde::de::DeserializeOwned, B: Serialize>(server: &str, path: &str, token: Option<&str>, body: &B) -> Result<T> {
-        run(Exchange::new(call(Method::Post, server, path, token, Some(json_body(body)?))?, json::<T>))
+    pub(crate) fn post<T: serde::de::DeserializeOwned, B: Serialize>(
+        server: &str,
+        path: &str,
+        token: Option<&str>,
+        body: &B,
+    ) -> Result<T> {
+        run(Exchange::new(
+            call(Method::Post, server, path, token, Some(json_body(body)?))?,
+            json::<T>,
+        ))
     }
 
-    pub fn register(server: &str, email: &str, password: &str, display_name: &str, guest: bool) -> Result<CloudState> {
-        run(Connect::sign_up(server, email, password, display_name, guest)?)
+    pub fn register(
+        server: &str,
+        email: &str,
+        password: &str,
+        display_name: &str,
+        guest: bool,
+    ) -> Result<CloudState> {
+        run(Connect::sign_up(
+            server,
+            email,
+            password,
+            display_name,
+            guest,
+        )?)
     }
 
     pub fn login(server: &str, email: &str, password: &str) -> Result<CloudState> {
@@ -439,7 +561,10 @@ mod blocking {
 
     /// Asks the server for a new entitlement. Without a subscription the old token is dropped.
     pub fn refresh(state: &mut CloudState) -> Result<()> {
-        match run(Exchange::new(entitlement_call(state)?, json::<EntitlementReply>)) {
+        match run(Exchange::new(
+            entitlement_call(state)?,
+            json::<EntitlementReply>,
+        )) {
             Ok(reply) => {
                 state.entitlement = Some(reply.token);
                 Ok(())
@@ -462,7 +587,12 @@ mod blocking {
     }
 
     pub fn begin_rebuild(state: &CloudState, generation: i64) -> Result<RetentionStatus> {
-        post(&state.server, "/v1/sync/rebuild", Some(&state.token), &serde_json::json!({"generation": generation}))
+        post(
+            &state.server,
+            "/v1/sync/rebuild",
+            Some(&state.token),
+            &serde_json::json!({"generation": generation}),
+        )
     }
 
     /// Deletes the synced data on the server; the reply carries the new generation.
@@ -472,13 +602,20 @@ mod blocking {
 
     /// Deletes the account on the server; the caller then removes the local session.
     pub fn delete_account(state: &CloudState, password: &str) -> Result<()> {
-        run(Exchange::new(delete_account_call(state, password)?, delete_account_reply))
+        run(Exchange::new(
+            delete_account_call(state, password)?,
+            delete_account_reply,
+        ))
     }
 
     /// All-time ranking of this account's world, or of its friends.
     pub fn ranking(state: &CloudState, friends: bool) -> Result<Ranking> {
         let scope = if friends { "friends" } else { "global" };
-        get(&state.server, &format!("/v1/ranking?scope={scope}"), &state.token)
+        get(
+            &state.server,
+            &format!("/v1/ranking?scope={scope}"),
+            &state.token,
+        )
     }
 
     pub fn friends(state: &CloudState) -> Result<Vec<Friend>> {
@@ -486,23 +623,37 @@ mod blocking {
     }
 
     pub fn request_friend(state: &CloudState, email: &str) -> Result<Friend> {
-        let body = FriendRequest { email: email.to_owned() };
+        let body = FriendRequest {
+            email: email.to_owned(),
+        };
         post(&state.server, "/v1/friends", Some(&state.token), &body)
     }
 
     pub fn create_challenge(state: &CloudState, name: &str, ends_at: u64) -> Result<Challenge> {
-        let body = CreateChallenge { name: name.to_owned(), ends_at };
+        let body = CreateChallenge {
+            name: name.to_owned(),
+            ends_at,
+        };
         post(&state.server, "/v1/challenges", Some(&state.token), &body)
     }
 
     pub fn join_challenge(state: &CloudState, id: &str) -> Result<Challenge> {
         let id = percent_encoding::utf8_percent_encode(id, percent_encoding::NON_ALPHANUMERIC);
-        post(&state.server, &format!("/v1/challenges/{id}/join"), Some(&state.token), &serde_json::Value::Null)
+        post(
+            &state.server,
+            &format!("/v1/challenges/{id}/join"),
+            Some(&state.token),
+            &serde_json::Value::Null,
+        )
     }
 
     pub fn challenge_ranking(state: &CloudState, id: &str) -> Result<Ranking> {
         let id = percent_encoding::utf8_percent_encode(id, percent_encoding::NON_ALPHANUMERIC);
-        get(&state.server, &format!("/v1/challenges/{id}/ranking"), &state.token)
+        get(
+            &state.server,
+            &format!("/v1/challenges/{id}/ranking"),
+            &state.token,
+        )
     }
 
     /// The wrapped account keys, or `None` before the encryption was set up.
@@ -511,7 +662,10 @@ mod blocking {
     }
 
     pub fn create_keys(state: &CloudState, bundle: &KeyBundle) -> Result<()> {
-        run(Exchange::new(create_keys_call(state, bundle)?, ignore_reply))
+        run(Exchange::new(
+            create_keys_call(state, bundle)?,
+            ignore_reply,
+        ))
     }
 
     pub fn replace_keys(state: &CloudState, bundle: &KeyBundle) -> Result<()> {
@@ -520,22 +674,41 @@ mod blocking {
     }
 
     /// Starts a journey on the server; its clock starts now.
-    pub fn start_journey(state: &CloudState, journey_id: &str, challenge: Option<&str>) -> Result<JourneyStarted> {
+    pub fn start_journey(
+        state: &CloudState,
+        journey_id: &str,
+        challenge: Option<&str>,
+    ) -> Result<JourneyStarted> {
         let body = StartJourney {
             journey_id: journey_id.to_owned(),
             challenge_id: challenge.map(str::to_owned),
         };
-        post(&state.server, "/v1/game/journeys", Some(&state.token), &body)
+        post(
+            &state.server,
+            "/v1/game/journeys",
+            Some(&state.token),
+            &body,
+        )
     }
 
     /// Reports one answer. `at_ms` is measured from the same start as the server's clock.
     pub fn answer(state: &CloudState, journey_id: &str, answer: &GameAnswer) -> Result<GameState> {
-        post(&state.server, &format!("/v1/game/journeys/{journey_id}/answers"), Some(&state.token), answer)
+        post(
+            &state.server,
+            &format!("/v1/game/journeys/{journey_id}/answers"),
+            Some(&state.token),
+            answer,
+        )
     }
 
     /// Ends a journey; the server computes its XP from the answers it recorded.
     pub fn finish_journey(state: &CloudState, journey_id: &str) -> Result<FinishReply> {
-        post(&state.server, &format!("/v1/game/journeys/{journey_id}/finish"), Some(&state.token), &serde_json::Value::Null)
+        post(
+            &state.server,
+            &format!("/v1/game/journeys/{journey_id}/finish"),
+            Some(&state.token),
+            &serde_json::Value::Null,
+        )
     }
 
     /// The XP of this account, as the server counts it.
@@ -700,20 +873,33 @@ mod tests {
                 r#"{{"token":"t","account":{{"id":"a","email":"e@x.invalid","display_name":"D","subscription":"{subscription}","plan":null,"period_end":null}}}}"#
             )
         };
-        let mut flow = Connect::sign_in("https://cloud.example", "e@x.invalid", "password one").unwrap();
+        let mut flow =
+            Connect::sign_in("https://cloud.example", "e@x.invalid", "password one").unwrap();
         assert!(matches!(flow.step(None), Ok(Step::Call(_))));
-        let state = match flow.step(Some(Reply { status: 200, body: session("none").into_bytes() })) {
+        let state = match flow.step(Some(Reply {
+            status: 200,
+            body: session("none").into_bytes(),
+        })) {
             Ok(Step::Done(state)) => state,
             _ => panic!("no subscription: the session is the whole answer"),
         };
         assert!(state.entitlement.is_none());
 
-        let mut flow = Connect::sign_in("https://cloud.example", "e@x.invalid", "password one").unwrap();
+        let mut flow =
+            Connect::sign_in("https://cloud.example", "e@x.invalid", "password one").unwrap();
         let _ = flow.step(None);
-        let next = flow.step(Some(Reply { status: 200, body: session("active").into_bytes() }));
-        let Ok(Step::Call(call)) = next else { panic!("an active subscription asks for the entitlement") };
+        let next = flow.step(Some(Reply {
+            status: 200,
+            body: session("active").into_bytes(),
+        }));
+        let Ok(Step::Call(call)) = next else {
+            panic!("an active subscription asks for the entitlement")
+        };
         assert!(call.url.ends_with("/v1/entitlement"));
-        let done = flow.step(Some(Reply { status: 503, body: Vec::new() }));
+        let done = flow.step(Some(Reply {
+            status: 503,
+            body: Vec::new(),
+        }));
         assert!(matches!(done, Ok(Step::Done(state)) if state.entitlement.is_none()));
     }
 
@@ -735,8 +921,21 @@ mod tests {
         };
         let upload = media_call(&state, Method::Put, "abc", Some(Body::Bytes(vec![1]))).unwrap();
         assert_eq!(upload.timeout_secs, MEDIA_TIMEOUT_SECS);
-        assert_eq!(upload.url, "https://cloud.example/v1/media/abc?generation=3");
-        assert_eq!(media_call(&state, Method::Get, "abc", None).unwrap().timeout_secs, MEDIA_TIMEOUT_SECS);
-        assert_eq!(media_call(&state, Method::Head, "abc", None).unwrap().timeout_secs, TIMEOUT_SECS);
+        assert_eq!(
+            upload.url,
+            "https://cloud.example/v1/media/abc?generation=3"
+        );
+        assert_eq!(
+            media_call(&state, Method::Get, "abc", None)
+                .unwrap()
+                .timeout_secs,
+            MEDIA_TIMEOUT_SECS
+        );
+        assert_eq!(
+            media_call(&state, Method::Head, "abc", None)
+                .unwrap()
+                .timeout_secs,
+            TIMEOUT_SECS
+        );
     }
 }

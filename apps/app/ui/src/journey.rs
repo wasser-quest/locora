@@ -467,7 +467,11 @@ fn GameStatus(
     // Answers only change the numbers: the icons are built once per artwork, not once per answer,
     // so the animated frames (and the video next to them) are not rebuilt.
     let trophies = Memo::new(move |_| {
-        status.with(|game| game.as_ref().map(|game| game.trophies.clone()).unwrap_or_default())
+        status.with(|game| {
+            game.as_ref()
+                .map(|game| game.trophies.clone())
+                .unwrap_or_default()
+        })
     });
     view! {
         <Show when=move || status.with(Option::is_some) && crate::locus_display::signal().get().gamification>
@@ -967,7 +971,12 @@ fn Ask(
 
 #[component]
 fn Grades(reply: impl Fn(Reply) + Copy + 'static, busy: RwSignal<bool>) -> impl IntoView {
-    let grades = [(1u8, t("Nochmal")), (2, t("Schwer")), (3, t("Gut")), (4, t("Leicht"))];
+    let grades = [
+        (1u8, t("Nochmal")),
+        (2, t("Schwer")),
+        (3, t("Gut")),
+        (4, t("Leicht")),
+    ];
     view! {
         <div class="grades">
             {grades
@@ -1032,7 +1041,13 @@ fn Judged(
 fn game_status(game: GameView) -> String {
     const HEARTS: usize = 5;
     let held = usize::from(game.hearts).min(HEARTS);
-    crate::i18n::tf("Combo {0} · Herzen {1}", &[&game.combo, &format!("{}{}", "♥".repeat(held), "♡".repeat(HEARTS - held))])
+    crate::i18n::tf(
+        "Combo {0} · Herzen {1}",
+        &[
+            &game.combo,
+            &format!("{}{}", "♥".repeat(held), "♡".repeat(HEARTS - held)),
+        ],
+    )
 }
 
 #[component]

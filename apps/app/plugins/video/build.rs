@@ -1,5 +1,7 @@
 const COMMANDS: &[&str] = &["convert"];
 
 fn main() {
-    tauri_plugin::Builder::new(COMMANDS).android_path("android").build();
+    tauri_plugin::Builder::new(COMMANDS)
+        .android_path("android")
+        .build();
 }

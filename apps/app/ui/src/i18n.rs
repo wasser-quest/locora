@@ -42,7 +42,10 @@ impl Lang {
     }
 
     pub fn from_code(code: &str) -> Lang {
-        Self::ALL.into_iter().find(|lang| lang.code() == code).unwrap_or(Lang::En)
+        Self::ALL
+            .into_iter()
+            .find(|lang| lang.code() == code)
+            .unwrap_or(Lang::En)
     }
 
     fn column(self) -> usize {
@@ -94,7 +97,9 @@ pub fn load() -> Lang {
 }
 
 pub fn save(lang: Lang) {
-    if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
+    if let Some(storage) =
+        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
+    {
         let _ = storage.set_item(KEY, lang.code());
     }
 }

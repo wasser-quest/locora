@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use anyhow::Result;
 use locora_api::review::CardState;
 use locora_app_api::{
-    Home, LocusView, Media, MediaKind, PalaceCard, PalaceView, PluginBlock, PluginPage, RoomView, Status,
-    TileView,
+    Home, LocusView, Media, MediaKind, PalaceCard, PalaceView, PluginBlock, PluginPage, RoomView,
+    Status, TileView,
 };
 use locora_runtime::{Profile, count_due, now};
 use locora_store::{PalaceTree, SPLINELY, Store};
@@ -194,4 +194,3 @@ fn declared(
     }
     (blocks, pages)
 }
-

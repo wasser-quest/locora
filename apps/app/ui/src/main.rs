@@ -6,13 +6,13 @@ mod cloud_settings;
 mod crash;
 mod dashboard;
 mod dashboard_editor;
-mod look;
 mod editor;
 mod formulas;
 mod i18n;
 mod i18n_catalog;
 mod journey;
 mod locus_display;
+mod look;
 mod palette;
 mod settings;
 mod sply;
@@ -62,11 +62,10 @@ fn main() {
     // The static splash from index.html gives way to the app (it waits for its animation).
     if let Some(window) = web_sys::window() {
         use wasm_bindgen::JsCast;
-        if let Ok(hide) = js_sys::Reflect::get(&window, &"hideSplash".into()) {
-            if let Ok(hide) = hide.dyn_into::<js_sys::Function>() {
+        if let Ok(hide) = js_sys::Reflect::get(&window, &"hideSplash".into())
+            && let Ok(hide) = hide.dyn_into::<js_sys::Function>() {
                 let _ = hide.call0(&wasm_bindgen::JsValue::NULL);
             }
-        }
     }
 }
 
@@ -93,7 +92,7 @@ fn tour_action(
     busy: RwSignal<bool>,
     error: RwSignal<String>,
     route_ready: RwSignal<bool>,
-    target_ready: RwSignal<bool>,
+    _target_ready: RwSignal<bool>,
     action: TourAction,
 ) {
     if busy.get_untracked() {
@@ -140,12 +139,27 @@ async fn route_tour_step(
                 screen.set(Screen::Home);
             }
         }
-        "tour-palace-route" | "tour-editor-toggle" | "tour-editor-stage" | "tour-editor-content" | "tour-editor-answer" | "tour-journey-prompt" => {
+        "tour-palace-route"
+        | "tour-editor-toggle"
+        | "tour-editor-stage"
+        | "tour-editor-content"
+        | "tour-editor-answer"
+        | "tour-journey-prompt" => {
             let home = call::<Home>(CMD_HOME, tauri::NoArgs {}).await?;
-            let id = if let Some(palace) = home.palaces.iter().find(|p| p.built_in.as_deref() == Some("tutorial")) {
+            let id = if let Some(palace) = home
+                .palaces
+                .iter()
+                .find(|p| p.built_in.as_deref() == Some("tutorial"))
+            {
                 palace.id.clone()
             } else {
-                call::<String>(CMD_TUTORIAL, LanguageArgs { lang: current_language() }).await?
+                call::<String>(
+                    CMD_TUTORIAL,
+                    LanguageArgs {
+                        lang: current_language(),
+                    },
+                )
+                .await?
             };
             if step.target == "tour-journey-prompt" {
                 if !matches!(screen.get_untracked(), Screen::Journey(ref start) if start.palace_id.as_ref() == Some(&id))
@@ -465,7 +479,10 @@ fn import_message(result: &locora_app_api::ImportResult) -> String {
         })
         .collect();
     if let Some(n) = result.restored {
-        parts.push(crate::i18n::tf("Wiederholungsstand für {0} Loci übernommen", &[&n]));
+        parts.push(crate::i18n::tf(
+            "Wiederholungsstand für {0} Loci übernommen",
+            &[&n],
+        ));
     }
     parts.extend(result.notes.iter().cloned());
     parts.join(" · ")
@@ -500,7 +517,7 @@ fn wide_screen() -> bool {
     web_sys::window()
         .and_then(|window| window.inner_width().ok())
         .and_then(|width| width.as_f64())
-        .map_or(true, |width| width > 700.0)
+        .is_none_or(|width| width > 700.0)
 }
 
 #[component]
@@ -685,7 +702,14 @@ fn HomeView(
         }
         busy.set(true);
         spawn_local(async move {
-            match call::<String>(CMD_TUTORIAL, LanguageArgs { lang: current_language() }).await {
+            match call::<String>(
+                CMD_TUTORIAL,
+                LanguageArgs {
+                    lang: current_language(),
+                },
+            )
+            .await
+            {
                 Ok(id) => screen.set(Screen::Palace(id)),
                 Err(e) => {
                     busy.set(false);
@@ -700,7 +724,14 @@ fn HomeView(
         }
         busy.set(true);
         spawn_local(async move {
-            match call::<String>(CMD_FORMULA_GUIDE, LanguageArgs { lang: current_language() }).await {
+            match call::<String>(
+                CMD_FORMULA_GUIDE,
+                LanguageArgs {
+                    lang: current_language(),
+                },
+            )
+            .await
+            {
                 Ok(id) => screen.set(Screen::Palace(id)),
                 Err(error) => {
                     busy.set(false);
@@ -719,8 +750,22 @@ fn HomeView(
         spawn_local(async move {
             // The tour always sets up both built-in palaces again, also after they were deleted.
             let mut created = false;
-            created |= call::<String>(CMD_TUTORIAL, LanguageArgs { lang: current_language() }).await.is_ok();
-            created |= call::<String>(CMD_FORMULA_GUIDE, LanguageArgs { lang: current_language() }).await.is_ok();
+            created |= call::<String>(
+                CMD_TUTORIAL,
+                LanguageArgs {
+                    lang: current_language(),
+                },
+            )
+            .await
+            .is_ok();
+            created |= call::<String>(
+                CMD_FORMULA_GUIDE,
+                LanguageArgs {
+                    lang: current_language(),
+                },
+            )
+            .await
+            .is_ok();
             if created {
                 reload.run(());
             }
@@ -752,266 +797,266 @@ fn HomeView(
     };
     let dashboard_open = expect_context::<dashboard::Open>().0;
     view! {
-        <header class="bar home-bar">
-            <h1>{if core_only { "Core" } else { "Locora" }}</h1>
-            <div class="home-actions">
-                {core_only.then(|| view! {
-                    <button class="wide" on:click=move |_| screen.set(Screen::Home)>{t("Startseite")}</button>
-                })}
-                <button class="primary wide" id="tour-home-media" disabled=move || busy.get() on:click=pick_media>{t("Bild/Video wählen…")}</button>
-                <button id="tour-home-import" disabled=move || busy.get() on:click=import title=t("Paläste aus einer .locora-Datei oder locora.toml")>
-                    {t("Importieren…")}
-                </button>
-                <button disabled=move || busy.get() on:click=start_tour>{t("App-Tour")}</button>
-                {(!core_only).then(|| view! {
-                    <button on:click=move |_| dashboard_open.update(|open| *open = !*open)>{t("Seiten anpassen")}</button>
-                })}
-                <button class="icon" id="tour-home-settings" title=t("Einstellungen & Statistik") aria-label=t("Einstellungen & Statistik") on:click=move |_| screen.set(Screen::Settings)>
-                    "⚙"
-                </button>
-            </div>
-        </header>
-        <p class="notes" role="status">{move || message.get()}</p>
-        <p class="status" role="status">{move || info.get()}</p>
-        {move || match home.get() {
-            None => view! { <Loading /> }.into_any(),
-            Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
-            Some(Ok(home)) => {
-                let waiting = home.due + home.fresh;
-                let tutorial = home.tutorial;
-                let formula_guide = home.formula_guide;
-                if let Some(simo) = home.welcome.clone().filter(|_| !core_only) {
-                    return view! {
-                        <section class="card welcome">
-                            <div class="simo">
-                                <Sply media=simo />
-                            </div>
-                            <div class="text">
-                                <h2>{t("Willkommen bei Locora")}</h2>
-                                <p>
-                                    {t("Mit der Loci-Methode legst du, was du behalten willst, an Orte, die du ")}
-                                    {t("gut kennst – und gehst die Route später im Kopf ab.")}
-                                </p>
-                                <p class="meta">
-                                    {t("Am schnellsten lernst du Locora mit Locora selbst: Das Tutorial ist ein ")}
-                                    {t("kleiner Gedächtnispalast mit 3 Räumen und 9 Orten.")}
-                                </p>
-                                <div class="row">
-                                    <button
-                                        class="primary"
-                                        disabled=move || busy.get()
-                                        on:click=start_tutorial
-                                    >
-                                        {t("Tutorial starten")}
-                                    </button>
-                                    <button disabled=move || busy.get() on:click=pick_media>
-                                        {t("Eigener Palast aus Bild/Video…")}
-                                    </button>
-                                    <button disabled=move || busy.get() on:click=start_formula_guide>
-                                        {t("Formel-Guide öffnen")}
-                                    </button>
+            <header class="bar home-bar">
+                <h1>{if core_only { "Core" } else { "Locora" }}</h1>
+                <div class="home-actions">
+                    {core_only.then(|| view! {
+                        <button class="wide" on:click=move |_| screen.set(Screen::Home)>{t("Startseite")}</button>
+                    })}
+                    <button class="primary wide" id="tour-home-media" disabled=move || busy.get() on:click=pick_media>{t("Bild/Video wählen…")}</button>
+                    <button id="tour-home-import" disabled=move || busy.get() on:click=import title=t("Paläste aus einer .locora-Datei oder locora.toml")>
+                        {t("Importieren…")}
+                    </button>
+                    <button disabled=move || busy.get() on:click=start_tour>{t("App-Tour")}</button>
+                    {(!core_only).then(|| view! {
+                        <button on:click=move |_| dashboard_open.update(|open| *open = !*open)>{t("Seiten anpassen")}</button>
+                    })}
+                    <button class="icon" id="tour-home-settings" title=t("Einstellungen & Statistik") aria-label=t("Einstellungen & Statistik") on:click=move |_| screen.set(Screen::Settings)>
+                        "⚙"
+                    </button>
+                </div>
+            </header>
+            <p class="notes" role="status">{move || message.get()}</p>
+            <p class="status" role="status">{move || info.get()}</p>
+            {move || match home.get() {
+                None => view! { <Loading /> }.into_any(),
+                Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
+                Some(Ok(home)) => {
+                    let waiting = home.due + home.fresh;
+                    let _tutorial = home.tutorial;
+                    let _formula_guide = home.formula_guide;
+                    if let Some(simo) = home.welcome.clone().filter(|_| !core_only) {
+                        return view! {
+                            <section class="card welcome">
+                                <div class="simo">
+                                    <Sply media=simo />
                                 </div>
-                            </div>
-                        </section>
-                        <Tiles tiles=home.tiles.clone() />
-                        <crate::achievements::Achievements />
-<crate::activity::Activity />
+                                <div class="text">
+                                    <h2>{t("Willkommen bei Locora")}</h2>
+                                    <p>
+                                        {t("Mit der Loci-Methode legst du, was du behalten willst, an Orte, die du ")}
+                                        {t("gut kennst – und gehst die Route später im Kopf ab.")}
+                                    </p>
+                                    <p class="meta">
+                                        {t("Am schnellsten lernst du Locora mit Locora selbst: Das Tutorial ist ein ")}
+                                        {t("kleiner Gedächtnispalast mit 3 Räumen und 9 Orten.")}
+                                    </p>
+                                    <div class="row">
+                                        <button
+                                            class="primary"
+                                            disabled=move || busy.get()
+                                            on:click=start_tutorial
+                                        >
+                                            {t("Tutorial starten")}
+                                        </button>
+                                        <button disabled=move || busy.get() on:click=pick_media>
+                                            {t("Eigener Palast aus Bild/Video…")}
+                                        </button>
+                                        <button disabled=move || busy.get() on:click=start_formula_guide>
+                                            {t("Formel-Guide öffnen")}
+                                        </button>
+                                    </div>
+                                </div>
+                            </section>
+                            <Tiles tiles=home.tiles.clone() />
+                            <crate::achievements::Achievements />
+    <crate::activity::Activity />
+                            {home
+                                .notes
+                                .into_iter()
+                                .map(|n| view! { <p class="notes">{n}</p> })
+                                .collect_view()}
+                        }
+                            .into_any();
+                    }
+                    let pages = expect_context::<dashboard::Layout>().0;
+                    let catalog = dashboard::Catalog {
+                        tiles: home.tiles.clone(),
+                        blocks: home.blocks.clone(),
+                        suggestions: home.pages.clone(),
+                    };
+                    let known = dashboard::known(&catalog);
+                    let page = pages.get().current().clone();
+                    // The built-in palaces show only where the layout places their blocks.
+                    let built_ins: Vec<PalaceCard> = home.palaces.iter().filter(|p| p.built_in.is_some()).cloned().collect();
+                    let mut palaces = Some(home.palaces);
+                    let mut shown: Vec<AnyView> = Vec::new();
+                    let mut folded: Vec<AnyView> = Vec::new();
+                    let mut fold_at = None;
+                    for entry in dashboard::resolve(&page.entries, &known, page.id == dashboard::START) {
+                        // Core only: the palaces, nothing else.
+                        let placement = if core_only && entry.id != "palaces" {
+                            dashboard::Placement::Hidden
+                        } else {
+                            entry.placement
+                        };
+                        let block: Option<AnyView> = match entry.id.as_str() {
+                            "due" => Some(
+                                view! {
+                                    <section class="card weiter">
+                                        <div class="text">
+                                            <div class="count">
+                                                {if waiting == 0 {
+                                                    t("Heute ist nichts fällig").to_owned()
+                                                } else {
+                                                    tf("{0} fällig · {1} neu", &[&home.due, &home.fresh])
+                                                }}
+                                            </div>
+                                            <div class="meta">
+                                                {if waiting == 0 {
+                                                    t("Simo hält die Laterne – morgen geht es weiter.")
+                                                } else {
+                                                    t("Wiederholen, was dein Gedächtnis gerade braucht.")
+                                                }}
+                                            </div>
+                                        </div>
+                                        {(waiting == 0)
+                                            .then(|| {
+                                                let art = art();
+                                                move || {
+                                                    art.get()
+                                                        .map(|a| view! { <div class="resting"><Sply media=a.simo /></div> })
+                                                }
+                                            })}
+                                        <button
+                                            class="primary"
+                                            disabled=move || waiting == 0 || busy.get()
+                                            on:click=move |_| {
+                                                if busy.get_untracked() { return; }
+                                                screen
+                                                    .set(
+                                                        Screen::Journey(JourneyStart {
+                                                            due_only: true,
+                                                            ..Default::default()
+                                                        }),
+                                                    )
+                                            }
+                                        >
+                                            {t("Weiter ▶")}
+                                        </button>
+                                    </section>
+                                }
+                                .into_any(),
+                            ),
+                            "palaces" => {
+                                let list: Vec<PalaceCard> = palaces
+                                    .take()
+                                    .unwrap_or_default()
+                                    .into_iter()
+                                    .filter(|p| p.built_in.is_none())
+                                    .collect();
+                                Some(if list.is_empty() {
+                                    view! {
+                                        <p class="empty">
+                                            {t("Noch keine Paläste. Wähle oben ein Bild oder Video, oder nutze die CLI: ")}
+                                            <code>"locora new Planeten -- Merkur Venus Erde"</code>
+                                        </p>
+                                    }
+                                    .into_any()
+                                } else {
+                                    view! {
+                                        <section class="palaces">
+                                            {list
+                                                .into_iter()
+                                                .map(|p| view! { <PalaceTile palace=p screen=screen busy=busy/> })
+                                                .collect_view()}
+                                        </section>
+                                    }
+                                    .into_any()
+                                })
+                            }
+                            "tutorial" => match built_ins.iter().find(|p| p.built_in.as_deref() == Some("tutorial")) {
+                                Some(palace) => Some(view! { <PalaceTile palace=palace.clone() screen=screen busy=busy/> }.into_any()),
+                                None => Some({
+                                view! {
+                                    <section class="card weiter">
+                                        <div class="text">
+                                            <div class="count">{t("Locora lernen")}</div>
+                                            <div class="meta">
+                                                {t("Das Tutorial ist selbst ein Gedächtnispalast: 3 Räume, 9 Orte.")}
+                                            </div>
+                                        </div>
+                                        <button disabled=move || busy.get() on:click=start_tutorial>
+                                            {t("Tutorial anlegen")}
+                                        </button>
+                                    </section>
+                                }
+                                .into_any()
+                                }),
+                            },
+                            "formulas" => match built_ins.iter().find(|p| p.built_in.as_deref() == Some("formulas")) {
+                                Some(palace) => Some(view! { <PalaceTile palace=palace.clone() screen=screen busy=busy/> }.into_any()),
+                                None => Some({
+                                view! {
+                                    <section class="card weiter">
+                                        <div class="text">
+                                            <div class="count">{t("Formeln verstehen")}</div>
+                                            <div class="meta">{t("Variablen, Tabellen und Bindungen in einem eigenen Palast üben.")}</div>
+                                        </div>
+                                        <button disabled=move || busy.get() on:click=start_formula_guide>
+                                            {t("Formel-Guide anlegen")}
+                                        </button>
+                                    </section>
+                                }
+                                .into_any()
+                                }),
+                            },
+                            "achievements" => Some(view! { <crate::achievements::Achievements /> }.into_any()),
+                            "activity" => Some(view! { <crate::activity::Activity /> }.into_any()),
+                            other => dashboard::plugin_view(&catalog, other),
+                        };
+                        let Some(block) = block else {
+                            continue;
+                        };
+                        let block = dashboard::sized(block, entry.size);
+                        match placement {
+                            dashboard::Placement::Shown => shown.push(block),
+                            dashboard::Placement::Folded => {
+                                fold_at.get_or_insert(shown.len());
+                                folded.push(block);
+                            }
+                            dashboard::Placement::Hidden => {}
+                        }
+                    }
+                    if shown.is_empty() && folded.is_empty() {
+                        shown.push(
+                            view! { <p class="notes">{t("Auf dieser Seite ist noch nichts. Füge Blöcke unter „Seiten anpassen“ hinzu.")}</p> }
+                                .into_any(),
+                        );
+                    }
+                    if !folded.is_empty() {
+                        let at = fold_at.unwrap_or(shown.len());
+                        let count = folded.len();
+                        shown.insert(
+                            at,
+                            view! {
+                                <details class="plugins-fold">
+                                    <summary>{tf("Plugins ({0})", &[&count])}</summary>
+                                    {folded}
+                                </details>
+                            }
+                            .into_any(),
+                        );
+                    }
+                    let editor_catalog = catalog.clone();
+                    view! {
+                        <dashboard::Tabs />
+                        {move || {
+                            dashboard_open
+                                .get()
+                                .then(|| view! { <dashboard_editor::Editor catalog=editor_catalog.clone() open=dashboard_open/> })
+                        }}
+                        {shown}
                         {home
                             .notes
                             .into_iter()
                             .map(|n| view! { <p class="notes">{n}</p> })
                             .collect_view()}
                     }
-                        .into_any();
+                        .into_any()
                 }
-                let pages = expect_context::<dashboard::Layout>().0;
-                let catalog = dashboard::Catalog {
-                    tiles: home.tiles.clone(),
-                    blocks: home.blocks.clone(),
-                    suggestions: home.pages.clone(),
-                };
-                let known = dashboard::known(&catalog);
-                let page = pages.get().current().clone();
-                // The built-in palaces show only where the layout places their blocks.
-                let built_ins: Vec<PalaceCard> = home.palaces.iter().filter(|p| p.built_in.is_some()).cloned().collect();
-                let mut palaces = Some(home.palaces);
-                let mut shown: Vec<AnyView> = Vec::new();
-                let mut folded: Vec<AnyView> = Vec::new();
-                let mut fold_at = None;
-                for entry in dashboard::resolve(&page.entries, &known, page.id == dashboard::START) {
-                    // Core only: the palaces, nothing else.
-                    let placement = if core_only && entry.id != "palaces" {
-                        dashboard::Placement::Hidden
-                    } else {
-                        entry.placement
-                    };
-                    let block: Option<AnyView> = match entry.id.as_str() {
-                        "due" => Some(
-                            view! {
-                                <section class="card weiter">
-                                    <div class="text">
-                                        <div class="count">
-                                            {if waiting == 0 {
-                                                t("Heute ist nichts fällig").to_owned()
-                                            } else {
-                                                tf("{0} fällig · {1} neu", &[&home.due, &home.fresh])
-                                            }}
-                                        </div>
-                                        <div class="meta">
-                                            {if waiting == 0 {
-                                                t("Simo hält die Laterne – morgen geht es weiter.")
-                                            } else {
-                                                t("Wiederholen, was dein Gedächtnis gerade braucht.")
-                                            }}
-                                        </div>
-                                    </div>
-                                    {(waiting == 0)
-                                        .then(|| {
-                                            let art = art();
-                                            move || {
-                                                art.get()
-                                                    .map(|a| view! { <div class="resting"><Sply media=a.simo /></div> })
-                                            }
-                                        })}
-                                    <button
-                                        class="primary"
-                                        disabled=move || waiting == 0 || busy.get()
-                                        on:click=move |_| {
-                                            if busy.get_untracked() { return; }
-                                            screen
-                                                .set(
-                                                    Screen::Journey(JourneyStart {
-                                                        due_only: true,
-                                                        ..Default::default()
-                                                    }),
-                                                )
-                                        }
-                                    >
-                                        {t("Weiter ▶")}
-                                    </button>
-                                </section>
-                            }
-                            .into_any(),
-                        ),
-                        "palaces" => {
-                            let list: Vec<PalaceCard> = palaces
-                                .take()
-                                .unwrap_or_default()
-                                .into_iter()
-                                .filter(|p| p.built_in.is_none())
-                                .collect();
-                            Some(if list.is_empty() {
-                                view! {
-                                    <p class="empty">
-                                        {t("Noch keine Paläste. Wähle oben ein Bild oder Video, oder nutze die CLI: ")}
-                                        <code>"locora new Planeten -- Merkur Venus Erde"</code>
-                                    </p>
-                                }
-                                .into_any()
-                            } else {
-                                view! {
-                                    <section class="palaces">
-                                        {list
-                                            .into_iter()
-                                            .map(|p| view! { <PalaceTile palace=p screen=screen busy=busy/> })
-                                            .collect_view()}
-                                    </section>
-                                }
-                                .into_any()
-                            })
-                        }
-                        "tutorial" => match built_ins.iter().find(|p| p.built_in.as_deref() == Some("tutorial")) {
-                            Some(palace) => Some(view! { <PalaceTile palace=palace.clone() screen=screen busy=busy/> }.into_any()),
-                            None => Some({
-                            view! {
-                                <section class="card weiter">
-                                    <div class="text">
-                                        <div class="count">{t("Locora lernen")}</div>
-                                        <div class="meta">
-                                            {t("Das Tutorial ist selbst ein Gedächtnispalast: 3 Räume, 9 Orte.")}
-                                        </div>
-                                    </div>
-                                    <button disabled=move || busy.get() on:click=start_tutorial>
-                                        {t("Tutorial anlegen")}
-                                    </button>
-                                </section>
-                            }
-                            .into_any()
-                            }),
-                        },
-                        "formulas" => match built_ins.iter().find(|p| p.built_in.as_deref() == Some("formulas")) {
-                            Some(palace) => Some(view! { <PalaceTile palace=palace.clone() screen=screen busy=busy/> }.into_any()),
-                            None => Some({
-                            view! {
-                                <section class="card weiter">
-                                    <div class="text">
-                                        <div class="count">{t("Formeln verstehen")}</div>
-                                        <div class="meta">{t("Variablen, Tabellen und Bindungen in einem eigenen Palast üben.")}</div>
-                                    </div>
-                                    <button disabled=move || busy.get() on:click=start_formula_guide>
-                                        {t("Formel-Guide anlegen")}
-                                    </button>
-                                </section>
-                            }
-                            .into_any()
-                            }),
-                        },
-                        "achievements" => Some(view! { <crate::achievements::Achievements /> }.into_any()),
-                        "activity" => Some(view! { <crate::activity::Activity /> }.into_any()),
-                        other => dashboard::plugin_view(&catalog, other),
-                    };
-                    let Some(block) = block else {
-                        continue;
-                    };
-                    let block = dashboard::sized(block, entry.size);
-                    match placement {
-                        dashboard::Placement::Shown => shown.push(block),
-                        dashboard::Placement::Folded => {
-                            fold_at.get_or_insert(shown.len());
-                            folded.push(block);
-                        }
-                        dashboard::Placement::Hidden => {}
-                    }
-                }
-                if shown.is_empty() && folded.is_empty() {
-                    shown.push(
-                        view! { <p class="notes">{t("Auf dieser Seite ist noch nichts. Füge Blöcke unter „Seiten anpassen“ hinzu.")}</p> }
-                            .into_any(),
-                    );
-                }
-                if !folded.is_empty() {
-                    let at = fold_at.unwrap_or(shown.len());
-                    let count = folded.len();
-                    shown.insert(
-                        at,
-                        view! {
-                            <details class="plugins-fold">
-                                <summary>{tf("Plugins ({0})", &[&count])}</summary>
-                                {folded}
-                            </details>
-                        }
-                        .into_any(),
-                    );
-                }
-                let editor_catalog = catalog.clone();
-                view! {
-                    <dashboard::Tabs />
-                    {move || {
-                        dashboard_open
-                            .get()
-                            .then(|| view! { <dashboard_editor::Editor catalog=editor_catalog.clone() open=dashboard_open/> })
-                    }}
-                    {shown}
-                    {home
-                        .notes
-                        .into_iter()
-                        .map(|n| view! { <p class="notes">{n}</p> })
-                        .collect_view()}
-                }
-                    .into_any()
-            }
-        }}
-    }
+            }}
+        }
 }
 
 /// Plugin tiles (`ui.tile`), on the welcome screen as well as the overview.

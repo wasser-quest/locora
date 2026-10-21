@@ -3,8 +3,8 @@
 //! it as messages (see `src-tauri/src/sply.rs`).
 
 use crate::i18n::t;
-use leptos::{html::Iframe, task::spawn_local};
 use leptos::prelude::*;
+use leptos::{html::Iframe, task::spawn_local};
 use locora_app_api::{Media, MediaKind};
 use wasm_bindgen::{JsCast, JsValue};
 
@@ -20,7 +20,9 @@ pub fn fit_stage(picture: &web_sys::Element, width: f64, height: f64) {
         return;
     };
     if let Ok(stage) = stage.dyn_into::<web_sys::HtmlElement>() {
-        let _ = stage.style().set_property("--stage-ratio", &(width / height).to_string());
+        let _ = stage
+            .style()
+            .set_property("--stage-ratio", &(width / height).to_string());
     }
 }
 
@@ -44,8 +46,12 @@ impl Target {
     fn post(&self, message: &JsValue) {
         match self {
             Target::Inline(element) => {
-                let Some(window) = web_sys::window() else { return };
-                let Ok(send) = js_sys::Reflect::get(&window, &"locoraSendGraphic".into()) else { return };
+                let Some(window) = web_sys::window() else {
+                    return;
+                };
+                let Ok(send) = js_sys::Reflect::get(&window, &"locoraSendGraphic".into()) else {
+                    return;
+                };
                 if let Ok(send) = send.dyn_into::<js_sys::Function>() {
                     let element: &JsValue = element.as_ref();
                     let _ = send.call2(&JsValue::NULL, element, message);
@@ -97,22 +103,46 @@ fn send_timed(target: &Target, action: &str, time: Option<f64>, start: Option<f6
 /// Whether the page mounts graphics inline (boot.mjs defines `locoraMountGraphic`). The desktop app
 /// does not, and keeps the frame.
 fn inline_available() -> bool {
-    web_sys::window().is_some_and(|window| js_sys::Reflect::has(&window, &"locoraMountGraphic".into()).unwrap_or(false))
+    web_sys::window().is_some_and(|window| {
+        js_sys::Reflect::has(&window, &"locoraMountGraphic".into()).unwrap_or(false)
+    })
 }
 
 /// Mounts the graphic inline in `element` (boot.mjs: `locoraMountGraphic`): SVG in the page, like a
 /// Rive artboard. `reply` receives the graphic's replies; `mounted` runs once it is in the page.
-fn mount_inline(element: &web_sys::Element, path: &str, still: bool, reply: impl Fn(JsValue) + 'static, mounted: impl Fn() + 'static) {
-    let Some(window) = web_sys::window() else { return };
-    let Ok(mount) = js_sys::Reflect::get(&window, &"locoraMountGraphic".into()) else { return };
-    let Ok(mount) = mount.dyn_into::<js_sys::Function>() else { return };
+fn mount_inline(
+    element: &web_sys::Element,
+    path: &str,
+    still: bool,
+    reply: impl Fn(JsValue) + 'static,
+    mounted: impl Fn() + 'static,
+) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let Ok(mount) = js_sys::Reflect::get(&window, &"locoraMountGraphic".into()) else {
+        return;
+    };
+    let Ok(mount) = mount.dyn_into::<js_sys::Function>() else {
+        return;
+    };
     let reply = wasm_bindgen::closure::Closure::<dyn Fn(JsValue)>::new(reply);
     let reply_fn: JsValue = reply.as_ref().clone();
     // The reply closure lives as long as the page: the graphic stops replying when it is unmounted.
     reply.forget();
     let element: &JsValue = element.as_ref();
-    let Ok(promise) = mount.call4(&JsValue::NULL, element, &JsValue::from_str(path), &JsValue::from_bool(still), &reply_fn) else { return };
-    let Ok(promise) = promise.dyn_into::<js_sys::Promise>() else { return };
+    let Ok(promise) = mount.call4(
+        &JsValue::NULL,
+        element,
+        &JsValue::from_str(path),
+        &JsValue::from_bool(still),
+        &reply_fn,
+    ) else {
+        return;
+    };
+    let Ok(promise) = promise.dyn_into::<js_sys::Promise>() else {
+        return;
+    };
     leptos::task::spawn_local(async move {
         let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
         mounted();
@@ -150,7 +180,9 @@ pub fn Sply(
     // Where the messages go now, if the graphic is there.
     let target = move || -> Option<Target> {
         if inline {
-            host.try_get_untracked().flatten().map(|element| Target::Inline(element.unchecked_into::<web_sys::Element>()))
+            host.try_get_untracked()
+                .flatten()
+                .map(|element| Target::Inline(element.unchecked_into::<web_sys::Element>()))
         } else {
             frame.try_get_untracked().flatten().map(Target::Frame)
         }
@@ -167,18 +199,24 @@ pub fn Sply(
         }
         if let Some(duration) = get("timedReady").and_then(|v| v.as_f64()) {
             timed_ready_callback.with_value(|callback| {
-                if let Some(callback) = callback { callback(duration); }
+                if let Some(callback) = callback {
+                    callback(duration);
+                }
             });
             timed_ready.set(true);
         }
         if let Some(time) = get("timedAt").and_then(|v| v.as_f64()) {
             timed_at_callback.with_value(|callback| {
-                if let Some(callback) = callback { callback(time); }
+                if let Some(callback) = callback {
+                    callback(time);
+                }
             });
         }
         if let Some(time) = get("timedPosition").and_then(|v| v.as_f64()) {
             timed_position_callback.with_value(|callback| {
-                if let Some(callback) = callback { callback(time); }
+                if let Some(callback) = callback {
+                    callback(time);
+                }
             });
         }
         if get("timedError").and_then(|v| v.as_string()).is_some() {
@@ -228,7 +266,10 @@ pub fn Sply(
             return;
         }
         let waiting = pending.with_value(Option::is_some);
-        pending.set_value(Some((f64::from(event.client_x()), f64::from(event.client_y()))));
+        pending.set_value(Some((
+            f64::from(event.client_x()),
+            f64::from(event.client_y()),
+        )));
         if waiting {
             return;
         }
@@ -365,12 +406,16 @@ pub fn Sply(
         push();
     });
     Effect::new(move |_| {
-        if timed_ready.get() {
-            if let (Some(command), Some(graphic)) = (timed, target()) {
+        if timed_ready.get()
+            && let (Some(command), Some(graphic)) = (timed, target()) {
                 let command = command.get();
-                send_timed(&graphic, if command.play { "playTo" } else { "seek" }, Some(command.time), command.start);
+                send_timed(
+                    &graphic,
+                    if command.play { "playTo" } else { "seek" },
+                    Some(command.time),
+                    command.start,
+                );
             }
-        }
     });
     // The graphic is there (its frame loaded, or it is mounted inline): it reports its runtime state.
     let mounted = move || {
@@ -389,11 +434,14 @@ pub fn Sply(
             let _ = js_sys::Reflect::set(&request, &"checkRuntime".into(), &true.into());
             graphic.post(&request);
         }
-        set_timeout(move || {
-            if ready.try_get_untracked() == Some(false) {
-                failed.try_set(true);
-            }
-        }, std::time::Duration::from_secs(5));
+        set_timeout(
+            move || {
+                if ready.try_get_untracked() == Some(false) {
+                    failed.try_set(true);
+                }
+            },
+            std::time::Duration::from_secs(5),
+        );
     };
     if inline {
         Effect::new(move |_| {
@@ -416,7 +464,9 @@ pub fn Sply(
         });
     }
     Effect::new(move |_| {
-        if ready.get() && !timed_ready.get() && timed.is_some()
+        if ready.get()
+            && !timed_ready.get()
+            && timed.is_some()
             && let Some(graphic) = target()
         {
             send_timed(&graphic, "init", None, None);
@@ -425,7 +475,9 @@ pub fn Sply(
     Effect::new(move |_| {
         if failed.get() && timed.is_some() {
             timed_error_callback.with_value(|callback| {
-                if let Some(callback) = callback { callback(); }
+                if let Some(callback) = callback {
+                    callback();
+                }
             });
         }
     });

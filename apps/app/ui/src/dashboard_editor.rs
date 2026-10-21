@@ -316,7 +316,7 @@ pub fn Editor(catalog: Catalog, open: RwSignal<bool>) -> impl IntoView {
                             .iter()
                             .map(|(id, name, _)| {
                                 let selected = look.get().accent == *id;
-                                view! { <option value=*id selected=selected>{t(*name)}</option> }
+                                view! { <option value=*id selected=selected>{t(name)}</option> }
                             })
                             .collect_view()}
                     </select>

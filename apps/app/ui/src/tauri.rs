@@ -57,9 +57,9 @@ pub fn url(media: &Media) -> String {
     convert_file_src(&media.path(), SCHEME)
 }
 
-/// GStreamer in WebKitGTK rejects custom schemes (`locora://`) as media
-/// sources; videos play from blob URLs fetched over the custom scheme instead.
-/// Byte ranges stay in the WebView: a blob needs no backend round-trip.
+// GStreamer in WebKitGTK rejects custom schemes (`locora://`) as media
+// sources; videos play from blob URLs fetched over the custom scheme instead.
+// Byte ranges stay in the WebView: a blob needs no backend round-trip.
 thread_local! {
     /// The video on stage as (media hash, blob URL). A new question re-mounts the player;
     /// reusing this URL avoids fetching the whole file again, which made the video reload.
@@ -85,28 +85,33 @@ pub async fn video_url(media: &Media) -> Result<String, String> {
     // request still reaches the handler and dies on the response, so use
     // XMLHttpRequest, which WebKitGTK allows for custom schemes.
     let request = web_sys::XmlHttpRequest::new().map_err(|_| read.to_string())?;
-    request.open_with_async("GET", &url(media), true).map_err(|_| read.to_string())?;
+    request
+        .open_with_async("GET", &url(media), true)
+        .map_err(|_| read.to_string())?;
     request.set_response_type(web_sys::XmlHttpRequestResponseType::Blob);
-    let blob = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::new(&mut move |resolve: js_sys::Function, reject: js_sys::Function| {
+    let blob = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::new(
+        &mut move |resolve: js_sys::Function, reject: js_sys::Function| {
             let done = wasm_bindgen::closure::Closure::once({
                 let request = request.clone();
                 let reject = reject.clone();
                 move |_event: web_sys::Event| {
-                let response = request.response().unwrap_or_default();
-                if request.status() == Ok(200)
-                    && response.clone().dyn_into::<web_sys::Blob>().is_ok()
-                {
-                    let _ = resolve.call1(&wasm_bindgen::JsValue::NULL, &response);
-                } else {
-                    let _ = reject.call1(&wasm_bindgen::JsValue::NULL, &wasm_bindgen::JsValue::NULL);
-                }
+                    let response = request.response().unwrap_or_default();
+                    if request.status() == Ok(200)
+                        && response.clone().dyn_into::<web_sys::Blob>().is_ok()
+                    {
+                        let _ = resolve.call1(&wasm_bindgen::JsValue::NULL, &response);
+                    } else {
+                        let _ = reject
+                            .call1(&wasm_bindgen::JsValue::NULL, &wasm_bindgen::JsValue::NULL);
+                    }
                 }
             });
             request.set_onload(Some(done.as_ref().unchecked_ref()));
             let failed = wasm_bindgen::closure::Closure::once({
                 let reject = reject.clone();
                 move |_event: web_sys::Event| {
-                let _ = reject.call1(&wasm_bindgen::JsValue::NULL, &wasm_bindgen::JsValue::NULL);
+                    let _ =
+                        reject.call1(&wasm_bindgen::JsValue::NULL, &wasm_bindgen::JsValue::NULL);
                 }
             });
             request.set_onerror(Some(failed.as_ref().unchecked_ref()));
@@ -118,7 +123,8 @@ pub async fn video_url(media: &Media) -> Result<String, String> {
             // Keep the load/error/abort closures alive until the promise settles.
             done.forget();
             failed.forget();
-        }))
+        },
+    ))
     .await
     .map_err(|_| read.to_string())?;
     let blob: web_sys::Blob = blob.dyn_into().map_err(|_| read.to_string())?;
@@ -146,4 +152,3 @@ pub async fn video_url(media: &Media) -> Result<String, String> {
 pub fn revoke_object_url(object: &str) {
     let _ = Url::revoke_object_url(object);
 }
-

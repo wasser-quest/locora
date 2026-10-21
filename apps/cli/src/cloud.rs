@@ -203,7 +203,8 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
         }
         CloudCommand::Erase => {
             let mut state = signed_in(&data)?;
-            if !confirm("Alle synchronisierten Daten auf dem Server löschen? Tippe „löschen“: ")? {
+            if !confirm("Alle synchronisierten Daten auf dem Server löschen? Tippe „löschen“: ")?
+            {
                 bail!("Abgebrochen");
             }
             let remote = cloud::erase(&state)?;

@@ -59,7 +59,11 @@ fn pull(state: &CloudState, store: &Store, dek: &Dek, report: &mut SyncReport) -
 
 fn dek() -> &'static Dek {
     static KEY: OnceLock<Dek> = OnceLock::new();
-    KEY.get_or_init(|| locora_crypto::create("test passphrase for sync").unwrap().dek)
+    KEY.get_or_init(|| {
+        locora_crypto::create("test passphrase for sync")
+            .unwrap()
+            .dek
+    })
 }
 
 fn op(seq: i64, entity: &str, id: &str, action: &str, data: Value) -> Value {
@@ -273,10 +277,7 @@ fn invalid_ciphertext_is_quarantined_and_own_operations_advance_cursor() {
     let mut own = room();
     own["seq"] = json!(10);
     own["device"] = json!(store.node_id());
-    let (state, worker) = responses(vec![
-        page(10, vec![invalid, own]),
-        page(10, vec![]),
-    ]);
+    let (state, worker) = responses(vec![page(10, vec![invalid, own]), page(10, vec![])]);
     let mut report = SyncReport::default();
     pull(&state, &store, dek(), &mut report).unwrap();
     assert_eq!(report.pulled, 1);
@@ -333,7 +334,12 @@ fn a_new_generation_of_the_server_starts_the_device_over() {
     let (mut state, _) = responses(Vec::new());
     state.server = "https://cloud.example".into();
     let mut flow = UnlockSync::new(state, &store, passphrase.into());
-    let reply = |body: Value| Some(Reply { status: 200, body: body.to_string().into_bytes() });
+    let reply = |body: Value| {
+        Some(Reply {
+            status: 200,
+            body: body.to_string().into_bytes(),
+        })
+    };
     let url = |step: Step<SyncReport>| match step {
         Step::Call(call) => call.url,
         Step::Done(_) => panic!("the sync ended early"),
@@ -341,12 +347,17 @@ fn a_new_generation_of_the_server_starts_the_device_over() {
     assert!(url(flow.step(None).unwrap()).ends_with("/v1/keys"));
     assert!(url(flow.step(reply(json!(account.bundle))).unwrap()).ends_with("/v1/sync/retention"));
     // Expired data is restored from this device: the rebuild is asked for first.
-    let expired = json!({"state": "expired", "last_successful_sync_at": 0, "expires_at": 0, "generation": 2});
+    let expired =
+        json!({"state": "expired", "last_successful_sync_at": 0, "expires_at": 0, "generation": 2});
     assert!(url(flow.step(reply(expired)).unwrap()).ends_with("/v1/sync/rebuild"));
     let rebuilding = json!({"state": "rebuilding", "last_successful_sync_at": 0, "expires_at": 0, "generation": 2});
     // The device adopts the generation before the sync itself (which needs an unlock this test
     // cannot sign, so it stops there).
-    let refused = flow.step(reply(rebuilding)).err().expect("no unlock in this test").to_string();
+    let refused = flow
+        .step(reply(rebuilding))
+        .err()
+        .expect("no unlock in this test")
+        .to_string();
     assert!(refused.contains("Freischaltung"), "{refused}");
     assert_eq!(flow.new_generation, Some(2));
     assert_eq!(store.sync_cursor("push").unwrap(), 0);

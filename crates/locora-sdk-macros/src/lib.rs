@@ -45,7 +45,11 @@ impl Parse for Args {
 }
 
 const KNOWN_PERMISSIONS: &[&str] = &[
-    "storage", "palaces_read", "palaces_write", "notify", "ui_highlight",
+    "storage",
+    "palaces_read",
+    "palaces_write",
+    "notify",
+    "ui_highlight",
 ];
 
 /// Export a plugin.

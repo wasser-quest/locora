@@ -287,12 +287,12 @@ fn update_tile(ctx: &mut Ctx) -> Result {
     ctx.tile("Benachrichtigungen", text)
 }
 
-
 /// A tile text the app fills in the current language: a template and its arguments,
 /// separated by U+001F (see `plugin_text` in the app).
 fn localized(template: &str, args: &[&dyn std::fmt::Display]) -> String {
-    args.iter()
-        .fold(format!("@@{template}"), |text, arg| format!("{text}\u{1f}{arg}"))
+    args.iter().fold(format!("@@{template}"), |text, arg| {
+        format!("{text}\u{1f}{arg}")
+    })
 }
 
 #[cfg(test)]

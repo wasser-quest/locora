@@ -138,9 +138,8 @@ fn LocusDisplay() -> impl IntoView {
             <label>{t("Video: Marker frühestens vor dem Stopp (Sekunden) ")}
                 <input type="number" min="0" max="30" step="0.1" prop:value=move || settings.get().video_lead.to_string()
                     on:change=move |event| {
-                        if let Ok(value) = event_target_value(&event).parse::<f64>() {
-                            if value.is_finite() { settings.update(|p| p.video_lead = value.clamp(0.0, 30.0)); locus_display::save(settings.get_untracked()); }
-                        }
+                        if let Ok(value) = event_target_value(&event).parse::<f64>()
+                            && value.is_finite() { settings.update(|p| p.video_lead = value.clamp(0.0, 30.0)); locus_display::save(settings.get_untracked()); }
                     } />
             </label>
         </section>

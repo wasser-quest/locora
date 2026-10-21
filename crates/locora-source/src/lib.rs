@@ -237,13 +237,20 @@ fn inside(root: &Path, base: &Path, file: &str) -> Result<PathBuf> {
         .canonicalize()
         .map_err(|e| SourceError::File(file.to_owned(), e))?;
     if !real.starts_with(&folder) {
-        return Err(invalid(format!("{file}: liegt außerhalb des Palast-Ordners")));
+        return Err(invalid(format!(
+            "{file}: liegt außerhalb des Palast-Ordners"
+        )));
     }
     Ok(path)
 }
 
 /// A picture file for a locus: an image or a `.sply` animation that exists.
-fn check_picture(base: &Path, root: &Path, file: &str, where_: &str) -> Result<(PathBuf, &'static str)> {
+fn check_picture(
+    base: &Path,
+    root: &Path,
+    file: &str,
+    where_: &str,
+) -> Result<(PathBuf, &'static str)> {
     let path = inside(root, base, file)?;
     let (kind, media_type) = media_type(&path).ok_or_else(|| {
         invalid(format!(

@@ -80,12 +80,17 @@ struct SwipeStart {
     scroll_y: f64,
 }
 
-fn is_palette_swipe(start: SwipeStart, end_x: f64, end_y: f64, elapsed_ms: f64, scroll_y: f64) -> bool {
+fn is_palette_swipe(
+    start: SwipeStart,
+    end_x: f64,
+    end_y: f64,
+    elapsed_ms: f64,
+    scroll_y: f64,
+) -> bool {
     let down = end_y - start.y;
     down >= 88.0
         && (end_x - start.x).abs() <= down * 0.55
-        && elapsed_ms >= 0.0
-        && elapsed_ms <= 900.0
+        && (0.0..=900.0).contains(&elapsed_ms)
         && (scroll_y - start.scroll_y).abs() < 2.0
 }
 
@@ -233,22 +238,29 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
     let pointer_up = window_event_listener(ev::pointerup, move |event: PointerEvent| {
         let start = swipe.get_value();
         swipe.set_value(None);
-        let Some(start) = start.filter(|start| start.pointer == event.pointer_id()) else { return; };
+        let Some(start) = start.filter(|start| start.pointer == event.pointer_id()) else {
+            return;
+        };
         let scroll_y = web_sys::window()
             .and_then(|window| window.scroll_y().ok())
             .unwrap_or(f64::INFINITY);
-        if !open.get_untracked() && is_palette_swipe(
-            start,
-            f64::from(event.client_x()),
-            f64::from(event.client_y()),
-            js_sys::Date::now() - start.time_ms,
-            scroll_y,
-        ) {
+        if !open.get_untracked()
+            && is_palette_swipe(
+                start,
+                f64::from(event.client_x()),
+                f64::from(event.client_y()),
+                js_sys::Date::now() - start.time_ms,
+                scroll_y,
+            )
+        {
             show();
         }
     });
     let pointer_cancel = window_event_listener(ev::pointercancel, move |event: PointerEvent| {
-        if swipe.get_value().is_some_and(|start| start.pointer == event.pointer_id()) {
+        if swipe
+            .get_value()
+            .is_some_and(|start| start.pointer == event.pointer_id())
+        {
             swipe.set_value(None);
         }
     });
@@ -336,7 +348,13 @@ mod tests {
 
     #[test]
     fn swipe_requires_a_quick_vertical_pull_without_scrolling() {
-        let start = SwipeStart { pointer: 1, x: 100.0, y: 20.0, time_ms: 0.0, scroll_y: 0.0 };
+        let start = SwipeStart {
+            pointer: 1,
+            x: 100.0,
+            y: 20.0,
+            time_ms: 0.0,
+            scroll_y: 0.0,
+        };
         assert!(is_palette_swipe(start, 120.0, 130.0, 400.0, 0.0));
         assert!(!is_palette_swipe(start, 180.0, 130.0, 400.0, 0.0));
         assert!(!is_palette_swipe(start, 120.0, 100.0, 400.0, 0.0));

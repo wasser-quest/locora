@@ -73,7 +73,10 @@ pub fn take() -> Option<Report> {
 
 /// A GitHub issue with the error, where it happened, the version and the steps to fill in.
 pub fn issue_url(report: &Report) -> String {
-    let title = format!("Crash: {}", report.message.chars().take(70).collect::<String>());
+    let title = format!(
+        "Crash: {}",
+        report.message.chars().take(70).collect::<String>()
+    );
     let body = format!(
         "**Error:** {}\n**Where:** {}\n**Version:** {}\n\n**What I did before the crash (without personal content):**\n1. \n2. \n3. \n\n**Expected:**\n\n**Device / system:**\n",
         report.message, report.location, report.version
@@ -86,7 +89,9 @@ fn encode(text: &str) -> String {
     let mut out = String::new();
     for byte in text.bytes() {
         match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(byte as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char)
+            }
             _ => out.push_str(&format!("%{byte:02X}")),
         }
     }
@@ -99,7 +104,10 @@ mod tests {
 
     #[test]
     fn quoted_text_is_removed() {
-        assert_eq!(sanitize("index \"Mein Palast\" out of range"), "index … out of range");
+        assert_eq!(
+            sanitize("index \"Mein Palast\" out of range"),
+            "index … out of range"
+        );
     }
 
     #[test]

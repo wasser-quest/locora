@@ -8,8 +8,8 @@ use anyhow::{Result, bail};
 use locora_api::Service;
 use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{AnswerKind, Evaluate, Submission};
-use locora_formula::workbook::{ActionOutcome, Run};
 use locora_cloud_api::api::GameAnswer;
+use locora_formula::workbook::{ActionOutcome, Run};
 use locora_runtime::cloud::{self, CloudState};
 use locora_store::JourneyAnswer;
 use locora_store::{Locus, PalaceTree};
@@ -71,7 +71,12 @@ fn live_start(live: &Live, journeys: &mut HashMap<String, LiveJourney>, palace: 
 }
 
 /// Reports one answer; prints the combo and hearts the server computed.
-fn live_answer(live: &Live, journeys: &mut HashMap<String, LiveJourney>, palace: &str, correct: bool) {
+fn live_answer(
+    live: &Live,
+    journeys: &mut HashMap<String, LiveJourney>,
+    palace: &str,
+    correct: bool,
+) {
     let Some(journey) = journeys.get_mut(palace) else {
         return;
     };
@@ -85,7 +90,11 @@ fn live_answer(live: &Live, journeys: &mut HashMap<String, LiveJourney>, palace:
         at_ms: journey.started.elapsed().as_millis() as u64,
     };
     match cloud::answer(&live.state, &journey.id, &answer) {
-        Ok(state) => println!("        Combo {} · Herzen {}", state.combo, hearts(state.hearts)),
+        Ok(state) => println!(
+            "        Combo {} · Herzen {}",
+            state.combo,
+            hearts(state.hearts)
+        ),
         Err(error) => {
             journey.offline = true;
             println!("  (ab hier nicht mehr auf dem Server gewertet: {error})");
@@ -578,7 +587,12 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
                 points = points.saturating_add(evaluation.points);
                 results.push((tree.palace.id.clone(), evaluation.correct));
                 if let Some(live) = &options.live {
-                    live_answer(live, &mut live_journeys, &tree.palace.id, evaluation.correct);
+                    live_answer(
+                        live,
+                        &mut live_journeys,
+                        &tree.palace.id,
+                        evaluation.correct,
+                    );
                 }
                 transcripts
                     .entry(tree.palace.id.clone())

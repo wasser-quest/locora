@@ -51,7 +51,7 @@ pub struct Shared {
 }
 
 enum Opening {
-    Opening,
+    Pending,
     Ready(Box<Backend>),
     Failed(String),
 }
@@ -59,13 +59,16 @@ enum Opening {
 impl Shared {
     fn new() -> Self {
         Self {
-            opening: Mutex::new(Opening::Opening),
+            opening: Mutex::new(Opening::Pending),
             ready: std::sync::Condvar::new(),
         }
     }
 
     fn finish(&self, result: Result<Backend, String>) {
-        let mut opening = self.opening.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut opening = self
+            .opening
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *opening = match result {
             Ok(backend) => Opening::Ready(Box::new(backend)),
             Err(error) => Opening::Failed(error),
@@ -157,7 +160,10 @@ async fn palace(state: State<'_, Shared>, id: String) -> Result<PalaceView, Stri
 
 /// The formulas of a palace: its tables, the shared tables and the bindings of its loci.
 #[tauri::command]
-async fn workbook(state: State<'_, Shared>, palace_id: String) -> Result<locora_app_api::WorkbookView, String> {
+async fn workbook(
+    state: State<'_, Shared>,
+    palace_id: String,
+) -> Result<locora_app_api::WorkbookView, String> {
     let b = lock(&state)?;
     workbook::view(&b.profile.store, &palace_id).map_err(err)
 }
@@ -173,7 +179,11 @@ async fn workbook_change(
 }
 
 #[tauri::command]
-async fn workbook_calc(state: State<'_, Shared>, palace_id: String, expression: String) -> Result<String, String> {
+async fn workbook_calc(
+    state: State<'_, Shared>,
+    palace_id: String,
+    expression: String,
+) -> Result<String, String> {
     let b = lock(&state)?;
     workbook::calc(&b.profile.store, &palace_id, &expression).map_err(err)
 }
@@ -186,7 +196,10 @@ async fn palace_rename(
     name: String,
 ) -> Result<PalaceView, String> {
     let mut b = lock(&state)?;
-    b.profile.store.rename_palace(&palace_id, &name).map_err(|e| e.to_string())?;
+    b.profile
+        .store
+        .rename_palace(&palace_id, &name)
+        .map_err(|e| e.to_string())?;
     let marker = b.default_marker.clone();
     views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
 }
@@ -200,7 +213,10 @@ async fn room_rename(
     name: String,
 ) -> Result<PalaceView, String> {
     let mut b = lock(&state)?;
-    b.profile.store.rename_room(&room_id, &name).map_err(|e| e.to_string())?;
+    b.profile
+        .store
+        .rename_room(&room_id, &name)
+        .map_err(|e| e.to_string())?;
     let marker = b.default_marker.clone();
     views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
 }
@@ -213,7 +229,12 @@ async fn room_delete(
     room_id: String,
 ) -> Result<PalaceView, String> {
     let mut b = lock(&state)?;
-    if !b.profile.store.delete_room(&room_id).map_err(|e| e.to_string())? {
+    if !b
+        .profile
+        .store
+        .delete_room(&room_id)
+        .map_err(|e| e.to_string())?
+    {
         return Err("Der Raum ist nicht mehr vorhanden".into());
     }
     let marker = b.default_marker.clone();
@@ -224,7 +245,12 @@ async fn room_delete(
 #[tauri::command]
 async fn palace_delete(state: State<'_, Shared>, palace_id: String) -> Result<(), String> {
     let b = lock(&state)?;
-    if !b.profile.store.delete_palace(&palace_id).map_err(|e| e.to_string())? {
+    if !b
+        .profile
+        .store
+        .delete_palace(&palace_id)
+        .map_err(|e| e.to_string())?
+    {
         return Err("Der Palast ist nicht mehr vorhanden".into());
     }
     Ok(())
@@ -239,7 +265,10 @@ async fn room_move(
     step: i32,
 ) -> Result<PalaceView, String> {
     let mut b = lock(&state)?;
-    b.profile.store.move_room(&room_id, step).map_err(|e| e.to_string())?;
+    b.profile
+        .store
+        .move_room(&room_id, step)
+        .map_err(|e| e.to_string())?;
     let marker = b.default_marker.clone();
     views::palace(&mut b.profile, &palace_id, &marker).map_err(err)
 }
@@ -346,9 +375,11 @@ async fn home_pick_media(
         Some(staged) => {
             let converter = app.clone();
             Some(
-                tauri::async_runtime::spawn_blocking(move || mobile_files::as_mp4(&converter, staged))
-                    .await
-                    .map_err(|e| format!("Umwandlung fehlgeschlagen: {e}"))??,
+                tauri::async_runtime::spawn_blocking(move || {
+                    mobile_files::as_mp4(&converter, staged)
+                })
+                .await
+                .map_err(|e| format!("Umwandlung fehlgeschlagen: {e}"))??,
             )
         }
         None => None,
@@ -590,10 +621,13 @@ async fn tour(
 #[tauri::command]
 async fn formula_guide(state: State<'_, Shared>, lang: String) -> Result<String, String> {
     let mut b = lock(&state)?;
-    if let Some(existing) = locora_runtime::formula_guide::find_in(&b.profile, &lang).map_err(err)? {
+    if let Some(existing) =
+        locora_runtime::formula_guide::find_in(&b.profile, &lang).map_err(err)?
+    {
         return Ok(existing.id);
     }
-    let (tree, _) = locora_runtime::formula_guide::install_in(&mut b.profile, &lang).map_err(err)?;
+    let (tree, _) =
+        locora_runtime::formula_guide::install_in(&mut b.profile, &lang).map_err(err)?;
     Ok(tree.palace.id)
 }
 
@@ -618,7 +652,10 @@ async fn notifications(
         return Ok(Vec::new());
     }
     let system = app.notification();
-    if system.permission_state().map_or(true, |state| state != PermissionState::Granted) {
+    if system
+        .permission_state()
+        .map_or(true, |state| state != PermissionState::Granted)
+    {
         let _ = system.request_permission();
     }
     let mut sent = Vec::new();
@@ -697,7 +734,9 @@ async fn ui_assets(state: State<'_, Shared>) -> Result<locora_app_api::UiAssets,
 
 /// Built-in achievements and whether each is unlocked.
 #[tauri::command]
-async fn achievements(state: State<'_, Shared>) -> Result<Vec<locora_app_api::AchievementView>, String> {
+async fn achievements(
+    state: State<'_, Shared>,
+) -> Result<Vec<locora_app_api::AchievementView>, String> {
     journey::achievements(&lock(&state)?.profile).map_err(err)
 }
 
@@ -811,7 +850,8 @@ async fn cloud_erase(app: tauri::AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let result = (|| {
             use locora_runtime::cloud;
-            let mut saved = cloud::load(&data)?.ok_or_else(|| anyhow::anyhow!("Kein Cloud-Konto angemeldet"))?;
+            let mut saved = cloud::load(&data)?
+                .ok_or_else(|| anyhow::anyhow!("Kein Cloud-Konto angemeldet"))?;
             let remote = cloud::erase(&saved)?;
             cloud::adopt_generation(&mut saved, &store, remote.generation)?;
             cloud::save(&data, &saved)

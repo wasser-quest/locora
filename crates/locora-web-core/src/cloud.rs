@@ -10,7 +10,9 @@ use anyhow::{Result, anyhow, bail};
 use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, CloudSyncResult};
 use locora_cloud_api::api::KeyBundle;
 use locora_runtime::cloud::{self, CloudState, Connect, Refresh, RetentionStatus};
-use locora_runtime::cloud_http::{Body, Call, Exchange, Flow, Method, Reply, Step, failure, json as cloud_http_json};
+use locora_runtime::cloud_http::{
+    Body, Call, Exchange, Flow, Method, Reply, Step, failure, json as cloud_http_json,
+};
 use locora_runtime::cloud_sync::{SyncReport, UnlockSync};
 use serde_json::{Value, json};
 
@@ -32,10 +34,13 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
         }
         "cloud_refresh" => {
             let state = saved(&data)?;
-            drive(Box::new(Map::new(Refresh::new(state), move |state: CloudState| {
-                cloud::save(&data, &state)?;
-                Ok(json!(status(Some(&state))))
-            })), None)
+            drive(
+                Box::new(Map::new(Refresh::new(state), move |state: CloudState| {
+                    cloud::save(&data, &state)?;
+                    Ok(json!(status(Some(&state))))
+                })),
+                None,
+            )
         }
         "cloud_logout" => {
             let Some(state) = cloud::load(&data)? else {
@@ -43,10 +48,13 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             };
             // The server is told best effort: the local account is forgotten either way.
             let call = cloud::logout_call(&state)?;
-            drive(Box::new(Map::new(Exchange::new(call, |_| Ok(())), move |()| {
-                cloud::remove(&data)?;
-                Ok(Value::Null)
-            })), None)
+            drive(
+                Box::new(Map::new(Exchange::new(call, |_| Ok(())), move |()| {
+                    cloud::remove(&data)?;
+                    Ok(Value::Null)
+                })),
+                None,
+            )
         }
         "cloud_connect" => {
             let request: CloudConnect = serde_json::from_value(request_of(args))?;
@@ -65,17 +73,24 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             } else {
                 Connect::sign_in(&request.server, request.email.trim(), &request.password)?
             };
-            drive(Box::new(Map::new(flow, move |state: CloudState| {
-                cloud::save(&data, &state)?;
-                Ok(json!(status(Some(&state))))
-            })), None)
+            drive(
+                Box::new(Map::new(flow, move |state: CloudState| {
+                    cloud::save(&data, &state)?;
+                    Ok(json!(status(Some(&state))))
+                })),
+                None,
+            )
         }
         "cloud_keys_status" => {
             let state = saved(&data)?;
             let call = cloud::keys_call(&state)?;
-            drive(Box::new(Map::new(Exchange::new(call, cloud::keys_reply), |keys: Option<KeyBundle>| {
-                Ok(json!(keys.is_some()))
-            })), None)
+            drive(
+                Box::new(Map::new(
+                    Exchange::new(call, cloud::keys_reply),
+                    |keys: Option<KeyBundle>| Ok(json!(keys.is_some())),
+                )),
+                None,
+            )
         }
         "cloud_keys_setup" => {
             let request: CloudKeySetup = serde_json::from_value(request_of(args))?;
@@ -86,47 +101,76 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             drive(Box::new(KeysSetup::new(state, request.passphrase)), None)
         }
         "cloud_sync" => {
-            let passphrase = args.get("passphrase").and_then(Value::as_str).unwrap_or_default().to_owned();
+            let passphrase = args
+                .get("passphrase")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned();
             if !(12..=1024).contains(&passphrase.chars().count()) {
                 bail!("Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen");
             }
             let state = saved(&data)?;
             if cloud::access(&state, cloud::now_secs()).is_none() {
-                bail!("Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren");
+                bail!(
+                    "Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren"
+                );
             }
             let store = crate::with_backend(|backend| Ok(backend.profile.store.clone()))?;
-            drive(Box::new(Map::new(UnlockSync::new(state, store, passphrase), move |report: SyncReport| {
-                // A new generation of the server (deleted or expired cloud data) is kept for the next sync.
-                if let Some(generation) = report.new_generation {
-                    let mut state = saved(&data)?;
-                    state.sync_generation = generation;
-                    cloud::save(&data, &state)?;
-                }
-                sync_result(report)
-            })), None)
+            drive(
+                Box::new(Map::new(
+                    UnlockSync::new(state, store, passphrase),
+                    move |report: SyncReport| {
+                        // A new generation of the server (deleted or expired cloud data) is kept for the next sync.
+                        if let Some(generation) = report.new_generation {
+                            let mut state = saved(&data)?;
+                            state.sync_generation = generation;
+                            cloud::save(&data, &state)?;
+                        }
+                        sync_result(report)
+                    },
+                )),
+                None,
+            )
         }
         "cloud_erase" => {
             let state = saved(&data)?;
             let call = cloud::erase_call(&state)?;
-            drive(Box::new(Map::new(Exchange::new(call, cloud_http_json), move |remote: RetentionStatus| {
-                let mut state = saved(&data)?;
-                let store = crate::with_backend(|backend| Ok(backend.profile.store.clone()))?;
-                cloud::adopt_generation(&mut state, &store, remote.generation)?;
-                cloud::save(&data, &state)?;
-                Ok(Value::Null)
-            })), None)
+            drive(
+                Box::new(Map::new(
+                    Exchange::new(call, cloud_http_json),
+                    move |remote: RetentionStatus| {
+                        let mut state = saved(&data)?;
+                        let store =
+                            crate::with_backend(|backend| Ok(backend.profile.store.clone()))?;
+                        cloud::adopt_generation(&mut state, &store, remote.generation)?;
+                        cloud::save(&data, &state)?;
+                        Ok(Value::Null)
+                    },
+                )),
+                None,
+            )
         }
         "cloud_delete_account" => {
-            let password = args.get("password").and_then(Value::as_str).unwrap_or_default().to_owned();
+            let password = args
+                .get("password")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned();
             if password.is_empty() || password.chars().count() > 256 {
                 bail!("Cloud-Passwort eingeben");
             }
             let state = saved(&data)?;
             let call = cloud::delete_account_call(&state, &password)?;
-            drive(Box::new(Map::new(Exchange::new(call, cloud::delete_account_reply), move |()| {
-                cloud::remove(&data)?;
-                Ok(Value::Null)
-            })), None)
+            drive(
+                Box::new(Map::new(
+                    Exchange::new(call, cloud::delete_account_reply),
+                    move |()| {
+                        cloud::remove(&data)?;
+                        Ok(Value::Null)
+                    },
+                )),
+                None,
+            )
         }
         other => bail!("unknown cloud command {other}"),
     }
@@ -274,8 +318,15 @@ impl<F: Flow, G: Fn(F::Output) -> Result<Value>> Flow for Map<F, G> {
 
 enum KeysStage {
     Fetch,
-    Store { bundle: KeyBundle, recovery_key: String },
-    Confirm { bundle: KeyBundle, recovery_key: String, error: String },
+    Store {
+        bundle: KeyBundle,
+        recovery_key: String,
+    },
+    Confirm {
+        bundle: KeyBundle,
+        recovery_key: String,
+        error: String,
+    },
 }
 
 /// Sets the account keys up: it checks that none exist, creates them here, and stores them. If the
@@ -324,16 +375,35 @@ impl Flow for KeysSetup {
                 };
                 Ok(Step::Call(call))
             }
-            (KeysStage::Store { bundle, recovery_key }, Some(reply)) => {
+            (
+                KeysStage::Store {
+                    bundle,
+                    recovery_key,
+                },
+                Some(reply),
+            ) => {
                 if reply.is_success() {
                     return Ok(Step::Done(Self::created(true, recovery_key, None)));
                 }
                 let error = failure(&reply).to_string();
-                self.stage = KeysStage::Confirm { bundle, recovery_key, error };
+                self.stage = KeysStage::Confirm {
+                    bundle,
+                    recovery_key,
+                    error,
+                };
                 Ok(Step::Call(cloud::keys_call(&self.state)?))
             }
-            (KeysStage::Confirm { bundle, recovery_key, error }, Some(reply)) => match cloud::keys_reply(reply) {
-                Ok(Some(remote)) if remote == bundle => Ok(Step::Done(Self::created(true, recovery_key, None))),
+            (
+                KeysStage::Confirm {
+                    bundle,
+                    recovery_key,
+                    error,
+                },
+                Some(reply),
+            ) => match cloud::keys_reply(reply) {
+                Ok(Some(remote)) if remote == bundle => {
+                    Ok(Step::Done(Self::created(true, recovery_key, None)))
+                }
                 Ok(Some(_)) => bail!(
                     "Ein anderes Gerät hat die Verschlüsselung inzwischen eingerichtet. Diesen neu erzeugten Schlüssel nicht verwenden."
                 ),
@@ -358,7 +428,10 @@ mod tests {
     fn the_ui_wraps_its_request_and_both_shapes_are_read() {
         let fields = serde_json::json!({ "server": "https://api.example.com", "email": "a@example.com",
             "password": "long enough password", "register": true });
-        let wrapped: CloudConnect = serde_json::from_value(request_of(&serde_json::json!({ "request": fields.clone() }))).unwrap();
+        let wrapped: CloudConnect = serde_json::from_value(request_of(
+            &serde_json::json!({ "request": fields.clone() }),
+        ))
+        .unwrap();
         let bare: CloudConnect = serde_json::from_value(request_of(&fields)).unwrap();
         assert_eq!(wrapped.server, "https://api.example.com");
         assert_eq!(bare.server, wrapped.server);
