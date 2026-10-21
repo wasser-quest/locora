@@ -1,5 +1,5 @@
 //! The `.locora` file format: version 1 (Recall), 2 (Quiz/Guess, pictures), 3 (picture widths,
-//! zoom) and 4 (locus sound clips).
+//! zoom), 4 (locus sound clips) and 5 (sound as WebM, FLAC or AAC).
 //!
 //! A `.locora` file is a ZIP archive:
 //!
@@ -30,7 +30,7 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipArchive, ZipWriter};
 
 pub const FORMAT: &str = "locora";
-pub const VERSION: u32 = 4;
+pub const VERSION: u32 = 5;
 pub const EXTENSION: &str = "locora";
 /// Content of the first entry, `mimetype`.
 pub const MEDIA_TYPE: &str = "application/vnd.locora+zip";
@@ -314,7 +314,13 @@ const MEDIA_TYPES: &[(&str, &str)] = &[
     ("audio/mp4", "m4a"),
     ("audio/wav", "wav"),
     ("audio/ogg", "ogg"),
+    ("audio/webm", "weba"),
+    ("audio/flac", "flac"),
+    ("audio/aac", "aac"),
 ];
+
+/// Sound types that need format 5: older readers do not know them.
+const FORMAT_5_TYPES: [&str; 3] = ["audio/webm", "audio/flac", "audio/aac"];
 
 fn extension(media_type: &str) -> Option<&'static str> {
     MEDIA_TYPES
@@ -469,9 +475,14 @@ pub fn export_with<W: Write + Seek>(
         .flat_map(|p| &p.rooms)
         .flat_map(|r| &r.loci)
         .any(|l| l.audio.is_some());
+    let newer_sound = media
+        .values()
+        .any(|m| FORMAT_5_TYPES.contains(&m.media_type.as_str()));
     let manifest = Manifest {
         format: FORMAT.into(),
-        version: if sound {
+        version: if newer_sound {
+            5
+        } else if sound {
             4
         } else if docs
             .iter()
@@ -702,7 +713,9 @@ impl<R: Read + Seek> Package<R> {
             if !valid_hash {
                 return Err(invalid(format!("ungültiger SHA-256 „{}“", m.sha256)));
             }
-            if extension(&m.media_type).is_none() {
+            if extension(&m.media_type).is_none()
+                || (manifest.version < 5 && FORMAT_5_TYPES.contains(&m.media_type.as_str()))
+            {
                 return Err(invalid(format!(
                     "Medientyp „{}“ wird nicht unterstützt",
                     m.media_type

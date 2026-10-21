@@ -3,8 +3,12 @@ use super::*;
 
 /// The sample palace with a sound clip at its first locus; returns the store and the clip's hash.
 fn with_sound(dir: &std::path::Path) -> (Store, String) {
+    with_sound_as(dir, b"RIFF fake wav", "audio/wav")
+}
+
+fn with_sound_as(dir: &std::path::Path, bytes: &[u8], mime: &str) -> (Store, String) {
     let store = sample(dir);
-    let sound = store.put_media(b"RIFF fake wav", "audio/wav").unwrap();
+    let sound = store.put_media(bytes, mime).unwrap();
     let id = store
         .palace("Planeten")
         .unwrap()
@@ -99,4 +103,35 @@ fn sound_clips_are_checked_on_reading() {
         entries
     }));
     assert!(err.contains("Hintergrund"), "{err}");
+}
+
+#[test]
+fn webm_flac_and_aac_sound_need_format_5() {
+    for (mime, extension) in [
+        ("audio/webm", "weba"),
+        ("audio/flac", "flac"),
+        ("audio/aac", "aac"),
+    ] {
+        let a = tempfile::tempdir().unwrap();
+        let (store, hash) = with_sound_as(a.path(), b"fake sound", mime);
+        let bytes = exported(&store, &["Planeten"]);
+        let package = Package::open(Cursor::new(bytes.clone())).unwrap();
+        assert_eq!(package.manifest.version, 5, "{mime}");
+        let mut archive = ZipArchive::new(Cursor::new(&bytes)).unwrap();
+        assert!(
+            archive
+                .by_name(&format!("media/{hash}.{extension}"))
+                .is_ok()
+        );
+        let b = tempfile::tempdir().unwrap();
+        let target = Store::open(b.path()).unwrap();
+        package.import(&target).unwrap();
+        assert_eq!(target.media(&hash).unwrap().unwrap().mime, mime);
+
+        let err = open_err(rewrite(&bytes, |mut entries| {
+            edit_json(&mut entries, "manifest.json", |m| m["version"] = 4.into());
+            entries
+        }));
+        assert!(err.contains(mime), "{err}");
+    }
 }

@@ -428,8 +428,8 @@ async fn pick_media(
             .add_filter(
                 "Bilder, Animationen und Videos",
                 &[
-                    "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "webm",
-                    "mov",
+                    "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "mov",
+                    "webm", "mkv", "3gp",
                 ],
             )
             .blocking_pick_file()
@@ -441,13 +441,16 @@ async fn pick_media(
     };
     #[cfg(mobile)]
     let staged = mobile_files::stage(app, selected, mobile_files::Kind::Media)?;
-    // A video becomes MP4 with H.264 first, encoded by the device; it can take a while.
+    // Only a video in a codec devices do not play is converted (by the device; it can take a
+    // while). iOS needs no converter: iPhone videos (HEVC or H.264) are kept as they are.
     #[cfg(target_os = "android")]
     let staged = {
         let converter = app.clone();
-        tauri::async_runtime::spawn_blocking(move || mobile_files::as_mp4(&converter, staged))
-            .await
-            .map_err(|e| format!("Umwandlung fehlgeschlagen: {e}"))??
+        tauri::async_runtime::spawn_blocking(move || {
+            mobile_files::converted_if_needed(&converter, staged)
+        })
+        .await
+        .map_err(|e| format!("Umwandlung fehlgeschlagen: {e}"))??
     };
     #[cfg(mobile)]
     return Ok(Some(PickedMedia { staged }));

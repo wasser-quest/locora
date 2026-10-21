@@ -254,7 +254,7 @@ fn m4a_loses_its_tags_and_times() {
 }
 
 #[test]
-fn m4a_with_pictures_or_other_codecs_is_refused() {
+fn m4a_with_pictures_is_refused_and_other_codecs_need_a_conversion() {
     let video = movie(
         b"M4A ",
         vec![
@@ -264,8 +264,24 @@ fn m4a_with_pictures_or_other_codecs_is_refused() {
         Vec::new(),
     );
     assert!(refused(clean(video, "audio/mp4")).contains("Spuren"));
-    let alac = movie(b"M4A ", vec![track(b"soun", b"alac", [0; 4])], Vec::new());
-    assert!(refused(clean(alac, "audio/mp4")).contains("AAC"));
+    for codec in [b"alac", b"fLaC", b".mp3", b"Opus"] {
+        let file = movie(b"M4A ", vec![track(b"soun", codec, [0; 4])], Vec::new());
+        assert_eq!(ready(clean(file.clone(), "audio/mp4").unwrap()).0, file);
+    }
+    for (codec, mime) in [
+        (b"samr", "audio/mp4"),
+        (b"sawb", "audio/3gpp"),
+        (b"ac-3", "audio/mp4"),
+    ] {
+        let file = movie(b"3gp4", vec![track(b"soun", codec, [0; 4])], Vec::new());
+        assert!(
+            matches!(clean(file, mime).unwrap(), Cleaned::NeedsConversion { .. }),
+            "{mime}"
+        );
+    }
+    // A 3GP recording with AAC is stored as M4A.
+    let aac = movie(b"3gp4", vec![track(b"soun", b"mp4a", [0; 4])], Vec::new());
+    assert_eq!(ready(clean(aac, "audio/3gpp").unwrap()).1, "audio/mp4");
     let silent = movie(b"M4A ", Vec::new(), Vec::new());
     assert!(matches!(
         clean(silent, "audio/mp4"),
@@ -274,20 +290,37 @@ fn m4a_with_pictures_or_other_codecs_is_refused() {
 }
 
 #[test]
-fn sound_types_are_sniffed_and_webm_is_refused() {
+fn sound_types_are_sniffed() {
     assert_eq!(sniff_audio(&frames()), Some("audio/mpeg"));
     assert_eq!(sniff_audio(&wav()), Some("audio/wav"));
     assert_eq!(sniff_audio(&m4a()), Some("audio/mp4"));
     assert_eq!(sniff_audio(b"OggS\0"), Some("audio/ogg"));
     assert_eq!(sniff_audio(b"\x1a\x45\xdf\xa3"), Some("audio/webm"));
+    assert_eq!(sniff_audio(b"fLaC\0\0\0\x22"), Some("audio/flac"));
+    assert_eq!(
+        sniff_audio(&[0xFF, 0xF1, 0x50, 0x80, 0x01, 0x1F, 0xFC]),
+        Some("audio/aac")
+    );
+    assert_eq!(sniff_audio(b"#!AMR\n"), Some("audio/amr"));
+    assert_eq!(sniff_audio(b"caff\0\x01"), Some("audio/x-caf"));
     assert_eq!(sniff_audio(b"\x89PNG"), None);
-    assert!(refused(clean(b"\x1a\x45\xdf\xa3".to_vec(), "audio/webm")).contains("WebM"));
     // The content must be the type that was given.
     assert!(clean(wav(), "audio/mpeg").is_err());
+    assert!(clean(wav(), "audio/flac").is_err());
     assert!(matches!(
-        clean(wav(), "audio/flac"),
+        clean(wav(), "audio/x-ms-wma"),
         Err(MediaError::Unsupported(_))
     ));
+    for (bytes, mime) in [
+        (&b"#!AMR\n\0\0"[..], "audio/amr"),
+        (b"caff\0\x01\0\0", "audio/x-caf"),
+    ] {
+        assert!(matches!(
+            clean(bytes.to_vec(), mime).unwrap(),
+            Cleaned::NeedsConversion { .. }
+        ));
+    }
     assert_eq!(audio_canonical("audio/x-m4a"), Some("audio/mp4"));
-    assert!(is_audio("audio/ogg") && !is_audio("audio/opus"));
+    assert_eq!(audio_canonical("audio/x-flac"), Some("audio/flac"));
+    assert!(is_audio("audio/ogg") && is_audio("audio/webm") && !is_audio("audio/opus"));
 }

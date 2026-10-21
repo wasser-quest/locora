@@ -751,10 +751,36 @@ fn VideoAtLocus(
     // timeupdate alone can lag by hundreds of milliseconds. Poll near frame
     // cadence only while approaching this locus, then stop the interval.
     let timer = set_interval_with_handle(stop_at_locus, std::time::Duration::from_millis(16)).ok();
+    // A device without a decoder for the video does not always say so (the player keeps waiting
+    // without an error): after 15 seconds without metadata the journey goes on without the video,
+    // so answers and grades are never blocked.
+    let stalled = RwSignal::new(false);
+    let waited = StoredValue::new(0u32);
+    let watchdog = set_interval_with_handle(
+        move || {
+            let Some(video) = player.get_untracked() else {
+                return;
+            };
+            if ready.get_untracked() || video.ready_state() > 0 {
+                return;
+            }
+            let seconds = waited.get_value() + 1;
+            waited.set_value(seconds);
+            if seconds >= 15 {
+                stalled.set(true);
+                ready.set(true);
+            }
+        },
+        std::time::Duration::from_secs(1),
+    )
+    .ok();
     Effect::new(move |_| {
         if ready.get() {
             if let Some(timer) = timer {
                 timer.clear();
+            }
+            if let Some(watchdog) = watchdog {
+                watchdog.clear();
             }
             crate::video_frames::stop(frame_watch);
             // Held at the locus: this picture bridges to the next question's video.
@@ -769,6 +795,9 @@ fn VideoAtLocus(
     on_cleanup(move || {
         if let Some(timer) = timer {
             timer.clear();
+        }
+        if let Some(watchdog) = watchdog {
+            watchdog.clear();
         }
         crate::video_frames::stop(frame_watch);
     });
@@ -799,6 +828,9 @@ fn VideoAtLocus(
         />
         <Show when=move || error.get()>
             <p class="notes" role="alert">{t("Video oder gespeicherte Locus-Zeit konnte nicht geladen werden.")}</p>
+        </Show>
+        <Show when=move || stalled.get() && !error.get()>
+            <p class="notes" role="alert">{t("Das Video lädt nicht; die Reise geht ohne Video weiter.")}</p>
         </Show>
         <Show when=move || fallback.get()>
             <p class="notes" role="status">{t("Automatische Wiedergabe nicht möglich; direkt zum Locus gesprungen.")}</p>

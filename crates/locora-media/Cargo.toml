@@ -1,6 +1,6 @@
 [package]
 name = "locora-media"
-description = "Pictures and videos as Locora stores them: metadata removed, videos as MP4 with H.264"
+description = "Pictures, videos and sound as Locora stores them: metadata removed, never re-encoded"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

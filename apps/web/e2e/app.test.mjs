@@ -450,6 +450,124 @@ test('a locus gets a sound clip in the editor and shows a player for it', async 
   }
 });
 
+/**
+ * Records about a second of WebM in the page with MediaRecorder, as a browser on a phone or laptop
+ * does: a video (VP9 or VP8) of a changing canvas, or sound (Opus) of a tone. Returns its bytes.
+ */
+async function recordWebm(page, kind) {
+  const base64 = await page.evaluate(async (kind) => {
+    let stream;
+    let stop = () => {};
+    if (kind === 'video') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 120;
+      const context = canvas.getContext('2d');
+      let frame = 0;
+      const draw = setInterval(() => {
+        context.fillStyle = `hsl(${(frame++ * 30) % 360} 80% 50%)`;
+        context.fillRect(0, 0, 160, 120);
+      }, 40);
+      stream = canvas.captureStream(25);
+      stop = () => clearInterval(draw);
+    } else {
+      const audio = new AudioContext();
+      const tone = audio.createOscillator();
+      const output = audio.createMediaStreamDestination();
+      tone.connect(output);
+      tone.start();
+      stream = output.stream;
+      stop = () => audio.close();
+    }
+    const types = kind === 'video' ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8'] : ['audio/webm;codecs=opus'];
+    const recorder = new MediaRecorder(stream, { mimeType: types.find((type) => MediaRecorder.isTypeSupported(type)) });
+    const chunks = [];
+    recorder.ondataavailable = (event) => chunks.push(event.data);
+    const stopped = new Promise((resolve) => (recorder.onstop = resolve));
+    recorder.start(200);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    recorder.stop();
+    await stopped;
+    stop();
+    const bytes = new Uint8Array(await new Blob(chunks).arrayBuffer());
+    let text = '';
+    for (const byte of bytes) text += String.fromCharCode(byte);
+    return btoa(text);
+  }, kind);
+  return Buffer.from(base64, 'base64');
+}
+
+/** Remembers every conversion notice the page shows from now on (see shell/src/video.mjs). */
+async function watchConversions(page) {
+  await page.evaluate(() => {
+    window.__conversions = [];
+    new MutationObserver(() => {
+      const text = document.body.innerText;
+      if (/umgewandelt|converted/i.test(text)) window.__conversions.push(text.slice(0, 200));
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
+}
+
+/** The first bytes and size of what a player plays, as hex. */
+function playedBytes(page, selector) {
+  return page.evaluate(async (selector) => {
+    const player = [...document.querySelectorAll(selector)].find((element) => element.readyState >= 1);
+    const blob = await (await fetch(player.src)).blob();
+    const head = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+    return { head: [...head].map((byte) => byte.toString(16).padStart(2, '0')).join(''), size: blob.size };
+  }, selector);
+}
+
+test('a browser recording (WebM) becomes a video palace as it is, without conversion, and plays', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    const webm = await recordWebm(page, 'video');
+    assert.equal(webm.subarray(0, 4).toString('hex'), '1a45dfa3', 'MediaRecorder wrote WebM');
+    await watchConversions(page);
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: /Own palace from image/ }).click(),
+    ]);
+    await chooser.setFiles({ name: 'Recording.webm', mimeType: 'video/webm', buffer: webm });
+    await page.waitForFunction(() => [...document.querySelectorAll('video')].some((video) => video.readyState >= 1), null, {
+      timeout: 30000,
+    });
+    const stored = await playedBytes(page, 'video');
+    assert.equal(stored.head, '1a45dfa3', 'stored as WebM, not converted to MP4');
+    assert.equal(stored.size, webm.length, 'not re-encoded: metadata is voided in place');
+    assert.deepEqual(await page.evaluate(() => window.__conversions), [], 'no conversion notice');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a recorded WebM sound clip is kept as it is and plays at its locus', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await openTutorial(page);
+    const weba = await recordWebm(page, 'audio');
+    await watchConversions(page);
+    await page.getByRole('checkbox', { name: 'Edit' }).check();
+    await page.locator('.marker button').first().click();
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Choose audio…' }).click(),
+    ]);
+    await chooser.setFiles({ name: 'voice.weba', mimeType: 'audio/webm', buffer: weba });
+    await page.waitForFunction(() => [...document.querySelectorAll('.locus-audio audio')].some((audio) => audio.readyState >= 1), null, {
+      timeout: 20000,
+    });
+    const stored = await playedBytes(page, '.locus-audio audio');
+    assert.equal(stored.head, '1a45dfa3');
+    assert.equal(stored.size, weba.length);
+    assert.deepEqual(await page.evaluate(() => window.__conversions), []);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
 test('the first start asks for the language and then speaks it', async () => {
   const { context, page, problems } = await openApp({ chooseLanguage: true });
   try {

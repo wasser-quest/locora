@@ -9,15 +9,15 @@
 import { MemFs } from './wasi-memfs.mjs';
 import { instantiateCore } from './core.mjs';
 import { runCloud } from './cloud.mjs';
-import { asMp4, isVideo } from './video.mjs';
+import { isVideo, soundAsKept, videoAsKept } from './video.mjs';
 import { openFileStorage, loadFiles, saveChanges } from './file-storage.mjs';
 import { openStorage as openPluginStorage, loadPluginStorage, flushPluginStorage } from '../src/storage-idb.mjs';
 import { host } from '../src/host-core.mjs';
 
 const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification'];
-const MEDIA_ACCEPT = 'image/*,video/*,.sply,.png,.jpg,.jpeg,.webp,.gif,.avif,.mp4,.m4v,.webm,.mov';
+const MEDIA_ACCEPT = 'image/*,video/*,.sply,.png,.jpg,.jpeg,.webp,.gif,.avif,.mp4,.m4v,.mov,.webm,.mkv,.3gp';
 const ARCHIVE_ACCEPT = '.locora,.toml';
-const AUDIO_ACCEPT = 'audio/*,.mp3,.m4a,.wav,.ogg,.oga,.opus';
+const AUDIO_ACCEPT = 'audio/*,.mp3,.m4a,.wav,.ogg,.oga,.opus,.weba,.webm,.flac,.aac,.3gp,.3ga,.amr,.caf';
 /** The core's folder as the page sees it; paths the core returns start with it. */
 const CORE_FOLDER = /^\/locora\//;
 const inFolder = (path) => path.replace(CORE_FOLDER, '');
@@ -218,12 +218,13 @@ async function importTicket(ticket, options) {
 }
 
 /**
- * Puts the file in the core's inbox, imports it through the core, and removes the copy again. A video
- * becomes MP4 with H.264 first (see video.mjs); the core removes the metadata of every file. A sound
- * clip (kind `audio`) is never converted.
+ * Puts the file in the core's inbox, imports it through the core, and removes the copy again. Videos
+ * and sound clips keep their codec when devices commonly play it; only others are converted first
+ * (see video.mjs). The core removes the metadata of every file.
  */
 async function stageAndImport(file, options) {
-  if (options.kind !== 'audio' && isVideo(file)) file = await asMp4(file);
+  if (options.kind === 'audio') file = await soundAsKept(file);
+  else if (isVideo(file)) file = await videoAsKept(file);
   // Each import gets a folder of its own, so the file keeps its name (the palace takes its name from it).
   const name = `${crypto.randomUUID()}/${file.name.replace(/[^\w.-]/g, '_')}`;
   const path = `inbox/${name}`;

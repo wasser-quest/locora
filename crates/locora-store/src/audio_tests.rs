@@ -133,7 +133,8 @@ fn a_sound_clip_must_be_stored_sound() {
             )
             .is_err()
     );
-    assert!(is_audio("audio/mp4") && !is_audio("image/png") && !is_audio("audio/webm"));
+    assert!(is_audio("audio/mp4") && is_audio("audio/webm") && !is_audio("image/png"));
+    assert!(!is_audio("video/webm") && !is_audio("audio/amr"));
 }
 
 #[test]

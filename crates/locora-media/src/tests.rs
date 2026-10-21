@@ -268,13 +268,15 @@ fn an_h264_video_loses_location_names_and_times_in_place() {
 #[test]
 fn other_videos_need_a_conversion() {
     for (tracks, mime) in [
-        (vec![track(b"vide", b"hvc1")], "video/mp4"),
+        // ProRes and MPEG-4 Part 2 pictures, AMR and AC-3 sound.
+        (vec![track(b"vide", b"apcn")], "video/quicktime"),
+        (vec![track(b"vide", b"mp4v")], "video/mp4"),
         (
             vec![track(b"vide", b"avc1"), track(b"soun", b"samr")],
-            "video/mp4",
+            "video/3gpp",
         ),
         (
-            vec![track(b"vide", b"avc1"), track(b"meta", b"gpmd")],
+            vec![track(b"vide", b"hvc1"), track(b"soun", b"ac-3")],
             "video/mp4",
         ),
     ] {
@@ -284,14 +286,34 @@ fn other_videos_need_a_conversion() {
             "{cleaned:?}"
         );
     }
-    assert!(matches!(
-        clean(b"\x1a\x45\xdf\xa3".to_vec(), "video/webm").unwrap(),
-        Cleaned::NeedsConversion { .. }
-    ));
+    assert!(clean(b"\x1a\x45\xdf\xa3".to_vec(), "video/webm").is_err());
     assert!(
         clean(movie(b"isom", Vec::new()), "video/mp4").is_err(),
         "no picture at all"
     );
+}
+
+#[test]
+fn phone_and_browser_codecs_are_kept_as_they_are() {
+    for (picture, sound) in [
+        (b"hvc1", b"mp4a"),
+        (b"hev1", b"Opus"),
+        (b"av01", b"fLaC"),
+        (b"vp09", b"Opus"),
+        (b"avc3", b"alac"),
+        (b"hvc1", b".mp3"),
+    ] {
+        let file = movie(
+            b"qt  ",
+            vec![track(b"vide", picture), track(b"soun", sound)],
+        );
+        let length = file.len();
+        let (out, mime) = ready(clean(file, "video/quicktime").unwrap());
+        assert_eq!(mime, "video/mp4");
+        assert_eq!(out.len(), length);
+        assert!(contains(&out, picture) && contains(&out, sound) && contains(&out, b"frames"));
+        assert!(!contains(&out, b"+48.21") && !contains(&out, b"track name"));
+    }
 }
 
 #[test]

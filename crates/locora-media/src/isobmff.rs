@@ -1,7 +1,13 @@
 //! MP4, MOV and AVIF (ISO base media files), changed in place so no offset moves: metadata boxes
 //! become `free` boxes with zeroed content, creation times are zeroed, and an image's EXIF and
-//! XMP items are overwritten with zeros. A video is checked for H.264 and, at most, AAC or Opus
-//! sound; a QuickTime file of those is marked as MP4.
+//! XMP items are overwritten with zeros. A video is checked for codecs that phones, cameras and
+//! browsers play (H.264, HEVC, AV1, VP9; AAC, Opus, MP3, ALAC, FLAC); other tracks (GPS and other
+//! timed metadata, chapters) are removed with their samples zeroed. A QuickTime file of those is
+//! marked as MP4.
+
+mod samples;
+
+use samples::samples;
 
 use crate::{MediaError, Result, be16, be32, be64};
 
@@ -80,6 +86,61 @@ fn is_metadata(found: &Box, data: &[u8]) -> bool {
     }
 }
 
+/// Video codecs that are kept as they are: H.264, HEVC (iPhones and many Android phones), AV1, VP9.
+const VIDEO_CODECS: [&[u8; 4]; 6] = [b"avc1", b"avc3", b"hvc1", b"hev1", b"av01", b"vp09"];
+/// Sound codecs that are kept as they are: AAC (and MP3 in `mp4a`), Opus, MP3, ALAC, FLAC.
+const SOUND_CODECS: [&[u8; 4]; 5] = [b"mp4a", b"Opus", b".mp3", b"alac", b"fLaC"];
+
+/// The tracks of a movie, sorted: pictures and sound in allowed codecs, the first codec that is
+/// not allowed, and the other tracks (timed metadata such as GPS or camera motion, chapters,
+/// timecode), which are removed.
+struct Tracks {
+    picture: bool,
+    sound: bool,
+    video: Option<Option<[u8; 4]>>,
+    other_sound: Option<Option<[u8; 4]>>,
+    extra: Vec<Box>,
+}
+
+fn sort_tracks(data: &[u8], moov: &Box) -> Result<Tracks> {
+    let mut tracks = Tracks {
+        picture: false,
+        sound: false,
+        video: None,
+        other_sound: None,
+        extra: Vec::new(),
+    };
+    for track in boxes(data, moov.body, moov.end)?
+        .into_iter()
+        .filter(|b| &b.kind == b"trak")
+    {
+        let (handler, codec) = track_codec(data, &track)?;
+        let allowed = |list: &[&[u8; 4]]| codec.as_ref().is_some_and(|c| list.contains(&c));
+        match &handler {
+            b"vide" if allowed(&VIDEO_CODECS) => tracks.picture = true,
+            b"vide" => tracks.video = tracks.video.or(Some(codec)),
+            b"soun" if allowed(&SOUND_CODECS) => tracks.sound = true,
+            b"soun" => tracks.other_sound = tracks.other_sound.or(Some(codec)),
+            _ => tracks.extra.push(track),
+        }
+    }
+    Ok(tracks)
+}
+
+/// Removes a track that is neither picture nor sound: its samples are overwritten with zeros
+/// and its `trak` box becomes a `free` box, so nothing moves.
+fn remove_track(data: &mut [u8], track: &Box) -> Result<()> {
+    for (start, length) in samples(data, track)? {
+        let end = start
+            .checked_add(length)
+            .filter(|&end| end <= data.len())
+            .ok_or(MediaError::Malformed("Spurdaten außerhalb der Datei"))?;
+        data[start..end].fill(0);
+    }
+    erase(data, track);
+    Ok(())
+}
+
 /// Cleans a video in place. `Some(reason)` when it needs a conversion instead.
 pub fn clean_video(data: &mut [u8]) -> Result<Option<String>> {
     let top = boxes(data, 0, data.len())?;
@@ -87,33 +148,24 @@ pub fn clean_video(data: &mut [u8]) -> Result<Option<String>> {
     let ftyp = ftyp.ok_or(MediaError::Malformed("kein ftyp-Block"))?;
     let moov = top.iter().find(|b| &b.kind == b"moov").copied();
     let moov = moov.ok_or(MediaError::Malformed("kein moov-Block"))?;
-    if top.iter().any(|b| &b.kind == b"moof") {
+    let tracks = sort_tracks(data, &moov)?;
+    if let Some(codec) = tracks.video {
+        return Ok(Some(needs("Video", codec.as_ref().map(|c| &c[..]))));
+    }
+    if let Some(codec) = tracks.other_sound {
+        return Ok(Some(needs("Ton", codec.as_ref().map(|c| &c[..]))));
+    }
+    if !tracks.picture {
+        return Err(MediaError::Malformed("keine Videospur"));
+    }
+    if top.iter().any(|b| &b.kind == b"moof") && !tracks.extra.is_empty() {
+        // Their samples sit in the fragments; removing the track alone would leave them there.
         return Ok(Some(
-            "Fragmentierte Videos werden neu als MP4 gespeichert".into(),
+            "Fragmentierte Videos mit Zusatzspuren (z. B. GPS) werden umgewandelt".into(),
         ));
     }
-    let mut picture = false;
-    for track in boxes(data, moov.body, moov.end)?
-        .iter()
-        .filter(|b| &b.kind == b"trak")
-    {
-        let (handler, codec) = track_codec(data, track)?;
-        match (&handler, codec.as_ref().map(|c| &c[..])) {
-            (b"vide", Some(b"avc1" | b"avc3")) => picture = true,
-            (b"vide", other) => return Ok(Some(needs("Video", other))),
-            (b"soun", Some(b"mp4a" | b"Opus")) => {}
-            (b"soun", other) => return Ok(Some(needs("Ton", other))),
-            // Timed metadata (GPS tracks of action cameras, camera motion) and other tracks.
-            _ => {
-                return Ok(Some(
-                    "Das Video hat Zusatzspuren (z. B. GPS); es wird neu als MP4 gespeichert"
-                        .into(),
-                ));
-            }
-        }
-    }
-    if !picture {
-        return Err(MediaError::Malformed("keine Videospur"));
+    for track in &tracks.extra {
+        remove_track(data, track)?;
     }
     for found in &top {
         if is_metadata(found, data) {
@@ -126,59 +178,49 @@ pub fn clean_video(data: &mut [u8]) -> Result<Option<String>> {
 }
 
 /// Cleans an M4A file in place, like a video: metadata boxes (iTunes tags, cover, places) become
-/// `free` boxes and creation times are zeroed. Only sound tracks with AAC or Opus are accepted.
-pub fn clean_audio(data: &mut [u8]) -> Result<()> {
+/// `free` boxes, creation times are zeroed, and chapter or metadata tracks are removed. Sound in
+/// another codec (AMR of old phones, AC-3 …) gives `Some(reason)`: it needs a conversion.
+pub fn clean_audio(data: &mut [u8]) -> Result<Option<String>> {
     let top = boxes(data, 0, data.len())?;
     let ftyp = top.first().filter(|b| &b.kind == b"ftyp").copied();
     ftyp.ok_or(MediaError::Malformed("kein ftyp-Block"))?;
     let moov = top.iter().find(|b| &b.kind == b"moov").copied();
     let moov = moov.ok_or(MediaError::Malformed("kein moov-Block"))?;
-    if top.iter().any(|b| &b.kind == b"moof") {
+    let tracks = sort_tracks(data, &moov)?;
+    if tracks.picture || tracks.video.is_some() {
         return Err(MediaError::Refused(
-            "Fragmentierte M4A-Dateien werden nicht unterstützt. Bitte als MP3 oder normales M4A speichern."
+            "Die Datei hat neben dem Ton weitere Spuren (Bild oder Video). Bitte nur den Ton als M4A oder MP3 speichern."
                 .into(),
         ));
     }
-    let mut sound = false;
-    for track in boxes(data, moov.body, moov.end)?
-        .iter()
-        .filter(|b| &b.kind == b"trak")
-    {
-        match track_codec(data, track)? {
-            (handler, Some(codec))
-                if &handler == b"soun" && matches!(&codec, b"mp4a" | b"Opus") =>
-            {
-                sound = true;
-            }
-            (handler, _) if &handler == b"soun" => {
-                return Err(MediaError::Refused(
-                    "Diese M4A-Datei ist nicht AAC. Bitte als AAC-M4A oder MP3 speichern.".into(),
-                ));
-            }
-            _ => {
-                return Err(MediaError::Refused(
-                    "Die Datei hat neben dem Ton weitere Spuren (Bild, Video oder Kapitel). Bitte nur den Ton als M4A oder MP3 speichern."
-                        .into(),
-                ));
-            }
-        }
+    if let Some(codec) = tracks.other_sound {
+        return Ok(Some(needs("Ton", codec.as_ref().map(|c| &c[..]))));
     }
-    if !sound {
+    if !tracks.sound {
         return Err(MediaError::Malformed("keine Tonspur"));
+    }
+    if top.iter().any(|b| &b.kind == b"moof") && !tracks.extra.is_empty() {
+        return Ok(Some(
+            "Fragmentierte M4A-Dateien mit Zusatzspuren werden umgewandelt".into(),
+        ));
+    }
+    for track in &tracks.extra {
+        remove_track(data, track)?;
     }
     for found in &top {
         if is_metadata(found, data) {
             erase(data, found);
         }
     }
-    clean_movie(data, &moov)
+    clean_movie(data, &moov)?;
+    Ok(None)
 }
 
 fn needs(what: &str, codec: Option<&[u8]>) -> String {
     let codec = codec
         .map(|c| String::from_utf8_lossy(c).trim().to_owned())
         .unwrap_or_else(|| "?".into());
-    format!("{what} im Format {codec} wird als MP4 (H.264) gespeichert")
+    format!("{what} im Format {codec} wird umgewandelt")
 }
 
 /// The handler type and the first sample entry of a track.
@@ -245,7 +287,7 @@ fn mark_as_mp4(data: &mut [u8], ftyp: &Box) -> Result<()> {
         return Ok(());
     }
     brands[..4].copy_from_slice(b"isom");
-    let compatible = [*b"isom", *b"mp42", *b"avc1"];
+    let compatible = [*b"isom", *b"mp42", *b"mp41"];
     for (index, slot) in brands[8..].as_chunks_mut::<4>().0.iter_mut().enumerate() {
         slot.copy_from_slice(&compatible[index.min(2)]);
     }

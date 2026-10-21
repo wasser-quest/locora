@@ -110,7 +110,8 @@ pub struct LocusSource {
     /// Picture shown at the locus: an image or a `.sply` animation, relative to the source file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
-    /// Sound clip played with the answer (mp3, m4a, wav or ogg), relative to the source file.
+    /// Sound clip played with the answer (mp3, m4a, wav, ogg, weba, flac or aac), relative to the
+    /// source file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio: Option<String>,
     /// Memory aid shown after the answer.
@@ -220,14 +221,16 @@ pub fn media_type(path: &Path) -> Option<(RoomKind, &'static str)> {
         "avif" => (RoomKind::Image, "image/avif"),
         "mp4" | "m4v" => (RoomKind::Video, "video/mp4"),
         "webm" => (RoomKind::Video, "video/webm"),
+        "mkv" => (RoomKind::Video, "video/x-matroska"),
         "mov" => (RoomKind::Video, "video/quicktime"),
+        "3gp" => (RoomKind::Video, "video/3gpp"),
         "sply" => (RoomKind::Image, locora_store::SPLINELY),
         _ => return None,
     })
 }
 
-/// A sound clip by file extension: its media type. `.weba` (WebM sound) is recognised so that it
-/// can be refused with a clear message.
+/// A sound clip by file extension: its media type. AMR, 3GP and CAF are recognised so they can be
+/// converted (where ffmpeg is installed) or refused with a clear message.
 pub fn audio_type(path: &Path) -> Option<&'static str> {
     let ext = path.extension()?.to_str()?.to_ascii_lowercase();
     Some(match ext.as_str() {
@@ -235,7 +238,12 @@ pub fn audio_type(path: &Path) -> Option<&'static str> {
         "m4a" => "audio/mp4",
         "wav" => "audio/wav",
         "ogg" | "oga" | "opus" => "audio/ogg",
-        "weba" => "audio/webm",
+        "weba" | "webm" => "audio/webm",
+        "flac" => "audio/flac",
+        "aac" => "audio/aac",
+        "3gp" | "3ga" => "audio/3gpp",
+        "amr" => "audio/amr",
+        "caf" => "audio/x-caf",
         _ => return None,
     })
 }
@@ -294,7 +302,7 @@ fn check_audio(
     let path = inside(root, base, file)?;
     let media_type = audio_type(&path).ok_or_else(|| {
         invalid(format!(
-            "{where_}: {file}: unbekanntes Tonformat (mp3, m4a, wav, ogg)"
+            "{where_}: {file}: unbekanntes Tonformat (mp3, m4a, wav, ogg, opus, weba, flac, aac)"
         ))
     })?;
     check_file(&path, media_type, where_)?;
@@ -336,6 +344,9 @@ fn extension_of(media_type: &str) -> &'static str {
         "audio/mp4" => "m4a",
         "audio/wav" => "wav",
         "audio/ogg" => "ogg",
+        "audio/webm" => "weba",
+        "audio/flac" => "flac",
+        "audio/aac" => "aac",
         _ => "bin",
     }
 }

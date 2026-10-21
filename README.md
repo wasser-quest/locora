@@ -44,6 +44,9 @@ on Windows choose *More info → Run anyway*. `SHA256SUMS.txt` lists the checksu
 - **Video palaces:** the video pauses at each locus and continues once you have recalled it.
 - **Offline first and private:** a local SQLite database is the source of truth; no account, no tracking.
   Pictures, videos and sound clips are stored without location data or other metadata.
+- **Phone recordings as they are:** videos and sound keep the codec they were recorded in (H.264, HEVC,
+  AV1, VP9, VP8; AAC, Opus, MP3, FLAC …) and your device plays them; Locora bundles no codec. Only
+  rare formats (ProRes, AMR …) are converted, by Android, the browser, or an ffmpeg you installed.
 - **Minimal clicks:** one click starts a journey; drop an image or video to create a palace.
 - **Formulas:** workbook tables and formula bindings for content that can be calculated.
 - **Plugins everywhere:** `core`, `review`, `notify`, `tutorial` and `gamification` are Rust compiled to
@@ -143,7 +146,7 @@ apps/site                  the website locora.cloud
 crates/locora-store        offline-first SQLite storage: palaces, rooms, loci, media, plugin data, op log
 crates/locora-runtime      what the CLI and the apps share: journeys, tutorial, cloud sync
 crates/locora-app-core     the app's editor, views and workbook logic
-crates/locora-media        pictures, videos and sound as Locora stores them (metadata removed, MP4)
+crates/locora-media        pictures, videos and sound as Locora stores them (metadata removed, never re-encoded)
 crates/locora-host         loads plugins at runtime (wasmtime): sandbox, events, services, hot reload
 crates/locora-sdk          write plugins in plain Rust (#[locora_plugin])
 crates/locora-fsrs         FSRS-5 spaced-repetition scheduling

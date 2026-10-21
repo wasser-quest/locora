@@ -154,10 +154,25 @@ async fn object_url(media: &Media, read: &str) -> Result<String, String> {
     .await
     .map_err(|_| read.to_string())?;
     let blob: web_sys::Blob = blob.dyn_into().map_err(|_| read.to_string())?;
-    Url::create_object_url_with_blob(&blob).map_err(|_| read.to_string())
+    let object = Url::create_object_url_with_blob(&blob).map_err(|_| read.to_string())?;
+    BLOBS.with(|blobs| blobs.borrow_mut().insert(object.clone(), blob));
+    Ok(object)
+}
+
+thread_local! {
+    /// The blobs behind the live blob URLs, so a player that fails can read the file's format
+    /// (`media_format`) without fetching the URL, which the app's content policy does not allow.
+    static BLOBS: std::cell::RefCell<std::collections::HashMap<String, web_sys::Blob>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// The blob behind a live blob URL made by `object_url`.
+pub fn blob_of(object: &str) -> Option<web_sys::Blob> {
+    BLOBS.with(|blobs| blobs.borrow().get(object).cloned())
 }
 
 /// Release a blob URL once no element uses it anymore.
 pub fn revoke_object_url(object: &str) {
+    BLOBS.with(|blobs| blobs.borrow_mut().remove(object));
     let _ = Url::revoke_object_url(object);
 }

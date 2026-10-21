@@ -15,6 +15,7 @@ mod journey;
 mod language_choice;
 mod locus_display;
 mod look;
+mod media_format;
 mod palette;
 mod settings;
 mod sply;

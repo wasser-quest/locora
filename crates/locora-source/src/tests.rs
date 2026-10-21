@@ -541,3 +541,26 @@ audio = "glocke.wav"
         "nothing half-built stays"
     );
 }
+
+#[test]
+fn phone_and_browser_recordings_are_known_by_their_extension() {
+    for (name, mime) in [
+        ("a.webm", "video/webm"),
+        ("a.MKV", "video/x-matroska"),
+        ("a.mov", "video/quicktime"),
+        ("a.3gp", "video/3gpp"),
+    ] {
+        assert_eq!(media_type(Path::new(name)), Some((RoomKind::Video, mime)));
+    }
+    for (name, mime) in [
+        ("a.weba", "audio/webm"),
+        ("a.webm", "audio/webm"),
+        ("a.FLAC", "audio/flac"),
+        ("a.aac", "audio/aac"),
+        ("a.amr", "audio/amr"),
+        ("a.caf", "audio/x-caf"),
+        ("a.3ga", "audio/3gpp"),
+    ] {
+        assert_eq!(audio_type(Path::new(name)), Some(mime), "{name}");
+    }
+}

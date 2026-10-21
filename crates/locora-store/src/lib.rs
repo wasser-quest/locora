@@ -301,7 +301,15 @@ pub fn is_picture(media_type: &str) -> bool {
 }
 
 /// Media types a locus sound clip may have (stored without metadata by `locora-media`).
-pub const AUDIO_TYPES: [&str; 4] = ["audio/mpeg", "audio/mp4", "audio/wav", "audio/ogg"];
+pub const AUDIO_TYPES: [&str; 7] = [
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/wav",
+    "audio/ogg",
+    "audio/webm",
+    "audio/flac",
+    "audio/aac",
+];
 
 /// Whether stored media of this type is a sound clip.
 pub fn is_audio(media_type: &str) -> bool {
@@ -1592,7 +1600,7 @@ fn check_audio(conn: &Connection, hash: &str) -> Result<()> {
         None => Err(StoreError::NotFound(format!("Medium {hash}"))),
         Some(m) if is_audio(&m) => Ok(()),
         Some(m) => Err(StoreError::Invalid(format!(
-            "Ein Locus-Ton muss MP3, M4A, WAV oder Ogg sein, nicht {m}"
+            "Ein Locus-Ton muss MP3, M4A, WAV, Ogg, WebM, FLAC oder AAC sein, nicht {m}"
         ))),
     }
 }

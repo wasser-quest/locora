@@ -42,15 +42,21 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 ```
 
 - `version` above the reader's version → rejected with "needs a newer Locora".
-- Current readers accept versions 1 to 4. Exports without custom picture widths
+- Current readers accept versions 1 to 5. Exports without custom picture widths
   keep version 1 for plain Recall palaces or version 2 for Quiz/Guess, pictures,
   notes or custom markers. A non-default `imageSize` or `zoom` requires version 3, so older
   readers reject the archive rather than silently losing the size. Missing sizes
   default to 0.25. Version 1 with a non-Recall answer and versions 1/2 with a
   non-default picture width are rejected. A locus sound clip (`audio`) requires
-  version 4; older versions with `audio` are rejected.
+  version 4; older versions with `audio` are rejected. Sound stored as `audio/webm`, `audio/flac`
+  or `audio/aac` requires version 5; older versions with these media types are rejected.
 - File names are derived, never stored: `palaces/<id>.json`, `media/<sha256>.<ext>`.
-- Media types and extensions: `image/png` png, `image/jpeg` jpg, `image/webp` webp, `image/gif` gif, `image/avif` avif, `video/mp4` mp4, `video/webm` webm, `video/quicktime` mov, `audio/mpeg` mp3, `audio/mp4` m4a, `audio/wav` wav, `audio/ogg` ogg, and **`application/vnd.splinely` sply** (binary Splinely animations; the app plays them with the Splinely runtime).
+- Media types and extensions: `image/png` png, `image/jpeg` jpg, `image/webp` webp, `image/gif` gif, `image/avif` avif, `video/mp4` mp4, `video/webm` webm, `video/quicktime` mov, `audio/mpeg` mp3, `audio/mp4` m4a, `audio/wav` wav, `audio/ogg` ogg, `audio/webm` weba, `audio/flac` flac, `audio/aac` aac (format 5), and **`application/vnd.splinely` sply** (binary Splinely animations; the app plays them with the Splinely runtime).
+- Videos keep the codec they were recorded in, with metadata removed in place: `video/mp4` (also
+  QuickTime files, marked as MP4) holds H.264, HEVC, AV1 or VP9 with AAC, Opus, MP3, ALAC or FLAC
+  sound; `video/webm` holds VP8, VP9, AV1, H.264 or HEVC with Opus, Vorbis, AAC or FLAC sound.
+  Not every device decodes every codec (HEVC in Firefox, for example); a client that cannot play a
+  video says so and goes on without it.
 - `plugins`: plugins the file uses. A missing `required` plugin blocks the import.
 
 ## `palaces/<id>.json`
@@ -82,7 +88,7 @@ The reference implementation is [`crates/locora-format`](../crates/locora-format
 - `x`, `y`: position in the room from 0 to 1 (left/top = 0).
 - `time`: seconds into the video; required in video rooms and not allowed elsewhere.
 - `image` (format 2): SHA-256 of a picture that belongs to the answer — an image or a `.sply` animation, never a video. Clients show it only when the locus is revealed (in reverse practice it is part of the question). Files with locus pictures are written as version 2; version 1 readers reject them instead of dropping the pictures.
-- `audio` (format 4): SHA-256 of a sound clip that belongs to the answer (`audio/mpeg`, `audio/mp4`, `audio/wav` or `audio/ogg`). Clients play it when the locus is revealed. Sound is stored without tags (no ID3, iTunes or Vorbis comments, no WAV LIST/INFO chunks). A sound clip is never a room backdrop. Omitted when absent.
+- `audio` (format 4): SHA-256 of a sound clip that belongs to the answer (`audio/mpeg`, `audio/mp4`, `audio/wav`, `audio/ogg`; format 5 adds `audio/webm`, `audio/flac` and `audio/aac`). Clients play it when the locus is revealed. Sound is stored without tags (no ID3, iTunes or Vorbis comments, no WAV LIST/INFO chunks, no WebM tags, no FLAC comments or pictures). A sound clip is never a room backdrop. Omitted when absent.
 - `note` (format 2): memory aid, the vivid image in words; shown after the answer. Omitted when empty.
 - `imageSize` (format 3 for custom widths): finite picture width as a fraction of room width, from 0.05 to 1 inclusive; default 0.25, omitted at the default. Raster images keep their aspect ratio; `.sply` frames use a square viewport. The picture is centered at the locus only after reveal, not before (reverse practice keeps it in the question).
 - `zoom` (format 3 when not 1): how far the room zooms in on the locus while it is asked, from 1 (whole room) to 4; default 1, omitted at the default. The view centres on the locus and stays inside the backdrop.

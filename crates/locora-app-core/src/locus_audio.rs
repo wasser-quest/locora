@@ -7,8 +7,12 @@ use locora_store::{LocusPatch, PalaceTree, Store};
 
 use crate::editor::{picture_target, read_bounded, set_locus_media, store_media};
 
-/// File extensions the sound pickers offer.
-pub const EXTENSIONS: [&str; 6] = ["mp3", "m4a", "wav", "ogg", "oga", "opus"];
+/// File extensions the sound pickers offer (AMR, 3GP and CAF are converted where ffmpeg is
+/// installed, otherwise refused with a hint).
+pub const EXTENSIONS: [&str; 14] = [
+    "mp3", "m4a", "wav", "ogg", "oga", "opus", "weba", "webm", "flac", "aac", "3gp", "3ga", "amr",
+    "caf",
+];
 
 /// Backend-only path obtained from the native dialog or the browser's inbox, never an IPC argument.
 pub fn import_audio(
@@ -29,20 +33,15 @@ pub fn import_audio(
     )
 }
 
-/// The cleaned sound and its stored media type.
+/// The cleaned sound and its stored media type. The content must be the format the name says
+/// (`locora_media` checks); a format outside the list is converted by an installed ffmpeg.
 fn read_selected_audio(path: &std::path::Path) -> Result<(&'static str, Vec<u8>)> {
     let mime = locora_source::audio_type(path)
-        .context("Unbekanntes Tonformat (mp3, m4a, wav, ogg, opus)")?;
+        .context("Unbekanntes Tonformat (mp3, m4a, wav, ogg, opus, weba, flac, aac)")?;
     let bytes = read_bounded(path)?;
-    let detected = locora_media::sniff_audio(&bytes);
-    ensure!(
-        detected == Some(mime),
-        "Toninhalt passt nicht zum Dateiformat ({mime})"
-    );
-    match locora_media::clean(bytes, mime)? {
-        locora_media::Cleaned::Ready { bytes, mime } => Ok((mime, bytes)),
-        locora_media::Cleaned::NeedsConversion { reason } => anyhow::bail!(reason),
-    }
+    ensure!(!bytes.is_empty(), "Die Tondatei ist leer");
+    let (bytes, mime) = crate::convert::prepare(path, bytes, mime)?;
+    Ok((mime, bytes))
 }
 
 #[cfg(test)]
@@ -106,14 +105,44 @@ mod tests {
     }
 
     #[test]
+    fn a_browser_recording_is_kept_as_webm() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(&dir.path().join("profil")).unwrap();
+        let target = palace(&store);
+        let file = dir.path().join("Aufnahme.webm");
+        let recording = locora_media::fixtures::webm("webm", &[(2, "A_OPUS")]);
+        std::fs::write(&file, &recording).unwrap();
+        let (tree, _) = import_audio(&store, &target, &file).unwrap();
+        let hash = tree.route().next().unwrap().audio.clone().unwrap();
+        assert_eq!(store.media(&hash).unwrap().unwrap().mime, "audio/webm");
+        let stored = std::fs::read(store.media_file(&hash).unwrap()).unwrap();
+        assert_eq!(
+            stored.len(),
+            recording.len(),
+            "not re-encoded, nothing moved"
+        );
+        assert!(!stored.windows(6).any(|w| w == b"Chrome"));
+    }
+
+    #[test]
     fn wrong_or_foreign_sound_files_are_refused() {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open(&dir.path().join("profil")).unwrap();
         let target = palace(&store);
         let cases = [
             ("klang.mp3", locora_media::fixtures::wav(), "passt nicht"),
-            ("klang.flac", b"fLaC".to_vec(), "Unbekanntes Tonformat"),
-            ("klang.weba", b"\x1a\x45\xdf\xa3".to_vec(), "WebM"),
+            ("klang.flac", b"fLaC".to_vec(), "beschädigt"),
+            ("klang.weba", b"\x1a\x45\xdf\xa3".to_vec(), "beschädigt"),
+            (
+                "film.weba",
+                locora_media::fixtures::webm("webm", &[(1, "V_VP8"), (2, "A_OPUS")]),
+                "Videospur",
+            ),
+            (
+                "klang.wma",
+                locora_media::fixtures::wav(),
+                "Unbekanntes Tonformat",
+            ),
             (
                 "klang.png",
                 locora_media::fixtures::png(),

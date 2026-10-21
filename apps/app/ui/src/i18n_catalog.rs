@@ -2405,13 +2405,33 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "Dieses Video kann der Browser nicht abspielen (häufig HEVC/H.265 vom Handy). Als MP4 (H.264) oder WebM speichern.",
+        "Dieses Gerät kann das Video nicht abspielen (Format: {0}). Auf einem anderen Gerät oder in einem anderen Browser geht es.",
         [
-            "This browser cannot play this video (often HEVC/H.265 from a phone). Save it as MP4 (H.264) or WebM.",
-            "Dieses Video kann der Browser nicht abspielen (häufig HEVC/H.265 vom Handy). Als MP4 (H.264) oder WebM speichern.",
-            "Ce navigateur ne peut pas lire cette vidéo (souvent du HEVC/H.265 d’un téléphone). Enregistrez-la en MP4 (H.264) ou WebM.",
-            "このブラウザではこの動画を再生できません（スマートフォンの HEVC/H.265 によくあります）。MP4（H.264）または WebM で保存してください。",
-            "此浏览器无法播放该视频（常见于手机拍摄的 HEVC/H.265）。请另存为 MP4（H.264）或 WebM。",
+            "This device cannot play the video (format: {0}). It plays on another device or in another browser.",
+            "Dieses Gerät kann das Video nicht abspielen (Format: {0}). Auf einem anderen Gerät oder in einem anderen Browser geht es.",
+            "Cet appareil ne peut pas lire la vidéo (format : {0}). Elle se lit sur un autre appareil ou dans un autre navigateur.",
+            "この端末では動画を再生できません（形式: {0}）。別の端末や別のブラウザーなら再生できます。",
+            "此设备无法播放该视频（格式：{0}）。换一台设备或换一个浏览器即可播放。",
+        ],
+    ),
+    (
+        "Dieses Gerät kann den Ton nicht abspielen (Format: {0}). Auf einem anderen Gerät oder in einem anderen Browser geht es.",
+        [
+            "This device cannot play the sound (format: {0}). It plays on another device or in another browser.",
+            "Dieses Gerät kann den Ton nicht abspielen (Format: {0}). Auf einem anderen Gerät oder in einem anderen Browser geht es.",
+            "Cet appareil ne peut pas lire le son (format : {0}). Il se lit sur un autre appareil ou dans un autre navigateur.",
+            "この端末では音声を再生できません（形式: {0}）。別の端末や別のブラウザーなら再生できます。",
+            "此设备无法播放该音频（格式：{0}）。换一台设备或换一个浏览器即可播放。",
+        ],
+    ),
+    (
+        "Das Video lädt nicht; die Reise geht ohne Video weiter.",
+        [
+            "The video does not load; the journey goes on without it.",
+            "Das Video lädt nicht; die Reise geht ohne Video weiter.",
+            "La vidéo ne se charge pas ; le parcours continue sans elle.",
+            "動画が読み込まれません。動画なしでジャーニーを続けます。",
+            "视频无法加载；旅程将在没有视频的情况下继续。",
         ],
     ),
     (

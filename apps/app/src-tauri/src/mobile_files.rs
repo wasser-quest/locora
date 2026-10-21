@@ -10,7 +10,7 @@ use tauri_plugin_fs::{FsExt, OpenOptions};
 
 pub enum Kind {
     Picture,
-    /// A locus sound clip (mp3, m4a, wav, ogg).
+    /// A locus sound clip (mp3, m4a, wav, ogg, weba, flac, aac; amr, 3gp and caf to convert).
     Audio,
     Media,
     Archive,
@@ -52,16 +52,13 @@ pub fn stage(app: &AppHandle, selected: FilePath, kind: Kind) -> Result<Staged, 
     result.map(|file| Staged { file, name })
 }
 
-/// A staged video as MP4 with H.264, converted by the device (see `tauri-plugin-locora-video`);
-/// pictures stay as they are. The core then removes the metadata.
+/// A staged video as Locora keeps it. Videos in codecs that devices play (H.264, HEVC, AV1, VP9,
+/// VP8 …) stay as they are; only a video the core would refuse is converted to MP4 with H.264 by
+/// the device (see `tauri-plugin-locora-video`). Pictures stay as they are. The core then removes
+/// the metadata.
 #[cfg(target_os = "android")]
-pub fn as_mp4(app: &AppHandle, staged: Staged) -> Result<Staged, String> {
-    let extension = staged
-        .path()
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(str::to_ascii_lowercase);
-    if !matches!(extension.as_deref(), Some("mp4" | "m4v" | "webm" | "mov")) {
+pub fn converted_if_needed(app: &AppHandle, staged: Staged) -> Result<Staged, String> {
+    if !locora_app_core::convert::video_needs_conversion(staged.path()) {
         return Ok(staged);
     }
     let output = tempfile::Builder::new()
@@ -94,7 +91,8 @@ fn selected_name(selected: &FilePath) -> Option<String> {
     let path = Path::new(&file_name);
     let extension = path.extension()?.to_str()?.to_ascii_lowercase();
     if ![
-        "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "webm", "mov",
+        "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "mov", "webm", "mkv",
+        "3gp",
     ]
     .contains(&extension.as_str())
     {
@@ -169,9 +167,10 @@ fn extension(selected: &FilePath, header: &[u8], kind: &Kind) -> Result<&'static
         .map(str::to_ascii_lowercase);
     let known = match kind {
         Kind::Picture => &["png", "jpg", "jpeg", "webp", "gif", "avif", "sply"][..],
-        Kind::Audio => &["mp3", "m4a", "wav", "ogg", "oga", "opus"][..],
+        Kind::Audio => &locora_app_core::locus_audio::EXTENSIONS[..],
         Kind::Media => &[
-            "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "webm", "mov",
+            "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "mov", "webm",
+            "mkv", "3gp",
         ][..],
         Kind::Archive => &["locora", "toml"][..],
     };
@@ -192,9 +191,15 @@ fn extension(selected: &FilePath, header: &[u8], kind: &Kind) -> Result<&'static
         // Phones often hand over sound without a file name; its first bytes tell the format.
         infer::get(header).and_then(|t| match t.mime_type() {
             "audio/mpeg" => Some("mp3"),
-            "audio/m4a" | "video/mp4" => Some("m4a"),
+            "audio/m4a" | "video/mp4" | "video/quicktime" => Some("m4a"),
             "audio/x-wav" => Some("wav"),
             "audio/ogg" | "audio/opus" => Some("ogg"),
+            // Browser and phone recordings: WebM sound, FLAC, AAC, AMR of older phones.
+            "video/webm" | "audio/webm" => Some("weba"),
+            "audio/x-flac" | "audio/flac" => Some("flac"),
+            "audio/aac" => Some("aac"),
+            "audio/amr" => Some("amr"),
+            "video/3gpp" | "audio/3gpp" => Some("3gp"),
             _ => None,
         })
     } else {
@@ -206,7 +211,9 @@ fn extension(selected: &FilePath, header: &[u8], kind: &Kind) -> Result<&'static
             "image/avif" => Some("avif"),
             "video/mp4" | "video/x-m4v" => Some("mp4"),
             "video/webm" => Some("webm"),
+            "video/x-matroska" => Some("mkv"),
             "video/quicktime" => Some("mov"),
+            "video/3gpp" => Some("3gp"),
             _ => None,
         })
     };

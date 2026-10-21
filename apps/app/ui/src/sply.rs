@@ -2,7 +2,7 @@
 //! sandboxed frame (scripts only, no access to the app); state changes reach
 //! it as messages (see `src-tauri/src/sply.rs`).
 
-use crate::i18n::t;
+use crate::i18n::{t, tf};
 use leptos::prelude::*;
 use leptos::{html::Iframe, task::spawn_local};
 use locora_app_api::{Media, MediaKind};
@@ -571,6 +571,23 @@ pub fn VideoBackdrop(
     let muted = StoredValue::new(muted);
     let autoplay = StoredValue::new(autoplay);
     let poster = StoredValue::new(poster.filter(|picture| !picture.is_empty()));
+    // This device has no decoder for the video's codec (often HEVC/H.265 from a phone in Firefox or
+    // on Linux): say so, with the format, instead of an empty frame. The journey goes on without it.
+    let unplayable = move || {
+        let Ok(object) = source.get_untracked() else {
+            return;
+        };
+        source.set(Err(tf(UNPLAYABLE_VIDEO, &[&"…"])));
+        failed.with_value(|callback| {
+            if let Some(cb) = callback {
+                cb();
+            }
+        });
+        spawn_local(async move {
+            let format = crate::media_format::describe(&object).await;
+            let _ = source.try_set(Err(tf(UNPLAYABLE_VIDEO, &[&format])));
+        });
+    };
     view! {
         <Show when=move || source.get().is_ok()>
             <video
@@ -592,20 +609,20 @@ pub fn VideoBackdrop(
                 on:loadeddata=move |event| {
                     // A paused video often paints nothing (the stage shows through): a tiny seek makes the
                     // WebView draw its frame.
-                    if let Some(video) = event.target().and_then(|target| target.dyn_into::<web_sys::HtmlVideoElement>().ok())
-                        && video.paused()
-                        && video.current_time() == 0.0
-                    {
+                    let Some(video) = event.target().and_then(|target| target.dyn_into::<web_sys::HtmlVideoElement>().ok()) else {
+                        return;
+                    };
+                    // Sound but no picture: the device decodes the sound track only.
+                    if video.ready_state() >= 2 && video.video_width() == 0 && video.video_height() == 0 {
+                        unplayable();
+                        return;
+                    }
+                    if video.paused() && video.current_time() == 0.0 {
                         video.set_current_time(0.001);
                     }
                 }
                 on:timeupdate=move |_| ticked.with_value(|callback| if let Some(cb) = callback { cb(); })
-                on:error=move |_| {
-                    // Usually a format the browser cannot decode (often HEVC/H.265 from a phone): say so
-                    // instead of an empty frame.
-                    source.set(Err(t("Dieses Video kann der Browser nicht abspielen (häufig HEVC/H.265 vom Handy). Als MP4 (H.264) oder WebM speichern.").to_string()));
-                    failed.with_value(|callback| if let Some(cb) = callback { cb(); });
-                }
+                on:error=move |_| unplayable()
             ></video>
         </Show>
         <Show when=move || source.get().is_err()>
@@ -613,6 +630,9 @@ pub fn VideoBackdrop(
         </Show>
     }
 }
+
+/// Shown when this device cannot decode a video; `{0}` is its format (see `media_format`).
+pub const UNPLAYABLE_VIDEO: &str = "Dieses Gerät kann das Video nicht abspielen (Format: {0}). Auf einem anderen Gerät oder in einem anderen Browser geht es.";
 
 /// The picture a video shows now, as a JPEG data URL; `None` before it has a frame.
 pub fn current_frame(video: &web_sys::HtmlVideoElement) -> Option<String> {

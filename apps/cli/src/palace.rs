@@ -98,7 +98,7 @@ fn read_items(file: &Path) -> Result<Vec<Item>> {
 fn media_kind(path: &Path) -> Result<(RoomKind, &'static str)> {
     locora_source::media_type(path).with_context(|| {
         format!(
-            "{}: unbekanntes Format. Bilder: png, jpg, webp, gif, avif · Videos: mp4, webm, mov",
+            "{}: unbekanntes Format. Bilder: png, jpg, webp, gif, avif · Videos: mp4, mov, webm, mkv, 3gp",
             path.display()
         )
     })
@@ -240,27 +240,24 @@ pub fn store_picture(app: &App, path: &Path) -> Result<String> {
     Ok(app.store.put_media(&bytes, media_type)?.hash)
 }
 
-/// Store a sound clip (mp3, m4a, wav, ogg) for a locus, without its tags.
+/// Store a sound clip (mp3, m4a, wav, ogg, weba, flac, aac) for a locus, without its tags. AMR,
+/// 3GP and CAF are converted by an installed ffmpeg.
 pub fn store_audio(app: &App, path: &Path) -> Result<String> {
     let mime = locora_source::audio_type(path).with_context(|| {
         format!(
-            "{}: unbekanntes Tonformat (mp3, m4a, wav, ogg)",
+            "{}: unbekanntes Tonformat (mp3, m4a, wav, ogg, weba, flac, aac)",
             path.display()
         )
     })?;
     let bytes = fs::read(path).with_context(|| format!("{} lesen", path.display()))?;
-    if locora_media::sniff_audio(&bytes) != Some(mime) {
-        bail!(
-            "{}: Inhalt passt nicht zum Tonformat {mime}",
-            path.display()
-        );
-    }
+    // `prepare` checks that the content is the format the name says.
     let (bytes, mime) =
         locora_media::prepare(path, bytes, mime).with_context(|| path.display().to_string())?;
     Ok(app.store.put_media(&bytes, mime)?.hash)
 }
 
-/// A picture or video without its metadata, a video as MP4 with H.264; `.sply` as it is.
+/// A picture or video without its metadata (a video in its own codec, converted only when
+/// devices cannot play it); `.sply` as it is.
 fn prepared(path: &Path, bytes: Vec<u8>, mime: &'static str) -> Result<(Vec<u8>, &'static str)> {
     if mime == locora_store::SPLINELY {
         return Ok((bytes, mime));

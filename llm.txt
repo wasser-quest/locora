@@ -60,7 +60,7 @@ Diese Datei ist für dich geschrieben. `locora guide` gibt sie aus.
 - Befehle mit Leerzeichen in Namen immer in Anführungszeichen setzen.
 - `locora new "Name" -- A B C` legt für jedes Argument einen Ort an, in dieser Reihenfolge.
 - Bilder und Videos: `--image <DATEI>` bei `new` oder `add`; Videos: `--video <DATEI>` (Loci brauchen dann Zeiten wie `1:23=These`).
-- Ton zur Antwort eines Orts: `--audio <DATEI>` bei `add` oder `edit` (mp3, m4a, wav, ogg; ohne Tags gespeichert); `edit … --no-audio` entfernt ihn.
+- Ton zur Antwort eines Orts: `--audio <DATEI>` bei `add` oder `edit` (mp3, m4a, wav, ogg, weba, flac, aac; ohne Tags gespeichert, nie neu kodiert); `edit … --no-audio` entfernt ihn.
 - Mit `--data <ORDNER>` ein eigenes Testprofil verwenden; so verändert man nicht die echten Daten.
 - `locora rm` löscht unwiderruflich. Vorher `locora export <PALAST>` als Sicherung anbieten.
 - `locora cloud` (Konto, Sync, Ranglisten) ist optional und kostet später möglicherweise etwas.

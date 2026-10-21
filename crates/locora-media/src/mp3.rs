@@ -14,7 +14,10 @@ fn syncsafe(bytes: &[u8]) -> Result<usize> {
         .fold(0usize, |size, &b| (size << 7) | usize::from(b)))
 }
 
-pub fn clean(data: &[u8]) -> Result<Vec<u8>> {
+/// Where the sound of `data` starts and ends without the ID3v2 tags at the start and the ID3v1,
+/// APEv2, Lyrics3 and appended ID3v2 tags at the end (also used for FLAC and ADTS files, which
+/// some programs tag the same way).
+pub fn untagged(data: &[u8]) -> Result<(usize, usize)> {
     let mut start = 0;
     // One or more ID3v2 tags, possibly followed by zero padding.
     while data.len() >= start + 10 && &data[start..start + 3] == b"ID3" {
@@ -65,6 +68,11 @@ pub fn clean(data: &[u8]) -> Result<Vec<u8>> {
             break;
         }
     }
+    Ok((start, end))
+}
+
+pub fn clean(data: &[u8]) -> Result<Vec<u8>> {
+    let (start, end) = untagged(data)?;
     let frames = &data[start..end];
     let first = frame_length(frames).ok_or(MediaError::Malformed("kein MP3-Frame"))?;
     // A second frame must follow the first one, unless the file holds a single frame.

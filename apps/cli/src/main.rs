@@ -48,7 +48,7 @@ enum Command {
         /// Bild als Hintergrund (png, jpg, webp, gif, avif)
         #[arg(long, conflicts_with = "video")]
         image: Option<PathBuf>,
-        /// Video als Hintergrund (mp4, webm, mov); Loci brauchen dann Zeiten: 1:23=These
+        /// Video als Hintergrund (mp4, mov, webm, mkv); Loci brauchen dann Zeiten: 1:23=These
         #[arg(long)]
         video: Option<PathBuf>,
         /// Loci aus Datei: je Zeile `Inhalt`, `Ort | Inhalt` oder `Ort | Inhalt | x,y`
@@ -75,7 +75,7 @@ enum Command {
         /// Bild für den Ort (png, jpg, webp, gif, avif oder eine .sply-Animation)
         #[arg(long, value_name = "DATEI")]
         image: Option<PathBuf>,
-        /// Ton zur Antwort (mp3, m4a, wav, ogg); ohne Tags gespeichert
+        /// Ton zur Antwort (mp3, m4a, wav, ogg, weba, flac, aac); ohne Tags gespeichert
         #[arg(long, value_name = "DATEI")]
         audio: Option<PathBuf>,
         /// Picture width as a fraction of the room width.
@@ -114,7 +114,7 @@ enum Command {
         /// Bild des Orts entfernen
         #[arg(long)]
         no_image: bool,
-        /// Neuer Ton zur Antwort (mp3, m4a, wav, ogg); ohne Tags gespeichert
+        /// Neuer Ton zur Antwort (mp3, m4a, wav, ogg, weba, flac, aac); ohne Tags gespeichert
         #[arg(long, value_name = "DATEI", conflicts_with = "no_audio")]
         audio: Option<PathBuf>,
         /// Ton des Orts entfernen

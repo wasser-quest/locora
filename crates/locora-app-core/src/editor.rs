@@ -312,7 +312,7 @@ fn read_selected_media(
     picture_only: bool,
 ) -> Result<(RoomKind, &'static str, Vec<u8>)> {
     let (kind, mime) = locora_source::media_type(path).context(
-        "Unbekanntes Bildformat/Videoformat (png, jpg, webp, gif, avif, sply, mp4, m4v, webm, mov)",
+        "Unbekanntes Bildformat/Videoformat (png, jpg, webp, gif, avif, sply, mp4, m4v, mov, webm, mkv, 3gp)",
     )?;
     ensure!(
         !picture_only || kind == RoomKind::Image,
@@ -325,14 +325,26 @@ fn read_selected_media(
             "Keine binäre .sply-Datei"
         );
         crate::sply::to_svg(&bytes).context("Ungültige .sply-Datei")?;
+    } else if kind == RoomKind::Video {
+        // The container decides; `locora_media` checks the codecs inside.
+        let isobmff = bytes.get(4..8) == Some(b"ftyp");
+        let ebml = bytes.starts_with(b"\x1a\x45\xdf\xa3");
+        ensure!(
+            if matches!(mime, "video/webm" | "video/x-matroska") {
+                ebml
+            } else {
+                isobmff
+            },
+            "Videoinhalt passt nicht zum Dateiformat ({mime})"
+        );
     } else {
         let detected = infer::get(&bytes).map(|t| t.mime_type());
         ensure!(
-            detected == Some(mime) || (mime == "video/mp4" && detected == Some("video/x-m4v")),
+            detected == Some(mime),
             "Bildinhalt passt nicht zum Dateiformat ({mime})"
         );
     }
-    // Without metadata, and a video as MP4 with H.264.
+    // Without metadata; a video only converted when its codec is not one devices play.
     let (bytes, mime) = crate::convert::prepare(path, bytes, mime)?;
     Ok((kind, mime, bytes))
 }
@@ -547,15 +559,37 @@ mod tests {
             assert!(import_palace(&store, Some(&path)).is_err());
         }
         assert!(store.palaces().unwrap().is_empty());
-        // A WebM is not stored as it is: it needs a conversion to MP4 (here, of invalid data, none).
+        // A broken WebM is refused; a WebM in another codec would need a conversion (no ffmpeg here
+        // is assumed, so the message says how to get one).
         let mut webm = vec![0u8; 257];
         webm[..4].copy_from_slice(b"\x1a\x45\xdf\xa3");
         webm[4..11].copy_from_slice(b"\x42\x82\x84webm");
         let path = dir.path().join("Raum.webm");
         std::fs::write(&path, &webm).unwrap();
         let refused = import_palace(&store, Some(&path)).unwrap_err().to_string();
-        assert!(refused.contains("MP4"), "{refused}");
+        assert!(refused.contains("beschädigt"), "{refused}");
         use locora_media::fixtures;
+        // A browser recording (VP9, Opus) is kept as WebM; only its writing app is voided.
+        let recording = fixtures::webm("webm", &[(1, "V_VP9"), (2, "A_OPUS")]);
+        let recording_clean = match locora_media::clean(recording.clone(), "video/webm").unwrap() {
+            locora_media::Cleaned::Ready { bytes, mime } => {
+                assert_eq!(mime, "video/webm");
+                bytes
+            }
+            other => panic!("{other:?}"),
+        };
+        // An iPhone video (HEVC in QuickTime) is kept too, marked as MP4.
+        let hevc = fixtures::movie(
+            b"qt  ",
+            vec![
+                fixtures::track(b"vide", b"hvc1", [0; 4]),
+                fixtures::track(b"soun", b"mp4a", [0; 4]),
+            ],
+            Vec::new(),
+        );
+        let mut hevc_mp4 = hevc.clone();
+        hevc_mp4[8..12].copy_from_slice(b"isom");
+        hevc_mp4[16..20].copy_from_slice(b"isom");
         let video = |brand| {
             fixtures::movie(
                 brand,
@@ -572,6 +606,8 @@ mod tests {
             ("mp4", fixtures::mp4(), RoomKind::Video, None),
             ("m4v", video(b"M4V "), RoomKind::Video, None),
             ("mov", video(b"qt  "), RoomKind::Video, Some(as_mp4)),
+            ("webm", recording, RoomKind::Video, Some(recording_clean)),
+            ("MOV", hevc, RoomKind::Video, Some(hevc_mp4)),
             (
                 "sply",
                 locora_runtime::tutorial::DEFAULT_MARKER.to_vec(),
@@ -599,7 +635,7 @@ mod tests {
             );
         }
         let palaces = store.palaces().unwrap();
-        assert_eq!(palaces.len(), 5);
+        assert_eq!(palaces.len(), 7);
         assert!(palaces.iter().any(|p| p.name == "Raum (2)"));
         let oversized = dir.path().join("large.png");
         std::fs::File::create(&oversized)
@@ -608,7 +644,7 @@ mod tests {
             .unwrap();
         assert!(import_palace(&store, Some(&oversized)).is_err());
         assert!(import_palace(&store, Some(dir.path())).is_err());
-        assert_eq!(store.palaces().unwrap().len(), 5);
+        assert_eq!(store.palaces().unwrap().len(), 7);
     }
 
     #[test]

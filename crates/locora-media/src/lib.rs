@@ -1,19 +1,25 @@
-//! Pictures, videos and sound clips as Locora stores them. Whatever a device adds goes through `clean`
-//! first: metadata that can say where, when or with what a picture or video was taken (EXIF with
-//! GPS, XMP, IPTC, comments, creation times) is removed without re-encoding anything, and a video
-//! must be MP4 with H.264, which every browser and app plays.
+//! Pictures, videos and sound clips as Locora stores them. Whatever a device adds goes through
+//! `clean` first: metadata that can say where, when or with what a picture, video or recording was
+//! made (EXIF with GPS, XMP, IPTC, comments, creation times, GPS tracks, tags) is removed without
+//! re-encoding anything. The pictures and sound themselves stay bit for bit as they were.
 //!
 //! Only the orientation of a photo is kept (as a minimal EXIF block), so it is not shown sideways.
-//! A video in another format or codec is not changed here: `clean` says it needs a conversion,
-//! which the platform does (Android's encoder, WebCodecs in the browser, ffmpeg on a desktop).
+//! Videos keep the codec they were recorded in, and the device that plays them decodes it (Locora
+//! bundles no codec): MP4/MOV with H.264, HEVC, AV1 or VP9 (sound AAC, Opus, MP3, ALAC or FLAC),
+//! and WebM with VP8, VP9, AV1, H.264 or HEVC (sound Opus, Vorbis, AAC or FLAC). Only a video
+//! outside that list (ProRes, MPEG-4 Part 2, AMR sound …) is not changed here: `clean` says it
+//! needs a conversion, which the platform does as a fallback (Android's encoder, WebCodecs in the
+//! browser, an installed ffmpeg on a desktop).
 //!
-//! Sound (MP3, M4A, WAV, Ogg) loses its tags the same way, without re-encoding; see `audio`.
+//! Sound (MP3, M4A, WAV, Ogg, WebM, FLAC, AAC) loses its tags the same way; see `audio`.
 
+mod aac;
 mod audio;
 mod convert;
 mod exif;
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
+mod flac;
 mod gif;
 mod isobmff;
 mod jpeg;
@@ -21,10 +27,13 @@ mod mp3;
 mod ogg;
 mod png;
 mod wav;
+mod webm;
 mod webp;
 
 #[cfg(test)]
 mod audio_tests;
+#[cfg(test)]
+mod codec_tests;
 #[cfg(test)]
 mod tests;
 
@@ -33,8 +42,8 @@ mod tests;
 pub enum Cleaned {
     /// Ready to store: the bytes without metadata, and their media type.
     Ready { bytes: Vec<u8>, mime: &'static str },
-    /// A video that is not MP4 with H.264 (or carries tracks beyond picture and sound): it must
-    /// be converted first. The reason is for the person, in German like the app's other messages.
+    /// A video or sound clip in a codec outside the list above (or with tracks that cannot be
+    /// removed in place): it must be converted first. The reason is for the person, in German like the app's other messages.
     NeedsConversion { reason: String },
 }
 
@@ -69,20 +78,21 @@ pub fn clean(bytes: Vec<u8>, mime: &str) -> Result<Cleaned> {
             isobmff::clean_image(&mut bytes)?;
             ready(bytes, "image/avif")
         }
-        "video/mp4" | "video/x-m4v" | "video/quicktime" => {
+        "video/mp4" | "video/x-m4v" | "video/quicktime" | "video/3gpp" | "video/3gpp2" => {
             let mut bytes = bytes;
             match isobmff::clean_video(&mut bytes)? {
                 None => ready(bytes, "video/mp4"),
                 Some(reason) => Ok(Cleaned::NeedsConversion { reason }),
             }
         }
-        "video/webm" => Ok(Cleaned::NeedsConversion {
-            reason: "WebM wird als MP4 (H.264) gespeichert".into(),
-        }),
-        audio if audio.starts_with("audio/") => {
-            let (bytes, mime) = audio::clean(bytes, audio)?;
-            ready(bytes, mime)
+        "video/webm" | "video/x-matroska" => {
+            let mut bytes = bytes;
+            match webm::clean(&mut bytes, false)? {
+                None => ready(bytes, "video/webm"),
+                Some(reason) => Ok(Cleaned::NeedsConversion { reason }),
+            }
         }
+        audio if audio.starts_with("audio/") => audio::clean(bytes, audio),
         other => Err(MediaError::Unsupported(other.to_owned())),
     }
 }
