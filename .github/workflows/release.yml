@@ -8,7 +8,9 @@ name: Release
 # Android is signed with the upload key when the repository secrets ANDROID_KEYSTORE_BASE64
 # (`base64 -w0 upload.jks`) and ANDROID_KEYSTORE_PASSWORD are set; without them the release gets
 # a debug-signed APK for testing instead. The Play Store bundle (.aab) is never published here.
-# Desktop builds are not code-signed.
+# Desktop builds are not code-signed. iOS is an unsigned .ipa (installable with tools that sign it
+# with your own Apple ID, such as AltStore or Sideloadly); the App Store needs an Apple developer
+# account and signing.
 
 on:
   push:
@@ -181,6 +183,59 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  ios:
+    name: iOS (unsigned)
+    needs: check
+    runs-on: macos-15
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: apps/app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Xcode and the iOS SDK
+        run: |
+          xcodebuild -version
+          if ! xcrun simctl list runtimes --json | python3 -c 'import json, sys; sys.exit(not any(r.get("isAvailable") and "iOS" in r["name"] for r in json.load(sys.stdin)["runtimes"]))'; then
+            xcodebuild -downloadPlatform iOS
+          fi
+      - name: Apple project tools
+        run: |
+          brew install xcodegen
+          command -v pod >/dev/null || brew install cocoapods
+      - name: Install Rust targets
+        run: rustup target add wasm32-unknown-unknown wasm32-wasip2 aarch64-apple-ios
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            apps/app
+            plugins
+          key: release-ios
+      - name: Install Tauri and Trunk
+        run: |
+          cargo install tauri-cli --version "=$TAURI_CLI_VERSION" --locked
+          cargo install trunk --version "=$TRUNK_VERSION" --locked
+      - name: Generate the Xcode project
+        run: cargo tauri ios init --ci --skip-targets-install
+      - name: Build for iPhone and iPad, unsigned (includes the Trunk frontend)
+        run: cargo tauri ios build --ci --target aarch64 --no-sign
+      - name: Package as an unsigned .ipa
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          app=$(find src-tauri/gen/apple/build -type d -name 'Locora.app' -path '*arm64*' | head -1)
+          test -n "$app"
+          mkdir -p ../../dist Payload
+          cp -R "$app" Payload/
+          zip -qry "../../dist/Locora_${VERSION}_ios-unsigned.ipa" Payload
+          ls -la ../../dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
   android:
     name: Android (ARM64)
     needs: check
@@ -256,7 +311,9 @@ jobs:
 
   release:
     name: Publish the release
-    needs: [check, desktop, cli, android]
+    needs: [check, desktop, cli, ios, android]
+    # iOS is unsigned and may fail on new Xcode versions: the release goes out without it then.
+    if: ${{ !cancelled() && needs.check.result == 'success' && needs.desktop.result == 'success' && needs.cli.result == 'success' && needs.android.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write

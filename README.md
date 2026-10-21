@@ -28,6 +28,7 @@
 |---|---|
 | **Web** | No install: [app.locora.cloud](https://app.locora.cloud), installable as an app, works offline |
 | **Android** | `Locora_<version>_android-arm64.apk` |
+| **iPhone / iPad** | `Locora_<version>_ios-unsigned.ipa`, install it with AltStore or Sideloadly (they sign it with your Apple ID) |
 | **Windows** | `Locora_<version>_x64-setup.exe` or `.msi` |
 | **macOS** | `Locora_<version>_aarch64.dmg` (Apple silicon) or `_x64.dmg` (Intel) |
 | **Linux** | `.AppImage`, `.deb` or `.rpm` |
