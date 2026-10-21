@@ -8,6 +8,11 @@ on:
   # (free for public repositories).
   workflow_dispatch:
 
+# A newer push to the same branch replaces the run that is still going.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
