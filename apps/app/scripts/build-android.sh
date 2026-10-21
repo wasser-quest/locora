@@ -62,11 +62,15 @@ if [[ "${RELEASE:-0}" == 1 ]]; then
   [[ -f "$keystore" ]] || fail "Schlüsseldatei fehlt: $keystore"
   export LOCORA_ANDROID_KEYSTORE="$keystore"
   python3 "$app_dir/scripts/android-release-signing.py" src-tauri/gen/android/app/build.gradle.kts
-  cargo tauri android build --ci --target aarch64 --aab
+  # The bundle for the Play Store and an installable APK, both signed with the upload key.
+  cargo tauri android build --ci --target aarch64 --aab --apk
   aab="$app_dir/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab"
+  apk="$app_dir/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
   [[ -s "$aab" ]] || fail "AAB wurde nicht erzeugt: $aab"
+  [[ -s "$apk" ]] || fail "APK wurde nicht erzeugt: $apk"
   jarsigner -verify "$aab" | grep -q "jar verified" || fail "AAB ist nicht signiert: $aab"
-  printf 'AAB: %s\n' "$aab"
+  "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$apk" || fail "APK ist nicht gültig signiert: $apk"
+  printf 'AAB: %s\nAPK: %s\n' "$aab" "$apk"
   exit 0
 fi
 

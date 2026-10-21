@@ -122,6 +122,14 @@ the upload key. `LOCORA_ANDROID_KEYSTORE` names its properties file (`storeFile`
 `scripts/android-release-signing.py` adds the signing to the generated project. Raise `version`
 in `src-tauri/tauri.conf.json` for every upload.
 
+**Releases:** raise `version` in `src-tauri/tauri.conf.json` (and the workspace versions), merge
+to `main`, then push a tag `vX.Y.Z` on that commit. `.github/workflows/release.yml` builds macOS
+(Apple silicon and Intel), Windows, Linux (AppImage, deb, rpm) and Android and publishes them as
+the GitHub release of that tag; a tag with a suffix (`v0.2.0-beta.1`) is a pre-release. For a
+signed Android APK and AAB, set the repository secrets `ANDROID_KEYSTORE_BASE64`
+(`base64 -w0 upload.jks`) and `ANDROID_KEYSTORE_PASSWORD`; without them the release carries a
+debug-signed APK. The desktop installers are not code-signed.
+
 CI uploads `locora-android-arm64-debug` from
 `src-tauri/gen/android/app/build/outputs/apk/**/*.apk` (14-day retention).
 This is a debug-key-signed, installable ARM64 APK, not a Play Store release/AAB.
