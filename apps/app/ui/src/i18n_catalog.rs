@@ -2,6 +2,46 @@
 //! in English, German, French, Japanese and Chinese (the order of `Lang::column`).
 
 pub const MESSAGES: &[(&str, [&str; 5])] = &[
+    (
+        "Ort gewählt. „Aufdecken“ zeigt, ob er stimmt; ein neuer Klick verschiebt deine Wahl.",
+        [
+            "Place chosen. “Reveal” shows whether it is right; another click moves your choice.",
+            "Ort gewählt. „Aufdecken“ zeigt, ob er stimmt; ein neuer Klick verschiebt deine Wahl.",
+            "Lieu choisi. « Révéler » montre s’il est juste ; un nouveau clic déplace ton choix.",
+            "場所を選びました。「答えを表示」で正誤がわかります。もう一度クリックすると選択を移動できます。",
+            "已选择位置。“显示答案”会告诉你是否正确；再次点击可移动你的选择。",
+        ],
+    ),
+    (
+        "Treffer – dein Ort liegt im Radius.",
+        [
+            "Hit – your place is within the radius.",
+            "Treffer – dein Ort liegt im Radius.",
+            "Touché – ton lieu est dans le rayon.",
+            "正解 – 選んだ場所は範囲内です。",
+            "命中 – 你选的位置在范围内。",
+        ],
+    ),
+    (
+        "Daneben – deine Wahl ist rot markiert, der richtige Ort ist aufgedeckt.",
+        [
+            "Missed – your choice is marked red, the right place is revealed.",
+            "Daneben – deine Wahl ist rot markiert, der richtige Ort ist aufgedeckt.",
+            "Raté – ton choix est en rouge, le bon lieu est révélé.",
+            "はずれ – 選んだ場所は赤で示され、正しい場所が表示されています。",
+            "未命中 – 你的选择标为红色，正确位置已显示。",
+        ],
+    ),
+    (
+        "Ort im Palast",
+        [
+            "Locus in the palace",
+            "Ort im Palast",
+            "Locus du palais",
+            "宮殿の場所",
+            "宫殿中的位置",
+        ],
+    ),
     ("Beenden", ["Quit", "Beenden", "Quitter", "終了", "退出"]),
     (
         "Erste Journey",

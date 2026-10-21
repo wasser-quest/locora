@@ -433,6 +433,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                         }
                         Phase::Revealed(r) => {
                             view! {
+                                <GuessVerdict number=q.n />
                                 <Answer solution=r.solution note=r.note picture=r.picture />
                                 <Grades reply=reply busy=busy />
                             }
@@ -635,11 +636,13 @@ fn Stage(question: Question, phase: RwSignal<Phase>) -> impl IntoView {
                     }
                 }).collect_view()}
                 {move || {
-                    // The guess stays on the room, so it zooms along with the locus.
+                    // The guess stays on the room, so it zooms along with the locus. Whether it hit shows
+                    // only once the answer is revealed: before, a new click just moves the choice.
+                    let decided = !matches!(phase.get(), Phase::Asking);
                     spot.get()
                         .filter(|guess| guess.n == number)
                         .map(|guess| view! {
-                            <div class="guess-marker" class:hit=guess.hit class:miss=!guess.hit
+                            <div class="guess-marker" class:hit=decided && guess.hit class:miss=decided && !guess.hit
                                 style:left=format!("{}%", guess.x * 100.0)
                                 style:top=format!("{}%", guess.y * 100.0)></div>
                         })
@@ -849,8 +852,7 @@ fn Ask(
                 {reverse.then(|| view! {
                     <p class="progress">
                         {move || match spot.get().filter(|guess| guess.n == number) {
-                            Some(guess) if guess.hit => t("Treffer – der Ort liegt im Radius."),
-                            Some(_) => t("Daneben – der Ort ist markiert. Du kannst trotzdem aufdecken."),
+                            Some(_) => t("Ort gewählt. „Aufdecken“ zeigt, ob er stimmt; ein neuer Klick verschiebt deine Wahl."),
                             None => t("Klick auf die Bühne, wo der Inhalt war."),
                         }}
                     </p>
@@ -966,6 +968,25 @@ fn Ask(
             }
             .into_any()
         }
+    }
+}
+
+/// After revealing a reverse question: whether the chosen place was right (nothing without a choice).
+#[component]
+fn GuessVerdict(number: u32) -> impl IntoView {
+    let spot = expect_context::<GuessSpot>().0;
+    move || {
+        spot.get().filter(|guess| guess.n == number).map(|guess| {
+            view! {
+                <p class="progress guess-verdict" class:hit=guess.hit class:miss=!guess.hit role="status">
+                    {if guess.hit {
+                        t("Treffer – dein Ort liegt im Radius.")
+                    } else {
+                        t("Daneben – deine Wahl ist rot markiert, der richtige Ort ist aufgedeckt.")
+                    }}
+                </p>
+            }
+        })
     }
 }
 

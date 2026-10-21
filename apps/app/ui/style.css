@@ -128,6 +128,7 @@ header.bar h1 { font-size: 1.4rem; margin: 0; flex: 1; }
 .video-transport { display: flex; gap: .5rem; margin: .25rem 0 .5rem; }
 /* Editor options in named groups: each group folds, so the screen shows what the step needs. */
 .editor-groups { display: grid; gap: .5rem; margin: .5rem 0; }
+.editor-group-body .meta { color: var(--muted); font-size: .9rem; margin: 0; }
 .editor-group { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: .5rem .75rem; }
 .editor-group > summary { cursor: pointer; font-weight: 600; }
 .editor-group-body { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding-top: .5rem; }
@@ -163,6 +164,8 @@ video::-webkit-media-controls-overlay-play-button { display: none !important; }
   transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 0 2px #0008; }
 .guess-marker.hit { border-color: var(--ok); }
 .guess-marker.miss { border-color: var(--again); }
+.guess-verdict.hit { color: var(--ok); }
+.guess-verdict.miss { color: var(--again); }
 .locus-picture > img { display: block; width: 100%; height: auto; }
 /* The text of a revealed locus without a picture, where the picture would stand. */
 .locus-text { position: absolute; transform: translate(-50%, -50%); pointer-events: none; max-width: 40%; padding: .3rem .6rem; border-radius: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--line); font-weight: 600; text-align: center; overflow-wrap: anywhere; }
@@ -416,19 +419,33 @@ iframe.sply.medal-art, img.sply.medal-art { width: 72px; height: 72px; max-heigh
   .answer .picture { width: min(120px, 12vh); }
 }
 
-/* The formula editor (formulas.rs): a modal over the room editor, scrolling on its own. */
+/* The formula editor (formulas.rs): a modal over the room editor, scrolling on its own, with one
+   tab at a time (bindings, tables, calculator). */
 .formula-editor { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; padding: 16px 20px; }
-.formula-editor section { margin-top: 16px; }
 .formula-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .formula-head h2 { margin: 0; }
-.formula-binding { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.formula-tabs { margin: 12px 0 8px; }
+.formula-intro { color: var(--muted); font-size: .9rem; margin: .25rem 0 .75rem; }
+.formula-editor select { font: inherit; padding: .45rem .6rem; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); min-width: 0; }
+.formula-locus { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .5rem; }
+.formula-binding { display: grid; grid-template-columns: 7rem minmax(0, 1fr) auto auto; gap: 6px 8px; align-items: center;
+  padding: 8px 0; border-top: 1px solid var(--line); }
+.formula-binding > label { font-weight: 600; }
+.formula-binding.bound > label::after { content: " ●"; color: var(--indigo); }
+.formula-binding .formula-result { grid-column: 2 / -1; margin: 0; font-size: .85rem; color: var(--muted); }
+.formula-binding .formula-result.notes { color: var(--again); }
 .formula-cells { display: grid; gap: 6px; margin: 8px 0; }
 .formula-cell { display: grid; grid-template-columns: minmax(0, 1.4fr) auto minmax(0, 1.4fr) auto auto; gap: 6px; align-items: center; }
 .formula-cell code { overflow-wrap: anywhere; }
-.formula-new { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; align-items: end; }
+.formula-new { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; align-items: end;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .formula-calc { display: flex; gap: 8px; align-items: end; }
 .formula-calc .input { flex: 1; }
 @media (max-width: 560px) {
+  .formula-binding { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .formula-binding > label, .formula-binding .formula-result { grid-column: 1 / -1; }
   .formula-cell { grid-template-columns: 1fr 1fr; }
   .formula-cell code { grid-column: 1 / -1; }
 }
+

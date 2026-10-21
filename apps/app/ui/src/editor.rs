@@ -884,7 +884,7 @@ pub fn Rooms(
                 <details class="editor-group">
                     <summary>{t("Formeln")}</summary>
                     <div class="editor-group-body">
-                        <p class="notes">{t("Tabellen und Formeln dieses Palasts; eine Formel kann Ort, Inhalt, Position und Sichtbarkeit eines Orts setzen.")}</p>
+                        <p class="meta">{t("Tabellen und Formeln dieses Palasts; eine Formel kann Ort, Inhalt, Position und Sichtbarkeit eines Orts setzen.")}</p>
                         <button disabled=move || busy.get() || dirty.get() || dragging.get()
                             on:click=move |_| formulas_open.set(true)>{t("Formeln bearbeiten …")}</button>
                     </div>

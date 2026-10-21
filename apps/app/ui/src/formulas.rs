@@ -47,6 +47,13 @@ const KINDS: [&str; 8] = [
     "text", "number", "boolean", "json", "formula", "asset", "palace", "room",
 ];
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tab {
+    Bindings,
+    Tables,
+    Calculator,
+}
+
 /// Shared state of the open editor: the workbook, and whether a change is on its way.
 #[derive(Clone, Copy)]
 struct Book {
@@ -99,6 +106,8 @@ pub fn FormulaEditor(
     });
     let chosen = RwSignal::new(locus.unwrap_or_default());
     let shared = RwSignal::new(false);
+    // One part at a time: the bindings of a locus, the tables, or the calculator.
+    let tab = RwSignal::new(Tab::Bindings);
     let close = move || on_close.run(());
     let keys = window_event_listener(leptos::ev::keydown, move |event| {
         if event.key() == "Escape" {
@@ -114,6 +123,16 @@ pub fn FormulaEditor(
                     <h2>{t("Formeln")}</h2>
                     <button type="button" on:click=move |_| close()>{t("Schließen")}</button>
                 </div>
+                <div class="tabs formula-tabs" role="tablist">
+                    {[(Tab::Bindings, "Bindungen"), (Tab::Tables, "Tabellen"), (Tab::Calculator, "Rechner")]
+                        .into_iter()
+                        .map(|(which, label)| view! {
+                            <button type="button" role="tab" class:on=move || tab.get() == which
+                                aria-selected=move || (tab.get() == which).to_string()
+                                on:click=move |_| tab.set(which)>{t(label)}</button>
+                        })
+                        .collect_view()}
+                </div>
                 {move || match book.view.get() {
                     None => view! { <p class="progress">{t("Formeln werden geladen …")}</p> }.into_any(),
                     Some(Err(error)) => view! { <p class="notes" role="alert">{error}</p> }.into_any(),
@@ -123,16 +142,18 @@ pub fn FormulaEditor(
                             chosen.set(view.loci.first().map(|l| l.id.clone()).unwrap_or_default());
                         }
                         let loci = view.loci.clone();
+                        let current = tab.get();
                         let rows = if shared.get() { view.shared.clone() } else { view.rows.clone() };
                         view! {
+                            {(current == Tab::Bindings).then(|| view! {
                             <section>
-                                <h3>{t("Bindungen")}</h3>
-                                <p class="notes">{t("Eine Formel setzt ein Feld des Orts, z. B. Zahlen.a.value + 1. Gebundene Felder sind im Editor schreibgeschützt.")}</p>
+                                <p class="formula-intro">{t("Eine Formel setzt ein Feld des Orts, z. B. Zahlen.a.value + 1. Gebundene Felder sind im Editor schreibgeschützt.")}</p>
                                 {if loci.is_empty() {
-                                    view! { <p class="notes">{t("Dieser Palast hat noch keine Orte.")}</p> }.into_any()
+                                    view! { <p class="formula-intro">{t("Dieser Palast hat noch keine Orte.")}</p> }.into_any()
                                 } else {
+                                    let loci = loci.clone();
                                     view! {
-                                        <label class="input"><span>{t("Ort")}</span>
+                                        <label class="formula-locus"><span>{t("Ort im Palast")}</span>
                                             <select prop:value=move || chosen.get() on:change=move |e| chosen.set(event_target_value(&e))>
                                                 {loci.iter().map(|l| view! {
                                                     <option value=l.id.clone()>{format!("{}. {}", l.number, l.place)}</option>
@@ -150,13 +171,14 @@ pub fn FormulaEditor(
                                     }.into_any()
                                 }}
                             </section>
+                            })}
+                            {(current == Tab::Tables).then(|| view! {
                             <section>
-                                <h3>{t("Tabellen")}</h3>
                                 <label><input type="checkbox" prop:checked=move || shared.get()
                                     on:change=move |e| shared.set(event_target_checked(&e)) />
                                     {t("Gemeinsame Tabellen (für alle Paläste)")}</label>
                                 {if rows.is_empty() {
-                                    view! { <p class="notes">{t("Noch keine Zellen.")}</p> }.into_any()
+                                    view! { <p class="formula-intro">{t("Noch keine Zellen.")}</p> }.into_any()
                                 } else {
                                     view! {
                                         <div class="formula-cells">
@@ -171,10 +193,13 @@ pub fn FormulaEditor(
                                 }}
                                 <NewCell book=book shared=shared />
                             </section>
+                            })}
                         }.into_any()
                     }
                 }}
-                <Calculator book=book />
+                <Show when=move || tab.get() == Tab::Calculator>
+                    <Calculator book=book />
+                </Show>
                 {move || book.message.get().map(|result| match result {
                     Ok(text) => view! { <p class="verdict ok" role="status">{text}</p> }.into_any(),
                     Err(text) => view! { <p class="notes" role="alert">{text}</p> }.into_any(),
@@ -226,21 +251,20 @@ fn BindingRow(
             "Bindung entfernt.",
         );
     };
+    // One line per field: its name, the formula and the buttons; what it gives below the formula.
+    let id = format!("formula-{field}");
     view! {
-        <form class="formula-binding" on:submit=move |e| { e.prevent_default(); save(); }>
-            <label class="input"><span>{t(label)}</span>
-                <input type="text" spellcheck="false" placeholder=t("keine Formel") bind:value=expression />
-            </label>
+        <form class="formula-binding" class:bound=bound on:submit=move |e| { e.prevent_default(); save(); }>
+            <label for=id.clone()>{t(label)}</label>
+            <input id=id type="text" spellcheck="false" placeholder=t("keine Formel") bind:value=expression />
+            <button type="submit" disabled=move || book.busy.get() || expression.get().trim().is_empty()>{t("Speichern")}</button>
+            <Show when=move || bound>
+                <button type="button" disabled=move || book.busy.get() on:click=move |_| remove()>{t("Lösen")}</button>
+            </Show>
             {result.map(|result| match result {
-                Ok(value) => view! { <p class="meta">{format!("= {value}")}</p> }.into_any(),
-                Err(error) => view! { <p class="notes" role="alert">{error}</p> }.into_any(),
+                Ok(value) => view! { <p class="formula-result">{format!("= {value}")}</p> }.into_any(),
+                Err(error) => view! { <p class="formula-result notes" role="alert">{error}</p> }.into_any(),
             })}
-            <div class="tabs">
-                <button type="submit" disabled=move || book.busy.get() || expression.get().trim().is_empty()>{t("Speichern")}</button>
-                <Show when=move || bound>
-                    <button type="button" disabled=move || book.busy.get() on:click=move |_| remove()>{t("Lösen")}</button>
-                </Show>
-            </div>
         </form>
     }
 }
