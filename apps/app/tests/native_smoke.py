@@ -28,6 +28,14 @@ def node_text(node):
     return Atspi.Text.get_text(text, 0, Atspi.Text.get_character_count(text)) if text else ""
 
 
+# Role names differ between AT-SPI/WebKitGTK versions; both spellings are accepted.
+ROLE_ALIASES = {"button": {"button", "push button"}, "region": {"region", "landmark"}}
+
+
+def role_is(node, role):
+    return node.get_role_name() in ROLE_ALIASES.get(role, {role})
+
+
 def walk(node, depth=0):
     if node is None:
         return
@@ -105,7 +113,7 @@ class Scenario:
             visit(root, 0)
 
     def find(self, name, role=None, prefix=False):
-        return next((n for n in walk(self.app) if (n.get_name().startswith(name) if prefix else n.get_name() == name) and (not role or n.get_role_name() == role)), None)
+        return next((n for n in walk(self.app) if (n.get_name().startswith(name) if prefix else n.get_name() == name) and (not role or role_is(n, role))), None)
 
     def click(self, name, role="button", prefix=False):
         node = self.until(lambda: self.find(name, role, prefix))
@@ -446,7 +454,7 @@ class Scenario:
         assert all(0 <= x <= 1 and 0 <= y <= 1 for x,y in positions)
         self.record("list-route-native-paste-budget", mouse_clicks=0, paste_shortcuts=1, loci=10)
         # Touch-friendly undo: the toast undoes the whole list via a backend receipt.
-        toast = self.until(lambda: ([n for n in walk(self.app) if n.get_name() == "Rückgängig" and n.get_role_name() == "button"] + [None, None])[1])
+        toast = self.until(lambda: ([n for n in walk(self.app) if n.get_name() == "Rückgängig" and role_is(n, "button")] + [None, None])[1])
         assert toast.do_action(0)
         self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == before)
         self.click("Wiederholen")
@@ -476,7 +484,7 @@ class Scenario:
 
         # Video timeline navigation: a second locus at a later playhead gives two
         # chronological buttons; the first pauses, seeks and selects its locus.
-        timeline = lambda: [n for n in walk(self.app) if n.get_role_name() == "button" and n.get_name() and " s · " in n.get_name()]
+        timeline = lambda: [n for n in walk(self.app) if role_is(n, "button") and n.get_name() and " s · " in n.get_name()]
         self.until(lambda: len(timeline()) == 1)
         # Play for a moment so the second playhead differs, then L again.
         stage = self.until(lambda: self.find("Videoraum", "section", True))
