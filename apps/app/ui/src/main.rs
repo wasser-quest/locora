@@ -63,9 +63,10 @@ fn main() {
     if let Some(window) = web_sys::window() {
         use wasm_bindgen::JsCast;
         if let Ok(hide) = js_sys::Reflect::get(&window, &"hideSplash".into())
-            && let Ok(hide) = hide.dyn_into::<js_sys::Function>() {
-                let _ = hide.call0(&wasm_bindgen::JsValue::NULL);
-            }
+            && let Ok(hide) = hide.dyn_into::<js_sys::Function>()
+        {
+            let _ = hide.call0(&wasm_bindgen::JsValue::NULL);
+        }
     }
 }
 

@@ -407,15 +407,16 @@ pub fn Sply(
     });
     Effect::new(move |_| {
         if timed_ready.get()
-            && let (Some(command), Some(graphic)) = (timed, target()) {
-                let command = command.get();
-                send_timed(
-                    &graphic,
-                    if command.play { "playTo" } else { "seek" },
-                    Some(command.time),
-                    command.start,
-                );
-            }
+            && let (Some(command), Some(graphic)) = (timed, target())
+        {
+            let command = command.get();
+            send_timed(
+                &graphic,
+                if command.play { "playTo" } else { "seek" },
+                Some(command.time),
+                command.start,
+            );
+        }
     });
     // The graphic is there (its frame loaded, or it is mounted inline): it reports its runtime state.
     let mounted = move || {

@@ -308,9 +308,10 @@ impl Profile {
                     <Remove as locora_api::Event>::TOPIC,
                 ]
                 .contains(&topic.as_str())
-                && let Err(e) = self.keep_ui(plugin, topic, payload) {
-                    notes.push(format!("[{plugin}] Seiten/Blöcke nicht übernommen: {e:#}"));
-                }
+                && let Err(e) = self.keep_ui(plugin, topic, payload)
+            {
+                notes.push(format!("[{plugin}] Seiten/Blöcke nicht übernommen: {e:#}"));
+            }
             if let HostEvent::Published {
                 plugin,
                 topic,

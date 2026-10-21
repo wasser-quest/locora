@@ -72,9 +72,10 @@ pub fn load_leads() -> HashMap<String, f64> {
 pub fn save_leads(leads: &HashMap<String, f64>) {
     if let Some(storage) =
         web_sys::window().and_then(|window| window.local_storage().ok().flatten())
-        && let Ok(json) = serde_json::to_string(leads) {
-            let _ = storage.set_item(LEADS_KEY, &json);
-        }
+        && let Ok(json) = serde_json::to_string(leads)
+    {
+        let _ = storage.set_item(LEADS_KEY, &json);
+    }
 }
 
 pub fn load() -> Preferences {
@@ -107,9 +108,10 @@ pub fn load() -> Preferences {
 pub fn save(value: Preferences) {
     if let Some(storage) =
         web_sys::window().and_then(|window| window.local_storage().ok().flatten())
-        && let Ok(json) = serde_json::to_string(&value) {
-            let _ = storage.set_item(KEY, &json);
-        }
+        && let Ok(json) = serde_json::to_string(&value)
+    {
+        let _ = storage.set_item(KEY, &json);
+    }
 }
 
 pub fn visible(offset: i32, previous: u8, next: u8) -> bool {
