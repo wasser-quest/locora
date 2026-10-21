@@ -96,16 +96,37 @@ Data lives in your platform data directory (`--data DIR` or `$LOCORA_DATA` to ch
 ## With an AI assistant
 
 Locora's CLI is written to be used by AI assistants too: [`llm.txt`](llm.txt) explains every command
-for a model (`locora guide` prints the same text). To set it up, give your assistant this:
+for a model (`locora guide` prints the same text). To install Locora, give your assistant this
+prompt. It installs only the CLI unless you add "with the app" (or "only the app"):
 
 ```text
-Install the Locora CLI and then read its guide:
-1. Download the archive for this system from https://github.com/wasser-quest/locora/releases/latest
-   (locora-cli_<version>_<platform>.tar.gz, or .zip on Windows; checksums in SHA256SUMS.txt).
+Install Locora on this computer.
+By default install ONLY the Locora CLI. Install the Locora app as well only if I asked for the
+app (for example "with the app"); install only the app if I said "only the app".
+
+All files: https://github.com/wasser-quest/locora/releases/latest
+Check every download against SHA256SUMS.txt from the same release.
+
+CLI (the default):
+1. Pick the archive for this system: locora-cli_<version>_<target>.tar.gz, or .zip on Windows.
+   Targets: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-apple-darwin,
+   aarch64-apple-darwin, x86_64-pc-windows-msvc.
 2. Unpack it and put `locora` (Windows: `locora.exe`) on the PATH, e.g. ~/.local/bin.
    On macOS the binary is unsigned: run `xattr -d com.apple.quarantine locora` once.
 3. Run `locora --version`, then `locora guide`, and follow that guide.
    The guide is also at https://github.com/wasser-quest/locora/blob/main/llm.txt
+
+App (only when I asked for it):
+- Windows: run Locora_<version>_x64-setup.exe (or the .msi). It is not code-signed yet:
+  "More info" → "Run anyway".
+- macOS: Locora_<version>_aarch64.dmg (Apple silicon) or _x64.dmg (Intel); copy Locora to
+  Applications, then run `xattr -dr com.apple.quarantine /Applications/Locora.app` once.
+- Linux: the .deb (`sudo apt install ./Locora_<version>_amd64.deb`), the .rpm
+  (`sudo dnf install ./Locora-<version>-1.x86_64.rpm`), or the .AppImage (`chmod +x`, then run it).
+- Android, iPhone and iPad cannot be installed from here: tell me to download the APK or the
+  unsigned .ipa (AltStore or Sideloadly) on the device, or to use https://app.locora.cloud.
+
+Finally tell me what you installed, its version, and how to start it.
 ```
 
 ## Building the app
