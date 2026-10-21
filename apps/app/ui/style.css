@@ -82,9 +82,16 @@ input[type=text] { font: inherit; padding: .5rem .7rem; border-radius: 10px; bor
 main { max-width: min(1200px, 100%); margin: 0 auto; padding: 16px; }
 header.bar { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
 /* Tour copy remains text; the highlighted control is addressed by a stable ID. */
-[data-tour-active="true"] { position: relative; z-index: 11; outline: 3px solid var(--lime); outline-offset: 4px; box-shadow: 0 0 0 7px var(--indigo-deep); }
+/* The tour's spotlight: a frame above everything whose huge shadow dims the rest, so the target and
+   its label stay bright whatever layer they sit in. Clicks pass through. */
+.tour-spot { position: fixed; z-index: 11; border-radius: 12px; pointer-events: none;
+  border: 3px solid var(--lime); box-shadow: 0 0 0 4px var(--indigo-deep), 0 0 0 200vmax rgba(8, 8, 24, .6);
+  transition: left .2s, top .2s, width .2s, height .2s; }
+@media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } }
 .tour-panel { position: fixed; z-index: 12; right: 1rem; bottom: 1rem; display: flex; gap: 1rem;
-  width: min(440px, calc(100vw - 2rem)); box-shadow: 0 10px 32px #17183a66; }
+  width: min(460px, calc(100vw - 2rem)); box-shadow: 0 10px 32px #17183a66; font-size: 1.05rem; }
+/* When the target is in the lower half, the panel goes to the top. */
+.tour-panel.top { bottom: auto; top: calc(1rem + env(safe-area-inset-top)); }
 .tour-simo { width: 72px; min-width: 72px; height: 100px; }
 .tour-copy { min-width: 0; }
 .tour-copy h2 { font-size: 1.1rem; margin: .2rem 0; }
@@ -334,7 +341,7 @@ dl.stats dd { margin: 0; font-weight: 600; }
 /* Room tabs are buttons, not text: they cannot be selected or highlighted. */
 .tabs, .tabs * { -webkit-user-select: none; user-select: none; }
 /* While a tour step is shown, everything but the highlighted element is covered. */
-.tour-scrim { position: fixed; inset: 0; z-index: 10; background: rgba(8, 8, 24, .9); }
+.tour-scrim { position: fixed; inset: 0; z-index: 10; background: rgba(8, 8, 24, .6); }
 
 /* Edit mode: everything sits in one panel; the inner blocks drop their own card frames. */
 .editor-panel { display: flex; flex-direction: column; gap: .6rem; }
@@ -451,3 +458,10 @@ iframe.sply.medal-art, img.sply.medal-art { width: 72px; height: 72px; max-heigh
   .formula-cell code { grid-column: 1 / -1; }
 }
 
+
+/* The language choice on the first start: big buttons, easy to hit. */
+.language-choice-backdrop { z-index: 30; }
+.language-choice { width: min(460px, calc(100vw - 32px)); padding: 20px; text-align: center; }
+.language-choice h2 { margin: 0 0 .4rem; font-size: 1.3rem; }
+.language-choice-buttons { display: grid; gap: 10px; margin-top: 1rem; }
+.language-choice-buttons button { font-size: 1.15rem; padding: .8rem 1rem; }

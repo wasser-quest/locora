@@ -166,6 +166,18 @@ pub fn install(profile: &mut Profile) -> Result<(PalaceTree, Vec<String>)> {
 }
 
 /// Build the tutorial palace in a language, replacing the one of that language.
+/// The id of the tutorial palace in a language: the existing one, or a new one. One in another
+/// language is replaced, so the app shows it in the language it speaks (its progress starts over).
+pub fn ensure_in(profile: &mut Profile, code: &str) -> Result<String> {
+    if let Some(existing) = find_in(profile, code)? {
+        return Ok(existing.id);
+    }
+    if let Some(other) = find(profile)? {
+        profile.store.delete_palace(&other.id)?;
+    }
+    Ok(install_in(profile, code)?.0.palace.id)
+}
+
 pub fn install_in(profile: &mut Profile, code: &str) -> Result<(PalaceTree, Vec<String>)> {
     let files = localized(FILES, code);
     install_files(
@@ -231,6 +243,25 @@ fn build_staged(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_tutorial_in_another_language_is_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let german = ensure_in(&mut profile, "de").unwrap();
+        assert_eq!(
+            ensure_in(&mut profile, "de").unwrap(),
+            german,
+            "the same language is kept"
+        );
+        let english = ensure_in(&mut profile, "en").unwrap();
+        assert_ne!(english, german);
+        assert!(
+            find_in(&profile, "de").unwrap().is_none(),
+            "the German one is gone"
+        );
+        assert_eq!(find(&profile).unwrap().map(|p| p.id), Some(english));
+    }
 
     fn ids(tree: &PalaceTree) -> Vec<String> {
         std::iter::once(tree.palace.id.clone())

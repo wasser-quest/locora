@@ -102,6 +102,18 @@ pub fn install(profile: &mut Profile) -> Result<(PalaceTree, Vec<String>)> {
 }
 
 /// Build or replace the guide palace in a language.
+/// The id of the formula guide palace in a language: the existing one, or a new one. One in another
+/// language is replaced, so the app shows it in the language it speaks (its progress starts over).
+pub fn ensure_in(profile: &mut Profile, code: &str) -> Result<String> {
+    if let Some(existing) = find_in(profile, code)? {
+        return Ok(existing.id);
+    }
+    if let Some(other) = find(profile)? {
+        profile.store.delete_palace(&other.id)?;
+    }
+    Ok(install_in(profile, code)?.0.palace.id)
+}
+
 pub fn install_in(profile: &mut Profile, code: &str) -> Result<(PalaceTree, Vec<String>)> {
     let files = tutorial::localized(FILES, code);
     tutorial::install_files(profile, name_for(code), &files, SOURCE, namespace_for(code))

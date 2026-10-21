@@ -600,12 +600,7 @@ async fn dump_pick(
 #[tauri::command]
 async fn tutorial(state: State<'_, Shared>, lang: String) -> Result<String, String> {
     let mut b = lock(&state)?;
-    // Built once per language: an existing palace keeps its progress.
-    if let Some(existing) = locora_runtime::tutorial::find_in(&b.profile, &lang).map_err(err)? {
-        return Ok(existing.id);
-    }
-    let (tree, _) = locora_runtime::tutorial::install_in(&mut b.profile, &lang).map_err(err)?;
-    Ok(tree.palace.id)
+    locora_runtime::tutorial::ensure_in(&mut b.profile, &lang).map_err(err)
 }
 
 #[tauri::command]
@@ -621,14 +616,7 @@ async fn tour(
 #[tauri::command]
 async fn formula_guide(state: State<'_, Shared>, lang: String) -> Result<String, String> {
     let mut b = lock(&state)?;
-    if let Some(existing) =
-        locora_runtime::formula_guide::find_in(&b.profile, &lang).map_err(err)?
-    {
-        return Ok(existing.id);
-    }
-    let (tree, _) =
-        locora_runtime::formula_guide::install_in(&mut b.profile, &lang).map_err(err)?;
-    Ok(tree.palace.id)
+    locora_runtime::formula_guide::ensure_in(&mut b.profile, &lang).map_err(err)
 }
 
 /// Everything that may be shown now (quiet hours, muting and the daily

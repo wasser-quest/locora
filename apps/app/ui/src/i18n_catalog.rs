@@ -3,6 +3,16 @@
 
 pub const MESSAGES: &[(&str, [&str; 5])] = &[
     (
+        "App-Tour starten",
+        [
+            "Start the app tour",
+            "App-Tour starten",
+            "Lancer la visite de l'app",
+            "アプリのツアーを始める",
+            "开始应用导览",
+        ],
+    ),
+    (
         "Antwort eingeben – Enter prüft (leer: Leertaste deckt auf)",
         [
             "Type the answer – Enter checks (empty: Space reveals)",

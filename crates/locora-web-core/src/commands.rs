@@ -354,20 +354,11 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         }
         "tutorial" => {
             let a: LanguageArgs = take(args)?;
-            // Built once per language: an existing palace keeps its progress.
-            if let Some(existing) = locora_runtime::tutorial::find_in(profile, &a.lang)? {
-                return out(existing.id);
-            }
-            let (tree, _) = locora_runtime::tutorial::install_in(profile, &a.lang)?;
-            out(tree.palace.id)
+            out(locora_runtime::tutorial::ensure_in(profile, &a.lang)?)
         }
         "formula_guide" => {
             let a: LanguageArgs = take(args)?;
-            if let Some(existing) = locora_runtime::formula_guide::find_in(profile, &a.lang)? {
-                return out(existing.id);
-            }
-            let (tree, _) = locora_runtime::formula_guide::install_in(profile, &a.lang)?;
-            out(tree.palace.id)
+            out(locora_runtime::formula_guide::ensure_in(profile, &a.lang)?)
         }
         "tour" => {
             let a: TourArgs = take(args)?;

@@ -730,7 +730,7 @@ pub use blocking::*;
 mod tests {
     use super::*;
 
-    use std::io::{BufRead, BufReader};
+    use std::io::{BufRead, BufReader, Read};
     use std::net::TcpListener;
     use std::thread;
     use std::time::Duration;
@@ -746,13 +746,22 @@ mod tests {
             let mut reader = BufReader::new(&mut socket);
             let mut request = String::new();
             reader.read_line(&mut request).unwrap();
+            let mut length = 0;
             loop {
                 let mut line = String::new();
                 reader.read_line(&mut line).unwrap();
                 if line == "\r\n" || line.is_empty() {
                     break;
                 }
+                if let Some((name, value)) = line.split_once(':')
+                    && name.eq_ignore_ascii_case("content-length")
+                {
+                    length = value.trim().parse().unwrap();
+                }
             }
+            // Read the body too: closing with unread data resets the connection on Windows.
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
             socket.write_all(response.as_bytes()).unwrap();
             request
         });

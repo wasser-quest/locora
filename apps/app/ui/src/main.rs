@@ -11,6 +11,7 @@ mod formulas;
 mod i18n;
 mod i18n_catalog;
 mod journey;
+mod language_choice;
 mod locus_display;
 mod look;
 mod palette;
@@ -76,9 +77,15 @@ fn main() {
 fn Root() -> impl IntoView {
     let language = RwSignal::new(i18n::current());
     provide_context(i18n::Language(language));
+    // On the very first start the language comes first; the app starts once it is chosen.
+    let chosen = RwSignal::new(i18n::is_saved());
     move || {
         language.get();
-        view! { <App /> }
+        if chosen.get() {
+            view! { <App /> }.into_any()
+        } else {
+            view! { <language_choice::LanguageChoice chosen /> }.into_any()
+        }
     }
 }
 
@@ -191,6 +198,9 @@ fn TourOverlay(
 ) -> impl IntoView {
     let busy = RwSignal::new(false);
     let target_ready = RwSignal::new(false);
+    // Where the highlighted control is on screen (with its label): the spotlight frames it, and
+    // the panel moves to the other half of the screen so it never covers it.
+    let spot = RwSignal::new(None::<(f64, f64, f64, f64)>);
     let focused = StoredValue::new(None::<(u8, String)>);
     let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
     let highlight = move || {
@@ -226,6 +236,17 @@ fn TourOverlay(
             }
             if let Some(node) = document.get_element_by_id(&step.target) {
                 let _ = node.set_attribute("data-tour-active", "true");
+                // A checkbox or field is shown with its label, so its text is in the light too.
+                let framed = node
+                    .closest("label")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| node.clone());
+                let rect = framed.get_bounding_client_rect();
+                let next = Some((rect.left(), rect.top(), rect.width(), rect.height()));
+                if spot.get_untracked() != next {
+                    spot.set(next);
+                }
                 let key = (step.step, step.target);
                 if focused.get_value().as_ref() != Some(&key) {
                     node.scroll_into_view_with_bool(false);
@@ -239,10 +260,12 @@ fn TourOverlay(
                 target_ready.set(true);
             } else {
                 focused.set_value(None);
+                spot.set(None);
                 target_ready.set(true);
             }
         } else {
             focused.set_value(None);
+            spot.set(None);
             target_ready.set(false);
             if let Some(element) = before.get_value() {
                 let _ = element.focus();
@@ -258,9 +281,21 @@ fn TourOverlay(
         }
     });
     view! {
-        {move || active.get().is_some().then(|| view! { <div class="tour-scrim" aria-hidden="true"></div> })}
+        {move || active.get().is_some().then(|| match spot.get() {
+            // A frame over everything with the target as its bright hole; the rest is only dimmed.
+            Some((x, y, w, h)) => view! {
+                <div class="tour-spot" aria-hidden="true"
+                    style:left=format!("{}px", x - 8.0) style:top=format!("{}px", y - 8.0)
+                    style:width=format!("{}px", w + 16.0) style:height=format!("{}px", h + 16.0)></div>
+            }.into_any(),
+            None => view! { <div class="tour-scrim" aria-hidden="true"></div> }.into_any(),
+        })}
         <Show when=move || active.get().is_some()>
-                <aside class="tour-panel card" role="region" aria-label=t("App-Tour") aria-live="polite">
+                <aside class="tour-panel card" role="region" aria-label=t("App-Tour") aria-live="polite"
+                    class:top=move || {
+                        let height = web_sys::window().and_then(|w| w.inner_height().ok()).and_then(|h| h.as_f64()).unwrap_or(800.0);
+                        spot.get().is_some_and(|(_, y, _, h)| y + h / 2.0 > height / 2.0)
+                    }>
                     <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
                     <div class="tour-copy">
                         <small>{move || active.get().map(|step| crate::i18n::tf("Schritt {0} von {1}", &[&step.step, &step.total])).unwrap_or_default()}</small>
@@ -848,9 +883,9 @@ fn HomeView(
                                     <button
                                         class="primary"
                                         disabled=move || busy.get()
-                                        on:click=start_tutorial
+                                        on:click=start_tour
                                     >
-                                        {t("Tutorial starten")}
+                                        {t("App-Tour starten")}
                                     </button>
                                     <button disabled=move || busy.get() on:click=pick_media>
                                         {t("Eigener Palast aus Bild/Video…")}

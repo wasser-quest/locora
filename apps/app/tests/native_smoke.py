@@ -81,7 +81,7 @@ class Scenario:
         self.steps = []
         self.clicks = 0
         self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
-        self.until(lambda: self.find("Tutorial starten", "button"))
+        self.until(lambda: self.find("App-Tour starten", "button"))
         # Upper bound: includes AT-SPI discovery and polling of the whole tree.
         self.startup_ms = round((time.monotonic() - started) * 1000)
         windows = subprocess.check_output(["xdotool", "search", "--all", "--onlyvisible", "--pid", str(self.process.pid), "--name", "^Locora$"]).decode().split()
@@ -121,6 +121,16 @@ class Scenario:
                     pass
             visit(root, 0)
 
+    def open_tutorial(self):
+        """The welcome page starts the app tour, which sets up the tutorial palace: close it, open the palace."""
+        if not self.find("Locora lernen", "button", True):
+            self.click("App-Tour starten")
+            self.until(lambda: self.find(tour_titles()[0], "heading"))
+            self.click("Schließen")
+            self.until(lambda: not self.find("App-Tour", "region"))
+        self.click(self.until(lambda: self.find("Locora lernen", "button", True)).get_name())
+        self.until(lambda: self.find("▶ Route ablaufen", "button"))
+
     def tutorial_loci(self):
         return self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id = l.room_id "
                         "JOIN palaces p ON p.id = r.palace_id WHERE p.name = 'Locora lernen'")[0][0]
@@ -137,6 +147,12 @@ class Scenario:
 
     def x(self, *args):
         subprocess.run(["xdotool", *args], check=True)
+
+    def focus_page(self):
+        """Keys go to the app page, as after a real click: AT-SPI actions move no keyboard focus."""
+        self.x("windowfocus", "--sync", self.window)
+        page = next(n for n in walk(self.app) if n.get_role_name() == "document web" and n.get_name() == "Locora")
+        page.grab_focus()
 
     def type_entry(self, prefix, value):
         node = self.until(lambda: self.find(prefix, "entry", True))
@@ -320,7 +336,7 @@ class Scenario:
         self.click("←")
         self.until(lambda: self.find("Core", "heading"))
         self.click("Startseite")
-        self.until(lambda: self.find("Tutorial starten", "button"))
+        self.until(lambda: self.find("App-Tour starten", "button"))
         self.click("Core")
         self.until(lambda: self.find("Core", "heading"))
         self.process.terminate()
@@ -330,8 +346,7 @@ class Scenario:
         self.until(lambda: self.find("Core", "heading"))
         self.record("core-start-persists-after-restart")
         self.click("Startseite")
-        self.click("Tutorial starten")
-        self.until(lambda: self.find("▶ Route ablaufen", "button"))
+        self.open_tutorial()
         self.click("←")
         self.until(lambda: self.find("Eingangshalle ↻", "button"))
         self.click("Eingangshalle ↻")
@@ -369,10 +384,7 @@ class Scenario:
         self.click("Schließen")
         self.until(lambda: not self.find("App-Tour", "region"))
         self.record("tour-back-and-close")
-        # The tour's editor steps create the tutorial palace: open it then, else start it.
-        start = self.until(lambda: self.find("Tutorial starten", "button") or self.find("Locora lernen", "button", True))
-        self.click(start.get_name())
-        self.until(lambda: self.find("▶ Route ablaufen", "button"))
+        self.open_tutorial()
         # The built-in formula guide is a palace too: count the tutorial's loci only.
         assert self.tutorial_loci() == 9
         self.record("tutorial-created", loci=9)
@@ -382,6 +394,7 @@ class Scenario:
         self.until(lambda: self.find("Aufdecken", "button", True))
         assert self.clicks - before == 1
         self.record("journey-start-click-budget", clicks=1, budget=1)
+        self.focus_page()
         self.x("key", "--clearmodifiers", "space")
         self.until(lambda: self.find("Leicht", "button", True) or self.find("Gut", "button", True))
         self.x("key", "--clearmodifiers", "3")

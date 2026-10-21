@@ -31,6 +31,8 @@ after(async () => {
 /** A fresh browser profile: its own IndexedDB, so each test starts with no palaces. */
 async function openApp(options = {}) {
   const context = await browser.newContext({ viewport: options.viewport ?? { width: 1000, height: 760 }, acceptDownloads: true });
+  // The language is chosen on the very first start; the tests speak English unless they ask for that choice.
+  if (!options.chooseLanguage) await context.addInitScript(() => localStorage.setItem('locora-language-v1', 'en'));
   const page = await context.newPage();
   const problems = [];
   const requests = [];
@@ -47,8 +49,17 @@ async function openApp(options = {}) {
   });
   page.on('request', (request) => requests.push(request.url()));
   await page.goto(origin + '/', { waitUntil: 'load' });
-  await page.getByRole('button', { name: 'Start the tutorial' }).waitFor({ timeout: 15000 });
+  if (!options.chooseLanguage) await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
   return { context, page, problems, requests };
+}
+
+/** The welcome page starts the app tour, which sets up the tutorial palace: close the tour, open the palace. */
+async function openTutorial(page) {
+  await page.getByRole('button', { name: 'Start the app tour' }).click();
+  await page.getByRole('region', { name: 'App tour' }).waitFor({ timeout: 15000 });
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: /^Learn Locora/ }).first().click();
+  await page.getByRole('button', { name: /Walk the route/ }).waitFor({ timeout: 15000 });
 }
 
 test('the app starts with its welcome page, a live graphic and no errors', async () => {
@@ -67,7 +78,7 @@ test('the app starts with its welcome page, a live graphic and no errors', async
 test('the tutorial journey starts, reveals and grades an answer', async () => {
   const { context, page, problems } = await openApp();
   try {
-    await page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await openTutorial(page);
     await page.getByRole('button', { name: /Walk the route/ }).click();
     await page.waitForFunction(() => document.body.innerText.includes('1/9'), null, { timeout: 15000 });
     // Space reveals the answer; 1–4 grade it (3 = good). The keys work in every language.
@@ -87,7 +98,7 @@ test('the tutorial journey starts, reveals and grades an answer', async () => {
 test('palaces and progress survive a reload: everything is kept on this device', async () => {
   const { context, page, problems } = await openApp();
   try {
-    await page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await openTutorial(page);
     await page.getByRole('button', { name: /Walk the route/ }).click();
     await page.waitForFunction(() => document.body.innerText.includes('1/9'), null, { timeout: 15000 });
     await page.keyboard.press('Space');
@@ -105,7 +116,7 @@ test('palaces and progress survive a reload: everything is kept on this device',
 test('nothing leaves the device: every request stays on this site or in local blob documents', async () => {
   const { context, page, requests } = await openApp();
   try {
-    await page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await openTutorial(page);
     await page.getByRole('button', { name: /Walk the route/ }).click();
     await page.waitForFunction(() => document.body.innerText.includes('1/9'), null, { timeout: 15000 });
     await page.keyboard.press('Space');
@@ -164,7 +175,7 @@ test('a file name that looks like markup is shown as text and never runs', async
 test('a palace exports as a .locora file that the app saves to the device', async () => {
   const { context, page, problems } = await openApp();
   try {
-    await page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await openTutorial(page);
     await page.getByRole('button', { name: /Export…/ }).waitFor({ timeout: 15000 });
     const [file] = await Promise.all([
       page.waitForEvent('download'),
@@ -180,7 +191,7 @@ test('a palace exports as a .locora file that the app saves to the device', asyn
 test('the app reloads and opens offline: the service worker keeps the app and the palaces', async () => {
   const { context, page, problems } = await openApp();
   try {
-    await page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await openTutorial(page);
     await page.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 15000 });
     // The worker must control the page before the network goes away.
     await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20000 });
@@ -220,7 +231,7 @@ test('the app can be installed: manifest, icons and the offline worker are in pl
 test('the palace exports as a ZIP of its source and media (the folder export)', async () => {
   const { context, page, problems } = await openApp();
   try {
-    await page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await openTutorial(page);
     await page.getByRole('button', { name: /Export TOML/ }).waitFor({ timeout: 15000 });
     const [file] = await Promise.all([
       page.waitForEvent('download'),
@@ -236,7 +247,7 @@ test('the palace exports as a ZIP of its source and media (the folder export)', 
 test('the app tour is shown: the tutorial plugin highlights the controls step by step', async () => {
   const { context, page, problems } = await openApp();
   try {
-    await page.getByRole('button', { name: 'App tour' }).click();
+    await page.getByRole('button', { name: 'App tour', exact: true }).click();
     await page.waitForFunction(() => document.body.innerText.includes('Step 1 of 9'), null, { timeout: 15000 });
     await page.locator('.tour-panel').getByRole('button', { name: 'Next' }).click();
     await page.waitForFunction(() => document.body.innerText.includes('Step 2 of 9'), null, { timeout: 15000 });
@@ -279,7 +290,7 @@ test('reminders reach the browser notifications once, and the page does not show
       }
     });
     await page.reload({ waitUntil: 'load' });
-    await page.getByRole('button', { name: 'Start the tutorial' }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
     await page.waitForFunction(() => window.__TAURI__, null, { timeout: 15000 });
     await page.evaluate(() => window.__TAURI__.core.invoke('settings_set', {
       change: { reminders: { enabled: true, start: '00:00', end: '23:59', every: 1 } },
@@ -298,7 +309,7 @@ test('reminders reach the browser notifications once, and the page does not show
 test('the layout fits the screen: a phone folds the modes, the desktop shows them, and nothing scrolls sideways', async () => {
   const phone = await openApp({ viewport: { width: 390, height: 844 } });
   try {
-    await phone.page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await openTutorial(phone.page);
     await phone.page.waitForTimeout(1200);
     assert.equal(await phone.page.locator('details.modes').evaluate((el) => el.open), false, 'folded on a phone');
     assert.equal(await phone.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), 0);
@@ -307,7 +318,7 @@ test('the layout fits the screen: a phone folds the modes, the desktop shows the
   }
   const desktop = await openApp({ viewport: { width: 1440, height: 900 } });
   try {
-    await desktop.page.getByRole('button', { name: 'Start the tutorial' }).click();
+    await openTutorial(desktop.page);
     await desktop.page.waitForTimeout(1200);
     assert.equal(await desktop.page.locator('details.modes').evaluate((el) => el.open), true, 'open on a desktop');
     assert.equal(await desktop.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), 0);
@@ -333,6 +344,22 @@ test('a locora.toml imports with its pictures, chosen together, and becomes a pa
       { name: 'room.png', mimeType: 'image/png', buffer: png },
     ]);
     await page.waitForFunction(() => document.body.innerText.includes('Folder import'), null, { timeout: 20000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the first start asks for the language and then speaks it', async () => {
+  const { context, page, problems } = await openApp({ chooseLanguage: true });
+  try {
+    await page.getByRole('dialog').waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Deutsch' }).click();
+    await page.getByRole('button', { name: 'App-Tour starten' }).waitFor({ timeout: 15000 });
+    assert.equal(await page.getByRole('dialog').count(), 0, 'the choice is gone');
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'App-Tour starten' }).waitFor({ timeout: 15000 });
+    assert.equal(await page.getByRole('dialog').count(), 0, 'the choice is remembered');
     assert.deepEqual(problems, []);
   } finally {
     await context.close();

@@ -87,6 +87,14 @@ pub fn switch(lang: Lang) {
     }
 }
 
+/// Whether a language was chosen (saved) on this device. Without storage, it counts as chosen.
+pub fn is_saved() -> bool {
+    match web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
+        Some(storage) => storage.get_item(KEY).ok().flatten().is_some(),
+        None => true,
+    }
+}
+
 /// The saved language; English when nothing is saved or storage is unavailable.
 pub fn load() -> Lang {
     web_sys::window()

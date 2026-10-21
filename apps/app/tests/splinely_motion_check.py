@@ -150,14 +150,18 @@ class MotionScenario:
         self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0))
                                            if n.get_role_name() == "application"
                                            and n.get_process_id() == self.process.pid), None))
-        self.until(lambda: self.find("Tutorial starten"))
+        self.until(lambda: self.find("App-Tour starten"))
         window = subprocess.check_output(["xdotool", "search", "--all", "--onlyvisible",
                                           "--pid", str(self.process.pid), "--name", "^Locora$"], text=True).splitlines()[0]
         subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True)
         subprocess.run(["xdotool", "windowsize", window, "1280", "1320"], check=True)
         subprocess.run(["xdotool", "mousemove", "1500", "1350"], check=True)
         self.motion("welcome-simo", welcome=True)
-        self.click("Tutorial starten")
+        # The app tour sets up the tutorial palace; close it and open the palace.
+        self.click("App-Tour starten")
+        self.until(lambda: self.find("Schließen"))
+        self.click("Schließen")
+        self.click(self.until(lambda: self.find("Locora lernen", prefix=True)).get_name())
         self.click("▶ Route ablaufen")
         for index in range(1, 10):
             self.until(lambda: self.find("Aufdecken", prefix=True) or self.find("Prüfen"))
