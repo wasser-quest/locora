@@ -7,6 +7,7 @@ profile, process and window. Leaves JSON evidence/profile in --artifacts.
 """
 import argparse
 import json
+import re
 import os
 from pathlib import Path
 import sqlite3
@@ -26,6 +27,13 @@ from gi.repository import Atspi, Gtk, Gdk, GLib
 def node_text(node):
     text = node.get_text_iface()
     return Atspi.Text.get_text(text, 0, Atspi.Text.get_character_count(text)) if text else ""
+
+
+def tour_titles():
+    """The step titles of the app tour, read from the tutorial plugin so the test follows the tour."""
+    source = (Path(__file__).resolve().parents[3] / "plugins/tutorial/src/lib.rs").read_text()
+    steps = source[source.index("const STEPS"):]
+    return re.findall(r'\(\s*"[^"]+",\s*"([^"]+)",', steps[:steps.index("];")])
 
 
 # Role names differ between AT-SPI/WebKitGTK versions; both spellings are accepted.
@@ -284,8 +292,7 @@ class Scenario:
         self.record("video-marker-window-and-per-locus-lead", locus_time=round(at, 2), lead=.5)
 
     def check_tour_all(self):
-        titles = ["Ein Bild wird zum Palast", "Vorhandene Paläste mitnehmen",
-                  "Lernen nach deinem Rhythmus", "Deine Route", "Orte bearbeiten", "Am Ort erinnern"]
+        titles = tour_titles()
         self.click("App-Tour")
         for title in titles:
             self.until(lambda: self.find(title, "heading"))
@@ -347,16 +354,19 @@ class Scenario:
         if self.only_core:
             self.check_core_start()
             return
+        first, second = tour_titles()[:2]
         self.click("App-Tour")
-        self.until(lambda: self.find("Ein Bild wird zum Palast", "heading"))
+        self.until(lambda: self.find(first, "heading"))
         self.click("Weiter")
-        self.until(lambda: self.find("Vorhandene Paläste mitnehmen", "heading"))
+        self.until(lambda: self.find(second, "heading"))
         self.click("Zurück")
-        self.until(lambda: self.find("Ein Bild wird zum Palast", "heading"))
+        self.until(lambda: self.find(first, "heading"))
         self.click("Schließen")
         self.until(lambda: not self.find("App-Tour", "region"))
         self.record("tour-back-and-close")
-        self.click("Tutorial starten")
+        # The tour's editor steps create the tutorial palace: open it then, else start it.
+        start = self.until(lambda: self.find("Tutorial starten", "button") or self.find("Locora lernen", "button", True))
+        self.click(start.get_name())
         self.until(lambda: self.find("▶ Route ablaufen", "button"))
         assert self.sql("SELECT count(*) FROM loci")[0][0] == 9
         self.record("tutorial-created", loci=9)
