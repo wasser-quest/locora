@@ -250,6 +250,80 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
+        "Verbergen",
+        ["Hide", "Verbergen", "Masquer", "隠す", "隐藏"],
+    ),
+    (
+        "Bild verbergen",
+        [
+            "Hide picture",
+            "Bild verbergen",
+            "Masquer l'image",
+            "画像を隠す",
+            "隐藏图片",
+        ],
+    ),
+    (
+        "Bild aufdecken",
+        [
+            "Show picture",
+            "Bild aufdecken",
+            "Afficher l'image",
+            "画像を表示",
+            "显示图片",
+        ],
+    ),
+    (
+        "Weitere Einstellungen",
+        [
+            "More settings",
+            "Weitere Einstellungen",
+            "Plus de réglages",
+            "その他の設定",
+            "更多设置",
+        ],
+    ),
+    (
+        "Zoom beim Abfragen (1 = ganzer Raum bis 4)",
+        [
+            "Zoom when asked (1 = whole room, up to 4)",
+            "Zoom beim Abfragen (1 = ganzer Raum bis 4)",
+            "Zoom pendant l'interrogation (1 = toute la pièce, jusqu'à 4)",
+            "出題時のズーム（1 = 部屋全体、最大 4）",
+            "提问时缩放（1 = 整个房间，最多 4）",
+        ],
+    ),
+    (
+        "Ort setzen: „Ort setzen“ einschalten und auf das Bild tippen.",
+        [
+            "Add a locus: switch on “Place a locus” and tap the picture.",
+            "Ort setzen: „Ort setzen“ einschalten und auf das Bild tippen.",
+            "Ajouter un lieu : activez « Placer un lieu » et touchez l'image.",
+            "場所を置く：「場所を置く」をオンにして画像をタップします。",
+            "添加位置：打开“放置位置”，然后点击图片。",
+        ],
+    ),
+    (
+        "Unten eintragen, was du dir an diesem Ort merken willst.",
+        [
+            "Below, enter what you want to remember at this locus.",
+            "Unten eintragen, was du dir an diesem Ort merken willst.",
+            "En dessous, saisissez ce que vous voulez retenir à ce lieu.",
+            "下に、この場所で覚えたいことを入力します。",
+            "在下方输入你想在这个位置记住的内容。",
+        ],
+    ),
+    (
+        "Fertig: Alles wird automatisch gespeichert.",
+        [
+            "Done: everything is saved automatically.",
+            "Fertig: Alles wird automatisch gespeichert.",
+            "Terminé : tout est enregistré automatiquement.",
+            "完了：すべて自動で保存されます。",
+            "完成：所有内容都会自动保存。",
+        ],
+    ),
+    (
         "Aufdecken",
         ["Reveal", "Aufdecken", "Révéler", "めくる", "揭示"],
     ),

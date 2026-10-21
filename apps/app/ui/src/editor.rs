@@ -843,6 +843,11 @@ pub fn Rooms(
                 on:change=move |ev| { editing.set(event_target_checked(&ev)); adding.set(false); } />{t("Bearbeiten")}</label>
         </div>
         <Show when=move || editing.get()>
+            <ol class="editor-steps">
+                <li>{t("Ort setzen: „Ort setzen“ einschalten und auf das Bild tippen.")}</li>
+                <li>{t("Unten eintragen, was du dir an diesem Ort merken willst.")}</li>
+                <li>{t("Fertig: Alles wird automatisch gespeichert.")}</li>
+            </ol>
             <div class="editor-groups">
                 <details class="editor-group" open>
                     <summary>{t("Orte")}</summary>
@@ -889,7 +894,7 @@ pub fn Rooms(
                             on:click=move |_| formulas_open.set(true)>{t("Formeln bearbeiten …")}</button>
                     </div>
                 </details>
-                <details class="editor-group" open>
+                <details class="editor-group">
                     <summary>{t("Palast und Räume")}</summary>
                     <div class="editor-group-body"><PalaceNames editor=editor.clone() /></div>
                 </details>
@@ -975,7 +980,7 @@ pub fn Rooms(
                         <section class="panel">
                             <div class="progress">{crate::i18n::tf("Ort {0}", &[&locus.number])}</div>
                             <div class="prompt">{locus.place}</div>
-                            <button on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { "Verbergen" } else { "Aufdecken" }}</button>
+                            <button on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { t("Verbergen") } else { t("Aufdecken") }}</button>
                             <Show when=move || revealed.get()>{move || {
                                 let l = answer.get_value();
                                 view! { <Answer solution=l.item note=l.note picture=l.picture /> }
@@ -1248,6 +1253,8 @@ fn RoomStage(
                         </div>
                     </Show>
                     <p class="notes video-playhead">{move || format!("Position {:.2} s", playhead.get())}</p>
+                    // A Splinely room has its own play and pause below; these drive only a video.
+                    {(!timed_sply).then(|| view! {
                     <div class="video-transport" role="group" aria-label=t("Wiedergabe")>
                         <button type="button" disabled=move || video_duration.get().is_none()
                             on:click=move |_| {
@@ -1272,6 +1279,7 @@ fn RoomStage(
                                 }
                             }>{t("⏮ Zum Anfang")}</button>
                     </div>
+                    })}
                     <label class="video-seek">{t("Zeitpunkt wählen")}
                         <input type="range" min="0" step="0.01"
                             max=move || video_duration.get().unwrap_or(0.0).to_string()
@@ -1929,7 +1937,6 @@ fn ContentForm(
                 }
             }>
             <div class="progress">{crate::i18n::tf("Ort {0} bearbeiten", &[&locus.number])}</div>
-            <p class="notes">{t("Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen.")}</p>
             <Show when=move || recovery.get().is_some()>
                 <p role="alert">{t("Ein lokaler, noch nicht gespeicherter Entwurf wurde gefunden. Wiederherstellen speichert gültige Inhalte automatisch.")}</p>
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {
@@ -1956,13 +1963,18 @@ fn ContentForm(
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() || image.get().is_empty()
                         on:click=move |_| image.set(String::new())>{t("Bild entfernen")}</button>
                 </div>
-                <label>{t("Bildgröße (Anteil der Raumbreite, 0.05–1)")}<input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
-                <label>"Zoom beim Abfragen (1 = ganzer Raum bis 4)"<input type="text" inputmode="decimal" bind:value=zoom /></label>
                 <label id="tour-editor-answer">{t("Antwortart")}<select bind:value=kind>
                     <option value="recall">{t("Recall (Selbstbewertung)")}</option><option value="guess">{t("Guess (Eingabe)")}</option><option value="quiz">{t("Quiz")}</option>
                 </select></label>
                 <Show when=move || kind.get() == "guess"><label>{t("Weitere gültige Antworten (eine pro Zeile)")}<textarea bind:value=accept /></label></Show>
                 <Show when=move || kind.get() == "quiz"><label>{t("Quizoptionen (eine pro Zeile: + richtig, - falsch; beliebig viele + pro Frage möglich)")}<textarea rows="5" bind:value=quiz /></label></Show>
+                // Rarely needed: kept out of the way so the form stays short.
+                <details class="editor-more">
+                    <summary>{t("Weitere Einstellungen")}</summary>
+                    <label>{t("Bildgröße (Anteil der Raumbreite, 0.05–1)")}<input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
+                    <label>{t("Zoom beim Abfragen (1 = ganzer Raum bis 4)")}<input type="text" inputmode="decimal" bind:value=zoom /></label>
+                    <p class="notes">{t("Ein Ortsbild kann auch im nativen App-Fenster abgelegt werden (ausgewählter Ort, keine offenen Änderungen). Videos als neue Räume bitte auf der Palast-Startseite ablegen.")}</p>
+                </details>
             </fieldset>
             <div class="tabs">
                 <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| {
@@ -1978,7 +1990,7 @@ fn ContentForm(
                     kind.set(draft.kind); accept.set(draft.accept); quiz.set(draft.quiz);
                     dirty.set(false); cancel.message.set(String::new());
                 }>{t("Änderungen verwerfen")}</button>
-                <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { "Bild verbergen" } else { "Bild aufdecken" }}</button>
+                <button type="button" disabled=move || busy.get() || dragging.get() on:click=move |_| revealed.set(!revealed.get())>{move || if revealed.get() { t("Bild verbergen") } else { t("Bild aufdecken") }}</button>
                 // One click: „Rückgängig“ brings the locus back, so no second confirmation.
                 <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get()
                     on:click=move |_| delete.change(EditorAction::Delete { id: id.get_value() })>{t("Ort löschen")}</button>

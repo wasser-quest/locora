@@ -148,6 +148,17 @@ class Scenario:
     def x(self, *args):
         subprocess.run(["xdotool", *args], check=True)
 
+    def goal(self):
+        """Right answers today, from the daily goal bar („Tagesziel: N von 10 richtig …“)."""
+        bar = self.find("Tagesziel:", "progress bar", True)
+        found = bar and re.search(r"(\d+) von", bar.get_name())
+        return int(found.group(1)) if found else None
+
+    def grade_right(self):
+        """Key 3 grades a revealed recall „Gut“; quick mode (the default) then moves on by itself."""
+        self.x("key", "--clearmodifiers", "3")
+        self.until(lambda: not self.find("Gut", "button", True) and not self.find("Leicht", "button", True))
+
     def focus_page(self):
         """Keys go to the app page, as after a real click: AT-SPI actions move no keyboard focus."""
         self.x("windowfocus", "--sync", self.window)
@@ -397,27 +408,26 @@ class Scenario:
         self.focus_page()
         self.x("key", "--clearmodifiers", "space")
         self.until(lambda: self.find("Leicht", "button", True) or self.find("Gut", "button", True))
-        self.x("key", "--clearmodifiers", "3")
-        self.until(lambda: self.find("Weiter", "button", True))
-        # One correct answer: combo 1, all five hearts still there.
-        status = self.until(lambda: next((t for t in (node_text(n) for n in walk(self.app) if n.get_role_name() == "paragraph") if t.startswith("Combo ")), None))
-        assert status == "Combo 1 · Herzen ♥♥♥♥♥", status
-        self.record("recall-keyboard-reveal-and-grade", clicks=0, combo=1, hearts=5)
+        self.grade_right()
+        # One correct answer: all five hearts still there.
+        assert self.find("5 von 5 Herzen", "panel"), "hearts"
+        self.record("recall-keyboard-reveal-and-grade", clicks=0, hearts=5)
         # Loci 2–6 are recall, 7 is the tutorial's quiz (multiple choice).
         for _ in range(5):
-            self.x("key", "--clearmodifiers", "space")
             self.until(lambda: self.find("Aufdecken", "button", True))
             self.x("key", "--clearmodifiers", "space")
             self.until(lambda: self.find("Gut", "button", True) or self.find("Leicht", "button", True))
-            self.x("key", "--clearmodifiers", "3")
-            self.until(lambda: self.find("Weiter", "button", True))
+            self.grade_right()
         clicks = self.clicks
-        self.x("key", "--clearmodifiers", "space")
-        options = self.until(lambda: [n for n in walk(self.app) if n.get_role_name() == "check box" and n.get_name() != "Bearbeiten"] or None)
+        quiz = lambda: [n for n in walk(self.app) if n.get_role_name() == "check box" and n.get_name() != "Bearbeiten"]
+        options = self.until(lambda: quiz() or None)
+        right, hearts = self.goal(), self.find("5 von 5 Herzen", "panel")
         self.x("key", "--clearmodifiers", "1")
         self.until(lambda: options[0].get_state_set().contains(Atspi.StateType.CHECKED))
         self.x("key", "--clearmodifiers", "Return")
-        self.until(lambda: self.find("Weiter", "button", True))
+        # Right or wrong, the answer counts: the goal grows or a heart is lost.
+        self.until(lambda: self.goal() != right or not self.find("5 von 5 Herzen", "panel"))
+        assert hearts
         assert self.clicks == clicks
         self.record("quiz-keys-1-9-and-enter", clicks=0, options=len(options))
         self.click("←")
@@ -566,7 +576,7 @@ class Scenario:
         self.click("▶ Route ablaufen")
         self.until(lambda: self.find("Aufdecken", "button", True) or self.find("Weiter", "button", True) or self.find("Zur Übersicht", "button"))
         self.record("video-journey-starts-holding-at-locus", clicks=1, budget=1)
-        # Both loci: reveal (space), grade (3), advance (space).
+        # Both loci: reveal (space), grade (3); quick mode moves on.
         for _ in range(2):
             if self.find("Zur Übersicht", "button") and any(n.get_role_name() == "paragraph" and "gewusst" in (n.get_name() or "") for n in walk(self.app)):
                 break
@@ -574,9 +584,7 @@ class Scenario:
             self.until(lambda: (lambda b: b and b.get_state_set().contains(Atspi.StateType.ENABLED))(self.find("Aufdecken", "button", True)))
             self.x("key", "--clearmodifiers", "space")
             self.until(lambda: self.find("Gut", "button", True) or self.find("Leicht", "button", True))
-            self.x("key", "--clearmodifiers", "3")
-            self.until(lambda: self.find("Weiter", "button", True) or self.find("Zur Übersicht", "button"))
-            self.x("key", "--clearmodifiers", "space")
+            self.grade_right()
         self.until(lambda: self.find("Zur Übersicht", "button") and self.find("Geschafft", "image"))
         assert self.clicks == clicks + 1
         self.record("video-journey-keyboard-through-loci", extra_clicks=0)
@@ -593,15 +601,11 @@ class Scenario:
         self.until(lambda: (lambda b: b and b.get_state_set().contains(Atspi.StateType.ENABLED))(self.find("Aufdecken", "button", True)))
         self.x("key", "--clearmodifiers", "space")
         self.until(lambda: self.find("Gut", "button", True) or self.find("Leicht", "button", True))
-        self.x("key", "--clearmodifiers", "3")
-        self.until(lambda: self.find("Weiter", "button", True) or self.find("Zur Übersicht", "button"))
-        self.x("key", "--clearmodifiers", "space")
+        self.grade_right()
         self.until(lambda: (lambda b: b and b.get_state_set().contains(Atspi.StateType.ENABLED))(self.find("Aufdecken", "button", True)))
         self.x("key", "--clearmodifiers", "space")
         self.until(lambda: self.find("Gut", "button", True) or self.find("Leicht", "button", True))
-        self.x("key", "--clearmodifiers", "3")
-        self.until(lambda: self.find("Weiter", "button", True) or self.find("Zur Übersicht", "button"))
-        self.x("key", "--clearmodifiers", "space")
+        self.grade_right()
         self.until(lambda: self.find("Zur Übersicht", "button") and self.find("Geschafft", "image"))
         self.record("video-journey-reverse-direction")
         self.shot("video-journey-reverse-summary")

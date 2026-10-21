@@ -40,7 +40,7 @@ pub fn Activity() -> impl IntoView {
     });
     move || match days.get() {
         None => None,
-        Some(Err(error)) => Some(view! { <p class="notes">{error}</p> }.into_any()),
+        Some(Err(error)) => Some(view! { <p class="notes" role="alert">{error}</p> }.into_any()),
         Some(Ok(list)) if list.is_empty() => None,
         Some(Ok(list)) => Some(grid(list).into_any()),
     }
