@@ -6,7 +6,8 @@ name: Release
 #
 # Android is signed with the upload key when the repository secrets ANDROID_KEYSTORE_BASE64
 # (`base64 -w0 upload.jks`) and ANDROID_KEYSTORE_PASSWORD are set; without them the release gets
-# a debug-signed APK for testing instead. Desktop builds are not code-signed.
+# a debug-signed APK for testing instead. The Play Store bundle (.aab) is never published here.
+# Desktop builds are not code-signed.
 
 on:
   push:
@@ -174,8 +175,9 @@ jobs:
           mkdir -p ../../dist
           outputs=src-tauri/gen/android/app/build/outputs
           if [ "$RELEASE" = 1 ]; then
+            # Only the installable APK: the Play Store bundle (.aab) stays private, so nobody can upload
+            # it under this package name first. Build it locally: RELEASE=1 scripts/build-android.sh
             cp "$outputs/apk/universal/release/app-universal-release.apk" "../../dist/Locora_${VERSION}_android-arm64.apk"
-            cp "$outputs/bundle/universalRelease/app-universal-release.aab" "../../dist/Locora_${VERSION}_android-arm64.aab"
           else
             cp "$outputs/apk/universal/debug/app-universal-debug.apk" "../../dist/Locora_${VERSION}_android-arm64-debug.apk"
           fi
