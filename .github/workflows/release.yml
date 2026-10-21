@@ -368,6 +368,11 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # Only the hand-written release notes (docs/releases/vX.Y.Z.md), if there are any.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: docs/releases
+          path: source
       - name: Checksums
         working-directory: dist
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
@@ -377,7 +382,9 @@ jobs:
           VERSION: ${{ needs.check.outputs.version }}
           PRERELEASE: ${{ needs.check.outputs.prerelease }}
         run: |
-          flags=(--repo "$GITHUB_REPOSITORY" --verify-tag --title "Locora $VERSION" --generate-notes)
+          flags=(--repo "$GITHUB_REPOSITORY" --verify-tag --title "Locora $VERSION")
+          notes="source/docs/releases/$GITHUB_REF_NAME.md"
+          if [ -f "$notes" ]; then flags+=(--notes-file "$notes"); else flags+=(--generate-notes); fi
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
           gh release create "$GITHUB_REF_NAME" "${flags[@]}" dist/*
 
