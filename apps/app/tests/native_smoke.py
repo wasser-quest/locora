@@ -51,7 +51,8 @@ class Scenario:
         self.only_video_marker = only_video_marker
         self.profile = artifacts / "profile"
         self.profile.mkdir()
-        self.environment = {**os.environ, "LOCORA_DATA": str(self.profile)}
+        # The scenario reads the German interface (the app starts in English otherwise).
+        self.environment = {**os.environ, "LOCORA_DATA": str(self.profile), "LOCORA_LANGUAGE": "de"}
         for name, directory in (("XDG_DATA_HOME", "xdg-data"), ("XDG_CONFIG_HOME", "xdg-config"),
                                 ("XDG_CACHE_HOME", "xdg-cache")):
             path = self.profile / directory

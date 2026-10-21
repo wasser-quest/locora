@@ -1074,7 +1074,19 @@ pub fn run() {
         context.config_mut().app.app_directories_override =
             Some(tauri::utils::config::AppDirectoriesOverride::Root(path));
     }
+    // LOCORA_LANGUAGE (en, de, fr, ja, zh) sets the interface language before the page starts, as
+    // if it had been chosen in the settings: for tests and fixed installations.
+    let language = std::env::var("LOCORA_LANGUAGE")
+        .ok()
+        .filter(|code| matches!(code.as_str(), "en" | "de" | "fr" | "ja" | "zh"))
+        .map(|code| {
+            format!(
+                "try {{ localStorage.setItem('locora-language-v1', '{code}'); }} catch (_) {{}}"
+            )
+        })
+        .unwrap_or_default();
     tauri::Builder::default()
+        .append_invoke_initialization_script(language)
         .manage(DropInbox::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
