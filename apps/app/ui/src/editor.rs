@@ -753,6 +753,15 @@ pub fn Rooms(
     let dirty = editor.dirty;
     let gesture = editor.gesture;
     let dragging = Memo::new(move |_| gesture.with(|g| g.is_some()));
+    // A palace that opens in the editor (a new one) shows its rooms and stage at once, below the tools.
+    let room_tabs = NodeRef::<leptos::html::Div>::new();
+    if initial_editing {
+        Effect::new(move |_| {
+            if let Some(tabs) = room_tabs.get() {
+                request_animation_frame(move || tabs.scroll_into_view_with_bool(true));
+            }
+        });
+    }
     Effect::new(move |_| blocked.set(busy.get() || dirty.get() || dragging.get()));
     let unload = window_event_listener(leptos::ev::beforeunload, move |event| {
         if busy.get_untracked() || dirty.get_untracked() {
@@ -937,7 +946,7 @@ pub fn Rooms(
         <Show when=move || editing.get()>
             <ListPaste editor=paste.clone() />
         </Show>
-        <div class="tabs" style:margin-top="1rem">
+        <div class="tabs" style:margin-top="1rem" node_ref=room_tabs>
             {move || {
                 let tabs = tabs.clone();
                 // Rebuild (and reload icon frames) only when names/backdrops change.

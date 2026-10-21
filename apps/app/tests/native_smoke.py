@@ -467,13 +467,21 @@ class Scenario:
         self.until(lambda: bool(self.sql("SELECT id FROM palaces WHERE name=?", (image.stem,))))
         self.record("native-file-drop-creates-palace-room-and-editor", drag_gestures=1, picker_clicks=0)
         stage = self.until(lambda: self.find("Raum – im Bearbeitungsmodus", "section", True))
-        rect = stage.get_extents(Atspi.CoordType.SCREEN)
         count = self.sql("SELECT count(*) FROM loci")[0][0]
         self.x("windowfocus", "--sync", self.window)
-        # The click budget only counts if the stage is visible without scrolling.
+        # The click budget only counts if the stage is visible without scrolling: the new palace
+        # brings its stage into view by itself.
         window = frame.get_extents(Atspi.CoordType.SCREEN)
-        top, bottom = max(rect.y, window.y), min(rect.y + rect.height, window.y + window.height)
-        assert bottom - top >= 120, f"stage mostly below the fold: {top}..{bottom}"
+        def visible():
+            rect = stage.get_extents(Atspi.CoordType.SCREEN)
+            top, bottom = max(rect.y, window.y), min(rect.y + rect.height, window.y + window.height)
+            return (top, bottom) if bottom - top >= 120 else None
+        try:
+            top, bottom = self.until(visible)
+        except AssertionError:
+            rect = stage.get_extents(Atspi.CoordType.SCREEN)
+            raise AssertionError(f"stage mostly below the fold: {rect.y}..{rect.y + rect.height} in {window.y}..{window.y + window.height}")
+        rect = stage.get_extents(Atspi.CoordType.SCREEN)
         self.x("mousemove", str(rect.x + rect.width//2), str((top + bottom)//2), "click", "1")
         self.until(lambda: self.sql("SELECT count(*) FROM loci")[0][0] == count + 1)
         self.until(lambda: self.find("Ort ", "entry", True))

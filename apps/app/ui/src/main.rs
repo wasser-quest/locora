@@ -1394,7 +1394,7 @@ fn PalaceScreen(
             Ok(text) => view! { <p class="status" role="status">{text}</p> }.into_any(),
             Err(text) => view! { <p class="notes" role="alert">{text}</p> }.into_any(),
         }}
-        <details class="modes" open=wide_screen()>
+        <details class="modes" open=!editing && wide_screen()>
             <summary>{t("Modi und Optionen")}</summary>
             <label>
                 <input type="checkbox" bind:checked=reverse />
