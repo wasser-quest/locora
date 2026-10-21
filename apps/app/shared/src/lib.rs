@@ -31,6 +31,8 @@ pub struct LanguageArgs {
 }
 pub const CMD_FORMULA_GUIDE: &str = "formula_guide";
 pub const CMD_TOUR: &str = "tour";
+/// Simo's example palace for the app tour (`LanguageArgs`); returns its id.
+pub const CMD_TOUR_DEMO: &str = "tour_demo";
 pub use locora_api::tutorial::TourAction;
 pub use locora_api::ui::HighlightRequest;
 pub const CMD_NOTIFICATIONS: &str = "notifications";

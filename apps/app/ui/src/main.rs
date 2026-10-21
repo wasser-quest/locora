@@ -27,8 +27,9 @@ use crate::i18n::{t, tf};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_FORMULA_GUIDE, CMD_GAMIFICATION_STATUS, CMD_HOME, CMD_PALACE, CMD_TOUR, CMD_TUTORIAL,
-    CMD_UI_ASSETS, GamificationStatus, HighlightRequest, Home, JourneyStart, LanguageArgs, Media,
+    CMD_EDITOR_CHANGE, CMD_FORMULA_GUIDE, CMD_GAMIFICATION_STATUS, CMD_HOME, CMD_PALACE, CMD_TOUR,
+    CMD_TOUR_DEMO, CMD_TUTORIAL, CMD_UI_ASSETS, EditorAction, EditorChange, EditorUpdated,
+    GamificationStatus, HighlightRequest, Home, JourneyStart, LanguageArgs, LocusContent, Media,
     NotificationView, PalaceCard, PalaceView, TourAction, UiAssets,
 };
 use serde::Serialize;
@@ -133,6 +134,116 @@ fn tour_action(
     });
 }
 
+/// Every element the tour may highlight.
+const TOUR_TARGETS: [&str; 15] = [
+    "tour-home-media",
+    "tour-home-import",
+    "tour-home-settings",
+    "tour-demo-room",
+    "tour-editor-toggle",
+    "tour-editor-adding",
+    "tour-editor-stage",
+    "tour-editor-place",
+    "tour-editor-content",
+    "tour-editor-note",
+    "tour-editor-answer",
+    "tour-palace-route",
+    "tour-journey-prompt",
+    "tour-journey-reveal",
+    "tour-journey-grade",
+];
+
+/// The app tour's current step, for the screens that act on it (Simo's example).
+#[derive(Clone, Copy)]
+pub struct TourStep(pub RwSignal<Option<HighlightRequest>>);
+
+thread_local! {
+    /// The id of Simo's example palace once the tour has made it.
+    static TOUR_DEMO: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The tour step's target while the tour shows Simo's example palace `palace_id`. Reactive.
+pub fn tour_target_in(tour: Option<TourStep>, palace_id: &str) -> Option<String> {
+    let target = tour?
+        .0
+        .with(|step| step.as_ref().map(|step| step.target.clone()))?;
+    TOUR_DEMO
+        .with(|demo| demo.borrow().as_deref() == Some(palace_id))
+        .then_some(target)
+}
+
+/// What Simo writes into the example's locus: place, content and memory aid.
+pub fn tour_demo_locus() -> (&'static str, &'static str, &'static str) {
+    (
+        t("Tür"),
+        t("Schlüssel"),
+        t("Ein riesiger goldener Schlüssel steckt quer in der Tür."),
+    )
+}
+
+/// Simo's example palace, with its locus filled in when the tour jumped past the editor steps
+/// (the route needs a locus to walk).
+async fn tour_demo(filled: bool) -> Result<String, String> {
+    let id = call::<String>(
+        CMD_TOUR_DEMO,
+        LanguageArgs {
+            lang: current_language(),
+        },
+    )
+    .await?;
+    TOUR_DEMO.with(|demo| *demo.borrow_mut() = Some(id.clone()));
+    if !filled {
+        return Ok(id);
+    }
+    let palace = call::<PalaceView>(CMD_PALACE, IdArgs { id: id.clone() }).await?;
+    let Some(room) = palace.rooms.first() else {
+        return Ok(id);
+    };
+    if room.loci.is_empty() {
+        #[derive(Serialize)]
+        struct Args {
+            change: EditorChange,
+        }
+        let change = |action| Args {
+            change: EditorChange {
+                palace_id: id.clone(),
+                room_id: room.id.clone(),
+                action,
+            },
+        };
+        let created = call::<EditorUpdated>(
+            CMD_EDITOR_CHANGE,
+            // The hall is an animation: a locus there has a time.
+            change(EditorAction::CreateTimed {
+                time: 0.0,
+                x: 0.5,
+                y: 0.62,
+            }),
+        )
+        .await?;
+        if let Some(locus) = created.selected {
+            let (place, item, note) = tour_demo_locus();
+            let content = LocusContent {
+                place: place.into(),
+                item: item.into(),
+                note: note.into(),
+                image: None,
+                // The store's default picture width (a quarter of the room).
+                image_size: 0.25,
+                zoom: 1.0,
+                answer: Default::default(),
+                audio: None,
+            };
+            call::<EditorUpdated>(
+                CMD_EDITOR_CHANGE,
+                change(EditorAction::Save { id: locus, content }),
+            )
+            .await?;
+        }
+    }
+    Ok(id)
+}
+
 /// Route only the official, known tour targets. An existing tutorial palace is
 /// reused so moving between steps never replaces edits or review progress.
 async fn route_tour_step(
@@ -148,41 +259,30 @@ async fn route_tour_step(
                 screen.set(Screen::Home);
             }
         }
-        "tour-palace-route"
+        // Simo builds his example palace in the editor, step by step.
+        "tour-demo-room"
         | "tour-editor-toggle"
+        | "tour-editor-adding"
         | "tour-editor-stage"
+        | "tour-editor-place"
         | "tour-editor-content"
+        | "tour-editor-note"
         | "tour-editor-answer"
-        | "tour-journey-prompt" => {
-            let home = call::<Home>(CMD_HOME, tauri::NoArgs {}).await?;
-            let id = if let Some(palace) = home
-                .palaces
-                .iter()
-                .find(|p| p.built_in.as_deref() == Some("tutorial"))
+        | "tour-palace-route" => {
+            let id = tour_demo(step.target == "tour-palace-route").await?;
+            if !matches!(screen.get_untracked(), Screen::Palace(ref current) if current == &id) {
+                screen.set(Screen::Palace(id));
+            }
+        }
+        // Then he walks its route.
+        "tour-journey-prompt" | "tour-journey-reveal" | "tour-journey-grade" => {
+            let id = tour_demo(true).await?;
+            if !matches!(screen.get_untracked(), Screen::Journey(ref start) if start.palace_id.as_ref() == Some(&id))
             {
-                palace.id.clone()
-            } else {
-                call::<String>(
-                    CMD_TUTORIAL,
-                    LanguageArgs {
-                        lang: current_language(),
-                    },
-                )
-                .await?
-            };
-            if step.target == "tour-journey-prompt" {
-                if !matches!(screen.get_untracked(), Screen::Journey(ref start) if start.palace_id.as_ref() == Some(&id))
-                {
-                    screen.set(Screen::Journey(JourneyStart {
-                        palace_id: Some(id),
-                        ..Default::default()
-                    }));
-                }
-            } else {
-                if !matches!(screen.get_untracked(), Screen::Palace(ref current) if current == &id)
-                {
-                    screen.set(Screen::Palace(id));
-                }
+                screen.set(Screen::Journey(JourneyStart {
+                    palace_id: Some(id),
+                    ..Default::default()
+                }));
             }
         }
         _ => return Err("Unbekanntes Ziel der App-Tour".into()),
@@ -209,17 +309,7 @@ fn TourOverlay(
         let Some(document) = web_sys::window().and_then(|window| window.document()) else {
             return;
         };
-        for id in [
-            "tour-home-media",
-            "tour-home-import",
-            "tour-home-settings",
-            "tour-palace-route",
-            "tour-editor-toggle",
-            "tour-editor-stage",
-            "tour-editor-content",
-            "tour-editor-answer",
-            "tour-journey-prompt",
-        ] {
+        for id in TOUR_TARGETS {
             if let Some(node) = document.get_element_by_id(id) {
                 let _ = node.remove_attribute("data-tour-active");
             }
@@ -328,6 +418,7 @@ fn TourOverlay(
 fn App() -> impl IntoView {
     let screen = RwSignal::new(start_screen());
     let tour = RwSignal::new(None::<HighlightRequest>);
+    provide_context(TourStep(tour));
     let tour_error = RwSignal::new(String::new());
     let tour_route_ready = RwSignal::new(false);
     spawn_local(async move {

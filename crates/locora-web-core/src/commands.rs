@@ -208,6 +208,7 @@ pub const NAMES: &[&str] = &[
     "workbook_change",
     "workbook_calc",
     "tutorial",
+    "tour_demo",
     "formula_guide",
     "tour",
     "ui_assets",
@@ -384,6 +385,10 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         "formula_guide" => {
             let a: LanguageArgs = take(args)?;
             out(locora_runtime::formula_guide::ensure_in(profile, &a.lang)?)
+        }
+        "tour_demo" => {
+            let a: LanguageArgs = take(args)?;
+            out(locora_runtime::tour_demo::ensure_in(profile, &a.lang)?)
         }
         "tour" => {
             let a: TourArgs = take(args)?;

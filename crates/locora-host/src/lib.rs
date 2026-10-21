@@ -267,7 +267,7 @@ impl host::Host for PluginState {
                 || step.text.trim().is_empty()
                 || step.text.chars().count() > 320
                 || step.total == 0
-                || step.total > 12
+                || step.total > 20
                 || step.step == 0
                 || step.step > step.total
             {

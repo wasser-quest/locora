@@ -122,12 +122,18 @@ class Scenario:
             visit(root, 0)
 
     def open_tutorial(self):
-        """The welcome page starts the app tour, which sets up the tutorial palace: close it, open the palace."""
+        """Opens the tutorial palace. Without one, the welcome page's tour sets it up (close the
+        tour, open the palace); once the tour's example palace exists, „Tutorial anlegen“ does."""
         if not self.find("Locora lernen", "button", True):
-            self.click("App-Tour starten")
-            self.until(lambda: self.find(tour_titles()[0], "heading"))
-            self.click("Schließen")
-            self.until(lambda: not self.find("App-Tour", "region"))
+            if self.find("App-Tour starten", "button"):
+                self.click("App-Tour starten")
+                self.until(lambda: self.find(tour_titles()[0], "heading"))
+                self.click("Schließen")
+                self.until(lambda: not self.find("App-Tour", "region"))
+            else:
+                self.click("Tutorial anlegen")
+                self.until(lambda: self.find("▶ Route ablaufen", "button"))
+                return
         self.click(self.until(lambda: self.find("Locora lernen", "button", True)).get_name())
         self.until(lambda: self.find("▶ Route ablaufen", "button"))
 

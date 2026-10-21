@@ -696,6 +696,13 @@ async fn tutorial(state: State<'_, Shared>, lang: String) -> Result<String, Stri
     locora_runtime::tutorial::ensure_in(&mut b.profile, &lang).map_err(err)
 }
 
+/// Simo's example palace for the app tour, made once.
+#[tauri::command]
+async fn tour_demo(state: State<'_, Shared>, lang: String) -> Result<String, String> {
+    let mut b = lock(&state)?;
+    locora_runtime::tour_demo::ensure_in(&mut b.profile, &lang).map_err(err)
+}
+
 #[tauri::command]
 async fn tour(
     state: State<'_, Shared>,
@@ -1253,6 +1260,7 @@ pub fn run() {
             editor_import_drop,
             tutorial,
             tour,
+            tour_demo,
             formula_guide,
             journey_inputs,
             settings,

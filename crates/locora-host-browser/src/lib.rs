@@ -194,7 +194,7 @@ pub fn nested_highlight(plugin: &str, request: &[u8]) -> Result<Vec<u8>, String>
         || step.text.trim().is_empty()
         || step.text.chars().count() > 320
         || step.total == 0
-        || step.total > 12
+        || step.total > 20
         || step.step == 0
         || step.step > step.total
     {

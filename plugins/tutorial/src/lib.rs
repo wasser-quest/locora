@@ -10,48 +10,68 @@ struct Tutorial;
 const STEPS: &[(&str, &str, &str)] = &[
     (
         "tour-home-media",
-        "Ein Bild wird zum Palast",
-        "Wähle ein Bild oder Video. Locora legt daraus einen Palast mit einem Raum an und öffnet direkt den Editor.",
+        "Dein eigener Gedächtnispalast",
+        "Ein Gedächtnispalast ist ein Ort, den du gut kennst, zum Beispiel deine Wohnung. Normalerweise wählst du hier ein Foto davon. Jetzt baut Simo dir einen Beispiel-Palast: Schau zu und tippe auf „Weiter“. Du darfst dabei alles anklicken und ausprobieren.",
     ),
     (
-        "tour-editor-toggle",
-        "Bearbeiten einschalten",
-        "Aktiviere „Bearbeiten“, damit du Orte im Bild setzen und verändern kannst.",
+        "tour-demo-room",
+        "Aus einem Bild wird ein Raum",
+        "Simo hat ein Bild gewählt: eine Eingangshalle. Daraus ist der Palast „Simos Beispiel“ mit einem Raum geworden. Mit „+ Raum aus Bild oder Video“ kommen weitere Räume dazu.",
+    ),
+    (
+        "tour-editor-adding",
+        "„Ort setzen“ einschalten",
+        "Damit ein Tipp auf das Bild einen Ort setzt, schaltest du „Ort setzen“ ein. Simo hat es für dich eingeschaltet.",
     ),
     (
         "tour-editor-stage",
-        "Orte setzen",
-        "Klicke auf das Bild dort, wo etwas liegen soll. Jeder Klick setzt einen Ort, den du dir merken willst.",
+        "Auf das Bild tippen",
+        "Simo hat auf die Tür getippt. Dort ist jetzt Ort 1, der runde Punkt mit der Nummer. Die Nummern sind die Reihenfolge, in der du später durch den Palast gehst.",
+    ),
+    (
+        "tour-editor-place",
+        "Feld „Ort“: Wo ist es?",
+        "Hier steht, wo der Ort ist: „Tür“. Das ist später die Frage.",
     ),
     (
         "tour-editor-content",
-        "Inhalt eintragen",
-        "Klicke einen Ort an. Im Feld Ort beschreibst du den Platz, im Feld Inhalt das, was du dir merken willst – zum Beispiel „Haustür“ und „Schlüssel“.",
+        "Feld „Inhalt“: Was merkst du dir?",
+        "Hier steht, was du dir an dieser Stelle merken willst: „Schlüssel“. Das ist später die Antwort.",
+    ),
+    (
+        "tour-editor-note",
+        "Feld „Merkhilfe“ (freiwillig)",
+        "Ein verrücktes Bild im Kopf hilft beim Merken: „Ein riesiger goldener Schlüssel steckt quer in der Tür.“ Locora zeigt es dir nach der Antwort. Das Feld darf auch leer bleiben.",
     ),
     (
         "tour-editor-answer",
-        "Antwortart wählen",
-        "Wähle den Ort und stelle die Antwortart ein. Recall zeigt den Ort, und du bewertest dich selbst. Guess fragt eine Eingabe ab, Quiz bietet mehrere Antworten an.",
+        "Antwortart: darf so bleiben",
+        "„Recall“ passt fast immer: Du erinnerst dich, deckst auf und sagst ehrlich, wie gut es ging. Bei „Guess“ tippst du die Antwort ein, bei „Quiz“ wählst du aus mehreren.",
     ),
     (
         "tour-palace-route",
-        "Deine Route",
-        "Mit „Route ablaufen“ gehst du alle Orte nacheinander durch. Die App fragt sie ab und merkt sich, was du wusstest.",
+        "Durch den Palast gehen",
+        "Fertig gebaut, und alles ist schon gespeichert. Mit „Route ablaufen“ gehst du deinen Palast Ort für Ort ab, in der Reihenfolge der Nummern.",
     ),
     (
         "tour-journey-prompt",
         "Am Ort erinnern",
-        "Die Journey fragt einen Ort nach dem anderen ab. Zeige die Antwort und bewerte danach, wie gut du sie wusstest.",
+        "Locora zeigt dir den Ort: „Tür“. Stell dir die Tür vor. Was liegt dort?",
     ),
     (
-        "tour-home-settings",
-        "Lernen nach deinem Rhythmus",
-        "Stelle Tageslimit und Behaltensrate ein und sieh dir deine Lernstatistik an.",
+        "tour-journey-reveal",
+        "Aufdecken",
+        "Wenn du es weißt (oder nicht), tippe auf „Aufdecken“ oder drücke die Leertaste. Dann siehst du die Antwort.",
     ),
     (
-        "tour-home-import",
-        "Vorhandene Paläste mitnehmen",
-        "Hier importierst du eine .locora-Datei oder eine locora.toml-Quelle.",
+        "tour-journey-grade",
+        "Ehrlich bewerten",
+        "Sag, wie gut du es wusstest: „Nochmal“ heißt gar nicht, „Leicht“ heißt sofort. Was du schlecht wusstest, fragt Locora bald wieder. Danach geht es zum nächsten Ort.",
+    ),
+    (
+        "tour-home-media",
+        "Jetzt du!",
+        "Mach ein Foto von deiner Wohnung und wähle es hier. Dann baust du deinen eigenen Palast, genau wie Simo. Simos Beispiel findest du bei deinen Palästen: behalten oder löschen.",
     ),
 ];
 

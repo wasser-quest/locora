@@ -237,6 +237,18 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             busy.set(false);
         });
     };
+    // The app tour's grading step needs the answer shown: on Simo's example it reveals it.
+    let tour = use_context::<crate::TourStep>();
+    let tour_palace = start.get_value().palace_id.clone().unwrap_or_default();
+    Effect::new(move |_| {
+        if crate::tour_target_in(tour, &tour_palace).as_deref() == Some("tour-journey-grade")
+            && phase.get() == Phase::Asking
+            && question.with(|q| q.as_ref().is_some_and(|q| q.kind == AnswerKind::Recall))
+            && video_ready.get()
+        {
+            reveal();
+        }
+    });
     // A time limit per question: a question still unanswered when the time is up counts as
     // a wrong answer (forfeit). A timer that fires after the question changed does nothing.
     if let Some(seconds) = start.get_value().time_limit.filter(|seconds| *seconds > 0) {
@@ -878,7 +890,7 @@ fn Ask(
                         }}
                     </p>
                 })}
-                <button class="primary" disabled=move || busy.get() on:click=move |_| reveal()>
+                <button id="tour-journey-reveal" class="primary" disabled=move || busy.get() on:click=move |_| reveal()>
                     {t("Aufdecken (Leertaste)")}
                 </button>
             }
@@ -1037,7 +1049,7 @@ fn Grades(reply: impl Fn(Reply) + Copy + 'static, busy: RwSignal<bool>) -> impl 
         (4, t("Leicht")),
     ];
     view! {
-        <div class="grades">
+        <div id="tour-journey-grade" class="grades">
             {grades
                 .into_iter()
                 .map(|(g, label)| {

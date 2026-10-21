@@ -274,9 +274,42 @@ test('the app tour is shown: the tutorial plugin highlights the controls step by
   const { context, page, problems } = await openApp();
   try {
     await page.getByRole('button', { name: 'App tour', exact: true }).click();
-    await page.waitForFunction(() => document.body.innerText.includes('Step 1 of 9'), null, { timeout: 15000 });
+    await page.waitForFunction(() => document.body.innerText.includes('Step 1 of 13'), null, { timeout: 15000 });
     await page.locator('.tour-panel').getByRole('button', { name: 'Next' }).click();
-    await page.waitForFunction(() => document.body.innerText.includes('Step 2 of 9'), null, { timeout: 15000 });
+    await page.waitForFunction(() => document.body.innerText.includes('Step 2 of 13'), null, { timeout: 15000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the app tour shows Simo building an example palace and walking its route', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    const panel = page.locator('.tour-panel');
+    const step = (n) => page.waitForFunction((n) => document.body.innerText.includes(`Step ${n} of 13`), n, { timeout: 15000 });
+    await page.getByRole('button', { name: 'App tour', exact: true }).click();
+    await step(1);
+    // The page stays usable during the tour: the dimming lets clicks through.
+    assert.equal(await page.locator('.tour-spot, .tour-scrim').evaluateAll((nodes) => nodes.every((n) => getComputedStyle(n).pointerEvents === 'none')), true);
+    for (let n = 2; n <= 7; n += 1) {
+      await panel.getByRole('button', { name: 'Next' }).click();
+      await step(n);
+    }
+    // Step 7: Simo has placed locus 1 on the door and typed its place, item and memory aid.
+    await page.waitForFunction(() => [...document.querySelectorAll('.editor-form input, .editor-form textarea')].some((field) => field.value === 'A giant golden key is stuck crosswise in the door.'), null, { timeout: 15000 });
+    const values = await page.locator('.editor-form input[type="text"]').evaluateAll((fields) => fields.map((field) => field.value));
+    assert.ok(values.includes('Door') && values.includes('Key'), values.join(' | '));
+    for (let n = 8; n <= 12; n += 1) {
+      await panel.getByRole('button', { name: 'Next' }).click();
+      await step(n);
+    }
+    // Step 12: the route of the example, with the answer revealed and the grades highlighted.
+    await page.locator('#tour-journey-grade[data-tour-active]').waitFor({ timeout: 15000 });
+    await panel.getByRole('button', { name: 'Next' }).click();
+    await step(13);
+    await panel.getByRole('button', { name: 'Done' }).click();
+    await page.getByRole('button', { name: /^Simo's example/ }).first().waitFor({ timeout: 15000 });
     assert.deepEqual(problems, []);
   } finally {
     await context.close();

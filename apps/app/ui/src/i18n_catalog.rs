@@ -324,6 +324,278 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
+        "Dein eigener Gedächtnispalast",
+        [
+            "Your own memory palace",
+            "Dein eigener Gedächtnispalast",
+            "Votre propre palais de la mémoire",
+            "あなただけの記憶の宮殿",
+            "你自己的记忆宫殿",
+        ],
+    ),
+    (
+        "Ein Gedächtnispalast ist ein Ort, den du gut kennst, zum Beispiel deine Wohnung. Normalerweise wählst du hier ein Foto davon. Jetzt baut Simo dir einen Beispiel-Palast: Schau zu und tippe auf „Weiter“. Du darfst dabei alles anklicken und ausprobieren.",
+        [
+            "A memory palace is a place you know well, for example your home. Normally you choose a photo of it here. Now Simo builds an example palace for you: watch and tap “Next”. You may click and try out anything along the way.",
+            "Ein Gedächtnispalast ist ein Ort, den du gut kennst, zum Beispiel deine Wohnung. Normalerweise wählst du hier ein Foto davon. Jetzt baut Simo dir einen Beispiel-Palast: Schau zu und tippe auf „Weiter“. Du darfst dabei alles anklicken und ausprobieren.",
+            "Un palais de la mémoire est un lieu que vous connaissez bien, par exemple votre logement. D'habitude, vous choisissez ici une photo de ce lieu. Simo vous construit maintenant un palais d'exemple : regardez et touchez « Suivant ». Vous pouvez tout cliquer et essayer en chemin.",
+            "記憶の宮殿とは、よく知っている場所のことです。たとえば自分の家です。ふだんはここでその写真を選びます。これからシモが例の宮殿を作ります。見ながら「次へ」をタップしてください。途中で何でもクリックして試せます。",
+            "记忆宫殿是你很熟悉的地方，比如你的家。通常你在这里选择它的照片。现在西莫为你搭建一个示例宫殿：看着就好，然后点“下一步”。途中你可以随意点击和尝试。",
+        ],
+    ),
+    (
+        "Aus einem Bild wird ein Raum",
+        [
+            "A picture becomes a room",
+            "Aus einem Bild wird ein Raum",
+            "Une image devient une pièce",
+            "1枚の画像が部屋になる",
+            "一张图片变成一个房间",
+        ],
+    ),
+    (
+        "Simo hat ein Bild gewählt: eine Eingangshalle. Daraus ist der Palast „Simos Beispiel“ mit einem Raum geworden. Mit „+ Raum aus Bild oder Video“ kommen weitere Räume dazu.",
+        [
+            "Simo chose a picture: an entrance hall. It became the palace “Simo's example” with one room. With “+ Room from a picture or video” you add more rooms.",
+            "Simo hat ein Bild gewählt: eine Eingangshalle. Daraus ist der Palast „Simos Beispiel“ mit einem Raum geworden. Mit „+ Raum aus Bild oder Video“ kommen weitere Räume dazu.",
+            "Simo a choisi une image : un hall d'entrée. Elle est devenue le palais « L'exemple de Simo » avec une pièce. Avec « + Pièce depuis une image ou une vidéo », vous ajoutez d'autres pièces.",
+            "シモは玄関ホールの画像を選びました。そこから部屋が1つある宮殿「シモの例」ができました。「＋ 画像や動画から部屋を追加」で部屋を増やせます。",
+            "西莫选了一张图片：一个门厅。它变成了有一个房间的宫殿“西莫的示例”。用“+ 用图片或视频添加房间”可以添加更多房间。",
+        ],
+    ),
+    (
+        "„Ort setzen“ einschalten",
+        [
+            "Switch on “Place a locus”",
+            "„Ort setzen“ einschalten",
+            "Activer « Placer un lieu »",
+            "「場所を置く」をオンにする",
+            "打开“放置位置”",
+        ],
+    ),
+    (
+        "Damit ein Tipp auf das Bild einen Ort setzt, schaltest du „Ort setzen“ ein. Simo hat es für dich eingeschaltet.",
+        [
+            "So that tapping the picture places a locus, you switch on “Place a locus”. Simo switched it on for you.",
+            "Damit ein Tipp auf das Bild einen Ort setzt, schaltest du „Ort setzen“ ein. Simo hat es für dich eingeschaltet.",
+            "Pour qu'un toucher sur l'image place un lieu, vous activez « Placer un lieu ». Simo l'a activé pour vous.",
+            "画像をタップして場所を置けるように、「場所を置く」をオンにします。シモがオンにしておきました。",
+            "要让点击图片就能放置位置，请打开“放置位置”。西莫已经替你打开了。",
+        ],
+    ),
+    (
+        "Auf das Bild tippen",
+        [
+            "Tap the picture",
+            "Auf das Bild tippen",
+            "Toucher l'image",
+            "画像をタップする",
+            "点击图片",
+        ],
+    ),
+    (
+        "Simo hat auf die Tür getippt. Dort ist jetzt Ort 1, der runde Punkt mit der Nummer. Die Nummern sind die Reihenfolge, in der du später durch den Palast gehst.",
+        [
+            "Simo tapped the door. Locus 1 is there now, the round dot with the number. The numbers are the order in which you later walk through the palace.",
+            "Simo hat auf die Tür getippt. Dort ist jetzt Ort 1, der runde Punkt mit der Nummer. Die Nummern sind die Reihenfolge, in der du später durch den Palast gehst.",
+            "Simo a touché la porte. Le lieu 1 s'y trouve maintenant : le point rond avec le numéro. Les numéros donnent l'ordre dans lequel vous parcourrez le palais.",
+            "シモはドアをタップしました。そこに場所1ができました。番号のついた丸い点です。番号は、あとで宮殿を歩く順番です。",
+            "西莫点了门。那里现在是位置 1，就是带数字的圆点。这些数字就是你之后走过宫殿的顺序。",
+        ],
+    ),
+    (
+        "Feld „Ort“: Wo ist es?",
+        [
+            "The “Locus” field: where is it?",
+            "Feld „Ort“: Wo ist es?",
+            "Le champ « Lieu » : où est-ce ?",
+            "「場所」欄：どこ？",
+            "“位置”字段：在哪里？",
+        ],
+    ),
+    (
+        "Hier steht, wo der Ort ist: „Tür“. Das ist später die Frage.",
+        [
+            "This says where the locus is: “Door”. Later this is the question.",
+            "Hier steht, wo der Ort ist: „Tür“. Das ist später die Frage.",
+            "Ici figure l'endroit du lieu : « Porte ». Plus tard, c'est la question.",
+            "ここには場所がどこかを書きます：「ドア」。あとでこれが問題になります。",
+            "这里写位置在哪里：“门”。之后这就是问题。",
+        ],
+    ),
+    (
+        "Feld „Inhalt“: Was merkst du dir?",
+        [
+            "The “Item” field: what do you remember?",
+            "Feld „Inhalt“: Was merkst du dir?",
+            "Le champ « Contenu » : que retenez-vous ?",
+            "「内容」欄：何を覚える？",
+            "“内容”字段：你要记住什么？",
+        ],
+    ),
+    (
+        "Hier steht, was du dir an dieser Stelle merken willst: „Schlüssel“. Das ist später die Antwort.",
+        [
+            "This says what you want to remember at this spot: “Key”. Later this is the answer.",
+            "Hier steht, was du dir an dieser Stelle merken willst: „Schlüssel“. Das ist später die Antwort.",
+            "Ici figure ce que vous voulez retenir à cet endroit : « Clé ». Plus tard, c'est la réponse.",
+            "ここには、この場所で覚えたいことを書きます：「鍵」。あとでこれが答えになります。",
+            "这里写你想在这个地方记住的东西：“钥匙”。之后这就是答案。",
+        ],
+    ),
+    (
+        "Feld „Merkhilfe“ (freiwillig)",
+        [
+            "The “Memory aid” field (optional)",
+            "Feld „Merkhilfe“ (freiwillig)",
+            "Le champ « Aide-mémoire » (facultatif)",
+            "「覚え方」欄（任意）",
+            "“记忆提示”字段（可选）",
+        ],
+    ),
+    (
+        "Ein verrücktes Bild im Kopf hilft beim Merken: „Ein riesiger goldener Schlüssel steckt quer in der Tür.“ Locora zeigt es dir nach der Antwort. Das Feld darf auch leer bleiben.",
+        [
+            "A crazy picture in your head helps you remember: “A giant golden key is stuck crosswise in the door.” Locora shows it to you after the answer. The field may also stay empty.",
+            "Ein verrücktes Bild im Kopf hilft beim Merken: „Ein riesiger goldener Schlüssel steckt quer in der Tür.“ Locora zeigt es dir nach der Antwort. Das Feld darf auch leer bleiben.",
+            "Une image folle dans la tête aide à retenir : « Une clé dorée géante est coincée en travers de la porte. » Locora vous la montre après la réponse. Le champ peut aussi rester vide.",
+            "頭の中のおかしな絵が記憶を助けます：「巨大な金の鍵がドアに横向きに刺さっている。」答えのあとにLocoraが表示します。空欄のままでも大丈夫です。",
+            "脑海中一个疯狂的画面能帮你记忆：“一把巨大的金钥匙横着卡在门里。”回答后 Locora 会显示它。这个字段也可以留空。",
+        ],
+    ),
+    (
+        "Antwortart: darf so bleiben",
+        [
+            "Answer type: can stay as it is",
+            "Antwortart: darf so bleiben",
+            "Type de réponse : peut rester ainsi",
+            "答え方：そのままで大丈夫",
+            "回答方式：保持不变即可",
+        ],
+    ),
+    (
+        "„Recall“ passt fast immer: Du erinnerst dich, deckst auf und sagst ehrlich, wie gut es ging. Bei „Guess“ tippst du die Antwort ein, bei „Quiz“ wählst du aus mehreren.",
+        [
+            "“Recall” fits almost always: you remember, reveal and say honestly how well it went. With “Guess” you type the answer, with “Quiz” you choose from several.",
+            "„Recall“ passt fast immer: Du erinnerst dich, deckst auf und sagst ehrlich, wie gut es ging. Bei „Guess“ tippst du die Antwort ein, bei „Quiz“ wählst du aus mehreren.",
+            "« Recall » convient presque toujours : vous vous souvenez, révélez et dites honnêtement si c'était facile. Avec « Guess », vous tapez la réponse ; avec « Quiz », vous choisissez parmi plusieurs.",
+            "ほとんどの場合「Recall」で十分です。思い出して、めくって、どれだけできたか正直に答えます。「Guess」は答えを入力し、「Quiz」はいくつかの中から選びます。",
+            "“Recall”几乎总是合适：你回忆、揭示，然后诚实地说出效果如何。“Guess”需要输入答案，“Quiz”从多个选项中选择。",
+        ],
+    ),
+    (
+        "Durch den Palast gehen",
+        [
+            "Walk through the palace",
+            "Durch den Palast gehen",
+            "Parcourir le palais",
+            "宮殿を歩く",
+            "走过宫殿",
+        ],
+    ),
+    (
+        "Fertig gebaut, und alles ist schon gespeichert. Mit „Route ablaufen“ gehst du deinen Palast Ort für Ort ab, in der Reihenfolge der Nummern.",
+        [
+            "Built, and everything is saved already. With “Walk the route” you go through your palace locus by locus, in the order of the numbers.",
+            "Fertig gebaut, und alles ist schon gespeichert. Mit „Route ablaufen“ gehst du deinen Palast Ort für Ort ab, in der Reihenfolge der Nummern.",
+            "C'est construit, et tout est déjà enregistré. Avec « Parcourir la route », vous traversez votre palais lieu par lieu, dans l'ordre des numéros.",
+            "完成です。すべて保存済みです。「ルートを歩く」で、番号の順に1か所ずつ宮殿を回ります。",
+            "建好了，一切都已保存。用“走一遍路线”按数字顺序逐个位置走过你的宫殿。",
+        ],
+    ),
+    (
+        "Locora zeigt dir den Ort: „Tür“. Stell dir die Tür vor. Was liegt dort?",
+        [
+            "Locora shows you the locus: “Door”. Picture the door. What is there?",
+            "Locora zeigt dir den Ort: „Tür“. Stell dir die Tür vor. Was liegt dort?",
+            "Locora vous montre le lieu : « Porte ». Imaginez la porte. Qu'y a-t-il ?",
+            "Locoraが場所を見せます：「ドア」。ドアを思い浮かべてください。そこに何がありますか？",
+            "Locora 会给你看位置：“门”。想象那扇门。那里有什么？",
+        ],
+    ),
+    (
+        "Wenn du es weißt (oder nicht), tippe auf „Aufdecken“ oder drücke die Leertaste. Dann siehst du die Antwort.",
+        [
+            "When you know it (or not), tap “Reveal” or press the space bar. Then you see the answer.",
+            "Wenn du es weißt (oder nicht), tippe auf „Aufdecken“ oder drücke die Leertaste. Dann siehst du die Antwort.",
+            "Quand vous savez (ou pas), touchez « Révéler » ou appuyez sur la barre d'espace. Vous voyez alors la réponse.",
+            "わかったら（わからなくても）「めくる」をタップするか、スペースキーを押します。答えが表示されます。",
+            "知道了（或者不知道）时，点“揭示”或按空格键，就能看到答案。",
+        ],
+    ),
+    (
+        "Ehrlich bewerten",
+        [
+            "Grade yourself honestly",
+            "Ehrlich bewerten",
+            "S'évaluer honnêtement",
+            "正直に評価する",
+            "诚实地评分",
+        ],
+    ),
+    (
+        "Sag, wie gut du es wusstest: „Nochmal“ heißt gar nicht, „Leicht“ heißt sofort. Was du schlecht wusstest, fragt Locora bald wieder. Danach geht es zum nächsten Ort.",
+        [
+            "Say how well you knew it: “Again” means not at all, “Easy” means at once. What you knew badly, Locora asks again soon. Then it goes on to the next locus.",
+            "Sag, wie gut du es wusstest: „Nochmal“ heißt gar nicht, „Leicht“ heißt sofort. Was du schlecht wusstest, fragt Locora bald wieder. Danach geht es zum nächsten Ort.",
+            "Dites si vous le saviez : « Encore » veut dire pas du tout, « Facile » tout de suite. Ce que vous saviez mal, Locora le redemande bientôt. Ensuite, on passe au lieu suivant.",
+            "どれだけ覚えていたかを答えます。「もう一度」はまったく、「簡単」はすぐに、という意味です。覚えていなかったものは、Locoraがすぐにまた聞きます。そのあと次の場所へ進みます。",
+            "说出你记得多好：“再来”表示完全不记得，“简单”表示马上就想起来。记得不好的，Locora 很快会再问。然后进入下一个位置。",
+        ],
+    ),
+    (
+        "Jetzt du!",
+        [
+            "Your turn!",
+            "Jetzt du!",
+            "À vous !",
+            "あなたの番です！",
+            "轮到你了！",
+        ],
+    ),
+    (
+        "Mach ein Foto von deiner Wohnung und wähle es hier. Dann baust du deinen eigenen Palast, genau wie Simo. Simos Beispiel findest du bei deinen Palästen: behalten oder löschen.",
+        [
+            "Take a photo of your home and choose it here. Then you build your own palace, just like Simo. You find Simo's example among your palaces: keep it or delete it.",
+            "Mach ein Foto von deiner Wohnung und wähle es hier. Dann baust du deinen eigenen Palast, genau wie Simo. Simos Beispiel findest du bei deinen Palästen: behalten oder löschen.",
+            "Prenez une photo de votre logement et choisissez-la ici. Vous construisez alors votre propre palais, comme Simo. L'exemple de Simo se trouve parmi vos palais : gardez-le ou supprimez-le.",
+            "自分の家の写真を撮って、ここで選んでください。シモと同じように自分の宮殿を作れます。シモの例は宮殿の一覧にあります。残しても削除しても大丈夫です。",
+            "给你的家拍张照片，在这里选择它。然后你就能像西莫一样搭建自己的宫殿。西莫的示例在你的宫殿列表里：可以保留，也可以删除。",
+        ],
+    ),
+    ("Tür", ["Door", "Tür", "Porte", "ドア", "门"]),
+    ("Schlüssel", ["Key", "Schlüssel", "Clé", "鍵", "钥匙"]),
+    (
+        "Ein riesiger goldener Schlüssel steckt quer in der Tür.",
+        [
+            "A giant golden key is stuck crosswise in the door.",
+            "Ein riesiger goldener Schlüssel steckt quer in der Tür.",
+            "Une clé dorée géante est coincée en travers de la porte.",
+            "巨大な金の鍵がドアに横向きに刺さっている。",
+            "一把巨大的金钥匙横着卡在门里。",
+        ],
+    ),
+    (
+        "Gespeichert",
+        [
+            "Saved",
+            "Gespeichert",
+            "Enregistré",
+            "保存しました",
+            "已保存",
+        ],
+    ),
+    (
+        "Bild gespeichert",
+        [
+            "Picture saved",
+            "Bild gespeichert",
+            "Image enregistrée",
+            "画像を保存しました",
+            "图片已保存",
+        ],
+    ),
+    (
         "Aufdecken",
         ["Reveal", "Aufdecken", "Révéler", "めくる", "揭示"],
     ),

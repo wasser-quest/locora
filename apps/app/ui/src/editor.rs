@@ -473,7 +473,7 @@ impl Editor {
                     this.selected.set(result.selected);
                     this.dirty.set(false);
                     this.data.set(result.palace);
-                    this.message.set("Gespeichert".into());
+                    this.message.set(t("Gespeichert").into());
                     // The toast undoes the newest entry, so any newer entry or
                     // replay retires it; no-op saves leave it in place.
                     let history_changed = replay.is_some()
@@ -758,6 +758,56 @@ pub fn Rooms(
     let dirty = editor.dirty;
     let gesture = editor.gesture;
     let dragging = Memo::new(move |_| gesture.with(|g| g.is_some()));
+    // The app tour shows Simo building his example: each step switches on what it explains,
+    // and the stage step places the first locus on the door.
+    let tour = use_context::<crate::TourStep>();
+    let tour_editor = editor.clone();
+    // Placed once: a failed attempt is not repeated on every change.
+    let tour_placed = StoredValue::new(false);
+    Effect::new(move |_| {
+        let palace_id = tour_editor.data.with(|p| p.id.clone());
+        let Some(target) = crate::tour_target_in(tour, &palace_id) else {
+            return;
+        };
+        if !(target.starts_with("tour-editor") || target == "tour-demo-room")
+            || tour_editor.busy.get()
+            || tour_editor.dirty.get()
+        {
+            return;
+        }
+        if !editing.get_untracked() {
+            editing.set(true);
+        }
+        let first = tour_editor.data.with(|p| {
+            p.rooms
+                .first()
+                .and_then(|room| room.loci.first())
+                .map(|locus| locus.id.clone())
+        });
+        match (target.as_str(), first) {
+            ("tour-editor-adding", _) => adding.set(true),
+            // The example's hall is an animation: its loci have a time, here its start.
+            ("tour-editor-stage", None) if !tour_placed.get_value() => {
+                tour_placed.set_value(true);
+                revealed.set(false);
+                tour_editor.change(EditorAction::CreateTimed {
+                    time: 0.0,
+                    x: 0.5,
+                    y: 0.62,
+                });
+            }
+            (
+                "tour-editor-place"
+                | "tour-editor-content"
+                | "tour-editor-note"
+                | "tour-editor-answer",
+                Some(first),
+            ) if tour_editor.selected.get_untracked().is_none() => {
+                tour_editor.selected.set(Some(first));
+            }
+            _ => {}
+        }
+    });
     // A palace that opens in the editor (a new one) shows its rooms and stage at once, below the tools.
     let room_tabs = NodeRef::<leptos::html::Div>::new();
     if initial_editing {
@@ -896,7 +946,7 @@ pub fn Rooms(
                 <details class="editor-group" open>
                     <summary>{t("Orte")}</summary>
                     <div class="editor-group-body">
-                        <label><input type="checkbox" bind:checked=adding disabled=move || busy.get() || dirty.get() || dragging.get() />{t("Ort setzen (Bühne anklicken)")}</label>
+                        <label><input id="tour-editor-adding" type="checkbox" bind:checked=adding disabled=move || busy.get() || dirty.get() || dragging.get() />{t("Ort setzen (Bühne anklicken)")}</label>
                         <button disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get()
                             on:click={let editor = editor.clone(); move |_| {
                                 revealed.set(false);
@@ -951,7 +1001,7 @@ pub fn Rooms(
         <Show when=move || editing.get()>
             <ListPaste editor=paste.clone() />
         </Show>
-        <div class="tabs" style:margin-top="1rem" node_ref=room_tabs>
+        <div id="tour-demo-room" class="tabs" style:margin-top="1rem" node_ref=room_tabs>
             {move || {
                 let tabs = tabs.clone();
                 // Rebuild (and reload icon frames) only when names/backdrops change.
@@ -1705,6 +1755,11 @@ fn ContentForm(
         }
     });
     let finish_requested = RwSignal::new(false);
+    // In Simo's example the tour fills the fields one step at a time, like typing; the form
+    // saves them as usual. Only fields still as they were are filled.
+    let tour = use_context::<crate::TourStep>();
+    let tour_palace = editor.data.with_untracked(|p| p.id.clone());
+    let initial_place = locus.place.clone();
     let place_bound = locus.is_bound("place");
     let item_bound = locus.is_bound("item");
     let bound_note = {
@@ -1794,6 +1849,27 @@ fn ContentForm(
                 }
                 size.set(value);
             }
+        }
+    });
+    Effect::new(move |_| {
+        let Some(target) = crate::tour_target_in(tour, &tour_palace) else {
+            return;
+        };
+        let level = match target.as_str() {
+            "tour-editor-place" => 1,
+            "tour-editor-content" => 2,
+            "tour-editor-note" | "tour-editor-answer" => 3,
+            _ => return,
+        };
+        let (demo_place, demo_item, demo_note) = crate::tour_demo_locus();
+        if place.get_untracked() == initial_place && initial_place != demo_place {
+            place.set(demo_place.into());
+        }
+        if level >= 2 && item.get_untracked().is_empty() {
+            item.set(demo_item.into());
+        }
+        if level >= 3 && note.get_untracked().is_empty() {
+            note.set(demo_note.into());
         }
     });
     let save_id = locus.id.clone();
@@ -1965,7 +2041,7 @@ fn ContentForm(
                     this.message.set(if sound {
                         t("Ton gespeichert").to_owned()
                     } else {
-                        "Bild gespeichert".into()
+                        t("Bild gespeichert").into()
                     });
                 }
                 Ok(None) => {}
@@ -2025,9 +2101,9 @@ fn ContentForm(
             <Show when=move || !storage_error.get().is_empty()><p role="alert">{move || storage_error.get()}</p></Show>
             <Show when=move || locus.bound><p class="notes">{bound_note.clone()}</p></Show>
             <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get()>
-                <label>{t("Ort")}<input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
+                <label id="tour-editor-place">{t("Ort")}<input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
                 <label id="tour-editor-content">{t("Inhalt")}<input type="text" bind:value=item disabled=item_bound /></label>
-                <label>{t("Merkhilfe")}<textarea bind:value=note /></label>
+                <label id="tour-editor-note">{t("Merkhilfe")}<textarea bind:value=note /></label>
                 <div class="tabs">
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=pick>{t("Bild wählen…")}</button>
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() || image.get().is_empty()

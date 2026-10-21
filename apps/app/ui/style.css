@@ -85,7 +85,7 @@ header.bar { display: flex; align-items: center; gap: .75rem; margin-bottom: 1re
 /* The tour's spotlight: a frame above everything whose huge shadow dims the rest, so the target and
    its label stay bright whatever layer they sit in. Clicks pass through. */
 .tour-spot { position: fixed; z-index: 11; border-radius: 12px; pointer-events: none;
-  border: 3px solid var(--lime); box-shadow: 0 0 0 4px var(--indigo-deep), 0 0 0 200vmax rgba(8, 8, 24, .6);
+  border: 3px solid var(--lime); box-shadow: 0 0 0 4px var(--indigo-deep), 0 0 0 200vmax rgba(8, 8, 24, .28);
   transition: left .2s, top .2s, width .2s, height .2s; }
 @media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } }
 .tour-panel { position: fixed; z-index: 12; right: 1rem; bottom: 1rem; display: flex; gap: 1rem;
@@ -347,8 +347,9 @@ dl.stats dd { margin: 0; font-weight: 600; }
 
 /* Room tabs are buttons, not text: they cannot be selected or highlighted. */
 .tabs, .tabs * { -webkit-user-select: none; user-select: none; }
-/* While a tour step is shown, everything but the highlighted element is covered. */
-.tour-scrim { position: fixed; inset: 0; z-index: 10; background: rgba(8, 8, 24, .6); }
+/* A tour step without a target on screen only dims the page lightly; everything stays clickable, so
+   the buttons can be tried during the tour. */
+.tour-scrim { position: fixed; inset: 0; z-index: 10; background: rgba(8, 8, 24, .28); pointer-events: none; }
 
 /* Edit mode: everything sits in one panel; the inner blocks drop their own card frames. */
 .editor-panel { display: flex; flex-direction: column; gap: .6rem; }
