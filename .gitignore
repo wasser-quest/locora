@@ -22,3 +22,7 @@ ruvector.db
 
 # Netlify CLI link state (site id), created by `netlify deploy`
 .netlify/
+
+# Local AI tooling configuration (kept on the machine, not part of the project)
+AGENTS.md
+.agents/

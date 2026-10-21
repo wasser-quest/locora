@@ -53,7 +53,7 @@ als `.sply`-Dateien erstellt und in der App über die Splinely-Runtime abgespiel
 **Maskottchen: Simo**, benannt nach Simonides von Keos, dem Erfinder der Loci-Methode: ein Mann mit hellbraunem Hautton und
 Afro als Ganzkörperfigur, ohne Konturen und mit Cel-Shading. An der Jacke leuchten drei Loci nacheinander auf (die Loci-Methode in
 einem Bild), in der Hand trägt er eine Laterne voller Glühwürmchen-Licht, und ein Glühwürmchen begleitet ihn. Simo begleitet
-Tutorial, leere Zustände, Erfolge (Gamification) und Benachrichtigungen. Stil-Leitfaden: [`assets/STIL.md`](assets/STIL.md). App-Icon: Palast-Torbogen mit leuchtenden Loci und dem Licht des Glühwürmchens.
+Tutorial, leere Zustände, Erfolge (Gamification) und Benachrichtigungen. Stil-Leitfaden: [`assets/STIL.md`](../assets/STIL.md). App-Icon: Palast-Torbogen mit leuchtenden Loci und dem Licht des Glühwürmchens.
 
 ---
 
@@ -506,7 +506,7 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 
 ## 9. Dateiformat `.locora` (Version 1)
 
-**Umgesetzt**, Spezifikation in [`format/README.md`](format/README.md), Referenz-Implementierung `crates/locora-format`.
+**Umgesetzt**, Spezifikation in [`format/README.md`](../format/README.md), Referenz-Implementierung `crates/locora-format`.
 `.mnemodim`-Dateien müssen nicht kompatibel bleiben.
 
 - ZIP mit `mimetype` (erster Eintrag, unkomprimiert, `application/vnd.locora+zip`), `manifest.json`, `palaces/<id>.json`,
@@ -640,7 +640,7 @@ nach vorn holen), Gruppen sind erst ab 0.5.1 animierbar, `check` meldet bis 0.5.
 
 ### 13.3 Phase 1: Stand und offene Punkte
 
-Ausführliche Verträge, Randfälle und Grenzen: [`docs/phase-1-notizen.md`](docs/phase-1-notizen.md).
+Ausführliche Verträge, Randfälle und Grenzen: [`docs/phase-1-notizen.md`](phase-1-notizen.md).
 
 | # | Punkt | Stand |
 |---|---|---|

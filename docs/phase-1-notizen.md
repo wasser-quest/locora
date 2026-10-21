@@ -1,6 +1,6 @@
 # Phase 1: Umsetzungsnotizen
 
-Ausführliche Verträge, Randfälle und Grenzen der Phase-1-Schritte. Die Kurzfassung steht in `PLAN.md`, Abschnitt 13.3.
+Ausführliche Verträge, Randfälle und Grenzen der Phase-1-Schritte. Die Kurzfassung steht in [`PLAN.md`](PLAN.md), Abschnitt 13.3.
 
 ## Schritte
 

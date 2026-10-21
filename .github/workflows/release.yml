@@ -1,7 +1,8 @@
 name: Release
 
 # A tag `vX.Y.Z` on a commit of `main` builds the app for macOS (Apple silicon and Intel), Windows,
-# Linux and Android and publishes them as the GitHub release of that version. Each tag keeps its own
+# Linux and Android, and the `locora` CLI for Linux, macOS and Windows, and publishes them as the
+# GitHub release of that version. Each tag keeps its own
 # release; a tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release.
 #
 # Android is signed with the upload key when the repository secrets ANDROID_KEYSTORE_BASE64
@@ -119,6 +120,67 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  cli:
+    name: CLI ${{ matrix.name }}
+    needs: check
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux (x64)
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - name: Linux (ARM64)
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - name: macOS (Apple silicon)
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - name: macOS (Intel)
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - name: Windows (x64)
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # rust-toolchain.toml installs stable with wasm32-wasip2 (the built-in plugins).
+      - run: rustup show && rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            .
+            plugins
+          key: release-cli-${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --locked -p locora --target ${{ matrix.target }}
+      - name: Package
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          name="locora-cli_${VERSION}_${{ matrix.target }}"
+          mkdir -p "$name" dist
+          exe=locora
+          [ "$RUNNER_OS" = Windows ] && exe=locora.exe
+          cp "target/${{ matrix.target }}/release/$exe" LICENSE README.md "$name/"
+          if [ "$RUNNER_OS" = Windows ]; then
+            7z a -tzip "dist/$name.zip" "$name" > /dev/null
+          else
+            tar -czf "dist/$name.tar.gz" "$name"
+          fi
+          ls -la dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cli-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
   android:
     name: Android (ARM64)
     needs: check
@@ -194,7 +256,7 @@ jobs:
 
   release:
     name: Publish the release
-    needs: [check, desktop, android]
+    needs: [check, desktop, cli, android]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

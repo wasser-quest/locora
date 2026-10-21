@@ -124,7 +124,7 @@ in `src-tauri/tauri.conf.json` for every upload.
 
 **Releases:** raise `version` in `src-tauri/tauri.conf.json` (and the workspace versions), merge
 to `main`, then push a tag `vX.Y.Z` on that commit. `.github/workflows/release.yml` builds macOS
-(Apple silicon and Intel), Windows, Linux (AppImage, deb, rpm) and Android and publishes them as
+(Apple silicon and Intel), Windows, Linux (AppImage, deb, rpm), Android and the `locora` CLI and publishes them as
 the GitHub release of that tag; a tag with a suffix (`v0.2.0-beta.1`) is a pre-release. For a
 signed Android APK (the Play Store bundle is built locally and never published), set the repository secrets `ANDROID_KEYSTORE_BASE64`
 (`base64 -w0 upload.jks`) and `ANDROID_KEYSTORE_PASSWORD`; without them the release carries a
