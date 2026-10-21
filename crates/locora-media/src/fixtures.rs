@@ -51,7 +51,7 @@ pub fn track(handler: &[u8; 4], codec: &[u8; 4], times: [u8; 4]) -> Vec<u8> {
     let mdia = mp4_box(
         b"mdia",
         &[
-            mp4_box(b"mdhd", &[header.clone()]),
+            mp4_box(b"mdhd", std::slice::from_ref(&header)),
             mp4_box(b"hdlr", &[hdlr]),
             minf,
         ],

@@ -222,6 +222,7 @@ mod tests {
             password: "long enough password".into(),
             display_name: None,
             register: false,
+            guest: false,
         };
         assert!(validate_connect(&request).is_err());
         request.server = "https://example.com".into();

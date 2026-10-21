@@ -197,7 +197,7 @@ fn mark_as_mp4(data: &mut [u8], ftyp: &Box) -> Result<()> {
     }
     brands[..4].copy_from_slice(b"isom");
     let compatible = [*b"isom", *b"mp42", *b"avc1"];
-    for (index, slot) in brands[8..].chunks_exact_mut(4).enumerate() {
+    for (index, slot) in brands[8..].as_chunks_mut::<4>().0.iter_mut().enumerate() {
         slot.copy_from_slice(&compatible[index.min(2)]);
     }
     Ok(())

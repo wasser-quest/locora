@@ -193,7 +193,7 @@ fn track(handler: &[u8; 4], codec: &[u8; 4]) -> Vec<u8> {
     let mdia = mp4_box(
         b"mdia",
         &[
-            mp4_box(b"mdhd", &[times.clone()]),
+            mp4_box(b"mdhd", std::slice::from_ref(&times)),
             mp4_box(b"hdlr", &[hdlr]),
             minf,
         ],
