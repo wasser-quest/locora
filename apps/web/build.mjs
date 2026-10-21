@@ -33,7 +33,8 @@ function run(command, args, cwd) {
 run('trunk', process.env.TRUNK_PROFILE === 'debug' ? ['build'] : ['build', '--release'], ui);
 // The core's SQLite is C code: it needs a clang that knows the WASI target. Where none is installed,
 // cargo-zigbuild brings one (zig, from the ziglang package), so `cargo zigbuild` is used instead.
-const hasClang = (() => {
+// LOCORA_ZIGBUILD=1 uses zig even where a clang without the WASI libraries is installed (CI).
+const hasClang = process.env.LOCORA_ZIGBUILD !== '1' && (() => {
   try {
     execFileSync('clang', ['--version'], { stdio: 'ignore' });
     return true;
