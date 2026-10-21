@@ -219,15 +219,21 @@ jobs:
         run: cargo tauri ios init --ci --skip-targets-install
       - name: Build for iPhone and iPad, unsigned (includes the Trunk frontend)
         run: cargo tauri ios build --ci --target aarch64 --no-sign
-      - name: Package as an unsigned .ipa
+      - name: Collect the unsigned .ipa
         env:
           VERSION: ${{ needs.check.outputs.version }}
         run: |
-          app=$(find src-tauri/gen/apple/build -type d -name 'Locora.app' -path '*arm64*' | head -1)
-          test -n "$app"
-          mkdir -p ../../dist Payload
-          cp -R "$app" Payload/
-          zip -qry "../../dist/Locora_${VERSION}_ios-unsigned.ipa" Payload
+          mkdir -p ../../dist
+          ipa=$(find src-tauri/gen/apple/build -name '*.ipa' | head -1)
+          if [ -n "$ipa" ]; then
+            cp "$ipa" "../../dist/Locora_${VERSION}_ios-unsigned.ipa"
+          else
+            # Older Tauri versions leave only the .app: an .ipa is that app in a Payload folder.
+            app=$(find src-tauri/gen/apple/build -type d -name 'Locora.app' | head -1)
+            test -n "$app"
+            mkdir -p Payload && cp -R "$app" Payload/
+            zip -qry "../../dist/Locora_${VERSION}_ios-unsigned.ipa" Payload
+          fi
           ls -la ../../dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
