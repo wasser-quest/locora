@@ -62,10 +62,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macos-latest twice left this job without a runner until it was cancelled.
-          - name: macOS (Apple silicon)
-            os: macos-15
-            target: aarch64-apple-darwin
+          # The Apple silicon CLI is skipped for now: its macOS runner never started (twice). Apple
+          # silicon Macs run the Intel CLI through Rosetta 2.
           - name: macOS (Intel)
             os: macos-latest
             target: x86_64-apple-darwin
@@ -138,10 +136,8 @@ jobs:
           - name: Linux (ARM64)
             os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-          # macos-latest twice left this job without a runner until it was cancelled.
-          - name: macOS (Apple silicon)
-            os: macos-15
-            target: aarch64-apple-darwin
+          # The Apple silicon CLI is skipped for now: its macOS runner never started (twice). Apple
+          # silicon Macs run the Intel CLI through Rosetta 2.
           - name: macOS (Intel)
             os: macos-latest
             target: x86_64-apple-darwin

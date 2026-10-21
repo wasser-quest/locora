@@ -22,7 +22,7 @@ Every file comes from the latest release:
    |---|---|
    | Linux x64 | `locora-cli_<version>_x86_64-unknown-linux-gnu.tar.gz` |
    | Linux ARM64 | `locora-cli_<version>_aarch64-unknown-linux-gnu.tar.gz` |
-   | macOS Apple silicon | `locora-cli_<version>_aarch64-apple-darwin.tar.gz` |
+   | macOS Apple silicon | `locora-cli_<version>_aarch64-apple-darwin.tar.gz`; if the release has none, the Intel archive below (it runs through Rosetta 2) |
    | macOS Intel | `locora-cli_<version>_x86_64-apple-darwin.tar.gz` |
    | Windows x64 | `locora-cli_<version>_x86_64-pc-windows-msvc.zip` |
 

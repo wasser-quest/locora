@@ -8,7 +8,7 @@ Diese Datei ist für dich geschrieben. `locora guide` gibt sie aus.
 > Installiere Locora als Kommandozeilenwerkzeug und lies danach `locora guide`:
 > 1. Lade aus https://github.com/wasser-quest/locora/releases/latest das Archiv für dieses System:
 >    `locora-cli_<version>_x86_64-unknown-linux-gnu.tar.gz` (Linux x64), `…_aarch64-unknown-linux-gnu.tar.gz` (Linux ARM64),
->    `…_aarch64-apple-darwin.tar.gz` (Mac mit Apple-Chip), `…_x86_64-apple-darwin.tar.gz` (Mac mit Intel),
+>    `…_aarch64-apple-darwin.tar.gz` (Mac mit Apple-Chip; fehlt es, das Intel-Archiv über Rosetta 2), `…_x86_64-apple-darwin.tar.gz` (Mac mit Intel),
 >    `…_x86_64-pc-windows-msvc.zip` (Windows). `SHA256SUMS.txt` im selben Release enthält die Prüfsummen.
 > 2. Entpacke es und lege `locora` (Windows: `locora.exe`) in einen Ordner im `PATH`, z. B. `~/.local/bin`.
 >    Auf macOS ist das Programm nicht signiert: einmal `xattr -d com.apple.quarantine locora` ausführen.
