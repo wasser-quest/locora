@@ -16,6 +16,7 @@ Diese Datei ist für dich geschrieben. `locora guide` gibt sie aus.
 > 4. Die Daten liegen im Systemordner; mit `--data <ORDNER>` oder `LOCORA_DATA` lässt sich ein anderer Ordner nehmen (zum Testen sinnvoll).
 > Ohne fertiges Archiv: Rust installieren (rustup), `rustup target add wasm32-wasip2`, dann im Repository
 > `cargo install --path apps/cli --locked`.
+> Die Desktop-App und alle Einzelheiten: https://raw.githubusercontent.com/wasser-quest/locora/main/INSTALL.md
 > Locora läuft lokal und offline. Nur die optionale Cloud braucht Netz.
 
 ## Grundbegriffe
