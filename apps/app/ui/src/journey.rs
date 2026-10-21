@@ -1098,6 +1098,8 @@ mod tests {
 
     #[test]
     fn game_status_shows_combo_and_hearts() {
+        // The texts are checked in German; the app starts in English.
+        crate::i18n::set_current(crate::i18n::Lang::De);
         assert_eq!(
             game_status(GameView {
                 combo: 3,

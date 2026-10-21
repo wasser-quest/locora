@@ -10,6 +10,8 @@ rust-version.workspace = true
 [lib]
 name = "locora_host"
 path = "src/lib.rs"
+# Only a re-export: its doctests would see this crate and locora-host under the same name.
+doctest = false
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 locora-host.workspace = true
