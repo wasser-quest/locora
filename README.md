@@ -93,6 +93,21 @@ Data lives in your platform data directory (`--data DIR` or `$LOCORA_DATA` to ch
 `.locora` format is documented in [`format/README.md`](format/README.md), the text source format in
 [`format/locora-toml.md`](format/locora-toml.md).
 
+## With an AI assistant
+
+Locora's CLI is written to be used by AI assistants too: [`llm.txt`](llm.txt) explains every command
+for a model (`locora guide` prints the same text). To set it up, give your assistant this:
+
+```text
+Install the Locora CLI and then read its guide:
+1. Download the archive for this system from https://github.com/wasser-quest/locora/releases/latest
+   (locora-cli_<version>_<platform>.tar.gz, or .zip on Windows; checksums in SHA256SUMS.txt).
+2. Unpack it and put `locora` (Windows: `locora.exe`) on the PATH, e.g. ~/.local/bin.
+   On macOS the binary is unsigned: run `xattr -d com.apple.quarantine locora` once.
+3. Run `locora --version`, then `locora guide`, and follow that guide.
+   The guide is also at https://github.com/wasser-quest/locora/blob/main/llm.txt
+```
+
 ## Building the app
 
 ```sh
