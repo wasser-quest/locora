@@ -1182,17 +1182,23 @@ fn RoomStage(
         start: None,
         play: false,
     });
-    let mut timeline: Vec<_> = room
-        .loci
-        .iter()
-        .filter_map(|l| {
-            l.time
-                .filter(|t| t.is_finite() && *t >= 0.0)
-                .map(|time| (time, l.id.clone(), l.number, l.place.clone()))
+    // Loci by time, from the live room: a locus added or retimed shows at once, without
+    // remounting the stage (which would restart the video).
+    let timeline = Memo::new(move |_| {
+        live.with(|room| {
+            let mut loci: Vec<_> = room
+                .iter()
+                .flat_map(|room| &room.loci)
+                .filter_map(|l| {
+                    l.time
+                        .filter(|t| t.is_finite() && *t >= 0.0)
+                        .map(|time| (time, l.id.clone(), l.number, l.place.clone()))
+                })
+                .collect();
+            loci.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.cmp(&b.2)));
+            loci
         })
-        .collect();
-    timeline.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.2.cmp(&b.2)));
-    let timeline_marks = timeline.clone();
+    });
     let timeline_editor = StoredValue::new(editor.clone());
     let timed_editor = editor.clone();
     let stepped_editor = editor.clone();
@@ -1286,7 +1292,7 @@ fn RoomStage(
                 <nav class="video-timeline" aria-label=t("Orte nach Zeit")>
                     <Show when=move || video_duration.get().is_some()>
                         <div class="video-timeline-scale" aria-hidden="true">
-                            {timeline_marks.clone().into_iter().map(|(time, _, _, _)| view! {
+                            {move || timeline.get().into_iter().map(|(time, _, _, _)| view! {
                                 <span class="video-timeline-mark"
                                     class:invalid=move || video_duration.get().is_some_and(|duration| time > duration)
                                     style:left=move || video_duration.get()
@@ -1373,7 +1379,7 @@ fn RoomStage(
                         </div>
                     })}
                     <div class="video-timeline-loci">
-                    {timeline.into_iter().map(|(time, id, number, place)| {
+                    {move || timeline.get().into_iter().map(|(time, id, number, place)| {
                         let selected_id = id.clone();
                         let retime_id = id.clone();
                         let lead_id = id.clone();
