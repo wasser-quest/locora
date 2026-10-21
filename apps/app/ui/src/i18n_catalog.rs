@@ -3,6 +3,36 @@
 
 pub const MESSAGES: &[(&str, [&str; 5])] = &[
     (
+        "Antwort eingeben – Enter prüft (leer: Leertaste deckt auf)",
+        [
+            "Type the answer – Enter checks (empty: Space reveals)",
+            "Antwort eingeben – Enter prüft (leer: Leertaste deckt auf)",
+            "Saisis la réponse – Entrée vérifie (vide : Espace révèle)",
+            "答えを入力 – Enter で確認（空欄なら Space で表示）",
+            "输入答案 – 回车检查（为空时按空格显示）",
+        ],
+    ),
+    (
+        "1 oder Leertaste",
+        [
+            "1 or Space",
+            "1 oder Leertaste",
+            "1 ou Espace",
+            "1 または Space",
+            "1 或空格",
+        ],
+    ),
+    (
+        "Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter oder Leertaste prüft. Es können auch mehrere richtig sein.",
+        [
+            "Choose all right answers: numbers 1–9 choose, Enter or Space checks. Several can be right.",
+            "Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter oder Leertaste prüft. Es können auch mehrere richtig sein.",
+            "Choisis toutes les bonnes réponses : chiffres 1–9 pour choisir, Entrée ou Espace vérifie. Plusieurs peuvent être justes.",
+            "正しい答えをすべて選んでください：1–9 で選択、Enter または Space で確認。複数正解もあります。",
+            "选择所有正确答案：数字 1–9 选择，回车或空格检查。可能有多个正确答案。",
+        ],
+    ),
+    (
         "Ort gewählt. „Aufdecken“ zeigt, ob er stimmt; ein neuer Klick verschiebt deine Wahl.",
         [
             "Place chosen. “Reveal” shows whether it is right; another click moves your choice.",

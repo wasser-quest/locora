@@ -63,11 +63,18 @@ fn grid(days: Vec<ActivityDay>) -> impl IntoView {
             }
         })
         .collect_view();
+    // The newest weeks are on the right: a narrow screen starts there, not at last year.
+    let grid = NodeRef::<leptos::html::Div>::new();
+    Effect::new(move |_| {
+        if let Some(grid) = grid.get() {
+            grid.set_scroll_left(grid.scroll_width());
+        }
+    });
     view! {
         <section class="card panel activity" aria-label=t("Aktivität")>
             <h2>{t("Aktivität")}</h2>
-            <p class="notes">{tf("{0} aktive Tage in den letzten 12 Monaten · {1} Antworten", &[&active, &total])}</p>
-            <div class="activity-grid">{squares}</div>
+            <p class="activity-summary">{tf("{0} aktive Tage in den letzten 12 Monaten · {1} Antworten", &[&active, &total])}</p>
+            <div class="activity-grid" node_ref=grid>{squares}</div>
             <p class="activity-legend">
                 <span>{t("weniger")}</span>
                 <span class="activity-day l0"></span>

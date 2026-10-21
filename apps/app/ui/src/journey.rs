@@ -331,6 +331,11 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             (Phase::Revealed(_), k @ ("1" | "2" | "3" | "4")) => {
                 reply(Reply::Recall(k.parse().unwrap_or(3)));
             }
+            // Space grades like 1 ("again"): nobody claims to have known it by holding Space.
+            (Phase::Revealed(_), " ") => {
+                e.prevent_default();
+                reply(Reply::Recall(1));
+            }
             (Phase::Judged(_), " " | "Enter") => {
                 e.prevent_default();
                 next();
@@ -896,9 +901,16 @@ fn Ask(
                 }>
                     <input
                         type="text"
-                        placeholder="Antwort eingeben – Enter (leer = aufdecken)"
+                        placeholder=t("Antwort eingeben – Enter prüft (leer: Leertaste deckt auf)")
                         autofocus=true
                         bind:value=text
+                        on:keydown=move |e| {
+                            // Space in an empty field reveals, so a whole journey runs on Space alone.
+                            if e.key() == " " && text.get_untracked().is_empty() {
+                                e.prevent_default();
+                                submit();
+                            }
+                        }
                     />
                 </form>
                 <button class="primary" disabled=move || busy.get() on:click=move |_| submit()>
@@ -939,6 +951,16 @@ fn Ask(
                         e.prevent_default();
                         reply(Reply::Quiz(picked.get_untracked()));
                     }
+                    // Space checks too; with nothing chosen it reveals the answer.
+                    " " if !control => {
+                        e.prevent_default();
+                        let chosen = picked.get_untracked();
+                        reply(if chosen.is_empty() {
+                            Reply::Forfeit
+                        } else {
+                            Reply::Quiz(chosen)
+                        });
+                    }
                     key => {
                         if let Some(n) = key.parse::<u32>().ok().filter(|n| (1..=count).contains(n))
                         {
@@ -950,7 +972,7 @@ fn Ask(
             });
             on_cleanup(move || keys.remove());
             view! {
-                <p class="progress">{t("Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter prüft. Es können auch mehrere richtig sein.")}</p>
+                <p class="progress">{t("Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter oder Leertaste prüft. Es können auch mehrere richtig sein.")}</p>
                 <div class="options" class:grid=grid>
                     {question
                         .options
@@ -1022,7 +1044,7 @@ fn Grades(reply: impl Fn(Reply) + Copy + 'static, busy: RwSignal<bool>) -> impl 
                     view! {
                         <button disabled=move || busy.get() on:click=move |_| reply(Reply::Recall(g))>
                             {label}
-                            <small>{g}</small>
+                            <small>{if g == 1 { t("1 oder Leertaste").to_owned() } else { g.to_string() }}</small>
                         </button>
                     }
                 })

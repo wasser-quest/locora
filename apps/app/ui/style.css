@@ -319,8 +319,10 @@ dl.stats dd { margin: 0; font-weight: 600; }
 .options kbd { display: inline-block; min-width: 1.4em; margin-right: .4em; padding: 0 .3em; border: 1px solid var(--line); border-radius: 4px; font: inherit; font-size: .8rem; text-align: center; color: var(--muted); }
 
 /* Activity overview: one square per learning day, shaded by the answers of that day. */
-.activity-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); gap: 3px;
-  overflow-x: auto; padding: .2rem 0 .5rem; }
+/* Fixed 12 px weeks from the left: a wide screen does not stretch them apart. */
+.activity-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); grid-auto-columns: 12px;
+  justify-content: start; gap: 3px; overflow-x: auto; padding: .2rem 0 .5rem; }
+.activity-summary { color: var(--muted); font-size: .9rem; margin: 0 0 .5rem; }
 .activity-day { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--line); }
 .activity-day.l1 { background: color-mix(in srgb, var(--ok) 30%, var(--surface)); }
 .activity-day.l2 { background: color-mix(in srgb, var(--ok) 50%, var(--surface)); }
