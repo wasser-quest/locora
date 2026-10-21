@@ -547,6 +547,9 @@ pub fn VideoBackdrop(
     #[prop(optional)] on_loaded: Option<Box<dyn Fn() + Send + Sync>>,
     #[prop(optional)] on_error: Option<Box<dyn Fn() + Send + Sync>>,
     #[prop(optional)] on_timeupdate: Option<Box<dyn Fn() + Send + Sync>>,
+    /// Shown until the video has a frame of its own (a picture URL).
+    #[prop(optional)]
+    poster: Option<String>,
 ) -> impl IntoView {
     // A video that is already loaded shows at once; otherwise the frame waits for the fetch.
     let cached = crate::tauri::cached_video_url(&media);
@@ -566,10 +569,12 @@ pub fn VideoBackdrop(
     let preload = StoredValue::new(preload);
     let muted = StoredValue::new(muted);
     let autoplay = StoredValue::new(autoplay);
+    let poster = StoredValue::new(poster.filter(|picture| !picture.is_empty()));
     view! {
         <Show when=move || source.get().is_ok()>
             <video
                 node_ref=player
+                poster=poster.get_value()
                 class=class.with_value(|value| value.clone())
                 controls=move || controls.get().unwrap_or(true)
                 muted=muted.with_value(|value| *value)
@@ -577,6 +582,22 @@ pub fn VideoBackdrop(
                 autoplay=autoplay.with_value(|value| *value)
                 src=move || source.get().expect("checked by Show")
                 on:loadedmetadata=move |_| loaded.with_value(|callback| if let Some(cb) = callback { cb(); })
+                on:resize=move |event| {
+                    // Firefox reports placeholder sizes at loadedmetadata; the real size follows here.
+                    if let Some(video) = event.target().and_then(|target| target.dyn_into::<web_sys::HtmlVideoElement>().ok()) {
+                        fit_stage(video.as_ref(), f64::from(video.video_width()), f64::from(video.video_height()));
+                    }
+                }
+                on:loadeddata=move |event| {
+                    // A paused video often paints nothing (the stage shows through): a tiny seek makes the
+                    // WebView draw its frame.
+                    if let Some(video) = event.target().and_then(|target| target.dyn_into::<web_sys::HtmlVideoElement>().ok())
+                        && video.paused()
+                        && video.current_time() == 0.0
+                    {
+                        video.set_current_time(0.001);
+                    }
+                }
                 on:timeupdate=move |_| ticked.with_value(|callback| if let Some(cb) = callback { cb(); })
                 on:error=move |_| {
                     // Usually a format the browser cannot decode (often HEVC/H.265 from a phone): say so
@@ -590,6 +611,31 @@ pub fn VideoBackdrop(
             <p class="notes" role="alert">{move || source.get().unwrap_err()}</p>
         </Show>
     }
+}
+
+/// The picture a video shows now, as a JPEG data URL; `None` before it has a frame.
+pub fn current_frame(video: &web_sys::HtmlVideoElement) -> Option<String> {
+    if video.ready_state() < 2 || video.video_width() == 0 {
+        return None;
+    }
+    let document = web_sys::window()?.document()?;
+    let canvas = document
+        .create_element("canvas")
+        .ok()?
+        .dyn_into::<web_sys::HtmlCanvasElement>()
+        .ok()?;
+    canvas.set_width(video.video_width());
+    canvas.set_height(video.video_height());
+    let context = canvas
+        .get_context("2d")
+        .ok()
+        .flatten()?
+        .dyn_into::<web_sys::CanvasRenderingContext2d>()
+        .ok()?;
+    context
+        .draw_image_with_html_video_element(video, 0.0, 0.0)
+        .ok()?;
+    canvas.to_data_url_with_type("image/jpeg").ok()
 }
 
 /// A video's first frame as a palace thumbnail. A paused video often paints nothing

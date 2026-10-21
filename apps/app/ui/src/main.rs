@@ -406,7 +406,8 @@ fn App() -> impl IntoView {
                         tour_error=tour_error tour_route_ready=tour_route_ready core_only=true/>
                 }.into_any(),
 
-                Screen::Imported(palace) => view! { <ImportedPalace palace=palace screen=screen/> }.into_any(),
+                // A new palace opens like any other, with the editor already on.
+                Screen::Imported(palace) => view! { <PalaceScreen id=palace.id screen=screen editing=true/> }.into_any(),
                 Screen::Palace(id) => view! { <PalaceScreen id=id screen=screen/> }.into_any(),
                 Screen::Journey(start) => {
                     view! { <journey::JourneyView start=start screen=screen/> }.into_any()
@@ -1240,21 +1241,6 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
     }
 }
 
-/// The import response is already a complete snapshot: open directly in edit mode.
-#[component]
-fn ImportedPalace(palace: PalaceView, screen: RwSignal<Screen>) -> impl IntoView {
-    let blocked = RwSignal::new(false);
-    guard_palette(blocked);
-    view! {
-        <header class="bar">
-            <button class="back" disabled=move || blocked.get()
-                on:click=move |_| screen.set(start_screen())>"←"</button>
-            <h1>{palace.name.clone()}</h1>
-        </header>
-        <editor::Rooms palace=palace blocked=blocked initial_editing=true />
-    }
-}
-
 /// Unsaved editor changes keep the command palette from navigating away.
 fn guard_palette(blocked: RwSignal<bool>) {
     if let Some(palette::Editing(editing)) = use_context::<palette::Editing>() {
@@ -1279,7 +1265,13 @@ struct IdArgs {
 }
 
 #[component]
-fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
+fn PalaceScreen(
+    id: String,
+    screen: RwSignal<Screen>,
+    /// Open with the editor on (a palace just made from a picture or video).
+    #[prop(optional)]
+    editing: bool,
+) -> impl IntoView {
     // The editor may delete the palace it shows and must then leave this screen.
     provide_context(screen);
     let palace = load(call::<PalaceView>(CMD_PALACE, IdArgs { id: id.clone() }));
@@ -1407,7 +1399,7 @@ fn PalaceScreen(id: String, screen: RwSignal<Screen>) -> impl IntoView {
         {move || match palace.get() {
             None => view! { <Loading /> }.into_any(),
             Some(Err(e)) => view! { <p class="notes">{e}</p> }.into_any(),
-            Some(Ok(p)) => view! { <editor::Rooms palace=p blocked=blocked /> }.into_any(),
+            Some(Ok(p)) => view! { <editor::Rooms palace=p blocked=blocked initial_editing=editing /> }.into_any(),
         }}
     }
 }

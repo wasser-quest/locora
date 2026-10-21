@@ -113,7 +113,8 @@ class Scenario:
         with open(self.artifacts / "atspi-tree.txt", "w") as out:
             def visit(node, depth):
                 try:
-                    out.write(f"{'  ' * depth}{node.get_role_name()}: {node.get_name()!r}\n")
+                    focused = node.get_state_set().contains(Atspi.StateType.FOCUSED)
+                    out.write(f"{'  ' * depth}{node.get_role_name()}: {node.get_name()!r}{'  [FOCUSED]' if focused else ''}\n")
                     for index in range(node.get_child_count()):
                         visit(node.get_child_at_index(index), depth + 1)
                 except GLib.Error:

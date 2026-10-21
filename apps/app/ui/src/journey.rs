@@ -66,6 +66,11 @@ struct VideoReady(RwSignal<bool>);
 #[derive(Clone, Copy)]
 struct VideoPosition(RwSignal<f64>);
 
+/// The picture the video showed at the last locus. The next question's video shows it until its own
+/// frame is there, so the stage never flashes empty between places.
+#[derive(Clone, Copy)]
+struct LastFrame(StoredValue<Option<String>>);
+
 fn refresh_game(status: RwSignal<Option<GamificationStatus>>) {
     spawn_local(async move {
         if let Ok(value) =
@@ -106,6 +111,7 @@ fn room_fraction(stage: f64, target: f64, zoom: f64) -> f64 {
 #[component]
 pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoView {
     provide_context(VideoProgress(StoredValue::new(None)));
+    provide_context(LastFrame(StoredValue::new(None)));
     provide_context(GuessSpot(RwSignal::new(None::<Guess>)));
     let video_ready = RwSignal::new(true);
     provide_context(VideoReady(video_ready));
@@ -704,6 +710,8 @@ fn VideoAtLocus(
     let position = expect_context::<VideoPosition>().0;
     let key = StoredValue::new(media.hash.clone());
     let frame_watch = crate::video_frames::new_id();
+    let last_frame = expect_context::<LastFrame>().0;
+    let poster = last_frame.get_value();
     let stop_at_locus = move || {
         if let Some(player) = player.get_untracked() {
             position.set(player.current_time());
@@ -732,6 +740,13 @@ fn VideoAtLocus(
                 timer.clear();
             }
             crate::video_frames::stop(frame_watch);
+            // Held at the locus: this picture bridges to the next question's video.
+            if let Some(frame) = player
+                .get_untracked()
+                .and_then(|video| crate::sply::current_frame(&video))
+            {
+                last_frame.set_value(Some(frame));
+            }
         }
     });
     on_cleanup(move || {
@@ -749,6 +764,7 @@ fn VideoAtLocus(
             muted=true
             preload="auto".to_string()
             autoplay=true
+            poster=poster.unwrap_or_default()
             node_ref=player
             on_loaded=Box::new(move || {
                 if let Some(video) = player.get_untracked() {
