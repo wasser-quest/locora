@@ -133,6 +133,9 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+        with:
+          # The default also installs `tools`, which the SDK no longer offers.
+          packages: platform-tools
       - name: Install Rust targets
         run: rustup target add wasm32-unknown-unknown wasm32-wasip2 aarch64-linux-android
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
