@@ -67,8 +67,8 @@ jobs:
 
   ios:
     name: iOS unsigned simulator app
-    # Actions quota: macOS runners only on manual dispatch.
-    if: github.event_name == 'workflow_dispatch'
+    # macOS runners on pushes to main and manual runs (free for public repositories).
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: macos-15
     timeout-minutes: 90
     defaults:

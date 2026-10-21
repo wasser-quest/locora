@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-  # macOS and Windows minutes cost 10× and 2× on private repos: run them
-  # by hand (Actions → CI → Run workflow) before a release.
+  # Pull requests check Linux only; pushes to main and manual runs also macOS and Windows
+  # (free for public repositories).
   workflow_dispatch:
 
 env:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
+        os: ${{ github.event_name != 'pull_request' && fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v4
       # rust-toolchain.toml installs stable with rustfmt, clippy and wasm32-wasip2.
