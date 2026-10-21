@@ -43,7 +43,7 @@ on Windows choose *More info → Run anyway*. `SHA256SUMS.txt` lists the checksu
 - **Spaced repetition:** the `review` plugin schedules due loci with FSRS and keeps the route order of your palace.
 - **Video palaces:** the video pauses at each locus and continues once you have recalled it.
 - **Offline first and private:** a local SQLite database is the source of truth; no account, no tracking.
-  Pictures and videos are stored without location data or other metadata.
+  Pictures, videos and sound clips are stored without location data or other metadata.
 - **Minimal clicks:** one click starts a journey; drop an image or video to create a palace.
 - **Formulas:** workbook tables and formula bindings for content that can be calculated.
 - **Plugins everywhere:** `core`, `review`, `notify`, `tutorial` and `gamification` are Rust compiled to
@@ -74,6 +74,7 @@ locora stats                   # answers, hit rate, streak
 locora edit Planeten 1 --answer '{"type":"guess"}'  # typed answer, checked by Core
 locora edit Planeten 1 --accept Hermes --note "Ein Thermometer am Herd"  # more right answers, memory aid
 locora edit Planeten 1 --image merkur.png --image-size 0.4  # reveal picture at 40% of room width in the app
+locora edit Planeten 1 --audio merkur.mp3   # a sound clip played with the answer (mp3, m4a, wav, ogg); --no-audio removes it
 locora practice Planeten --reverse  # item → place; --numbers asks „Ort 7“, --shuffle mixes the order
 locora settings                # new loci per day, target retention
 locora optimize                # personal FSRS weights from your own history
@@ -142,7 +143,7 @@ apps/site                  the website locora.cloud
 crates/locora-store        offline-first SQLite storage: palaces, rooms, loci, media, plugin data, op log
 crates/locora-runtime      what the CLI and the apps share: journeys, tutorial, cloud sync
 crates/locora-app-core     the app's editor, views and workbook logic
-crates/locora-media        pictures and videos as Locora stores them (metadata removed, MP4)
+crates/locora-media        pictures, videos and sound as Locora stores them (metadata removed, MP4)
 crates/locora-host         loads plugins at runtime (wasmtime): sandbox, events, services, hot reload
 crates/locora-sdk          write plugins in plain Rust (#[locora_plugin])
 crates/locora-fsrs         FSRS-5 spaced-repetition scheduling

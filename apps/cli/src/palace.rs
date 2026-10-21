@@ -154,6 +154,7 @@ pub fn new(app: &mut App, args: NewArgs) -> Result<()> {
         app.store.add_locus(
             &room.id,
             NewLocus {
+                audio: None,
                 place: item
                     .place
                     .clone()
@@ -200,6 +201,7 @@ pub struct AddArgs {
     pub at: Option<String>,
     pub time: Option<String>,
     pub image: Option<PathBuf>,
+    pub audio: Option<PathBuf>,
     pub image_size: Option<f64>,
     pub zoom: Option<f64>,
     pub note: Option<String>,
@@ -238,6 +240,26 @@ pub fn store_picture(app: &App, path: &Path) -> Result<String> {
     Ok(app.store.put_media(&bytes, media_type)?.hash)
 }
 
+/// Store a sound clip (mp3, m4a, wav, ogg) for a locus, without its tags.
+pub fn store_audio(app: &App, path: &Path) -> Result<String> {
+    let mime = locora_source::audio_type(path).with_context(|| {
+        format!(
+            "{}: unbekanntes Tonformat (mp3, m4a, wav, ogg)",
+            path.display()
+        )
+    })?;
+    let bytes = fs::read(path).with_context(|| format!("{} lesen", path.display()))?;
+    if locora_media::sniff_audio(&bytes) != Some(mime) {
+        bail!(
+            "{}: Inhalt passt nicht zum Tonformat {mime}",
+            path.display()
+        );
+    }
+    let (bytes, mime) =
+        locora_media::prepare(path, bytes, mime).with_context(|| path.display().to_string())?;
+    Ok(app.store.put_media(&bytes, mime)?.hash)
+}
+
 /// A picture or video without its metadata, a video as MP4 with H.264; `.sply` as it is.
 fn prepared(path: &Path, bytes: Vec<u8>, mime: &'static str) -> Result<(Vec<u8>, &'static str)> {
     if mime == locora_store::SPLINELY {
@@ -270,6 +292,11 @@ pub fn add(app: &mut App, args: AddArgs) -> Result<()> {
     let locus = app.store.add_locus(
         &room.room.id,
         NewLocus {
+            audio: args
+                .audio
+                .as_deref()
+                .map(|path| store_audio(app, path))
+                .transpose()?,
             place: args
                 .place
                 .unwrap_or_else(|| format!("Ort {}", tree.route().count() + 1)),
@@ -398,8 +425,10 @@ pub fn show(app: &mut App, query: &str) -> Result<()> {
                 .unwrap_or_default();
             // ▣ marks a locus with its own picture (image or animation).
             let picture = if locus.image.is_some() { "▣ " } else { "  " };
+            // ♪ marks a locus with a sound clip.
+            let sound = if locus.audio.is_some() { "♪ " } else { "" };
             println!(
-                "  {n:>3}. {picture}{time}{:<18} → {:<24} {when}",
+                "  {n:>3}. {picture}{sound}{time}{:<18} → {:<24} {when}",
                 truncate(&locus.place, 18),
                 truncate(&locus.item, 24)
             );

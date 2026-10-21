@@ -18,6 +18,8 @@ pub fn media(store: &Store, hash: &str) -> Option<Media> {
         MediaKind::Sply
     } else if found.mime.starts_with("video/") {
         MediaKind::Video
+    } else if locora_store::is_audio(&found.mime) {
+        MediaKind::Audio
     } else {
         MediaKind::Image
     };
@@ -159,6 +161,7 @@ pub fn palace_view(
                         image_size: l.image_size,
                         zoom: l.zoom,
                         note: l.note.clone(),
+                        audio: l.audio.clone(),
                     }
                 })
                 .collect(),

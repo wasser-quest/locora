@@ -80,7 +80,33 @@ pub async fn video_url(media: &Media) -> Result<String, String> {
     if let Some(object) = cached_video_url(media) {
         return Ok(object);
     }
-    let read = "Video konnte nicht gelesen werden";
+    let object = object_url(media, "Video konnte nicht gelesen werden").await?;
+    // Another question for the same video may have fetched it meanwhile; keep that URL.
+    let kept = LAST_VIDEO.with(|last| {
+        let mut last = last.borrow_mut();
+        if let Some((hash, cached)) = last.as_ref()
+            && *hash == media.hash
+        {
+            let cached = cached.clone();
+            revoke_object_url(&object);
+            return cached;
+        }
+        if let Some((_, previous)) = last.replace((media.hash.clone(), object.clone())) {
+            revoke_object_url(&previous);
+        }
+        object.clone()
+    });
+    Ok(kept)
+}
+
+/// A stored sound clip as a blob URL, for `<audio>`: like videos, WebKitGTK's media player
+/// refuses the custom scheme. The caller revokes the URL when its element goes away.
+pub async fn audio_url(media: &Media) -> Result<String, String> {
+    object_url(media, "Ton konnte nicht gelesen werden").await
+}
+
+/// The stored bytes behind `media`, fetched over the custom scheme, as a new blob URL.
+async fn object_url(media: &Media, read: &str) -> Result<String, String> {
     // Plain `fetch` needs CORS headers the custom scheme never sends; the
     // request still reaches the handler and dies on the response, so use
     // XMLHttpRequest, which WebKitGTK allows for custom schemes.
@@ -128,24 +154,7 @@ pub async fn video_url(media: &Media) -> Result<String, String> {
     .await
     .map_err(|_| read.to_string())?;
     let blob: web_sys::Blob = blob.dyn_into().map_err(|_| read.to_string())?;
-    let object = Url::create_object_url_with_blob(&blob)
-        .map_err(|_| "Video konnte nicht geöffnet werden".to_string())?;
-    // Another question for the same video may have fetched it meanwhile; keep that URL.
-    let kept = LAST_VIDEO.with(|last| {
-        let mut last = last.borrow_mut();
-        if let Some((hash, cached)) = last.as_ref()
-            && *hash == media.hash
-        {
-            let cached = cached.clone();
-            revoke_object_url(&object);
-            return cached;
-        }
-        if let Some((_, previous)) = last.replace((media.hash.clone(), object.clone())) {
-            revoke_object_url(&previous);
-        }
-        object.clone()
-    });
-    Ok(kept)
+    Url::create_object_url_with_blob(&blob).map_err(|_| read.to_string())
 }
 
 /// Release a blob URL once no element uses it anymore.

@@ -125,6 +125,55 @@ pub fn clean_video(data: &mut [u8]) -> Result<Option<String>> {
     Ok(None)
 }
 
+/// Cleans an M4A file in place, like a video: metadata boxes (iTunes tags, cover, places) become
+/// `free` boxes and creation times are zeroed. Only sound tracks with AAC or Opus are accepted.
+pub fn clean_audio(data: &mut [u8]) -> Result<()> {
+    let top = boxes(data, 0, data.len())?;
+    let ftyp = top.first().filter(|b| &b.kind == b"ftyp").copied();
+    ftyp.ok_or(MediaError::Malformed("kein ftyp-Block"))?;
+    let moov = top.iter().find(|b| &b.kind == b"moov").copied();
+    let moov = moov.ok_or(MediaError::Malformed("kein moov-Block"))?;
+    if top.iter().any(|b| &b.kind == b"moof") {
+        return Err(MediaError::Refused(
+            "Fragmentierte M4A-Dateien werden nicht unterstützt. Bitte als MP3 oder normales M4A speichern."
+                .into(),
+        ));
+    }
+    let mut sound = false;
+    for track in boxes(data, moov.body, moov.end)?
+        .iter()
+        .filter(|b| &b.kind == b"trak")
+    {
+        match track_codec(data, track)? {
+            (handler, Some(codec))
+                if &handler == b"soun" && matches!(&codec, b"mp4a" | b"Opus") =>
+            {
+                sound = true;
+            }
+            (handler, _) if &handler == b"soun" => {
+                return Err(MediaError::Refused(
+                    "Diese M4A-Datei ist nicht AAC. Bitte als AAC-M4A oder MP3 speichern.".into(),
+                ));
+            }
+            _ => {
+                return Err(MediaError::Refused(
+                    "Die Datei hat neben dem Ton weitere Spuren (Bild, Video oder Kapitel). Bitte nur den Ton als M4A oder MP3 speichern."
+                        .into(),
+                ));
+            }
+        }
+    }
+    if !sound {
+        return Err(MediaError::Malformed("keine Tonspur"));
+    }
+    for found in &top {
+        if is_metadata(found, data) {
+            erase(data, found);
+        }
+    }
+    clean_movie(data, &moov)
+}
+
 fn needs(what: &str, codec: Option<&[u8]>) -> String {
     let codec = codec
         .map(|c| String::from_utf8_lossy(c).trim().to_owned())

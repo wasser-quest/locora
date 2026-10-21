@@ -5,6 +5,7 @@ pub mod assets;
 pub mod convert;
 pub mod editor;
 pub mod journey;
+pub mod locus_audio;
 pub mod settings;
 pub mod sply;
 pub mod transfer;

@@ -489,3 +489,55 @@ items = ["x"]
     );
     assert!(store.palaces().unwrap().is_empty());
 }
+
+#[test]
+fn locus_sound_clips_build_clean_and_dump() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    // A WAV with a LIST chunk (a title) after its samples: built without it.
+    let mut tagged = locora_media::fixtures::wav();
+    tagged.extend_from_slice(b"LIST\x0c\0\0\0INFOINAM\0\0\0\0");
+    let size = (tagged.len() - 8) as u32;
+    tagged[4..8].copy_from_slice(&size.to_le_bytes());
+    fs::write(d.join("glocke.wav"), &tagged).unwrap();
+    fs::write(d.join("falsch.mp3"), b"no sound").unwrap();
+    fs::write(d.join("turm.png"), locora_media::fixtures::png()).unwrap();
+    let text = r#"
+name = "Klänge"
+[[room]]
+name = "Turm"
+[[room.locus]]
+place = "Glocke"
+item = "Mittag"
+audio = "glocke.wav"
+"#;
+    let plan = plan_of(text, d).unwrap();
+    let store = Store::open(&d.join("profil")).unwrap();
+    let tree = build(&store, &plan).unwrap();
+    let sound = tree.route().next().unwrap().audio.clone().unwrap();
+    let media = store.media(&sound).unwrap().unwrap();
+    assert_eq!(media.mime, "audio/wav");
+    assert_eq!(media.size as usize, locora_media::fixtures::wav().len());
+
+    let out = d.join("out");
+    let file = dump(&store, "Klänge", &out).unwrap();
+    let dumped = fs::read_to_string(&file).unwrap();
+    assert!(dumped.contains("audio = \"glocke.wav\""), "{dumped}");
+    assert_eq!(
+        fs::read(out.join("glocke.wav")).unwrap(),
+        locora_media::fixtures::wav()
+    );
+    // The dump builds again.
+    let again = check(&parse(&dumped).unwrap(), &out).unwrap();
+    assert!(again.rooms[0].loci[0].3.is_some());
+
+    let err = err_of(&text.replace("glocke.wav", "turm.png"), d);
+    assert!(err.contains("Tonformat"), "{err}");
+    let broken = plan_of(&text.replace("glocke.wav", "falsch.mp3"), d).unwrap();
+    let other = Store::open(&d.join("anderes")).unwrap();
+    assert!(build(&other, &broken).is_err());
+    assert!(
+        other.palaces().unwrap().is_empty(),
+        "nothing half-built stays"
+    );
+}

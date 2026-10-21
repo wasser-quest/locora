@@ -18,12 +18,12 @@ fn scope(conn: &Connection, palace: &str, room: &str) -> Result<()> {
 
 fn snapshot(conn: &Connection, id: &str) -> Result<Option<Locus>> {
     let mut locus = conn.query_row(
-        "SELECT id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom FROM loci WHERE id=?1",
+        "SELECT id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom, audio FROM loci WHERE id=?1",
         [id], |r| Ok(Locus {
             id: r.get(0)?, room_id: r.get(1)?, position: r.get(2)?, place: r.get(3)?,
             item: r.get(4)?, x: r.get(5)?, y: r.get(6)?, time: r.get(7)?,
             answer: read_answer(r, 8)?, image: r.get(9)?, note: r.get(10)?,
-            image_size: r.get(11)?, zoom: r.get(12)?, bindings: Vec::new(),
+            image_size: r.get(11)?, zoom: r.get(12)?, audio: r.get(13)?, bindings: Vec::new(),
         }),
     ).optional()?;
     if let Some(locus) = &mut locus {
@@ -159,9 +159,9 @@ impl Store {
         }
         for locus in &before {
             tx.execute(
-                "INSERT INTO loci(id,room_id,position,place,item,x,y,time,answer,image,note,image_size,zoom) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+                "INSERT INTO loci(id,room_id,position,place,item,x,y,time,answer,image,note,image_size,zoom,audio) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
                 params![locus.id, locus.room_id, locus.position, locus.place, locus.item, locus.x, locus.y, locus.time,
-                    serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, locus.zoom],
+                    serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, locus.zoom, locus.audio],
             )?;
             for binding in &locus.bindings {
                 tx.execute(
@@ -199,6 +199,7 @@ mod tests {
 
     fn locus(item: &str) -> NewLocus {
         NewLocus {
+            audio: None,
             place: "Tür".into(),
             item: item.into(),
             x: 0.2,

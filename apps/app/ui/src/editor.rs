@@ -105,6 +105,9 @@ struct Draft {
     kind: String,
     accept: String,
     quiz: String,
+    /// Sound clip hash; drafts stored before sound clips existed have none.
+    #[serde(default)]
+    audio: String,
 }
 
 impl Draft {
@@ -114,6 +117,7 @@ impl Draft {
             item: l.item.clone(),
             note: l.note.clone(),
             image: l.image.clone().unwrap_or_default(),
+            audio: l.audio.clone().unwrap_or_default(),
             size: l.image_size.to_string(),
             zoom: l.zoom.to_string(),
             kind: match l.answer.kind {
@@ -163,6 +167,7 @@ impl Draft {
             image_size,
             zoom,
             answer,
+            audio: (!self.audio.trim().is_empty()).then(|| self.audio.trim().to_owned()),
         })
     }
 }
@@ -1717,6 +1722,7 @@ fn ContentForm(
     let item = RwSignal::new(locus.item.clone());
     let note = RwSignal::new(locus.note.clone());
     let image = RwSignal::new(locus.image.clone().unwrap_or_default());
+    let audio = RwSignal::new(locus.audio.clone().unwrap_or_default());
     let size = RwSignal::new(locus.image_size.to_string());
     let zoom = RwSignal::new(locus.zoom.to_string());
     let initial_kind = match locus.answer.kind {
@@ -1791,6 +1797,7 @@ fn ContentForm(
             item: item.get(),
             note: note.get(),
             image: image.get(),
+            audio: audio.get(),
             size: size.get(),
             zoom: zoom.get(),
             kind: kind.get(),
@@ -1837,6 +1844,7 @@ fn ContentForm(
             item: item.get(),
             note: note.get(),
             image: image.get(),
+            audio: audio.get(),
             size: size.get(),
             zoom: zoom.get(),
             kind: kind.get(),
@@ -1860,7 +1868,8 @@ fn ContentForm(
     let picking = RwSignal::new(false);
     let picker = editor.clone();
     let pick_id = locus.id.clone();
-    let import_picture = StoredValue::new(move |ticket: Option<String>| {
+    // `sound`: a sound clip from the picker instead of a picture (from the picker or a drop).
+    let import_picture = StoredValue::new(move |ticket: Option<String>, sound: bool| {
         if busy.get_untracked() || dirty.get_untracked() || dragging.get_untracked() {
             if ticket.is_some() {
                 picker.message.set("Datei nicht übernommen: erst Änderungen speichern/verwerfen und einen bearbeitbaren Ort auswählen.".into());
@@ -1899,11 +1908,12 @@ fn ContentForm(
                     .await
                     .map(Some)
             } else {
-                call::<Option<EditorUpdated>>(
-                    locora_app_api::CMD_EDITOR_PICK_PICTURE,
-                    Args { target },
-                )
-                .await
+                let command = if sound {
+                    locora_app_api::CMD_EDITOR_PICK_AUDIO
+                } else {
+                    locora_app_api::CMD_EDITOR_PICK_PICTURE
+                };
+                call::<Option<EditorUpdated>>(command, Args { target }).await
             };
             match result {
                 Ok(Some(result)) => {
@@ -1930,18 +1940,27 @@ fn ContentForm(
                             )
                         });
                     }
-                    let hash = result
+                    let chosen = result
                         .palace
                         .rooms
                         .iter()
                         .flat_map(|r| &r.loci)
-                        .find(|l| Some(&l.id) == result.selected.as_ref())
-                        .and_then(|l| l.image.clone())
-                        .unwrap_or_default();
-                    last_attempted.update_value(|draft| draft.image = hash.clone());
-                    image.set(hash);
+                        .find(|l| Some(&l.id) == result.selected.as_ref());
+                    if sound {
+                        let hash = chosen.and_then(|l| l.audio.clone()).unwrap_or_default();
+                        last_attempted.update_value(|draft| draft.audio = hash.clone());
+                        audio.set(hash);
+                    } else {
+                        let hash = chosen.and_then(|l| l.image.clone()).unwrap_or_default();
+                        last_attempted.update_value(|draft| draft.image = hash.clone());
+                        image.set(hash);
+                    }
                     this.data.set(result.palace);
-                    this.message.set("Bild gespeichert".into());
+                    this.message.set(if sound {
+                        t("Ton gespeichert").to_owned()
+                    } else {
+                        "Bild gespeichert".into()
+                    });
                 }
                 Ok(None) => {}
                 Err(error) => this.message.set(error),
@@ -1952,10 +1971,11 @@ fn ContentForm(
     });
     let drop_error = editor.message;
     crate::tauri::on_file_drop(move |drop| match drop {
-        Ok(ticket) => import_picture.with_value(|import| import(Some(ticket))),
+        Ok(ticket) => import_picture.with_value(|import| import(Some(ticket), false)),
         Err(error) => drop_error.set(error),
     });
-    let pick = move |_| import_picture.with_value(|import| import(None));
+    let pick = move |_| import_picture.with_value(|import| import(None, false));
+    let pick_audio = move |_| import_picture.with_value(|import| import(None, true));
     let delete = editor.clone();
     let cancel = editor.clone();
     let id = StoredValue::new(locus.id.clone());
@@ -1964,6 +1984,7 @@ fn ContentForm(
         item.set(draft.item);
         note.set(draft.note);
         image.set(draft.image);
+        audio.set(draft.audio);
         size.set(draft.size);
         zoom.set(draft.zoom);
         kind.set(draft.kind);
@@ -2006,6 +2027,18 @@ fn ContentForm(
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() || image.get().is_empty()
                         on:click=move |_| image.set(String::new())>{t("Bild entfernen")}</button>
                 </div>
+                <div class="tabs">
+                    <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=pick_audio>{t("Audio wählen…")}</button>
+                    <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() || audio.get().is_empty()
+                        on:click=move |_| audio.set(String::new())>{t("Audio entfernen")}</button>
+                </div>
+                {move || {
+                    let hash = audio.get();
+                    (!hash.is_empty()).then(|| {
+                        let media = locora_app_api::Media { hash, kind: locora_app_api::MediaKind::Audio };
+                        view! { <crate::audio::LocusAudio media=media /> }
+                    })
+                }}
                 <label id="tour-editor-answer">{t("Antwortart")}<select bind:value=kind>
                     <option value="recall">{t("Recall (Selbstbewertung)")}</option><option value="guess">{t("Guess (Eingabe)")}</option><option value="quiz">{t("Quiz")}</option>
                 </select></label>
@@ -2029,7 +2062,7 @@ fn ContentForm(
                     let draft = Draft::from_locus(&l);
                     last_attempted.set_value(draft.clone());
                     last_persisted.set_value(draft.clone());
-                    place.set(draft.place); item.set(draft.item); note.set(draft.note); image.set(draft.image); size.set(draft.size); zoom.set(draft.zoom);
+                    place.set(draft.place); item.set(draft.item); note.set(draft.note); image.set(draft.image); audio.set(draft.audio); size.set(draft.size); zoom.set(draft.zoom);
                     kind.set(draft.kind); accept.set(draft.accept); quiz.set(draft.quiz);
                     dirty.set(false); cancel.message.set(String::new());
                 }>{t("Änderungen verwerfen")}</button>
@@ -2118,6 +2151,7 @@ mod tests {
             answer: EditorAnswer::default(),
             picture: None,
             status: locora_app_api::Status::Neu,
+            audio: Some("klang".into()),
         };
         let room = locora_app_api::RoomView {
             id: "room".into(),
@@ -2203,6 +2237,7 @@ mod tests {
             item: "Merkur".into(),
             note: String::new(),
             image: String::new(),
+            audio: String::new(),
             size: "0.25".into(),
             zoom: "1".into(),
             kind: "recall".into(),

@@ -1711,10 +1711,12 @@ dependencies = [
  "locora-cloud-api",
  "locora-crypto",
  "locora-host-select",
+ "locora-media",
  "locora-runtime",
  "locora-store",
  "serde",
  "serde_json",
+ "tempfile",
  "zip",
 ]
 

@@ -1,4 +1,4 @@
-//! Pictures and videos as Locora stores them. Whatever a device adds goes through `clean`
+//! Pictures, videos and sound clips as Locora stores them. Whatever a device adds goes through `clean`
 //! first: metadata that can say where, when or with what a picture or video was taken (EXIF with
 //! GPS, XMP, IPTC, comments, creation times) is removed without re-encoding anything, and a video
 //! must be MP4 with H.264, which every browser and app plays.
@@ -6,7 +6,10 @@
 //! Only the orientation of a photo is kept (as a minimal EXIF block), so it is not shown sideways.
 //! A video in another format or codec is not changed here: `clean` says it needs a conversion,
 //! which the platform does (Android's encoder, WebCodecs in the browser, ffmpeg on a desktop).
+//!
+//! Sound (MP3, M4A, WAV, Ogg) loses its tags the same way, without re-encoding; see `audio`.
 
+mod audio;
 mod convert;
 mod exif;
 #[cfg(any(test, feature = "fixtures"))]
@@ -14,9 +17,14 @@ pub mod fixtures;
 mod gif;
 mod isobmff;
 mod jpeg;
+mod mp3;
+mod ogg;
 mod png;
+mod wav;
 mod webp;
 
+#[cfg(test)]
+mod audio_tests;
 #[cfg(test)]
 mod tests;
 
@@ -38,13 +46,17 @@ pub enum MediaError {
     Unsupported(String),
     #[error("{0}")]
     Conversion(String),
+    /// A file of a known kind that Locora does not take; the reason is for the person (German).
+    #[error("{0}")]
+    Refused(String),
 }
 
+pub use audio::{TYPES as AUDIO_TYPES, canonical as audio_canonical, sniff as sniff_audio};
 pub use convert::prepare;
 
 pub(crate) type Result<T> = std::result::Result<T, MediaError>;
 
-/// Removes the metadata of a picture or video of type `mime` and checks a video's format.
+/// Removes the metadata of a picture, video or sound clip of type `mime` and checks a video's format.
 pub fn clean(bytes: Vec<u8>, mime: &str) -> Result<Cleaned> {
     let ready = |bytes, mime| Ok(Cleaned::Ready { bytes, mime });
     match mime {
@@ -67,8 +79,17 @@ pub fn clean(bytes: Vec<u8>, mime: &str) -> Result<Cleaned> {
         "video/webm" => Ok(Cleaned::NeedsConversion {
             reason: "WebM wird als MP4 (H.264) gespeichert".into(),
         }),
+        audio if audio.starts_with("audio/") => {
+            let (bytes, mime) = audio::clean(bytes, audio)?;
+            ready(bytes, mime)
+        }
         other => Err(MediaError::Unsupported(other.to_owned())),
     }
+}
+
+/// Whether a file of this type is a sound clip Locora stores (after `audio_canonical`).
+pub fn is_audio(mime: &str) -> bool {
+    AUDIO_TYPES.contains(&mime)
 }
 
 /// Whether a file of this type is a video (and so may need a conversion).

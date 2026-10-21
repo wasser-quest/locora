@@ -102,6 +102,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
             Response::Locus(locus(store.add_locus(
                 &room_id,
                 db::NewLocus {
+                    audio: None,
                     image_size: new.image_size,
                     zoom: new.zoom,
                     place: new.place,
@@ -122,6 +123,7 @@ fn execute(store: &Store, request: Request) -> db::Result<Outcome> {
             store.update_locus(
                 &id,
                 &db::LocusPatch {
+                    audio: None,
                     image_size: patch.image_size,
                     zoom: patch.zoom,
                     place: patch.place,

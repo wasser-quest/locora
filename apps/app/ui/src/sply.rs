@@ -526,6 +526,7 @@ pub fn Shown(media: Media, #[prop(optional, into)] class: String) -> impl IntoVi
             view! { <VideoBackdrop media=media class=class controls=true muted=true/> }
                 .into_any()
         }
+        MediaKind::Audio => view! { <crate::audio::LocusAudio media=media/> }.into_any(),
     }
 }
 

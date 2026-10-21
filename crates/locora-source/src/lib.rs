@@ -110,6 +110,9 @@ pub struct LocusSource {
     /// Picture shown at the locus: an image or a `.sply` animation, relative to the source file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+    /// Sound clip played with the answer (mp3, m4a, wav or ogg), relative to the source file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<String>,
     /// Memory aid shown after the answer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
@@ -133,6 +136,7 @@ impl Default for LocusSource {
             time: None,
             answer: None,
             image: None,
+            audio: None,
             note: None,
             bindings: BTreeMap::new(),
         }
@@ -222,6 +226,20 @@ pub fn media_type(path: &Path) -> Option<(RoomKind, &'static str)> {
     })
 }
 
+/// A sound clip by file extension: its media type. `.weba` (WebM sound) is recognised so that it
+/// can be refused with a clear message.
+pub fn audio_type(path: &Path) -> Option<&'static str> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    Some(match ext.as_str() {
+        "mp3" => "audio/mpeg",
+        "m4a" => "audio/mp4",
+        "wav" => "audio/wav",
+        "ogg" | "oga" | "opus" => "audio/ogg",
+        "weba" => "audio/webm",
+        _ => return None,
+    })
+}
+
 const SPLY_MAGIC: &[u8] = b"\x89SPLY\r\n\x1a";
 
 /// A media file named in the source, resolved against `base`. It must resolve inside `root`, the folder
@@ -266,6 +284,23 @@ fn check_picture(
     Ok((path, media_type))
 }
 
+/// A sound file for a locus that exists.
+fn check_audio(
+    base: &Path,
+    root: &Path,
+    file: &str,
+    where_: &str,
+) -> Result<(PathBuf, &'static str)> {
+    let path = inside(root, base, file)?;
+    let media_type = audio_type(&path).ok_or_else(|| {
+        invalid(format!(
+            "{where_}: {file}: unbekanntes Tonformat (mp3, m4a, wav, ogg)"
+        ))
+    })?;
+    check_file(&path, media_type, where_)?;
+    Ok((path, media_type))
+}
+
 /// The file exists; `.sply` files must really be binary Splinely projects.
 fn check_file(path: &Path, media_type: &str, where_: &str) -> Result<()> {
     if !path.is_file() {
@@ -297,6 +332,10 @@ fn extension_of(media_type: &str) -> &'static str {
         "video/webm" => "webm",
         "video/quicktime" => "mov",
         locora_store::SPLINELY => "sply",
+        "audio/mpeg" => "mp3",
+        "audio/mp4" => "m4a",
+        "audio/wav" => "wav",
+        "audio/ogg" => "ogg",
         _ => "bin",
     }
 }
@@ -487,14 +526,17 @@ pub struct Plan {
 /// A media file on disk and its media type.
 pub type MediaFile = (PathBuf, &'static str);
 
+/// A planned locus: the locus, its bindings, its picture file and its sound file.
+pub type PlannedLocus = (NewLocus, Vec<Binding>, Option<MediaFile>, Option<MediaFile>);
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlannedRoom {
     pub name: String,
     pub kind: RoomKind,
     /// Backdrop file and its media type.
     pub media: Option<MediaFile>,
-    /// Each locus with its bindings and optional picture file.
-    pub loci: Vec<(NewLocus, Vec<Binding>, Option<MediaFile>)>,
+    /// Each locus with its bindings, optional picture file and optional sound file.
+    pub loci: Vec<PlannedLocus>,
 }
 
 impl Plan {
@@ -642,6 +684,10 @@ pub fn check_within(source: &Source, base: &Path, root: &Path) -> Result<Plan> {
                 Some(file) => Some(check_picture(base, root, file, &where_)?),
                 None => None,
             };
+            let sound = match &locus.audio {
+                Some(file) => Some(check_audio(base, root, file, &where_)?),
+                None => None,
+            };
             loci.push((
                 NewLocus {
                     place: locus
@@ -655,12 +701,14 @@ pub fn check_within(source: &Source, base: &Path, root: &Path) -> Result<Plan> {
                     time,
                     answer,
                     image: None,
+                    audio: None,
                     image_size: locus.image_size,
                     zoom: locus.zoom,
                     note: locus.note.clone().unwrap_or_default(),
                 },
                 bindings,
                 picture,
+                sound,
             ));
         }
         rooms.push(PlannedRoom {
@@ -811,10 +859,13 @@ fn build_inner(store: &Store, plan: &Plan, namespace: Option<&str>) -> Result<Pa
             } else {
                 store.add_room(&palace.id, &room.name, room.kind, media.as_deref())?
             };
-            for (locus_index, (locus, bindings, picture)) in room.loci.iter().enumerate() {
+            for (locus_index, (locus, bindings, picture, sound)) in room.loci.iter().enumerate() {
                 let mut locus = locus.clone();
                 if let Some((path, media_type)) = picture {
                     locus.image = Some(put_media(store, path, media_type)?);
+                }
+                if let Some((path, media_type)) = sound {
+                    locus.audio = Some(put_media(store, path, media_type)?);
                 }
                 let new = if let Some(namespace) = namespace {
                     store.add_locus_with_id(
@@ -899,6 +950,7 @@ pub fn to_source(tree: &PalaceTree, media_names: &HashMap<String, String>) -> So
                             time: l.time.map(clock),
                             answer: AnswerSource::from_answer(&l.answer),
                             image: l.image.as_ref().map(|h| media_names[h].clone()),
+                            audio: l.audio.as_ref().map(|h| media_names[h].clone()),
                             image_size: l.image_size,
                             zoom: l.zoom,
                             note: (!l.note.is_empty()).then(|| l.note.clone()),
@@ -924,7 +976,7 @@ pub fn dump(store: &Store, query: &str, dir: &Path) -> Result<PathBuf> {
     let target = dir.join(format!("{}.locora.toml", slug(&tree.palace.name)));
     let mut names: HashMap<String, String> = HashMap::new();
     let mut writes: Vec<(PathBuf, PathBuf)> = Vec::new();
-    // Backdrops are named after their room, pictures after their place.
+    // Backdrops are named after their room, pictures and sound clips after their place.
     let files = tree
         .rooms
         .iter()
@@ -932,6 +984,10 @@ pub fn dump(store: &Store, query: &str, dir: &Path) -> Result<PathBuf> {
         .chain(
             tree.route()
                 .filter_map(|l| l.image.as_ref().map(|h| (h, l.place.as_str()))),
+        )
+        .chain(
+            tree.route()
+                .filter_map(|l| l.audio.as_ref().map(|h| (h, l.place.as_str()))),
         )
         .chain(tree.palace.marker.as_ref().map(|h| (h, "marker")));
     for (hash, label) in files {

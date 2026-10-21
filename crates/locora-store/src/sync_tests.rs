@@ -38,6 +38,7 @@ fn remote(op: Op) -> RemoteOp {
 
 fn locus(place: &str) -> NewLocus {
     NewLocus {
+        audio: None,
         image_size: 0.25,
         zoom: 1.0,
         place: place.into(),

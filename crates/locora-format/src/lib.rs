@@ -1,4 +1,5 @@
-//! The `.locora` file format: version 1 (Recall) and version 2 (Quiz/Guess).
+//! The `.locora` file format: version 1 (Recall), 2 (Quiz/Guess, pictures), 3 (picture widths,
+//! zoom) and 4 (locus sound clips).
 //!
 //! A `.locora` file is a ZIP archive:
 //!
@@ -7,7 +8,7 @@
 //! manifest.json            format, version, palaces, media, plugins
 //! palaces/<id>.json        one palace: rooms, loci in route order, its own tables
 //! tables.json              tables shared by all palaces (optional)
-//! media/<sha256>.<ext>     images and videos, named by the SHA-256 of their bytes
+//! media/<sha256>.<ext>     images, videos and sound, named by the SHA-256 of their bytes
 //! plugins/<plugin-id>/…    reserved for plugin data; ignored by version 1 readers
 //! ```
 //!
@@ -29,7 +30,7 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipArchive, ZipWriter};
 
 pub const FORMAT: &str = "locora";
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 pub const EXTENSION: &str = "locora";
 /// Content of the first entry, `mimetype`.
 pub const MEDIA_TYPE: &str = "application/vnd.locora+zip";
@@ -185,6 +186,9 @@ pub struct LocusDoc {
     /// Memory aid shown after the answer (format 2).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
+    /// SHA-256 of a sound clip played with the answer (MP3, M4A, WAV or Ogg; format 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<String>,
 }
 
 fn default_size(size: &f64) -> bool {
@@ -284,6 +288,7 @@ impl From<&PalaceTree> for PalaceDoc {
                             image_size: l.image_size,
                             zoom: l.zoom,
                             note: l.note.clone(),
+                            audio: l.audio.clone(),
                         })
                         .collect(),
                 })
@@ -305,6 +310,10 @@ const MEDIA_TYPES: &[(&str, &str)] = &[
     ("video/webm", "webm"),
     ("video/quicktime", "mov"),
     (locora_store::SPLINELY, "sply"),
+    ("audio/mpeg", "mp3"),
+    ("audio/mp4", "m4a"),
+    ("audio/wav", "wav"),
+    ("audio/ogg", "ogg"),
 ];
 
 fn extension(media_type: &str) -> Option<&'static str> {
@@ -429,7 +438,7 @@ pub fn export_with<W: Write + Seek>(
         }
         let pictures = tree
             .route()
-            .filter_map(|l| l.image.as_ref())
+            .flat_map(|l| l.image.iter().chain(&l.audio))
             .chain(tree.palace.marker.as_ref());
         for hash in tree
             .rooms
@@ -455,9 +464,16 @@ pub fn export_with<W: Write + Seek>(
         docs.push(PalaceDoc::from(&tree));
     }
     let shared = store.rows(None)?;
+    let sound = docs
+        .iter()
+        .flat_map(|p| &p.rooms)
+        .flat_map(|r| &r.loci)
+        .any(|l| l.audio.is_some());
     let manifest = Manifest {
         format: FORMAT.into(),
-        version: if docs
+        version: if sound {
+            4
+        } else if docs
             .iter()
             .flat_map(|p| &p.rooms)
             .flat_map(|r| &r.loci)
@@ -756,12 +772,18 @@ impl<R: Read + Seek> Package<R> {
                 check_text("Raumname", &room.name)?;
                 let video = match &room.backdrop {
                     None => false,
-                    Some(hash) => media
-                        .get(hash)
-                        .ok_or_else(|| {
+                    Some(hash) => {
+                        let kind = media.get(hash).ok_or_else(|| {
                             invalid(format!("Raum „{}“: Medium {hash} fehlt", room.name))
-                        })?
-                        .starts_with("video/"),
+                        })?;
+                        if locora_store::is_audio(kind) {
+                            return Err(invalid(format!(
+                                "Raum „{}“: ein Ton kann kein Hintergrund sein",
+                                room.name
+                            )));
+                        }
+                        kind.starts_with("video/")
+                    }
                 };
                 for locus in &room.loci {
                     locora_store::check_image_size(locus.image_size)
@@ -789,6 +811,20 @@ impl<R: Read + Seek> Package<R> {
                         if !locora_store::is_picture(kind) {
                             return Err(invalid(format!(
                                 "Locus „{}“: {kind} ist kein Bild",
+                                locus.place
+                            )));
+                        }
+                    }
+                    if let Some(hash) = &locus.audio {
+                        if manifest.version < 4 {
+                            return Err(invalid("Locus-Töne benötigen Format 4"));
+                        }
+                        let kind = media.get(hash).ok_or_else(|| {
+                            invalid(format!("Locus „{}“: Ton {hash} fehlt", locus.place))
+                        })?;
+                        if !locora_store::is_audio(kind) {
+                            return Err(invalid(format!(
+                                "Locus „{}“: {kind} ist kein Ton",
                                 locus.place
                             )));
                         }
@@ -964,6 +1000,7 @@ impl<R: Read + Seek> Package<R> {
                             time: locus.time,
                             answer: locus.answer.clone(),
                             image: locus.image.clone(),
+                            audio: locus.audio.clone(),
                             image_size: locus.image_size,
                             zoom: locus.zoom,
                             note: locus.note.clone(),

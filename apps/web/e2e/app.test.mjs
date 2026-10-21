@@ -376,6 +376,47 @@ test('a locora.toml imports with its pictures, chosen together, and becomes a pa
   }
 });
 
+/** A tenth of a second of silence as WAV (8 kHz, 8 bit, mono), with a title the app removes. */
+function tinyWav() {
+  const samples = 800;
+  const title = Buffer.from('LIST\x0c\0\0\0INFOINAM\0\0\0\0', 'latin1');
+  const wav = Buffer.alloc(44 + samples, 0x80);
+  wav.write('RIFF', 0);
+  wav.writeUInt32LE(36 + samples + title.length, 4);
+  wav.write('WAVEfmt ', 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(8000, 24);
+  wav.writeUInt32LE(8000, 28);
+  wav.writeUInt16LE(1, 32);
+  wav.writeUInt16LE(8, 34);
+  wav.write('data', 36);
+  wav.writeUInt32LE(samples, 40);
+  return Buffer.concat([wav, title]);
+}
+
+test('a locus gets a sound clip in the editor and shows a player for it', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await openTutorial(page);
+    await page.getByRole('checkbox', { name: 'Edit' }).check();
+    await page.locator('.marker button').first().click();
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Choose audio…' }).click(),
+    ]);
+    await chooser.setFiles({ name: 'bell.wav', mimeType: 'audio/wav', buffer: tinyWav() });
+    const player = page.locator('.locus-audio audio');
+    await player.waitFor({ state: 'attached', timeout: 20000 });
+    assert.match(await player.getAttribute('src'), /^blob:/);
+    await page.getByRole('button', { name: 'Remove audio' }).waitFor({ timeout: 5000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
 test('the first start asks for the language and then speaks it', async () => {
   const { context, page, problems } = await openApp({ chooseLanguage: true });
   try {

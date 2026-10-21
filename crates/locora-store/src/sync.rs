@@ -82,7 +82,7 @@ pub fn media_refs(op: &RemoteOp) -> Vec<String> {
     let hashes = match (op.entity.as_str(), op.op.as_str()) {
         ("room", "create") => vec![data.get("media")],
         ("palace", "update") => vec![data.get("marker")],
-        ("locus", "create") | ("locus", "update") => vec![data.get("image")],
+        ("locus", "create") | ("locus", "update") => vec![data.get("image"), data.get("audio")],
         _ => Vec::new(),
     };
     hashes
@@ -285,9 +285,12 @@ fn locus_create(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
     if let Some(hash) = &locus.image {
         require_media(conn, hash)?;
     }
+    if let Some(hash) = &locus.audio {
+        require_media(conn, hash)?;
+    }
     conn.execute(
-        "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom, audio)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             locus.id,
             locus.room_id,
@@ -302,6 +305,7 @@ fn locus_create(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
             locus.note,
             locus.image_size,
             locus.zoom,
+            locus.audio,
         ],
     )?;
     for binding in &locus.bindings {
@@ -352,6 +356,15 @@ fn locus_update(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
         changes.push((
             "image",
             image.clone().map_or(SqlValue::Null, SqlValue::Text),
+        ));
+    }
+    if let Some(audio) = &patch.audio {
+        if let Some(hash) = audio {
+            require_media(conn, hash)?;
+        }
+        changes.push((
+            "audio",
+            audio.clone().map_or(SqlValue::Null, SqlValue::Text),
         ));
     }
     if let Some(v) = &patch.note {

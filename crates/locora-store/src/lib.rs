@@ -179,6 +179,9 @@ pub struct Locus {
     /// SHA-256 of a picture shown at this locus (image or `.sply` animation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+    /// SHA-256 of a sound clip played with the answer (see [`is_audio`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<String>,
     /// Memory aid: the vivid image in words, shown after the answer.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
@@ -235,6 +238,9 @@ pub struct NewLocus {
     /// SHA-256 of a stored picture (image or `.sply` animation).
     #[serde(default)]
     pub image: Option<String>,
+    /// SHA-256 of a stored sound clip.
+    #[serde(default)]
+    pub audio: Option<String>,
     #[serde(default)]
     pub note: String,
 }
@@ -269,6 +275,13 @@ pub struct LocusPatch {
         deserialize_with = "double_option"
     )]
     pub image: Option<Option<String>>,
+    /// The sound clip: `None` = keep, `Some(None)` = remove, `Some(Some(hash))` = set.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "double_option"
+    )]
+    pub audio: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
 }
@@ -285,6 +298,14 @@ where
 /// Media types a locus picture may have.
 pub fn is_picture(media_type: &str) -> bool {
     media_type.starts_with("image/") || media_type == SPLINELY
+}
+
+/// Media types a locus sound clip may have (stored without metadata by `locora-media`).
+pub const AUDIO_TYPES: [&str; 4] = ["audio/mpeg", "audio/mp4", "audio/wav", "audio/ogg"];
+
+/// Whether stored media of this type is a sound clip.
+pub fn is_audio(media_type: &str) -> bool {
+    AUDIO_TYPES.contains(&media_type)
 }
 
 /// Media type of Splinely animations (`.sply`).
@@ -671,7 +692,7 @@ impl Store {
             });
         }
         let mut loci_stmt = conn.prepare(
-            "SELECT id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom FROM loci WHERE room_id = ?1 ORDER BY position",
+            "SELECT id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom, audio FROM loci WHERE room_id = ?1 ORDER BY position",
         )?;
         let mut tree = Vec::new();
         for room in rooms {
@@ -691,6 +712,7 @@ impl Store {
                         note: r.get(10)?,
                         image_size: r.get(11)?,
                         zoom: r.get(12)?,
+                        audio: r.get(13)?,
                         bindings: Vec::new(),
                     })
                 })?
@@ -1026,6 +1048,9 @@ impl Store {
         if let Some(hash) = &locus.image {
             check_picture(conn, hash)?;
         }
+        if let Some(hash) = &locus.audio {
+            check_audio(conn, hash)?;
+        }
         let palace_id: String = conn
             .query_row(
                 "SELECT palace_id FROM rooms WHERE id = ?1",
@@ -1050,14 +1075,15 @@ impl Store {
             time: locus.time,
             answer: locus.answer,
             image: locus.image,
+            audio: locus.audio,
             image_size: locus.image_size,
             zoom: locus.zoom,
             note: locus.note.trim().to_owned(),
             bindings: Vec::new(),
         };
         conn.execute(
-            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, locus.zoom],
+            "INSERT INTO loci(id, room_id, position, place, item, x, y, time, answer, image, note, image_size, zoom, audio) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            params![locus.id, room_id, position, locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, locus.zoom, locus.audio],
         )?;
         self.touch(conn, &palace_id)?;
         self.log(
@@ -1074,7 +1100,7 @@ impl Store {
         let conn = self.conn();
         let (palace_id, mut locus) = conn
             .query_row(
-                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image, l.note, l.image_size, l.zoom
+                "SELECT s.palace_id, l.id, l.room_id, l.position, l.place, l.item, l.x, l.y, l.time, l.answer, l.image, l.note, l.image_size, l.zoom, l.audio
                  FROM loci l JOIN rooms s ON l.room_id = s.id WHERE l.id = ?1",
                 [id],
                 |r| {
@@ -1094,6 +1120,7 @@ impl Store {
                             note: r.get(11)?,
                             image_size: r.get(12)?,
                             zoom: r.get(13)?,
+                            audio: r.get(14)?,
                             bindings: Vec::new(),
                         },
                     ))
@@ -1135,10 +1162,16 @@ impl Store {
             }
             locus.image = image.clone();
         }
+        if let Some(audio) = &patch.audio {
+            if let Some(hash) = audio {
+                check_audio(&conn, hash)?;
+            }
+            locus.audio = audio.clone();
+        }
         check_position(locus.x, locus.y)?;
         conn.execute(
-            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7, note = ?8, image_size = ?9, zoom = ?10 WHERE id = ?11",
-            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, locus.zoom, id],
+            "UPDATE loci SET place = ?1, item = ?2, x = ?3, y = ?4, time = ?5, answer = ?6, image = ?7, note = ?8, image_size = ?9, zoom = ?10, audio = ?11 WHERE id = ?12",
+            params![locus.place, locus.item, locus.x, locus.y, locus.time, serde_json::to_string(&locus.answer).expect("serializable"), locus.image, locus.note, locus.image_size, locus.zoom, locus.audio, id],
         )?;
         self.touch(&conn, &palace_id)?;
         self.log(
@@ -1528,6 +1561,8 @@ fn media_path(dir: &Path, hash: &str) -> PathBuf {
 }
 
 #[cfg(test)]
+mod audio_tests;
+#[cfg(test)]
 mod tests;
 
 /// A locus picture must be stored media of an image or Splinely type.
@@ -1542,6 +1577,22 @@ fn check_picture(conn: &Connection, hash: &str) -> Result<()> {
         Some(m) if is_picture(&m) => Ok(()),
         Some(m) => Err(StoreError::Invalid(format!(
             "Ein Locus-Bild muss ein Bild oder eine .sply-Animation sein, nicht {m}"
+        ))),
+    }
+}
+
+/// A locus sound clip must be stored media of a sound type.
+fn check_audio(conn: &Connection, hash: &str) -> Result<()> {
+    let mime: Option<String> = conn
+        .query_row("SELECT mime FROM media WHERE hash = ?1", [hash], |r| {
+            r.get(0)
+        })
+        .optional()?;
+    match mime {
+        None => Err(StoreError::NotFound(format!("Medium {hash}"))),
+        Some(m) if is_audio(&m) => Ok(()),
+        Some(m) => Err(StoreError::Invalid(format!(
+            "Ein Locus-Ton muss MP3, M4A, WAV oder Ogg sein, nicht {m}"
         ))),
     }
 }

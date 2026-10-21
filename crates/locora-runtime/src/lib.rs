@@ -839,6 +839,7 @@ mod review_tile_tests {
             .add_locus(
                 &r.id,
                 NewLocus {
+                    audio: None,
                     place: "Tor".into(),
                     item: "Sonne".into(),
                     x: 0.5,

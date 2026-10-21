@@ -2,6 +2,7 @@ use super::*;
 
 fn locus(place: &str, item: &str, x: f64) -> NewLocus {
     NewLocus {
+        audio: None,
         image_size: default_image_size(),
         zoom: default_zoom(),
         place: place.into(),

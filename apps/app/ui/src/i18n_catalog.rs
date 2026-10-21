@@ -3144,4 +3144,68 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "模式和选项",
         ],
     ),
+    (
+        "Audio wählen…",
+        [
+            "Choose audio…",
+            "Audio wählen…",
+            "Choisir un son…",
+            "音声を選択…",
+            "选择音频…",
+        ],
+    ),
+    (
+        "Audio entfernen",
+        [
+            "Remove audio",
+            "Audio entfernen",
+            "Supprimer le son",
+            "音声を削除",
+            "移除音频",
+        ],
+    ),
+    (
+        "▶ Audio",
+        ["▶ Audio", "▶ Audio", "▶ Son", "▶ 音声", "▶ 音频"],
+    ),
+    (
+        "Ton zur Antwort",
+        [
+            "Sound for the answer",
+            "Ton zur Antwort",
+            "Son de la réponse",
+            "答えの音声",
+            "答案的音频",
+        ],
+    ),
+    (
+        "Ton lädt…",
+        [
+            "Loading sound…",
+            "Ton lädt…",
+            "Chargement du son…",
+            "音声を読み込み中…",
+            "正在加载音频…",
+        ],
+    ),
+    (
+        "Ton konnte nicht abgespielt werden",
+        [
+            "The sound could not be played",
+            "Ton konnte nicht abgespielt werden",
+            "Le son n'a pas pu être lu",
+            "音声を再生できませんでした",
+            "无法播放音频",
+        ],
+    ),
+    (
+        "Ton gespeichert",
+        [
+            "Sound saved",
+            "Ton gespeichert",
+            "Son enregistré",
+            "音声を保存しました",
+            "音频已保存",
+        ],
+    ),
 ];

@@ -15,6 +15,7 @@ fn sample(dir: &std::path::Path) -> Store {
             .add_locus(
                 &r.id,
                 NewLocus {
+                    audio: None,
                     image_size: locora_store::default_image_size(),
                     zoom: locora_store::default_zoom(),
                     place: format!("Ort {i}"),
@@ -37,6 +38,7 @@ fn sample(dir: &std::path::Path) -> Store {
         .add_locus(
             &vr.id,
             NewLocus {
+                audio: None,
                 image_size: locora_store::default_image_size(),
                 zoom: locora_store::default_zoom(),
                 place: "Tür".into(),
@@ -321,6 +323,7 @@ fn tables_and_bindings_travel_and_clashes_stay_local() {
         .add_locus(
             &r.id,
             NewLocus {
+                audio: None,
                 image_size: locora_store::default_image_size(),
                 zoom: locora_store::default_zoom(),
                 place: "Tür".into(),
@@ -554,6 +557,7 @@ fn splinely_animations_as_backdrops_and_locus_pictures() {
         .add_locus(
             &r.id,
             NewLocus {
+                audio: None,
                 image_size: locora_store::default_image_size(),
                 zoom: locora_store::default_zoom(),
                 place: "Tor".into(),
@@ -731,3 +735,5 @@ fn zoom_needs_format_3_and_round_trips() {
     }));
     assert!(err.contains("Zoom"), "{err}");
 }
+
+mod audio;

@@ -2,6 +2,7 @@
 
 mod achievements;
 mod activity;
+mod audio;
 mod cloud_settings;
 mod crash;
 mod dashboard;
@@ -1453,10 +1454,16 @@ pub fn LocusPicture(media: Media, x: f64, y: f64, size: f64) -> impl IntoView {
     }
 }
 
-/// The answer side: text, the locus picture (it belongs to the answer) and
-/// the memory aid.
+/// The answer side: text, the locus picture and sound clip (they belong to the
+/// answer) and the memory aid. `autoplay` plays the sound clip at once.
 #[component]
-pub fn Answer(solution: String, note: String, picture: Option<Media>) -> impl IntoView {
+pub fn Answer(
+    solution: String,
+    note: String,
+    picture: Option<Media>,
+    #[prop(default = None)] audio: Option<Media>,
+    #[prop(optional)] autoplay: bool,
+) -> impl IntoView {
     // The picture sits beside the solution, so the answer takes less height on a phone.
     view! {
         <div class="answer">
@@ -1470,6 +1477,7 @@ pub fn Answer(solution: String, note: String, picture: Option<Media>) -> impl In
                     }
                 })}
         </div>
+        {audio.map(|media| view! { <audio::LocusAudio media=media autoplay=autoplay /> })}
         {(!note.is_empty()).then(|| view! { <div class="note">{format!("✎ {note}")}</div> })}
     }
 }

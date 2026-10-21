@@ -341,6 +341,53 @@ async fn editor_pick_picture(
     }))
 }
 
+/// A sound clip for a locus, like `editor_pick_picture`: the WebView supplies only scope.
+#[tauri::command]
+async fn editor_pick_audio(
+    app: tauri::AppHandle,
+    state: State<'_, Shared>,
+    target: locora_app_api::PictureTarget,
+) -> Result<Option<locora_app_api::EditorUpdated>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    {
+        let b = lock(&state)?;
+        editor::picture_target(&b.profile.store, &target).map_err(err)?;
+    }
+    let picker_app = app.clone();
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        picker_app
+            .dialog()
+            .file()
+            .set_title("Ton am Ort wählen")
+            .add_filter("Töne", &locora_app_core::locus_audio::EXTENSIONS)
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    #[cfg(mobile)]
+    let staged = mobile_files::stage(&app, selected, mobile_files::Kind::Audio)?;
+    #[cfg(mobile)]
+    let path = staged.path().to_path_buf();
+    #[cfg(desktop)]
+    let path = selected
+        .into_path()
+        .map_err(|_| "Diese Auswahl ist keine lokale Datei".to_owned())?;
+    let mut b = lock(&state)?;
+    let cards = b.profile.schedule(Some(&target.palace_id)).map_err(err)?;
+    let (tree, selected) =
+        locora_app_core::locus_audio::import_audio(&b.profile.store, &target, &path)
+            .map_err(err)?;
+    let palace = views::palace_view(&b.profile.store, &tree, &cards, &b.default_marker);
+    Ok(Some(locora_app_api::EditorUpdated {
+        palace,
+        selected,
+        receipt: None,
+    }))
+}
+
 /// A picture, animation or video chosen in the native dialog: the dialog's own path on the
 /// desktop, a staged copy on mobile. The WebView never names a path.
 struct PickedMedia {
@@ -1199,6 +1246,7 @@ pub fn run() {
             room_delete,
             palace_delete,
             editor_pick_picture,
+            editor_pick_audio,
             home_pick_media,
             editor_pick_room,
             home_import_drop,

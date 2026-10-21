@@ -240,6 +240,13 @@ impl Journey {
         })
     }
 
+    fn audio(&self, profile: &Profile) -> Option<Media> {
+        self.locus()
+            .audio
+            .as_deref()
+            .and_then(|h| media(&profile.store, h))
+    }
+
     fn picture(&self, profile: &Profile) -> Option<Media> {
         self.locus()
             .image
@@ -396,6 +403,7 @@ impl Journey {
             image_size: locus.image_size,
             solution,
             note: locus.note.clone(),
+            audio: self.audio(profile),
             picture: if self.options.reverse {
                 None
             } else {
@@ -608,6 +616,7 @@ mod tests {
             .add_locus(
                 &room.id,
                 NewLocus {
+                    audio: None,
                     place: "Szene".into(),
                     item: "Antwort".into(),
                     x: 0.5,
@@ -658,6 +667,7 @@ mod tests {
                 .add_locus(
                     &room.id,
                     NewLocus {
+                        audio: None,
                         place: place.into(),
                         item: item.into(),
                         time: Some(time),
@@ -711,6 +721,7 @@ mod tests {
             .add_locus(
                 &r.id,
                 NewLocus {
+                    audio: None,
                     place: "Tor".into(),
                     item: "Sonne".into(),
                     x: 0.4,
@@ -768,6 +779,7 @@ mod tests {
             .add_locus(
                 &r.id,
                 NewLocus {
+                    audio: None,
                     place: "Tor".into(),
                     item: "?".into(),
                     x: 0.5,
@@ -861,6 +873,7 @@ mod tests {
                 .add_locus(
                     &r.id,
                     NewLocus {
+                        audio: None,
                         place: "?".into(),
                         item: item.into(),
                         x: 0.5,
@@ -936,6 +949,7 @@ mod tests {
                 .add_locus(
                     &r.id,
                     NewLocus {
+                        audio: None,
                         place: "?".into(),
                         item: item.into(),
                         x: 0.5,

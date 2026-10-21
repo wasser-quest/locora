@@ -10,6 +10,8 @@ use tauri_plugin_fs::{FsExt, OpenOptions};
 
 pub enum Kind {
     Picture,
+    /// A locus sound clip (mp3, m4a, wav, ogg).
+    Audio,
     Media,
     Archive,
 }
@@ -130,7 +132,7 @@ fn stage_open(
         .write_all(&header[..size])
         .map_err(|e| format!("Temporäre Datei schreiben: {e}"))?;
     let limit = match kind {
-        Kind::Picture | Kind::Media => locora_format::limits::ADDED_MEDIA_BYTES,
+        Kind::Picture | Kind::Audio | Kind::Media => locora_format::limits::ADDED_MEDIA_BYTES,
         Kind::Archive => locora_format::limits::MEDIA_BYTES,
     };
     copy_bounded(input, &mut staged, size as u64, limit)?;
@@ -167,6 +169,7 @@ fn extension(selected: &FilePath, header: &[u8], kind: &Kind) -> Result<&'static
         .map(str::to_ascii_lowercase);
     let known = match kind {
         Kind::Picture => &["png", "jpg", "jpeg", "webp", "gif", "avif", "sply"][..],
+        Kind::Audio => &["mp3", "m4a", "wav", "ogg", "oga", "opus"][..],
         Kind::Media => &[
             "png", "jpg", "jpeg", "webp", "gif", "avif", "sply", "mp4", "m4v", "webm", "mov",
         ][..],
@@ -185,6 +188,15 @@ fn extension(selected: &FilePath, header: &[u8], kind: &Kind) -> Result<&'static
         Some("locora")
     } else if matches!(kind, Kind::Archive) {
         Some("toml")
+    } else if matches!(kind, Kind::Audio) {
+        // Phones often hand over sound without a file name; its first bytes tell the format.
+        infer::get(header).and_then(|t| match t.mime_type() {
+            "audio/mpeg" => Some("mp3"),
+            "audio/m4a" | "video/mp4" => Some("m4a"),
+            "audio/x-wav" => Some("wav"),
+            "audio/ogg" | "audio/opus" => Some("ogg"),
+            _ => None,
+        })
     } else {
         infer::get(header).and_then(|t| match t.mime_type() {
             "image/png" => Some("png"),
@@ -239,6 +251,11 @@ mod tests {
             extension(&uri, b"PK\x03\x04", &Kind::Archive).unwrap(),
             "locora"
         );
+        assert_eq!(
+            extension(&uri, b"RIFF\x24\0\0\0WAVEfmt ", &Kind::Audio).unwrap(),
+            "wav"
+        );
+        assert!(extension(&uri, b"\x89SPLY\r\n\x1a", &Kind::Audio).is_err());
     }
 
     #[test]

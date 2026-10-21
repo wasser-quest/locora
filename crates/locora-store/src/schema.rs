@@ -103,6 +103,8 @@ const MIGRATIONS: &[&str] = &[
         attempts INTEGER NOT NULL DEFAULT 0,
         error TEXT,
         quarantined INTEGER NOT NULL DEFAULT 0 CHECK(quarantined IN (0, 1)));",
+    // 14: an optional sound clip per locus, played with the answer
+    "ALTER TABLE loci ADD COLUMN audio TEXT REFERENCES media(hash);",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -182,5 +184,9 @@ mod tests {
             .query_row("SELECT note FROM loci", [], |r| r.get(0))
             .unwrap();
         assert_eq!(note, "", "existing loci have no memory aid");
+        let audio: Option<String> = conn
+            .query_row("SELECT audio FROM loci", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(audio, None, "existing loci have no sound clip");
     }
 }

@@ -128,8 +128,8 @@ struct ImportArgs {
     /// File name in the inbox.
     name: String,
     /// `archive`: a `.locora` file or TOML source; `palace`: a picture or video as a new palace;
-    /// `picture`: a picture for the locus in `target`; `room`: a picture or video as one more room
-    /// of the palace `palace_id`.
+    /// `picture`: a picture for the locus in `target`; `audio`: a sound clip for it; `room`: a
+    /// picture or video as one more room of the palace `palace_id`.
     kind: String,
     target: Option<PictureTarget>,
     #[serde(default)]
@@ -273,6 +273,28 @@ fn zip_folder(folder: &Path, archive: &Path) -> Result<()> {
     }
     zip.finish()?;
     Ok(())
+}
+
+/// A picture (`picture`) or sound clip (`audio`) from the inbox for the locus in `target`.
+fn import_locus_file(
+    profile: &mut locora_runtime::Profile,
+    kind: &str,
+    target: &PictureTarget,
+    path: &Path,
+    default_marker: &str,
+) -> Result<EditorUpdated> {
+    editor::picture_target(&profile.store, target)?;
+    let cards = profile.schedule(Some(&target.palace_id))?;
+    let (tree, selected) = if kind == "audio" {
+        locora_app_core::locus_audio::import_audio(&profile.store, target, path)?
+    } else {
+        editor::import_picture(&profile.store, target, path)?
+    };
+    Ok(EditorUpdated {
+        palace: views::palace_view(&profile.store, &tree, &cards, default_marker),
+        selected,
+        receipt: None,
+    })
 }
 
 /// Runs one command against the open backend.
@@ -473,19 +495,17 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
                         )
                     }))
                 }
-                "picture" => {
+                kind @ ("picture" | "audio") => {
                     let target = a
                         .target
-                        .ok_or_else(|| anyhow::anyhow!("Kein Ort für das Bild"))?;
-                    editor::picture_target(&profile.store, &target)?;
-                    let cards = profile.schedule(Some(&target.palace_id))?;
-                    let (tree, selected) =
-                        editor::import_picture(&profile.store, &target, Path::new(&path))?;
-                    out(EditorUpdated {
-                        palace: views::palace_view(&profile.store, &tree, &cards, default_marker),
-                        selected,
-                        receipt: None,
-                    })
+                        .ok_or_else(|| anyhow::anyhow!("Kein Ort für die Datei"))?;
+                    out(import_locus_file(
+                        profile,
+                        kind,
+                        &target,
+                        Path::new(&path),
+                        default_marker,
+                    )?)
                 }
                 "room" => {
                     let palace_id = a
@@ -566,5 +586,58 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         "cloud_logout" => out(()),
         cloud if cloud.starts_with("cloud_") => bail!(CLOUD_UNAVAILABLE),
         other => bail!("unknown command {other}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_sound_clip_from_the_inbox_is_set_on_the_locus() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = locora_runtime::Profile::open(Some(&dir.path().join("profil"))).unwrap();
+        let store = &profile.store;
+        let p = store.create_palace("Klänge").unwrap();
+        let r = store
+            .add_room(&p.id, "Raum", locora_store::RoomKind::Blank, None)
+            .unwrap();
+        let l = store
+            .add_locus(
+                &r.id,
+                locora_store::NewLocus {
+                    audio: None,
+                    image_size: locora_store::default_image_size(),
+                    zoom: locora_store::default_zoom(),
+                    place: "Tür".into(),
+                    item: "Merkur".into(),
+                    x: 0.5,
+                    y: 0.5,
+                    time: None,
+                    answer: Default::default(),
+                    image: None,
+                    note: String::new(),
+                },
+            )
+            .unwrap();
+        let target = PictureTarget {
+            palace_id: p.id,
+            room_id: r.id,
+            locus_id: l.id.clone(),
+        };
+        let file = dir.path().join("klang.wav");
+        std::fs::write(&file, locora_media::fixtures::wav()).unwrap();
+        let updated = import_locus_file(&mut profile, "audio", &target, &file, "marker").unwrap();
+        assert_eq!(updated.selected.as_deref(), Some(l.id.as_str()));
+        let locus = &updated.palace.rooms[0].loci[0];
+        let hash = locus.audio.clone().unwrap();
+        assert_eq!(
+            profile.store.media(&hash).unwrap().unwrap().mime,
+            "audio/wav"
+        );
+        // A picture file is not taken as a sound clip.
+        let png = dir.path().join("bild.png");
+        std::fs::write(&png, locora_media::fixtures::png()).unwrap();
+        assert!(import_locus_file(&mut profile, "audio", &target, &png, "marker").is_err());
     }
 }

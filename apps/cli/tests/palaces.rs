@@ -263,3 +263,38 @@ fn zoom_on_add_and_edit() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("Zoom"));
     assert_eq!(zooms(), [3.0, 2.5]);
 }
+
+#[test]
+fn locus_sound_clips_add_edit_and_remove() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    let wav = d.join("glocke.wav");
+    std::fs::write(&wav, locora_media::fixtures::wav()).unwrap();
+    let fake = d.join("falsch.mp3");
+    std::fs::write(&fake, locora_media::fixtures::wav()).unwrap();
+    let wav = wav.to_str().unwrap();
+    ok(d, T0, &["new", "Klänge", "--", "Mittag"], "");
+    ok(d, T0, &["add", "Klänge", "Abend", "--audio", wav], "");
+    let store = || locora_store::Store::open(d).unwrap();
+    let sounds = || -> Vec<Option<String>> {
+        let tree = store().palace("Klänge").unwrap();
+        tree.route().map(|l| l.audio.clone()).collect()
+    };
+    assert!(sounds()[0].is_none() && sounds()[1].is_some());
+    assert!(ok(d, T0, &["show", "Klänge"], "").contains("♪"));
+    ok(d, T0, &["edit", "Klänge", "1", "--audio", wav], "");
+    assert_eq!(sounds()[0], sounds()[1], "the same clip is stored once");
+    let hash = sounds()[0].clone().unwrap();
+    assert_eq!(store().media(&hash).unwrap().unwrap().mime, "audio/wav");
+    ok(d, T0, &["edit", "Klänge", "2", "--no-audio"], "");
+    assert!(sounds()[1].is_none());
+    let out = run(
+        d,
+        T0,
+        &["edit", "Klänge", "2", "--audio", fake.to_str().unwrap()],
+        "",
+    );
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("Tonformat"));
+    assert!(sounds()[1].is_none());
+}

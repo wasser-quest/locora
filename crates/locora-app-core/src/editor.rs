@@ -56,6 +56,7 @@ pub fn apply_with_history(
                 &change.palace_id,
                 &room.room.id,
                 vec![NewLocus {
+                    audio: None,
                     place: "Neuer Ort".into(),
                     item: String::new(),
                     x: *x,
@@ -97,6 +98,7 @@ pub fn apply_with_history(
                 &change.palace_id,
                 &room.room.id,
                 vec![NewLocus {
+                    audio: None,
                     place: "Neuer Ort".into(),
                     item: String::new(),
                     x,
@@ -126,6 +128,7 @@ pub fn apply_with_history(
                 .map(|(index, item)| {
                     let (x, y) = locora_app_api::paste_route_position(index, items.len());
                     NewLocus {
+                        audio: None,
                         place: format!(
                             "Ort {}",
                             room.loci
@@ -174,6 +177,7 @@ pub fn apply_with_history(
                 item: (!bound(BindingField::Item)).then(|| content.item.clone()),
                 note: Some(content.note.clone()),
                 image: Some(content.image.clone()),
+                audio: Some(content.audio.clone()),
                 image_size: Some(content.image_size),
                 zoom: Some(content.zoom),
                 answer: Some(content.answer.clone()),
@@ -257,12 +261,34 @@ pub fn import_picture(
 ) -> Result<(PalaceTree, Option<String>)> {
     picture_target(store, target)?;
     let (_, mime, bytes) = read_selected_media(path, true)?;
-    // Existing content-addressed bytes may have been registered under another MIME.
-    let media = store.put_media(&bytes, mime)?;
+    let hash = store_media(store, &bytes, mime)?;
+    set_locus_media(
+        store,
+        target,
+        LocusPatch {
+            image: Some(Some(hash)),
+            ..Default::default()
+        },
+    )
+}
+
+/// Stores cleaned bytes and checks the stored type (existing content-addressed bytes may have
+/// been registered under another media type).
+pub(crate) fn store_media(store: &Store, bytes: &[u8], mime: &str) -> Result<String> {
+    let media = store.put_media(bytes, mime)?;
     ensure!(
         store.media(&media.hash)?.is_some_and(|m| m.mime == mime),
         "Gespeicherter Medientyp passt nicht zum Dateiformat"
     );
+    Ok(media.hash)
+}
+
+/// Applies a media patch (picture or sound) to the target locus and returns the updated palace.
+pub(crate) fn set_locus_media(
+    store: &Store,
+    target: &locora_app_api::PictureTarget,
+    patch: LocusPatch,
+) -> Result<(PalaceTree, Option<String>)> {
     let mut tree = store.palace(&target.palace_id)?;
     let room = tree
         .rooms
@@ -274,13 +300,7 @@ pub fn import_picture(
         .iter_mut()
         .find(|l| l.id == target.locus_id)
         .context("Ort gehört nicht zu diesem Raum")?;
-    let mut updated = store.update_locus(
-        &target.locus_id,
-        &LocusPatch {
-            image: Some(Some(media.hash)),
-            ..Default::default()
-        },
-    )?;
+    let mut updated = store.update_locus(&target.locus_id, &patch)?;
     updated.bindings = locus.bindings.clone();
     *locus = updated;
     Ok((tree, Some(target.locus_id.clone())))
@@ -298,25 +318,7 @@ fn read_selected_media(
         !picture_only || kind == RoomKind::Image,
         "Ein Locus-Bild kann kein Video sein"
     );
-    // Bound reads as well as allocations, including files that grow during reading.
-    use std::io::Read;
-    const LIMIT: u64 = locora_format::limits::ADDED_MEDIA_BYTES;
-    // Reject special files before opening: opening a named pipe can block even
-    // before the handle metadata check below runs.
-    ensure!(
-        std::fs::metadata(path)?.is_file(),
-        "Bitte eine reguläre Bilddatei wählen"
-    );
-    let file = std::fs::File::open(path).context("Bilddatei öffnen")?;
-    ensure!(
-        file.metadata()?.is_file(),
-        "Bitte eine reguläre Bilddatei wählen"
-    );
-    let mut bytes = Vec::new();
-    file.take(LIMIT + 1)
-        .read_to_end(&mut bytes)
-        .context("Bilddatei lesen")?;
-    ensure!(bytes.len() as u64 <= LIMIT, "Datei ist größer als 500 MiB");
+    let bytes = read_bounded(path)?;
     if mime == locora_store::SPLINELY {
         ensure!(
             bytes.starts_with(b"\x89SPLY\r\n\x1a"),
@@ -333,6 +335,30 @@ fn read_selected_media(
     // Without metadata, and a video as MP4 with H.264.
     let (bytes, mime) = crate::convert::prepare(path, bytes, mime)?;
     Ok((kind, mime, bytes))
+}
+
+/// A selected regular file, at most the limit for added media.
+pub(crate) fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>> {
+    // Bound reads as well as allocations, including files that grow during reading.
+    use std::io::Read;
+    const LIMIT: u64 = locora_format::limits::ADDED_MEDIA_BYTES;
+    // Reject special files before opening: opening a named pipe can block even
+    // before the handle metadata check below runs.
+    ensure!(
+        std::fs::metadata(path)?.is_file(),
+        "Bitte eine reguläre Datei wählen"
+    );
+    let file = std::fs::File::open(path).context("Datei öffnen")?;
+    ensure!(
+        file.metadata()?.is_file(),
+        "Bitte eine reguläre Datei wählen"
+    );
+    let mut bytes = Vec::new();
+    file.take(LIMIT + 1)
+        .read_to_end(&mut bytes)
+        .context("Datei lesen")?;
+    ensure!(bytes.len() as u64 <= LIMIT, "Datei ist größer als 500 MiB");
+    Ok(bytes)
 }
 
 /// Cancellation is handled before validation or persistence; paths are backend-only.
@@ -670,7 +696,7 @@ mod tests {
                 "{:#}",
                 import_picture(&store, &target, &directory).unwrap_err()
             )
-            .contains("reguläre Bilddatei")
+            .contains("reguläre Datei")
         );
         assert_eq!(store.palace(&palace.id).unwrap(), before);
         assert_eq!(store.ops_since(0).unwrap().len(), ops);
@@ -939,6 +965,7 @@ mod tests {
             .unwrap();
         let image = store.put_media(b"picture", "image/png").unwrap().hash;
         let content = LocusContent {
+            audio: None,
             place: " Herd ".into(),
             item: "Merkur".into(),
             note: "Heiß".into(),
@@ -1202,6 +1229,7 @@ mod tests {
         };
         store.set_binding(&id, &item).unwrap();
         let content = LocusContent {
+            audio: None,
             place: "Herd".into(),
             item: "vom UI".into(),
             note: "Merkhilfe".into(),

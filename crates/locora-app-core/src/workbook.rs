@@ -207,6 +207,7 @@ mod tests {
             .add_locus(
                 &room.id,
                 locora_store::NewLocus {
+                    audio: None,
                     image_size: 0.2,
                     zoom: 1.0,
                     place: "Tisch".into(),

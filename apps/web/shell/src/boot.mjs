@@ -17,6 +17,7 @@ import { host } from '../src/host-core.mjs';
 const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification'];
 const MEDIA_ACCEPT = 'image/*,video/*,.sply,.png,.jpg,.jpeg,.webp,.gif,.avif,.mp4,.m4v,.webm,.mov';
 const ARCHIVE_ACCEPT = '.locora,.toml';
+const AUDIO_ACCEPT = 'audio/*,.mp3,.m4a,.wav,.ogg,.oga,.opus';
 /** The core's folder as the page sees it; paths the core returns start with it. */
 const CORE_FOLDER = /^\/locora\//;
 const inFolder = (path) => path.replace(CORE_FOLDER, '');
@@ -114,6 +115,8 @@ async function invoke(cmd, args = {}) {
       return pickAndImport(MEDIA_ACCEPT, { kind: 'room', palaceId: args.palaceId });
     case 'editor_pick_picture':
       return pickAndImport(MEDIA_ACCEPT, { kind: 'picture', target: args.target });
+    case 'editor_pick_audio':
+      return pickAndImport(AUDIO_ACCEPT, { kind: 'audio', target: args.target });
     case 'import_pick':
       return importFolder(`${ARCHIVE_ACCEPT},${MEDIA_ACCEPT}`);
     case 'home_import_drop':
@@ -216,10 +219,11 @@ async function importTicket(ticket, options) {
 
 /**
  * Puts the file in the core's inbox, imports it through the core, and removes the copy again. A video
- * becomes MP4 with H.264 first (see video.mjs); the core removes the metadata of every file.
+ * becomes MP4 with H.264 first (see video.mjs); the core removes the metadata of every file. A sound
+ * clip (kind `audio`) is never converted.
  */
 async function stageAndImport(file, options) {
-  if (isVideo(file)) file = await asMp4(file);
+  if (options.kind !== 'audio' && isVideo(file)) file = await asMp4(file);
   // Each import gets a folder of its own, so the file keeps its name (the palace takes its name from it).
   const name = `${crypto.randomUUID()}/${file.name.replace(/[^\w.-]/g, '_')}`;
   const path = `inbox/${name}`;

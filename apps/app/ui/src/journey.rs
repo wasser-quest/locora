@@ -445,7 +445,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                         Phase::Revealed(r) => {
                             view! {
                                 <GuessVerdict number=q.n />
-                                <Answer solution=r.solution note=r.note picture=r.picture />
+                                <Answer solution=r.solution note=r.note picture=r.picture audio=r.audio autoplay=true />
                                 <Grades reply=reply busy=busy />
                             }
                                 .into_any()
@@ -1084,7 +1084,8 @@ fn Judged(
                     view! { <div class="verdict again">{picture}{t("Nochmal")}</div> }.into_any()
                 }
             })}
-        <Answer solution=r.solution note=r.note picture=r.picture />
+        // A recalled answer was already shown (and played) when it was revealed.
+        <Answer solution=r.solution note=r.note picture=r.picture audio=r.audio autoplay=automatic />
         {game.map(|game| view! { <p class="progress game-status">{game_status(game)}</p> })}
         {(!right.is_empty())
             .then(|| {
@@ -1201,6 +1202,7 @@ mod tests {
                 kind: MediaKind::Image,
             }),
             right: Vec::new(),
+            audio: None,
         };
         assert!(Phase::Asking.stage_answer().is_none());
         let revealed = Phase::Revealed(answer.clone());

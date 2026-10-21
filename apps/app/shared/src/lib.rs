@@ -8,6 +8,8 @@ pub use locora_api::journey::{Answer as EditorAnswer, AnswerKind as EditorAnswer
 
 pub const CMD_EDITOR_CHANGE: &str = "editor_change";
 pub const CMD_EDITOR_PICK_PICTURE: &str = "editor_pick_picture";
+/// Picks a sound clip for a locus (argument: `{ target: PictureTarget }`); `None` when cancelled.
+pub const CMD_EDITOR_PICK_AUDIO: &str = "editor_pick_audio";
 
 /// Exact scope only; file paths never come from the WebView.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -378,6 +380,8 @@ pub enum MediaKind {
     Video,
     /// A Splinely animation, shown through the `sply` URL kind.
     Sply,
+    /// A sound clip (MP3, M4A, WAV or Ogg).
+    Audio,
 }
 
 impl Media {
@@ -385,7 +389,9 @@ impl Media {
     pub fn path(&self) -> String {
         match self.kind {
             MediaKind::Sply => format!("sply/{}", self.hash),
-            MediaKind::Image | MediaKind::Video => format!("media/{}", self.hash),
+            MediaKind::Image | MediaKind::Video | MediaKind::Audio => {
+                format!("media/{}", self.hash)
+            }
         }
     }
 }
@@ -438,6 +444,9 @@ pub struct LocusView {
     /// Belongs to the answer: shown only once the locus is revealed.
     pub picture: Option<Media>,
     pub note: String,
+    /// The locus sound clip (hash); played with the answer.
+    #[serde(default)]
+    pub audio: Option<String>,
 }
 
 impl LocusView {
@@ -457,6 +466,9 @@ pub struct LocusContent {
     #[serde(default = "whole_room")]
     pub zoom: f64,
     pub answer: EditorAnswer,
+    /// The locus sound clip (hash); `None` removes it.
+    #[serde(default)]
+    pub audio: Option<String>,
 }
 
 /// Zoom when none is given: the whole room.
@@ -724,6 +736,9 @@ pub struct Revealed {
     pub picture: Option<Media>,
     /// Quiz: positions of the right options among those shown.
     pub right: Vec<u32>,
+    /// The locus sound clip; played when the answer is shown.
+    #[serde(default)]
+    pub audio: Option<Media>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

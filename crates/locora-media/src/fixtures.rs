@@ -74,6 +74,26 @@ pub fn movie(brand: &[u8; 4], tracks: Vec<Vec<u8>>, extra: Vec<Vec<u8>>) -> Vec<
     .concat()
 }
 
+/// A short silent WAV (8 kHz, 8 bit, mono) without metadata: `clean` leaves it as it is.
+pub fn wav() -> Vec<u8> {
+    let samples = [0x80u8; 16];
+    let mut file = b"RIFF".to_vec();
+    file.extend_from_slice(&(4 + 24 + 8 + samples.len() as u32).to_le_bytes());
+    file.extend_from_slice(b"WAVEfmt ");
+    file.extend_from_slice(&16u32.to_le_bytes());
+    // PCM, one channel, 8000 Hz, 8000 bytes per second, blocks of one byte, 8 bits.
+    file.extend_from_slice(&[1, 0, 1, 0, 0x40, 0x1F, 0, 0, 0x40, 0x1F, 0, 0, 1, 0, 8, 0]);
+    file.extend_from_slice(b"data");
+    file.extend_from_slice(&(samples.len() as u32).to_le_bytes());
+    file.extend_from_slice(&samples);
+    file
+}
+
+/// An M4A with one AAC sound track and no metadata.
+pub fn m4a() -> Vec<u8> {
+    movie(b"M4A ", vec![track(b"soun", b"mp4a", [0; 4])], Vec::new())
+}
+
 /// An MP4 with one H.264 track and no metadata: `clean` leaves it as it is.
 pub fn mp4() -> Vec<u8> {
     movie(b"isom", vec![track(b"vide", b"avc1", [0; 4])], Vec::new())

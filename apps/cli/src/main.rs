@@ -75,6 +75,9 @@ enum Command {
         /// Bild für den Ort (png, jpg, webp, gif, avif oder eine .sply-Animation)
         #[arg(long, value_name = "DATEI")]
         image: Option<PathBuf>,
+        /// Ton zur Antwort (mp3, m4a, wav, ogg); ohne Tags gespeichert
+        #[arg(long, value_name = "DATEI")]
+        audio: Option<PathBuf>,
         /// Picture width as a fraction of the room width.
         #[arg(long, value_parser = palace::parse_image_size, help = "Bildbreite als Anteil der Raumbreite (0.05 bis 1, Standard: 0.25)")]
         image_size: Option<f64>,
@@ -111,6 +114,12 @@ enum Command {
         /// Bild des Orts entfernen
         #[arg(long)]
         no_image: bool,
+        /// Neuer Ton zur Antwort (mp3, m4a, wav, ogg); ohne Tags gespeichert
+        #[arg(long, value_name = "DATEI", conflicts_with = "no_audio")]
+        audio: Option<PathBuf>,
+        /// Ton des Orts entfernen
+        #[arg(long)]
+        no_audio: bool,
         /// Picture width as a fraction of the room width.
         #[arg(long, value_parser = palace::parse_image_size, help = "Bildbreite als Anteil der Raumbreite (0.05 bis 1)")]
         image_size: Option<f64>,
@@ -327,6 +336,7 @@ fn main() -> Result<()> {
             at,
             time,
             image,
+            audio,
             image_size,
             zoom,
             note,
@@ -339,6 +349,7 @@ fn main() -> Result<()> {
                 at,
                 time,
                 image,
+                audio,
                 image_size,
                 zoom,
                 note,
@@ -355,12 +366,19 @@ fn main() -> Result<()> {
             at,
             image,
             no_image,
+            audio,
+            no_audio,
             image_size,
             zoom,
         } => {
             let mut app = app::App::open(data)?;
             let image = match (image, no_image) {
                 (Some(path), _) => Some(Some(palace::store_picture(&app, &path)?)),
+                (None, true) => Some(None),
+                (None, false) => None,
+            };
+            let audio = match (audio, no_audio) {
+                (Some(path), _) => Some(Some(palace::store_audio(&app, &path)?)),
                 (None, true) => Some(None),
                 (None, false) => None,
             };
@@ -379,6 +397,7 @@ fn main() -> Result<()> {
                 &palace,
                 locus,
                 LocusPatch {
+                    audio,
                     place,
                     item,
                     x: point.0,
