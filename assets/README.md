@@ -13,6 +13,7 @@ All graphics are made with [Splinely](https://splinely.com) via `splinely-cli` a
 | `tutorial/*.sply` | Graphics of the tutorial palace „Locora lernen“: three room backdrops (Eingangshalle, Bibliothek, Garten; 512 × 384) and seven locus pictures (Teppich, Laterne, Regal, Leseplatz, Uhr, Brunnen, Baum; 384 × 384), all animated. Built by `tutorial/src/tutorial.py`. |
 | `tutorial/locora-lernen.locora.toml` | The tutorial palace itself; every place shows a `.sply` (Simo and the firefly come from `mascot/`). Built into the CLI: `locora tutorial`. |
 | `marker/locus.sply` | Default locus marker: a glowing point with the states `neu`, `faellig`, `gewusst` (state machine `status`). The app places it at every locus; backdrops never contain loci. Built by `marker/src/marker.py`. |
+| `ui/erfolg-lernen-*.sply`, `ui/erfolg-tour*.sply`, `ui/erfolg-palast*.sply` | Medals of „Mnemotechnik lernen“ (one per lesson, in the colour of the character who teaches it, with a topic symbol, plus „all lessons“), of the finished app tour and of the first own palace; grey `-gesperrt` versions while locked (the lessons share one). Built by `ui/src/medaillen.py`. |
 | `brand/icon.sply` | App icon: a palace arch with a route of glowing loci and the firefly's light. |
 
 Style guide: [`STIL.md`](STIL.md) (German).

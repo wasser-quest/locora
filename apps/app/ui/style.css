@@ -526,3 +526,120 @@ details.modes input[type="number"] { width: 5rem; flex: none; }
 @media (max-width: 560px) and (max-height: 700px) {
   .welcome p.meta { display: none; }
 }
+/* Start page header: the settings gear sits in the title row, so the actions keep three rows. */
+.home-bar { position: relative; }
+.home-actions .icon { position: absolute; top: 0; right: 0; }
+button.link { border: 0; background: none; padding: .2rem 0; color: var(--muted); text-decoration: underline;
+  text-underline-offset: 3px; justify-self: start; text-align: left; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* The way into Locora: four numbered steps, the next one highlighted. */
+.learning-path { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.path-step { display: grid; grid-template-columns: 1.9rem 1fr auto; align-items: center; gap: .6rem;
+  padding: .3rem .5rem; border-radius: 10px; border: 1px solid transparent; }
+.path-step.next { border-color: var(--lime); background: color-mix(in srgb, var(--lime) 14%, transparent); }
+.path-num { width: 1.9rem; height: 1.9rem; border-radius: 50%; display: grid; place-items: center; font-weight: 700;
+  background: var(--indigo); color: #fff; }
+.path-step.done .path-num { background: var(--ok); }
+.path-step.done .path-label { color: var(--muted); }
+.path-label { font-weight: 600; min-width: 0; }
+.path-step button { min-height: 2.4rem; padding-block: .3rem; }
+.path-card h2 { margin: 0 0 .5rem; font-size: 1.15rem; }
+.path-card { margin-bottom: 12px; }
+/* „Mnemotechnik lernen“ */
+.learn-bar h1 { text-align: left; }
+.learn-intro { display: grid; gap: .8rem; margin-bottom: 1rem; }
+.learn-intro p { margin: 0; }
+.cast { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; }
+.cast li { display: grid; grid-template-columns: 48px 1fr; grid-template-rows: auto 1fr; column-gap: .6rem; align-items: start; }
+.cast-figure { width: 48px; height: 72px; grid-row: 1 / span 2; }
+.cast strong { font-size: 1rem; }
+.cast span { font-size: .85rem; color: var(--muted); line-height: 1.3; }
+.learn-progress { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .8rem; font-weight: 600; }
+.learn-progress progress { width: 100%; height: .8rem; accent-color: var(--ok); }
+.learn-group { font-size: 1.15rem; margin: 1.4rem 0 .6rem; }
+.learn-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 12px; }
+.learn-tile { position: relative; display: grid; grid-template-columns: 56px 1fr; gap: .8rem; align-items: center;
+  text-align: left; padding: .7rem .9rem; min-height: 6rem; }
+.learn-tile:hover { border-color: var(--indigo); }
+.learn-tile.done { border-color: var(--ok); }
+.learn-tile-figure { width: 56px; height: 84px; }
+.learn-tile-text { display: grid; gap: .2rem; min-width: 0; }
+.learn-tile-title { font-weight: 700; font-size: 1.05rem; }
+.learn-tile-teaser { color: var(--muted); font-size: .92rem; line-height: 1.35; }
+.learn-check { position: absolute; top: .4rem; right: .5rem; width: 1.6rem; height: 1.6rem; border-radius: 50%;
+  display: grid; place-items: center; background: var(--ok); color: #fff; font-weight: 700; }
+.learn-report { margin: 1.5rem 0 .5rem; font-size: .9rem; }
+.learn-report a { color: var(--muted); }
+main > .achievements { margin-top: 1.5rem; }
+.medal-group { margin-top: 1rem; }
+.medal-group summary { cursor: pointer; font-weight: 600; margin-bottom: .6rem; }
+/* A lesson: the character talks in a speech bubble. */
+.lesson-count { margin: -.5rem 0 1rem; color: var(--muted); }
+.learn-done { color: var(--ok); font-weight: 600; }
+.lesson-talk { display: grid; grid-template-columns: 140px 1fr; gap: 1rem; align-items: start; margin-bottom: 1rem; }
+.lesson-figure { width: 140px; height: 210px; position: sticky; top: 1rem; }
+.bubble { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+  padding: 1rem 1.2rem; font-size: 1.1rem; line-height: 1.55; }
+.bubble::before { content: ""; position: absolute; left: -10px; top: 2.2rem; width: 18px; height: 18px;
+  background: var(--surface); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg); }
+.bubble-name { display: block; color: var(--indigo); margin-bottom: .2rem; }
+:root[data-theme="dark"] .bubble-name { color: var(--lime); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bubble-name { color: var(--lime); } }
+.bubble p { margin: .5rem 0; }
+.lesson-example, .lesson-try, .lesson-locora, .learn-finish { margin-bottom: 1rem; font-size: 1.05rem; }
+.lesson-example h2, .lesson-try h2, .lesson-locora h2 { font-size: 1.1rem; margin: 0 0 .4rem; }
+.lesson-try h3 { font-size: 1rem; margin: 1rem 0 .3rem; }
+.lesson-example p, .lesson-locora p, .lesson-try p { margin: .3rem 0; }
+.lesson-try .question { font-weight: 600; }
+.choices { display: grid; gap: .5rem; margin-top: .5rem; }
+.choice { text-align: left; min-height: 2.8rem; }
+.choice.right { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, var(--surface)); font-weight: 600; }
+.choice.wrong { border-color: var(--again); }
+.choice:disabled { opacity: 1; }
+.check-feedback { min-height: 1.5rem; font-weight: 600; }
+.lesson-locora button { margin-top: .5rem; }
+.lesson-nav { display: flex; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.lesson-nav button { min-height: 2.8rem; }
+/* After the last lesson. */
+.learn-finish { text-align: center; border: 2px solid var(--lime); }
+.learn-finish h2 { margin: .5rem 0; }
+.finish-cast { display: flex; justify-content: center; gap: .3rem; }
+.finish-figure { width: 64px; height: 96px; }
+.learn-finish .row { display: flex; justify-content: center; gap: .6rem; flex-wrap: wrap; margin-top: .8rem; }
+button.big { font-size: 1.15rem; padding: .8rem 1.4rem; }
+/* Before the tour: learn the techniques first? */
+.tour-ask-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 1rem;
+  background: rgba(8, 8, 24, .45); }
+.tour-ask { display: flex; gap: 1rem; align-items: center; max-width: 520px; box-shadow: 0 10px 32px #17183a66; }
+.tour-ask-figure { width: 96px; min-width: 96px; height: 144px; }
+.tour-ask h2 { margin: 0 0 .4rem; font-size: 1.2rem; }
+.tour-ask p { margin: 0 0 .8rem; }
+.tour-ask .row { display: flex; flex-direction: column; gap: .5rem; }
+.tour-ask .row button { min-height: 2.8rem; }
+/* A new achievement. */
+.celebration { position: fixed; z-index: 25; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: .8rem; width: min(420px, calc(100vw - 2rem)); border: 2px solid var(--lime);
+  box-shadow: 0 10px 32px #17183a66; }
+.celebration-medal { width: 64px; min-width: 64px; height: 64px; }
+.celebration .text { flex: 1; display: grid; }
+.celebration-title { font-size: 1.05rem; }
+/* The first own palace: the guide above the editor. */
+.first-palace { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1rem; border: 2px solid var(--lime); }
+.first-palace-figure { width: 64px; min-width: 64px; height: 96px; }
+.first-palace-text { min-width: 0; display: grid; gap: .3rem; }
+.first-palace h2 { font-size: 1.1rem; margin: 0; }
+.first-palace p { margin: 0; }
+.first-palace-list { margin: .2rem 0; padding-left: 1.6rem; display: grid; gap: .3rem; max-width: 320px; }
+@media (max-width: 560px) {
+  .lesson-talk { grid-template-columns: 72px 1fr; gap: .6rem; }
+  .lesson-figure { width: 72px; height: 108px; }
+  .bubble { font-size: 1.02rem; padding: .8rem .9rem; }
+  .welcome .learning-path, .welcome .formula-link { grid-column: 1 / -1; }
+  .path-step { gap: .5rem; padding: .25rem .35rem; }
+  .path-step button { padding-inline: .6rem; }
+  .tour-ask { flex-direction: column; text-align: center; }
+  .tour-ask-figure { width: 64px; min-width: 64px; height: 96px; }
+  .lesson-nav button { flex: 1; }
+  .finish-figure { width: 48px; height: 72px; }
+  .celebration { bottom: calc(76px + env(safe-area-inset-bottom)); }
+}

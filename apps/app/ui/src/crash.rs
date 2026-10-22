@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 const KEY: &str = "locora-last-crash-v1";
-const REPO: &str = "https://github.com/wasser-quest/locora/issues/new";
+pub(crate) const REPO: &str = "https://github.com/wasser-quest/locora/issues/new";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
@@ -85,7 +85,7 @@ pub fn issue_url(report: &Report) -> String {
 }
 
 /// Percent-encoding for a query value (unreserved characters stay).
-fn encode(text: &str) -> String {
+pub(crate) fn encode(text: &str) -> String {
     let mut out = String::new();
     for byte in text.bytes() {
         match byte {
