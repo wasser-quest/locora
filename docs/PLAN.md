@@ -156,7 +156,7 @@ einfach ohne Hook. Fehlt `review`, gibt es keine Fälligkeiten und die Weiter-Ze
 | Plugin `core` | MIT | frei, voller Funktionsumfang offline |
 | Plugin `tutorial` | MIT | frei |
 | Plugin `gamification` | MIT | frei, XP/Trophäen/Challenges lokal |
-| **Locora Cloud** (Server) | proprietär | Abo: Ranglisten, Freunde, gemeinsame Challenges, Sync über Geräte |
+| **Locora Cloud** (Server) | proprietär | Abo: Sync über Geräte (Ende-zu-Ende-verschlüsselt); die öffentliche Rangliste bleibt kostenlos |
 
 Weil alles unter MIT steht, dürfen auch Drittanbieter eigene (auch kommerzielle) Plugins bauen.
 Der Wert des Abos liegt im Dienst (Server, Community, Ranglisten), nicht im Code. Für externe Beiträge in den
@@ -521,18 +521,18 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 ## 10. Gamification und Bezahlung
 
 - **Gamification ist kostenlos:** XP, Combos, Herzen, Trophäen und Daily Challenges laufen vollständig lokal und offline, ohne Account.
-- **Locora Cloud kostet:** Ranglisten, Freunde, gemeinsame Challenges und Sync von Fortschritt und Palästen über Geräte.
-- **Preis – bewusst günstig, damit man es sich „einfach mal holt“:**
+- **Locora Cloud kostet:** Sync von Fortschritt und Palästen über Geräte. Die Rangliste (eine öffentliche, Tag/Woche/Monat/Jahr, nur auf Wunsch) bleibt kostenlos; Freunde und gemeinsame Challenges entfallen.
+- **Preis (Entscheidung vom 22.10.2026):**
 
   | Plan | Preis | Hinweis |
   |---|---|---|
-  | **Jahresabo** (Hauptangebot) | **9,99 €/Jahr** (≈ 0,83 €/Monat) | eine Transaktion pro Jahr, Gebühren fallen kaum ins Gewicht |
-  | Monatsabo | 1,49 €/Monat | für Unentschlossene; jederzeit kündbar |
-  | Testphase | 14 Tage gratis | ohne Zahlungsdaten auf Desktop |
+  | Monatsabo | **5 €/Monat** | jederzeit kündbar |
+  | Jahresabo | **48 €/Jahr** | |
+  | Testzeitraum | sechs Monate | jedes neue Konto ist ein Gastkonto und synchronisiert in dieser Zeit ohne Abo |
 
-  Ein reines 1-€-Monatsabo lohnt sich nicht: Feste Gebühren pro Zahlung (ca. 0,30–0,50 €) würden 30–50 % davon auffressen.
-- **App-Store-Regeln:** Auf iOS und Android müssen digitale Abos über In-App-Kauf laufen (Apple/Google nehmen 15 % im Small-Business-Programm).
-  Auf Desktop und Web eignet sich ein Merchant of Record wie Paddle oder Lemon Squeezy (übernimmt EU-USt).
+- **Bezahlen nur im Web:** Paddle als Merchant of Record (übernimmt die EU-USt). Kein In-App-Kauf: Die nativen Apps
+  zeigen keine Preise, keine Kaufknöpfe und keine Links zu einer Kasse (Anti-Steering-Regeln von Apple und Google);
+  `apps/app/ui/src/store_rules.rs` prüft das. Die Apps nennen höchstens neutral den Stand („Abo: aktiv“).
 - **Server:** Rust (axum + Postgres) im privaten Repo `locora-cloud`. Er nutzt dieselben Crates (`locora-formula`, Journey-Replay) für fälschungssichere Ranglisten.
 
 ---
@@ -556,6 +556,11 @@ Die Klick-Budgets aus 6.3 und die Startzeit werden ab Phase 2 als Tests in CI ge
 Tutorial-Palast, erste App-Tour, Formel-Guide und lokale Gamification sind umgesetzt.
 Offene Arbeiten und native Prüfungen stehen in [`OFFEN.md`](OFFEN.md).
 
+**Stand (22.10.2026):** Veröffentlicht ist 0.1.3 (App-Tour mit Simo, Ton pro Locus, fünf Sprachen); 0.1.4
+(Erklärungen ⓘ an den Feldern, übersetzte Texte) ist vorbereitet, aber noch nicht getaggt. Der verschlüsselte Sync (Phase 6) läuft in Desktop, Mobil, Browser und CLI, mit
+Auto-Sync, E-Mail-Bestätigung und Passwort-Reset; siehe [`CLOUD.md`](CLOUD.md). Als Nächstes: Deploy des Servers,
+die neue Rangliste, dann Bezahlen im Web.
+
 ---
 
 ## 12. Entscheidungen
@@ -566,8 +571,8 @@ Offene Arbeiten und native Prüfungen stehen in [`OFFEN.md`](OFFEN.md).
 | Sprache | **Pures Rust**, auch die UI (Tauri 2 + Leptos) |
 | Lizenz der offenen Teile | **MIT** |
 | Repository | `wasser-quest/locora` |
-| Gamification | **kostenlos**, nur Locora Cloud kostet |
-| Preis Locora Cloud | **9,99 €/Jahr** oder 1,49 €/Monat |
+| Gamification | **kostenlos**, nur der Sync über Locora Cloud kostet |
+| Preis Locora Cloud | **5 €/Monat** oder **48 €/Jahr**, nur im Web (Paddle), nie in den Apps |
 | `.mnemodim` | **keine Kompatibilität** nötig, neues Format `.locora` |
 | Spaced Repetition | eigenes Plugin `review` (FSRS), kostenlos und MIT |
 | Benachrichtigungen | eigenes Plugin `notify`, kostenlos und MIT |
@@ -598,7 +603,7 @@ Für den aktuellen Arbeitsstand gilt [`OFFEN.md`](OFFEN.md).
 - **Stil:** `assets/STIL.md` (ohne Konturen, Cel-Shading). Darin nie den Anime-Bezug oder Referenzbilder erwähnen.
 - **Maskottchen Simo** (`assets/mascot/src/simo.py`) und das Glühwürmchen (`gluehwuermchen.py`). Der Nutzer will eine
   männlich wirkende Ganzkörperfigur; Mnemo wurde gelöscht.
-- Lizenz MIT; Gamification kostenlos, nur Locora Cloud kostet (9,99 €/Jahr oder 1,49 €/Monat).
+- Lizenz MIT; Gamification kostenlos, nur Locora Cloud kostet (seit 22.10.2026: 5 €/Monat oder 48 €/Jahr, nur im Web).
 - Fremde Plugins: Warnung „gefährlich, auf eigene Verantwortung“ auf Android/iOS, kurze Warnung auf Desktop. Wird das
   Laden auf Mobile schwierig, darf es dort abgeschaltet werden.
 - **Git:** Push per SSH. Commit-Messages folgen den Repository-Vorgaben; kein `Co-Authored-By`-Trailer
@@ -835,7 +840,7 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
   App über `ui.highlight@1`, ein Formel-Guide (ebenfalls als Palast mit `.sply`-Bildern) und Simo als Begleiter.
 - **Phase 5:** Plugin `gamification` (XP, Combos, Herzen, Trophäen, Daily Challenges; lokal und kostenlos, Werte aus
   mnemodim `shared/journeyScoring.ts`), danach privates Repo `locora-cloud` (axum + Postgres, Abo, Ranglisten,
-  Ed25519-Entitlements mit 14 Tagen Offline-Kulanz, In-App-Kauf auf iOS/Android).
+  Ed25519-Entitlements mit 14 Tagen Offline-Kulanz). Bezahlt wird später nur im Web, nicht per In-App-Kauf (Abschnitt 10).
 - **Phase 6:** Sync über das Op-Log (HLC, Last-Writer-Wins pro Feld) mit Locora Cloud.
 - **Phase 7:** Plugin-Verzeichnis, Signaturen, WASM-Plugins für Dritte inkl. deklarativer UI (4.4) und Store-Prüfung.
 
