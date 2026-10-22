@@ -230,12 +230,15 @@ pub fn superseded(heads: &[OpHead], palace_of: impl Fn(&OpHead) -> Option<String
     dropped
 }
 
+/// Rooms and loci as this device created them: (room → palace, locus → room).
+type Parents = (HashMap<String, String>, HashMap<String, String>);
+
 /// The palace of rooms and loci, from the tables and, for deleted ones, from the log.
 struct Resolver<'a> {
     conn: &'a Connection,
     rooms: HashMap<String, Option<String>>,
     loci: HashMap<String, Option<String>>,
-    logged: Option<(HashMap<String, String>, HashMap<String, String>)>,
+    logged: Option<Parents>,
 }
 
 impl<'a> Resolver<'a> {
@@ -249,7 +252,7 @@ impl<'a> Resolver<'a> {
     }
 
     /// Rooms and loci as they were created on this device: (room → palace, locus → room).
-    fn logged(&mut self) -> Result<&(HashMap<String, String>, HashMap<String, String>)> {
+    fn logged(&mut self) -> Result<&Parents> {
         if self.logged.is_none() {
             let mut rooms = HashMap::new();
             let mut loci = HashMap::new();
