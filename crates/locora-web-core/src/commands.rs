@@ -213,6 +213,7 @@ pub const NAMES: &[&str] = &[
     "tour",
     "ui_assets",
     "achievements",
+    "achievement_unlock",
     "activity",
     "gamification_status",
     "settings",
@@ -396,6 +397,10 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         }
         "ui_assets" => out(assets.ui()),
         "achievements" => out(locora_app_core::journey::achievements(profile)?),
+        "achievement_unlock" => {
+            let a: locora_app_api::AchievementArgs = take(args)?;
+            out(locora_app_core::journey::unlock(profile, &a.id)?)
+        }
         "activity" => {
             let days = profile.activity(ACTIVITY_DAYS)?;
             out(days

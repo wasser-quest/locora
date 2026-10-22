@@ -1,10 +1,10 @@
 //! The app's own graphics (assets/ui, built by assets/ui/src/ui.py), stored
 //! in the profile at start so they are served like any other `.sply`.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Result;
-use locora_app_api::{Media, MediaKind, UiAssets};
+use locora_app_api::{LEARN_LESSONS, MedalArt, Media, MediaKind, UiAssets};
 use locora_store::{SPLINELY, Store};
 
 macro_rules! ui {
@@ -34,12 +34,46 @@ const FILES: &[(&str, &[u8])] = ui![
     "erfolg-tutorial-gesperrt",
     "erfolg-formeln",
     "erfolg-formeln-gesperrt",
+    "erfolg-tour",
+    "erfolg-tour-gesperrt",
+    "erfolg-palast",
+    "erfolg-palast-gesperrt",
+    "erfolg-lernen-alle",
+    "erfolg-lernen-alle-gesperrt",
+    "erfolg-lernen-gesperrt",
+    "erfolg-lernen-basics",
+    "erfolg-lernen-visualize",
+    "erfolg-lernen-exaggerate",
+    "erfolg-lernen-motion",
+    "erfolg-lernen-senses",
+    "erfolg-lernen-link",
+    "erfolg-lernen-abstract",
+    "erfolg-lernen-numbers",
+    "erfolg-lernen-palace",
+    "erfolg-lernen-loci",
+    "erfolg-lernen-route",
+    "erfolg-lernen-review",
+    "erfolg-lernen-reuse",
+    "erfolg-lernen-mistakes",
+    "erfolg-lernen-history",
+    "erfolg-lernen-research",
+    "erfolg-lernen-sport",
 ];
+
+/// Simo's friends who teach „Mnemotechnik lernen“ (assets/mascot).
+const CHARACTERS: [&str; 4] = ["mina", "cami", "bruno", "hafiza"];
 
 /// Graphics from elsewhere in `assets/`.
 const MORE: &[(&str, &[u8])] = &[
     ("logo", include_bytes!("../../../assets/brand/icon.sply")),
     ("simo", locora_runtime::tutorial::SIMO),
+    ("mina", include_bytes!("../../../assets/mascot/mina.sply")),
+    ("cami", include_bytes!("../../../assets/mascot/cami.sply")),
+    ("bruno", include_bytes!("../../../assets/mascot/bruno.sply")),
+    (
+        "hafiza",
+        include_bytes!("../../../assets/mascot/hafiza.sply"),
+    ),
 ];
 
 /// Name → hash of every UI graphic.
@@ -92,7 +126,43 @@ impl Assets {
             medal_tutorial_locked: self.media("erfolg-tutorial-gesperrt"),
             medal_formulas: self.media("erfolg-formeln"),
             medal_formulas_locked: self.media("erfolg-formeln-gesperrt"),
+            medals: self.medals(),
+            characters: CHARACTERS
+                .iter()
+                .map(|name| ((*name).to_owned(), self.media(name)))
+                .collect(),
         }
+    }
+
+    /// The medals besides tutorial and formulas, by achievement id. The lessons share one
+    /// grey medal while locked.
+    fn medals(&self) -> BTreeMap<String, MedalArt> {
+        let pair = |unlocked: &str, locked: &str| MedalArt {
+            unlocked: self.media(unlocked),
+            locked: self.media(locked),
+        };
+        let mut medals: BTreeMap<String, MedalArt> = LEARN_LESSONS
+            .iter()
+            .map(|lesson| {
+                (
+                    format!("learn-{lesson}"),
+                    pair(&format!("erfolg-lernen-{lesson}"), "erfolg-lernen-gesperrt"),
+                )
+            })
+            .collect();
+        medals.insert(
+            "learn-all".into(),
+            pair("erfolg-lernen-alle", "erfolg-lernen-alle-gesperrt"),
+        );
+        medals.insert(
+            "tour-done".into(),
+            pair("erfolg-tour", "erfolg-tour-gesperrt"),
+        );
+        medals.insert(
+            "first-palace".into(),
+            pair("erfolg-palast", "erfolg-palast-gesperrt"),
+        );
+        medals
     }
 }
 

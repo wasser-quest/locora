@@ -34,17 +34,59 @@ pub fn built_in_achievement(palace_id: &str) -> Option<&'static str> {
     }
 }
 
-/// The built-in achievements and whether each is unlocked.
+/// Finishing the app tour, a lesson of „Mnemotechnik lernen“ or all of them, and walking the
+/// route of a first own palace unlock these.
+const MORE_ACHIEVEMENT_IDS: [&str; 3] = ["tour-done", "learn-all", "first-palace"];
+
+/// The built-in achievements and whether each is unlocked: the built-in palaces, the tour, the
+/// lessons (`learn-<lesson>`, in order), all lessons and the first own palace. `learn-all`
+/// follows from the lessons, so it is unlocked on every device as soon as they are.
 pub fn achievements(profile: &Profile) -> Result<Vec<locora_app_api::AchievementView>> {
-    ACHIEVEMENT_IDS
+    let lessons: Vec<String> = locora_app_api::LEARN_LESSONS
         .iter()
-        .map(|id| {
-            Ok(locora_app_api::AchievementView {
-                id: (*id).to_string(),
-                unlocked: profile.store.kv_get(ACHIEVEMENTS, id)?.is_some(),
-            })
-        })
-        .collect()
+        .map(|lesson| format!("learn-{lesson}"))
+        .collect();
+    let mut views = Vec::new();
+    for id in ACHIEVEMENT_IDS
+        .iter()
+        .chain(&MORE_ACHIEVEMENT_IDS)
+        .map(|id| id.to_string())
+        .chain(lessons.iter().cloned())
+    {
+        let unlocked = profile.store.kv_get(ACHIEVEMENTS, &id)?.is_some();
+        views.push(locora_app_api::AchievementView { id, unlocked });
+    }
+    let all = views
+        .iter()
+        .filter(|view| lessons.contains(&view.id))
+        .all(|view| view.unlocked);
+    if let Some(view) = views.iter_mut().find(|view| view.id == "learn-all") {
+        view.unlocked |= all;
+    }
+    Ok(views)
+}
+
+/// Unlock an achievement the UI earned (a lesson or the finished tour); other ids are refused,
+/// so the UI cannot hand out the rest. Returns whether it was new.
+pub fn unlock(profile: &Profile, id: &str) -> Result<bool> {
+    anyhow::ensure!(
+        locora_app_api::unlockable_by_ui(id),
+        "Unbekannter Erfolg: {id}"
+    );
+    if profile.store.kv_get(ACHIEVEMENTS, id)?.is_some() {
+        return Ok(false);
+    }
+    profile.store.kv_set(ACHIEVEMENTS, id, b"1")?;
+    Ok(true)
+}
+
+/// The achievement a finished journey through `palace_id` unlocks: the built-in palaces their
+/// own, a palace of the person's own (not Simo's example from the tour) `first-palace`.
+fn finished_palace_achievement(palace_id: &str) -> Option<&'static str> {
+    built_in_achievement(palace_id).or_else(|| {
+        let demo = locora_source::bundled_palace_id(locora_runtime::tour_demo::NAMESPACE);
+        (palace_id != demo).then_some("first-palace")
+    })
 }
 
 pub struct Journey {
@@ -581,7 +623,7 @@ impl Journey {
             if let Some(answers) = self.transcripts.get(&tree.palace.id) {
                 profile.store.record_journey(&tree.palace.id, answers)?;
             }
-            if let Some(achievement) = built_in_achievement(&tree.palace.id) {
+            if let Some(achievement) = finished_palace_achievement(&tree.palace.id) {
                 profile.store.kv_set(ACHIEVEMENTS, achievement, b"1")?;
             }
         }
@@ -984,5 +1026,82 @@ mod tests {
                 .iter()
                 .any(|note| note.starts_with("Sudden Death"))
         );
+    }
+
+    fn unlocked(profile: &Profile, id: &str) -> bool {
+        super::achievements(profile)
+            .unwrap()
+            .into_iter()
+            .any(|view| view.id == id && view.unlocked)
+    }
+
+    #[test]
+    fn lessons_and_the_tour_unlock_their_achievements_and_all_lessons_unlock_learn_all() {
+        let dir = tempfile::tempdir().unwrap();
+        let profile = Profile::open(Some(dir.path())).unwrap();
+        assert!(super::unlock(&profile, "tour-done").unwrap());
+        assert!(
+            !super::unlock(&profile, "tour-done").unwrap(),
+            "only once new"
+        );
+        assert!(unlocked(&profile, "tour-done"));
+        assert!(
+            super::unlock(&profile, "tutorial-done").is_err(),
+            "earned by the journey"
+        );
+        assert!(
+            super::unlock(&profile, "learn-all").is_err(),
+            "follows from the lessons"
+        );
+        assert!(super::unlock(&profile, "learn-nothing").is_err());
+        let (last, rest) = locora_app_api::LEARN_LESSONS.split_last().unwrap();
+        for lesson in rest {
+            super::unlock(&profile, &format!("learn-{lesson}")).unwrap();
+        }
+        assert!(unlocked(&profile, "learn-basics"));
+        assert!(!unlocked(&profile, "learn-all"));
+        super::unlock(&profile, &format!("learn-{last}")).unwrap();
+        assert!(unlocked(&profile, "learn-all"));
+    }
+
+    #[test]
+    fn walking_an_own_palace_unlocks_the_first_palace_achievement() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let p = profile.store.create_palace("Küche").unwrap();
+        let r = profile
+            .store
+            .add_room(&p.id, "R", RoomKind::Blank, None)
+            .unwrap();
+        profile
+            .store
+            .add_locus(
+                &r.id,
+                NewLocus {
+                    audio: None,
+                    place: "Tür".into(),
+                    item: "Milch".into(),
+                    x: 0.5,
+                    y: 0.5,
+                    time: None,
+                    answer: Answer::default(),
+                    image: None,
+                    note: String::new(),
+                    image_size: 0.25,
+                    zoom: locora_store::default_zoom(),
+                },
+            )
+            .unwrap();
+        assert!(!unlocked(&profile, "first-palace"));
+        let start = JourneyStart {
+            palace_id: Some(p.id.clone()),
+            ..Default::default()
+        };
+        let mut journey = Journey::start(&mut profile, start).unwrap().unwrap();
+        let feedback = journey
+            .answer(&mut profile, Reply::Forfeit, "marker")
+            .unwrap();
+        assert!(matches!(feedback.next, Step::Done(_)));
+        assert!(unlocked(&profile, "first-palace"));
     }
 }
