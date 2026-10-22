@@ -255,6 +255,18 @@ fn format_recovery_key(bytes: &[u8; KEY_LEN]) -> String {
 }
 
 impl Dek {
+    /// The raw key, for a secure store of this device (the OS keychain) that keeps it between
+    /// syncs. Never send it anywhere.
+    pub fn to_bytes(&self) -> Zeroizing<[u8; KEY_LEN]> {
+        Zeroizing::new(*self.0)
+    }
+
+    /// The key from the bytes `to_bytes` gave.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Dek, CryptoError> {
+        let bytes: [u8; KEY_LEN] = bytes.try_into().map_err(|_| CryptoError::Malformed)?;
+        Ok(Dek(Zeroizing::new(bytes)))
+    }
+
     fn subkey(&self, info: &[u8]) -> Zeroizing<[u8; KEY_LEN]> {
         let hk = Hkdf::<Sha256>::new(None, self.0.as_ref());
         let mut key = Zeroizing::new([0u8; KEY_LEN]);
@@ -357,6 +369,20 @@ mod tests {
         let by_recovery = unlock_with_recovery(&account.bundle, &account.recovery_key).unwrap();
         assert_eq!(by_passphrase.0.as_ref(), account.dek.0.as_ref());
         assert_eq!(by_recovery.0.as_ref(), account.dek.0.as_ref());
+    }
+
+    #[test]
+    fn the_key_bytes_give_back_the_same_key() {
+        let account = create(PASS).unwrap();
+        let again = Dek::from_bytes(account.dek.to_bytes().as_ref()).unwrap();
+        let id = again.op_id("0000000000001-00000-dev");
+        assert_eq!(id, account.dek.op_id("0000000000001-00000-dev"));
+        let sealed = account.dek.seal_op("acc", &id, b"x");
+        assert_eq!(again.open_op("acc", &id, &sealed).unwrap(), b"x");
+        assert_eq!(
+            Dek::from_bytes(&[1, 2, 3]).err(),
+            Some(CryptoError::Malformed)
+        );
     }
 
     #[test]
