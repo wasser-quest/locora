@@ -1,4 +1,5 @@
 use super::*;
+use crate::cloud_http;
 use locora_cloud_api::api::{Account, SubscriptionState};
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
@@ -38,6 +39,8 @@ fn responses(replies: Vec<(u16, Value)>) -> (CloudState, thread::JoinHandle<Vec<
             token: "synthetic-test-token".into(),
             sync_generation: 0,
             entitlement: None,
+            last_sync_at: None,
+            auto_sync: false,
             account: Account {
                 id: "local".into(),
                 email: "test@example.invalid".into(),
@@ -317,6 +320,8 @@ fn app_sync_checks_access_before_fetching_keys() {
         },
         sync_generation: 0,
         entitlement: None,
+        last_sync_at: None,
+        auto_sync: false,
     };
     cloud::save(data.path(), &state).unwrap();
     let error = sync_with_passphrase(data.path(), &store, "unused passphrase")
@@ -344,7 +349,7 @@ fn a_new_generation_of_the_server_starts_the_device_over() {
     };
     let url = |step: Step<SyncReport>| match step {
         Step::Call(call) => call.url,
-        Step::Done(_) => panic!("the sync ended early"),
+        _ => panic!("the sync ended early"),
     };
     assert!(url(flow.step(None).unwrap()).ends_with("/v1/keys"));
     assert!(url(flow.step(reply(json!(account.bundle))).unwrap()).ends_with("/v1/sync/retention"));

@@ -42,6 +42,13 @@ pub struct CloudState {
     pub sync_generation: i64,
     /// Last signed entitlement token the server issued.
     pub entitlement: Option<String>,
+    /// Unix seconds of the last sync that finished on this device.
+    #[serde(default)]
+    pub last_sync_at: Option<i64>,
+    /// Whether this device syncs on its own; its key is then kept in the system's secure store
+    /// (or the browser's), never in this file.
+    #[serde(default)]
+    pub auto_sync: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -182,6 +189,8 @@ fn state_from_session(server: String, session: Session) -> CloudState {
         account: session.account,
         sync_generation: 0,
         entitlement: None,
+        last_sync_at: None,
+        auto_sync: false,
     }
 }
 
@@ -305,6 +314,52 @@ pub fn adopt_generation(
     store.set_sync_cursor("pull", 0)?;
     state.sync_generation = generation;
     Ok(())
+}
+
+/// How many operations of other devices wait on the server after this device's pull cursor.
+pub fn pending_call(state: &CloudState, store: &locora_store::Store) -> Result<Call> {
+    let after = store.sync_cursor("pull")?;
+    let device =
+        percent_encoding::utf8_percent_encode(store.node_id(), percent_encoding::NON_ALPHANUMERIC);
+    call(
+        Method::Get,
+        &state.server,
+        &format!(
+            "/v1/sync/pending?after={after}&device={device}&generation={}",
+            state.sync_generation
+        ),
+        Some(&state.token),
+        None,
+    )
+}
+
+/// The count, or `None` when the server cannot tell (an older server, or one that refuses): the
+/// summary before a sync then shows only this device's changes.
+pub fn pending_reply(reply: Reply) -> Result<Option<u64>> {
+    if !reply.is_success() {
+        return Ok(None);
+    }
+    Ok(json::<locora_cloud_api::api::PendingReply>(reply)
+        .ok()
+        .map(|pending| pending.count))
+}
+
+/// Sends the e-mail with the confirmation link again.
+pub fn resend_email_call(state: &CloudState) -> Result<Call> {
+    call(
+        Method::Post,
+        &state.server,
+        "/v1/email/resend",
+        Some(&state.token),
+        Some(json_body(&serde_json::Value::Null)?),
+    )
+}
+
+pub fn resend_email_reply(reply: Reply) -> Result<()> {
+    if cloud_http::unsupported(&reply) {
+        bail!("Dieser Server verschickt keine Bestätigungs-E-Mails");
+    }
+    cloud_http::expect_success(reply)
 }
 
 pub fn logout_call(state: &CloudState) -> Result<Call> {
@@ -735,6 +790,17 @@ mod blocking {
         get(&state.server, "/v1/game/xp", &state.token)
     }
 
+    /// Operations of other devices waiting on the server; `None` when the server cannot tell.
+    pub fn pending(state: &CloudState, store: &locora_store::Store) -> Result<Option<u64>> {
+        // A summary must not fail because the server is away.
+        Ok(run(Exchange::new(pending_call(state, store)?, pending_reply)).unwrap_or(None))
+    }
+
+    /// Sends the confirmation e-mail again.
+    pub fn resend_email(state: &CloudState) -> Result<()> {
+        run(Exchange::new(resend_email_call(state)?, resend_email_reply))
+    }
+
     /// Ends the server session (best effort) and forgets the local one.
     pub fn logout(data: &Path, state: &CloudState) -> Result<()> {
         let _ = run(Exchange::new(logout_call(state)?, expect_success));
@@ -789,6 +855,8 @@ mod tests {
             token: "synthetic-test-token".into(),
             sync_generation: 0,
             entitlement: None,
+            last_sync_at: None,
+            auto_sync: false,
             account: Account {
                 id: "local".into(),
                 email: "test@example.invalid".into(),
@@ -888,6 +956,8 @@ mod tests {
             token: "synthetic-test-token".into(),
             sync_generation: 0,
             entitlement: None,
+            last_sync_at: None,
+            auto_sync: false,
             account: account.clone(),
         };
         assert!(can_sync(&state, 1_000));
@@ -972,6 +1042,8 @@ mod tests {
             token: "t".into(),
             sync_generation: 3,
             entitlement: None,
+            last_sync_at: None,
+            auto_sync: false,
             account: Account {
                 id: "a".into(),
                 email: "e@x.invalid".into(),

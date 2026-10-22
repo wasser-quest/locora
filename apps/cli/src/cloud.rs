@@ -154,13 +154,13 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
         }
         CloudCommand::Sync => {
             let state = signed_in(&data)?;
-            let bundle = cloud::get_keys(&state)?.ok_or_else(|| {
-                anyhow::anyhow!(
+            if cloud::get_keys(&state)?.is_none() {
+                bail!(
                     "Die Verschlüsselung ist noch nicht eingerichtet: `locora cloud encrypt setup`"
-                )
-            })?;
+                );
+            }
+            // The sync unlocks the key itself (Argon2 runs once); a wrong password stops it there.
             let passphrase = read_password("Verschlüsselungs-Passwort: ")?;
-            locora_crypto::unlock(&bundle, &passphrase).map_err(|e| anyhow::anyhow!("{e}"))?;
             let app = crate::app::App::open(Some(&data))?;
             // Also starts over with a new generation of the server (deleted or expired cloud data).
             let report = cloud_sync::sync_with_passphrase(&data, &app.store, &passphrase)?;
@@ -175,6 +175,18 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
                 "  angewendet: {}, schon bekannt: {}, Ort fehlt noch: {}",
                 report.applied.applied, report.applied.stale, report.applied.missing
             );
+            if report.compacted > 0 {
+                println!(
+                    "  {} überholte Änderungen nicht gesendet (spätere ersetzen sie)",
+                    report.compacted
+                );
+            }
+            if report.too_large > 0 {
+                println!(
+                    "  ! {} Änderungen sind zu groß für die Cloud und bleiben auf diesem Gerät",
+                    report.too_large
+                );
+            }
             if let Some(expires_at) = report.cloud_expires_at {
                 println!(
                     "  Cloud-Daten bleiben bis {} erhalten.",

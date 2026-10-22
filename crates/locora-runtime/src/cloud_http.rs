@@ -60,30 +60,67 @@ impl Reply {
     }
 }
 
-/// What a flow does next: send a call and wait for its reply, or finish with its output.
+/// Calls a flow may ask for at once (media transfers); the runners send them side by side.
+pub const PARALLEL: usize = 4;
+
+/// What a flow does next: send a call and wait for its reply, send several calls at once and wait
+/// for all their replies (`step_many`, in the same order), or finish with its output.
 pub enum Step<T> {
     Call(Call),
+    Calls(Vec<Call>),
     Done(T),
 }
 
 /// A cloud operation as steps. The first `step` gets `None`; every later one gets the reply to the
-/// call the previous step asked for.
+/// call the previous step asked for, or `step_many` the replies to its calls.
 pub trait Flow {
     type Output;
 
     fn step(&mut self, reply: Option<Reply>) -> Result<Step<Self::Output>>;
+
+    /// The replies to the calls of a `Step::Calls`, in the order of the calls.
+    fn step_many(&mut self, _replies: Vec<Reply>) -> Result<Step<Self::Output>> {
+        bail!("this request does not send calls side by side")
+    }
 }
 
-/// Runs a flow with the desktop HTTP client until it is done.
+/// Runs a flow with the desktop HTTP client until it is done. All its calls share one client, so a
+/// connection (and its TLS session) is reused from call to call.
 #[cfg(feature = "cloud")]
 pub fn run<F: Flow>(mut flow: F) -> Result<F::Output> {
-    let mut reply = None;
+    let agent = native::agent();
+    let mut step = flow.step(None)?;
     loop {
-        match flow.step(reply.take())? {
+        step = match step {
             Step::Done(output) => return Ok(output),
-            Step::Call(call) => reply = Some(native::perform(&call)?),
-        }
+            Step::Call(call) => flow.step(Some(native::perform(&agent, &call)?))?,
+            Step::Calls(calls) => flow.step_many(native::perform_all(&agent, &calls)?)?,
+        };
     }
+}
+
+/// A reply that was not a success: its status and the server's message (the error's text).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HttpError {
+    /// 0 when no reply came at all.
+    pub status: u16,
+    pub message: String,
+}
+
+impl std::fmt::Display for HttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for HttpError {}
+
+/// The HTTP status behind an error, if it came from a reply (0: the server was not reached).
+pub fn status_of(error: &anyhow::Error) -> Option<u16> {
+    error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<HttpError>())
+        .map(|error| error.status)
 }
 
 /// The body of a successful reply as JSON (an empty body reads as `null`), or the server's message.
@@ -104,13 +141,29 @@ pub fn failure(reply: &Reply) -> anyhow::Error {
         error: String,
     }
     // Status 0 is a reply that never came: the page could not reach the server.
-    if reply.status == 0 {
-        return anyhow::anyhow!("Locora Cloud nicht erreichbar");
-    }
-    match serde_json::from_slice::<ErrorBody>(&reply.body) {
-        Ok(body) => anyhow::anyhow!("{}", body.error),
-        Err(_) => anyhow::anyhow!("Locora Cloud antwortet mit {}", reply.status),
-    }
+    // Full storage and too many requests get the app's own words, which it translates.
+    let message = if reply.status == 0 {
+        "Locora Cloud nicht erreichbar".to_owned()
+    } else if reply.status == 429 {
+        "Gerade zu viele Anfragen an Locora Cloud. Bitte später erneut versuchen".to_owned()
+    } else if reply.status == 507 {
+        "Der Speicher in Locora Cloud ist voll. Lösche Bilder oder Videos, oder wähle ein Abo mit mehr Platz".to_owned()
+    } else {
+        match serde_json::from_slice::<ErrorBody>(&reply.body) {
+            Ok(body) => body.error,
+            Err(_) => format!("Locora Cloud antwortet mit {}", reply.status),
+        }
+    };
+    anyhow::Error::new(HttpError {
+        status: reply.status,
+        message,
+    })
+}
+
+/// Whether a reply says the server does not know this request: an older server without the
+/// endpoint (404, or 405 where the path matches another route).
+pub fn unsupported(reply: &Reply) -> bool {
+    matches!(reply.status, 404 | 405)
 }
 
 /// A single request whose reply is read by `read`.
@@ -156,8 +209,36 @@ mod native {
     use super::*;
     use std::time::Duration;
 
+    /// One client for all calls of a flow: it keeps connections open between calls.
+    pub fn agent() -> ureq::Agent {
+        ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .max_redirects(0)
+            .max_idle_connections_per_host(PARALLEL)
+            .build()
+            .into()
+    }
+
+    /// Sends calls side by side, one thread each; the replies come in the order of the calls.
+    pub fn perform_all(agent: &ureq::Agent, calls: &[Call]) -> Result<Vec<Reply>> {
+        std::thread::scope(|scope| {
+            let running: Vec<_> = calls
+                .iter()
+                .map(|call| scope.spawn(move || perform(agent, call)))
+                .collect();
+            running
+                .into_iter()
+                .map(|thread| {
+                    thread
+                        .join()
+                        .map_err(|_| anyhow::anyhow!("a cloud request stopped unexpectedly"))?
+                })
+                .collect()
+        })
+    }
+
     /// Sends one call with ureq. A non-2xx status is a reply like any other.
-    pub fn perform(call: &Call) -> Result<Reply> {
+    pub fn perform(agent: &ureq::Agent, call: &Call) -> Result<Reply> {
         let mut request = ureq::http::Request::builder()
             .method(call.method.as_str())
             .uri(&call.url);
@@ -173,12 +254,10 @@ mod native {
                 .body(bytes.clone())?,
             None => request.body(Vec::new())?,
         };
-        let agent: ureq::Agent = ureq::Agent::config_builder()
+        let request = agent
+            .configure_request(request)
             .timeout_global(Some(Duration::from_secs(call.timeout_secs)))
-            .http_status_as_error(false)
-            .max_redirects(0)
-            .build()
-            .into();
+            .build();
         let mut response = agent
             .run(request)
             .context("Locora Cloud nicht erreichbar")?;
@@ -249,7 +328,7 @@ mod tests {
         let mut flow = Echo;
         let call = match flow.step(None).unwrap() {
             Step::Call(call) => call,
-            Step::Done(_) => panic!("the flow must ask first"),
+            _ => panic!("the flow must ask first"),
         };
         assert_eq!(call.method.as_str(), "GET");
         assert!(matches!(
