@@ -5,28 +5,47 @@
 //! A command answers `{"call": …}` while a call is needed, and `{"done": …}` with its result.
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 
 use anyhow::{Result, anyhow, bail};
-use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, CloudSyncResult};
+use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus};
 use locora_cloud_api::api::KeyBundle;
 use locora_runtime::cloud::{self, CloudState, Connect, Refresh, RetentionStatus};
 use locora_runtime::cloud_http::{
     Body, Call, Exchange, Flow, Method, Reply, Step, failure, json as cloud_http_json,
 };
-use locora_runtime::cloud_sync::{SyncReport, UnlockSync};
 use serde_json::{Value, json};
+
+/// A flow waiting for the replies to its calls: how many it asked for, and those that came.
+struct Waiting {
+    flow: Box<dyn Flow<Output = Value>>,
+    /// `None` for a single call (`step`), `Some(n)` for calls side by side (`step_many`).
+    expected: Option<usize>,
+    replies: Vec<Reply>,
+}
 
 thread_local! {
     /// The flow that waits for the reply to its last call.
-    static WAITING: RefCell<Option<Box<dyn Flow<Output = Value>>>> = const { RefCell::new(None) };
-    /// The body of the last call, read by the page with `cloud_body`.
-    static OUTBOUND: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+    static WAITING: RefCell<Option<Waiting>> = const { RefCell::new(None) };
+    /// The bodies of the last calls, read by the page with `cloud_body`, one per call in order.
+    static OUTBOUND: RefCell<VecDeque<Vec<u8>>> = const { RefCell::new(VecDeque::new()) };
 }
 
 /// Runs a command that may need the network. A new command drops a flow that was still waiting.
 pub fn command(name: &str, args: &Value) -> Result<Value> {
+    // The worker that derives the key has no profile: this one works without.
+    if name == "cloud_unlock" {
+        return crate::cloud_auto::unlock(args);
+    }
     WAITING.with(|cell| cell.borrow_mut().take());
+    OUTBOUND.with(|cell| cell.borrow_mut().clear());
     let data = crate::with_backend(|backend| Ok(backend.profile.data_dir.clone()))?;
+    if let Some(flow) = crate::cloud_auto::command(name, args, &data)? {
+        return match flow {
+            crate::cloud_auto::Run::Done(value) => Ok(json!({ "done": value })),
+            crate::cloud_auto::Run::Flow(flow) => drive(flow, None),
+        };
+    }
     match name {
         "cloud_status" => {
             let state = cloud::load(&data)?;
@@ -100,38 +119,7 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             let state = saved(&data)?;
             drive(Box::new(KeysSetup::new(state, request.passphrase)), None)
         }
-        "cloud_sync" => {
-            let passphrase = args
-                .get("passphrase")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_owned();
-            if !(12..=1024).contains(&passphrase.chars().count()) {
-                bail!("Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen");
-            }
-            let state = saved(&data)?;
-            if !cloud::can_sync(&state, cloud::now_secs()) {
-                bail!(
-                    "Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren"
-                );
-            }
-            let store = crate::with_backend(|backend| Ok(backend.profile.store.clone()))?;
-            drive(
-                Box::new(Map::new(
-                    UnlockSync::new(state, store, passphrase),
-                    move |report: SyncReport| {
-                        // A new generation of the server (deleted or expired cloud data) is kept for the next sync.
-                        if let Some(generation) = report.new_generation {
-                            let mut state = saved(&data)?;
-                            state.sync_generation = generation;
-                            cloud::save(&data, &state)?;
-                        }
-                        sync_result(report)
-                    },
-                )),
-                None,
-            )
-        }
+        "cloud_sync" => crate::cloud_auto::sync(args, data),
         "cloud_erase" => {
             let state = saved(&data)?;
             let call = cloud::erase_call(&state)?;
@@ -143,6 +131,8 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
                         let store =
                             crate::with_backend(|backend| Ok(backend.profile.store.clone()))?;
                         cloud::adopt_generation(&mut state, &store, remote.generation)?;
+                        // The page forgets the kept key as well; auto-sync asks again.
+                        state.auto_sync = false;
                         cloud::save(&data, &state)?;
                         Ok(Value::Null)
                     },
@@ -177,26 +167,63 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
 }
 
 /// The reply the page got for the last call. Status 0 means the request never reached the server.
+/// After calls side by side the page hands the replies over one by one, in the order of the calls;
+/// all but the last answer `{"wait": true}`.
 pub fn reply(status: u32, body: Vec<u8>) -> Result<Value> {
-    let flow = WAITING
+    let mut waiting = WAITING
         .with(|cell| cell.borrow_mut().take())
         .ok_or_else(|| anyhow!("no cloud request is waiting for a reply"))?;
     let status = u16::try_from(status).unwrap_or(0);
-    drive(flow, Some(Reply { status, body }))
+    let reply = Reply { status, body };
+    match waiting.expected {
+        None => drive(waiting.flow, Some(reply)),
+        Some(expected) => {
+            waiting.replies.push(reply);
+            if waiting.replies.len() < expected {
+                WAITING.with(|cell| *cell.borrow_mut() = Some(waiting));
+                return Ok(json!({ "wait": true }));
+            }
+            let step = waiting.flow.step_many(waiting.replies)?;
+            resume(waiting.flow, step)
+        }
+    }
 }
 
-/// The body of the last call, empty when it had none.
+/// The body of the next call, empty when it had none.
 pub fn body() -> Vec<u8> {
-    OUTBOUND.with(|cell| std::mem::take(&mut *cell.borrow_mut()))
+    OUTBOUND.with(|cell| cell.borrow_mut().pop_front().unwrap_or_default())
 }
 
-/// Runs a flow until it needs a call (which the page sends) or is done.
+/// Runs a flow until it needs calls (which the page sends) or is done.
 fn drive(mut flow: Box<dyn Flow<Output = Value>>, reply: Option<Reply>) -> Result<Value> {
-    match flow.step(reply)? {
+    let step = flow.step(reply)?;
+    resume(flow, step)
+}
+
+pub(crate) fn resume(flow: Box<dyn Flow<Output = Value>>, step: Step<Value>) -> Result<Value> {
+    OUTBOUND.with(|cell| cell.borrow_mut().clear());
+    match step {
         Step::Call(call) => {
             let description = describe(&call);
-            WAITING.with(|cell| *cell.borrow_mut() = Some(flow));
+            WAITING.with(|cell| {
+                *cell.borrow_mut() = Some(Waiting {
+                    flow,
+                    expected: None,
+                    replies: Vec::new(),
+                })
+            });
             Ok(json!({ "call": description }))
+        }
+        Step::Calls(calls) => {
+            let descriptions: Vec<Value> = calls.iter().map(describe).collect();
+            WAITING.with(|cell| {
+                *cell.borrow_mut() = Some(Waiting {
+                    flow,
+                    expected: Some(calls.len()),
+                    replies: Vec::new(),
+                })
+            });
+            Ok(json!({ "calls": descriptions }))
         }
         Step::Done(value) => Ok(json!({ "done": value })),
     }
@@ -210,7 +237,7 @@ fn describe(call: &Call) -> Value {
         None => ("none", Vec::new()),
     };
     let length = bytes.len();
-    OUTBOUND.with(|cell| *cell.borrow_mut() = bytes);
+    OUTBOUND.with(|cell| cell.borrow_mut().push_back(bytes));
     json!({
         "method": match call.method {
             Method::Get => "GET",
@@ -231,34 +258,8 @@ fn saved(data: &std::path::Path) -> Result<CloudState> {
     cloud::load(data)?.ok_or_else(|| anyhow!("Kein Cloud-Konto angemeldet"))
 }
 
-fn status(state: Option<&CloudState>) -> CloudStatus {
-    match state {
-        Some(state) => CloudStatus {
-            account: Some(state.account.email.clone()),
-            server: Some(state.server.clone()),
-            access: cloud::can_sync(state, cloud::now_secs()),
-        },
-        None => CloudStatus {
-            account: None,
-            server: None,
-            access: false,
-        },
-    }
-}
-
-fn sync_result(report: SyncReport) -> Result<Value> {
-    Ok(json!(CloudSyncResult {
-        pushed: report.pushed,
-        media_uploaded: report.media_uploaded,
-        pulled: report.pulled,
-        media_downloaded: report.media_downloaded,
-        applied: report.applied.applied,
-        stale: report.applied.stale,
-        missing: report.applied.missing,
-        failed: report.applied.failed.len(),
-        quarantined: report.quarantined.len(),
-        cloud_expires_at: report.cloud_expires_at,
-    }))
+pub(crate) fn status(state: Option<&CloudState>) -> CloudStatus {
+    locora_app_core::cloud_view::status(state)
 }
 
 /// The arguments of a command the UI sends as `{ request: … }`, the shape of the desktop app's
@@ -294,13 +295,13 @@ fn validate_connect(request: &CloudConnect) -> Result<()> {
 }
 
 /// A flow whose result goes through `convert` (which may also save what the result means).
-struct Map<F, G> {
+pub(crate) struct Map<F, G> {
     flow: F,
     convert: G,
 }
 
 impl<F, G> Map<F, G> {
-    fn new(flow: F, convert: G) -> Self {
+    pub(crate) fn new(flow: F, convert: G) -> Self {
         Self { flow, convert }
     }
 }
@@ -309,8 +310,21 @@ impl<F: Flow, G: Fn(F::Output) -> Result<Value>> Flow for Map<F, G> {
     type Output = Value;
 
     fn step(&mut self, reply: Option<Reply>) -> Result<Step<Value>> {
-        match self.flow.step(reply)? {
+        let step = self.flow.step(reply)?;
+        self.convert(step)
+    }
+
+    fn step_many(&mut self, replies: Vec<Reply>) -> Result<Step<Value>> {
+        let step = self.flow.step_many(replies)?;
+        self.convert(step)
+    }
+}
+
+impl<F: Flow, G: Fn(F::Output) -> Result<Value>> Map<F, G> {
+    fn convert(&self, step: Step<F::Output>) -> Result<Step<Value>> {
+        match step {
             Step::Call(call) => Ok(Step::Call(call)),
+            Step::Calls(calls) => Ok(Step::Calls(calls)),
             Step::Done(output) => Ok(Step::Done((self.convert)(output)?)),
         }
     }

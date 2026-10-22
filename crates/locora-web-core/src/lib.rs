@@ -6,6 +6,7 @@
 //! the result from the returned (pointer, length) pair and frees it with `dealloc`.
 
 mod cloud;
+mod cloud_auto;
 mod commands;
 
 use std::cell::RefCell;

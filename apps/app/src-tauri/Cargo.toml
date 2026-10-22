@@ -38,5 +38,19 @@ tauri-plugin-notification = "2.7.0"
 tauri-plugin-locora-video = { path = "../plugins/video" }
 tempfile = "3"
 zeroize = "1"
+# The system's secure store for the auto-sync key (see src/keystore.rs).
+keyring-core = "1"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-native-keyring-store = "1"
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain", "protected"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1"
+
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
 
 [dev-dependencies]

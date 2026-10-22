@@ -56,7 +56,14 @@ function stub(request, response) {
 const run = (command, args = {}) => runCloud(core, () => {}, command, args);
 
 test('there is no account before a sign-in', async () => {
-  assert.deepEqual(await run('cloud_status'), { account: null, server: null, access: false });
+  assert.deepEqual(await run('cloud_status'), {
+    account: null,
+    server: null,
+    access: false,
+    email_verified: null,
+    auto_sync: false,
+    last_sync_at: null,
+  });
 });
 
 test('a sign-in keeps the account, and the status shows it', async () => {
@@ -71,6 +78,13 @@ test('a sign-in keeps the account, and the status shows it', async () => {
   assert.equal(status.access, false, 'without a subscription there is no entitlement');
   assert.ok(seen.includes('POST /v1/sessions'));
   assert.equal((await run('cloud_status')).account, 'learner@example.org');
+});
+
+test('the summary before a sync names this device's changes; an older server tells nothing more', async () => {
+  const pending = await run('cloud_pending');
+  assert.equal(pending.remote, null, 'the stub has no pending count');
+  assert.equal(typeof pending.local.total, 'number');
+  assert.ok(seen.includes('GET /v1/sync/pending'));
 });
 
 test('the encryption keys are set up once, and the status follows', async () => {

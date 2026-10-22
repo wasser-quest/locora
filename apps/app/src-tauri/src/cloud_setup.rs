@@ -11,7 +11,7 @@ use zeroize::Zeroizing;
 
 use crate::{Shared, err, lock};
 
-struct CloudOperation(Arc<AtomicBool>);
+pub(crate) struct CloudOperation(pub(crate) Arc<AtomicBool>);
 
 impl Drop for CloudOperation {
     fn drop(&mut self) {
@@ -19,7 +19,7 @@ impl Drop for CloudOperation {
     }
 }
 
-fn begin(app: &tauri::AppHandle) -> Result<(PathBuf, CloudOperation), String> {
+pub(crate) fn begin(app: &tauri::AppHandle) -> Result<(PathBuf, CloudOperation), String> {
     let backend = app.state::<Shared>();
     let backend = lock(&backend)?;
     let busy = backend.cloud_sync_busy.clone();
@@ -30,11 +30,13 @@ fn begin(app: &tauri::AppHandle) -> Result<(PathBuf, CloudOperation), String> {
 }
 
 fn status(state: &CloudState) -> CloudStatus {
-    CloudStatus {
-        account: Some(state.account.email.clone()),
-        server: Some(state.server.clone()),
-        access: cloud::can_sync(state, cloud::now_secs()),
-    }
+    locora_app_core::cloud_view::status(Some(state))
+}
+
+/// Forgets the auto-sync key before the session goes (best effort: a keychain that cannot be
+/// reached has nothing to forget for this run).
+fn forget_key(data: &std::path::Path) {
+    let _ = locora_runtime::cloud_key::forget(data, &crate::keystore::SystemKeys);
 }
 
 fn validate_connect(request: &CloudConnect) -> Result<(), String> {
@@ -160,6 +162,7 @@ pub async fn cloud_logout(app: tauri::AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let _busy = busy;
         if let Some(state) = cloud::load(&data).map_err(err)? {
+            forget_key(&data);
             cloud::logout(&data, &state).map_err(err)?;
         }
         Ok(())
@@ -182,6 +185,7 @@ pub async fn cloud_delete_account(app: tauri::AppHandle, password: String) -> Re
             .map_err(err)?
             .ok_or_else(|| "Kein Cloud-Konto angemeldet".to_owned())?;
         cloud::delete_account(&state, &password).map_err(err)?;
+        forget_key(&data);
         cloud::remove(&data).map_err(err)
     })
     .await

@@ -40,6 +40,7 @@ use locora_store::{PalaceTree, Store};
 
 pub mod cloud;
 pub mod cloud_http;
+pub mod cloud_key;
 pub mod cloud_sync;
 pub mod formula_guide;
 pub mod journey;

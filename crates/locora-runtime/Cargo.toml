@@ -33,4 +33,5 @@ ureq = { version = "3", features = ["json"], optional = true }
 url = "2"
 sha2.workspace = true
 percent-encoding = "2"
+zeroize = "1"
 base64 = "0.22"

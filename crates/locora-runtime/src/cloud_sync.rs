@@ -17,6 +17,7 @@ use locora_crypto::Dek;
 use locora_store::{ApplyReport, ChangeSummary, Op, PalaceChange, RemoteOp, Store};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use zeroize::Zeroizing;
 
 use crate::cloud::{self, CloudState, RetentionStatus};
 use crate::cloud_http::{Flow, Reply, Step, json};
@@ -105,7 +106,7 @@ pub fn sync_with_passphrase(data: &Path, store: &Store, passphrase: &str) -> Res
     sync_with(
         data,
         store,
-        Unlock::Passphrase(passphrase.to_owned()),
+        Unlock::Passphrase(Zeroizing::new(passphrase.to_owned())),
         SyncOptions::default(),
     )
 }
@@ -142,7 +143,7 @@ pub fn sync(state: &CloudState, store: &Store, dek: &Dek) -> Result<SyncReport> 
 /// How the account key is opened for a sync.
 pub enum Unlock {
     /// With the encryption password (Argon2, after fetching the wrapped keys).
-    Passphrase(String),
+    Passphrase(Zeroizing<String>),
     /// The key this device keeps (auto-sync), or one derived elsewhere (a browser worker).
     Key(Box<Dek>),
 }
@@ -162,7 +163,7 @@ pub struct UnlockSync<S> {
 
 enum Stage {
     Start(Unlock),
-    Keys(String),
+    Keys(Zeroizing<String>),
     Retention(Box<Dek>),
     Rebuild(Box<Dek>),
     Started,
@@ -173,7 +174,7 @@ impl<S: Clone + Deref<Target = Store>> UnlockSync<S> {
         Self::start(
             state,
             store,
-            Unlock::Passphrase(passphrase),
+            Unlock::Passphrase(Zeroizing::new(passphrase)),
             SyncOptions::default(),
         )
     }

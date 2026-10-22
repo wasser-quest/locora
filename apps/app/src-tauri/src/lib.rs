@@ -1,8 +1,10 @@
 //! Locora app backend: opens the same profile as the CLI, answers the UI's
 //! commands and serves media and `.sply` animations over `locora://`.
 
+mod cloud_auto;
 mod cloud_setup;
 mod drops;
+mod keystore;
 pub use locora_app_core::journey;
 use locora_app_core::{assets, editor, settings, sply, transfer, workbook};
 mod media;
@@ -903,15 +905,7 @@ async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
 async fn cloud_status(state: State<'_, Shared>) -> Result<locora_app_api::CloudStatus, String> {
     let data = lock(&state)?.data.clone();
     let saved = locora_runtime::cloud::load(&data).map_err(err)?;
-    Ok(locora_app_api::CloudStatus {
-        account: saved.as_ref().map(|state| state.account.email.clone()),
-        server: saved
-            .as_ref()
-            .and_then(|state| locora_runtime::cloud::check_server(&state.server).ok()),
-        access: saved.as_ref().is_some_and(|state| {
-            locora_runtime::cloud::can_sync(state, locora_runtime::cloud::now_secs())
-        }),
-    })
+    Ok(locora_app_core::cloud_view::status(saved.as_ref()))
 }
 
 /// Argon2 and network I/O run off the UI thread. Only one sync may mutate the
@@ -920,6 +914,7 @@ async fn cloud_status(state: State<'_, Shared>) -> Result<locora_app_api::CloudS
 async fn cloud_sync(
     app: tauri::AppHandle,
     passphrase: String,
+    confirmed: Option<Vec<String>>,
 ) -> Result<locora_app_api::CloudSyncResult, String> {
     if !(12..=1024).contains(&passphrase.chars().count()) {
         return Err("Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen".into());
@@ -945,20 +940,15 @@ async fn cloud_sync(
         }
         let _reset = Reset(busy);
         let passphrase = zeroize::Zeroizing::new(passphrase);
-        let report = locora_runtime::cloud_sync::sync_with_passphrase(&data, &store, &passphrase)
-            .map_err(err)?;
-        Ok(locora_app_api::CloudSyncResult {
-            pushed: report.pushed,
-            media_uploaded: report.media_uploaded,
-            pulled: report.pulled,
-            media_downloaded: report.media_downloaded,
-            applied: report.applied.applied,
-            stale: report.applied.stale,
-            missing: report.applied.missing,
-            failed: report.applied.failed.len(),
-            quarantined: report.quarantined.len(),
-            cloud_expires_at: report.cloud_expires_at,
-        })
+        use locora_runtime::cloud_sync::{self, SyncOptions, Unlock};
+        // A palace deletion is sent only once the person confirmed it (the UI asks first).
+        let options = SyncOptions {
+            confirmed: Some(confirmed.unwrap_or_default()),
+            automatic: false,
+        };
+        let unlock = Unlock::Passphrase(passphrase);
+        let report = cloud_sync::sync_with(&data, &store, unlock, options).map_err(err)?;
+        Ok(locora_app_core::cloud_view::sync_result(&report))
     })
     .await
     .map_err(|error| format!("Cloud-Sync konnte nicht abgeschlossen werden: {error}"))?
@@ -983,9 +973,12 @@ async fn cloud_erase(app: tauri::AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let result = (|| {
             use locora_runtime::cloud;
-            let mut saved = cloud::load(&data)?
+            let saved = cloud::load(&data)?
                 .ok_or_else(|| anyhow::anyhow!("Kein Cloud-Konto angemeldet"))?;
             let remote = cloud::erase(&saved)?;
+            // The kept key goes with the cloud data; auto-sync asks for the password again.
+            let _ = locora_runtime::cloud_key::forget(&data, &keystore::SystemKeys);
+            let mut saved = cloud::load(&data)?.unwrap_or(saved);
             cloud::adopt_generation(&mut saved, &store, remote.generation)?;
             cloud::save(&data, &saved)
         })();
@@ -1318,6 +1311,12 @@ pub fn run() {
             cloud_setup::cloud_refresh,
             cloud_setup::cloud_delete_account,
             cloud_erase,
+            cloud_auto::cloud_pending,
+            cloud_auto::cloud_auto_state,
+            cloud_auto::cloud_auto_enable,
+            cloud_auto::cloud_auto_disable,
+            cloud_auto::cloud_auto_sync,
+            cloud_auto::cloud_email_resend,
             ui_assets,
             gamification_status,
             activity,

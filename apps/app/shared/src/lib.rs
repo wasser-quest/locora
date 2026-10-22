@@ -115,6 +115,81 @@ pub const CMD_CLOUD_REFRESH: &str = "cloud_refresh";
 pub const CMD_CLOUD_ERASE: &str = "cloud_erase";
 /// Deletes the cloud account (its password confirms it) and signs this device out.
 pub const CMD_CLOUD_DELETE_ACCOUNT: &str = "cloud_delete_account";
+/// What the next sync sends, by palace, and how many changes wait on the server (`CloudPending`).
+pub const CMD_CLOUD_PENDING: &str = "cloud_pending";
+/// Turns auto-sync on with the encryption password (`{ passphrase }`); the key is kept in the
+/// device's secure store. Answers `CloudStatus`.
+pub const CMD_CLOUD_AUTO_ENABLE: &str = "cloud_auto_enable";
+/// Forgets the kept key and turns auto-sync off. Answers `CloudStatus`.
+pub const CMD_CLOUD_AUTO_DISABLE: &str = "cloud_auto_disable";
+/// What the auto-sync driver needs to decide whether to sync now (`CloudAutoState`).
+pub const CMD_CLOUD_AUTO_STATE: &str = "cloud_auto_state";
+/// A sync with the kept key (`{ confirmed: [palace ids] }`); answers `CloudAutoOutcome`.
+pub const CMD_CLOUD_AUTO_SYNC: &str = "cloud_auto_sync";
+/// Sends the e-mail with the confirmation link again.
+pub const CMD_CLOUD_EMAIL_RESEND: &str = "cloud_email_resend";
+/// The page where a forgotten cloud password is reset.
+pub const CLOUD_FORGOT_URL: &str = "https://web.locora.cloud/forgot";
+
+/// What a sync does to a palace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudChangeKind {
+    New,
+    Changed,
+    Deleted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudPalaceChange {
+    pub id: String,
+    /// `None` when this device never knew the palace's name.
+    pub name: Option<String>,
+    pub kind: CloudChangeKind,
+    pub changes: usize,
+}
+
+/// Changes grouped by palace; `other` counts reviews, journeys and plugin data.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudChanges {
+    pub total: usize,
+    pub palaces: Vec<CloudPalaceChange>,
+    pub other: usize,
+}
+
+/// Before a sync: what this device sends, and how many changes of other devices wait on the
+/// server (`None` when the server cannot tell).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudPending {
+    pub local: CloudChanges,
+    pub remote: Option<u64>,
+}
+
+/// For the auto-sync driver: whether it is on, and the newest local change (to wait until the
+/// person pauses).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudAutoState {
+    pub enabled: bool,
+    /// Sequence number of the newest local change.
+    pub local_seq: i64,
+    /// Whether local changes wait to be sent.
+    pub pending: bool,
+    pub last_sync_at: Option<i64>,
+}
+
+/// The result of an automatic sync. Exactly one of `result`, `confirm` (palace deletions that
+/// wait for a yes), `paused` (a person must act: sign in again, sync by hand) or `error` is set,
+/// unless auto-sync is off.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloudAutoOutcome {
+    pub enabled: bool,
+    pub result: Option<CloudSyncResult>,
+    pub confirm: Vec<CloudPalaceChange>,
+    pub paused: Option<String>,
+    pub error: Option<String>,
+    /// The server asked to wait (429): try again much later.
+    pub rate_limited: bool,
+}
 
 /// Credentials go directly to the Tauri backend; the UI never persists them.
 #[derive(Clone, Serialize, Deserialize)]
@@ -148,6 +223,27 @@ pub struct CloudStatus {
     pub account: Option<String>,
     pub server: Option<String>,
     pub access: bool,
+    /// Whether the e-mail address is confirmed; `None` from servers that do not confirm.
+    #[serde(default)]
+    pub email_verified: Option<bool>,
+    #[serde(default)]
+    pub auto_sync: bool,
+    /// Unix seconds of the last finished sync on this device.
+    #[serde(default)]
+    pub last_sync_at: Option<i64>,
+}
+
+impl CloudStatus {
+    pub fn signed_out() -> Self {
+        Self {
+            account: None,
+            server: None,
+            access: false,
+            email_verified: None,
+            auto_sync: false,
+            last_sync_at: None,
+        }
+    }
 }
 
 /// Result of one encrypted, manually started sync.
@@ -163,6 +259,15 @@ pub struct CloudSyncResult {
     pub failed: usize,
     pub quarantined: usize,
     pub cloud_expires_at: Option<i64>,
+    /// What other devices changed here.
+    #[serde(default)]
+    pub received: CloudChanges,
+    /// Changes not sent because later ones replace them.
+    #[serde(default)]
+    pub compacted: usize,
+    /// Changes too large for the cloud; they stay on this device.
+    #[serde(default)]
+    pub too_large: usize,
 }
 /// The system's offset from UTC in minutes, sent by the UI at every start.
 pub const CMD_SET_UTC_OFFSET: &str = "set_utc_offset";

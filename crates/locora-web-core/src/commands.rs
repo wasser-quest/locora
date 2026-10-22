@@ -582,11 +582,7 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         }
         // Without Locora Cloud the account is signed out: the settings page shows that, and the
         // actions that need the server explain why they cannot run here.
-        "cloud_status" | "cloud_refresh" => out(CloudStatus {
-            account: None,
-            server: None,
-            access: false,
-        }),
+        "cloud_status" | "cloud_refresh" => out(CloudStatus::signed_out()),
         "cloud_keys_status" => out(false),
         "cloud_logout" => out(()),
         cloud if cloud.starts_with("cloud_") => bail!(CLOUD_UNAVAILABLE),

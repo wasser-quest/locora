@@ -2,6 +2,7 @@
 //! use these modules; only the thin command layer around them differs.
 
 pub mod assets;
+pub mod cloud_view;
 pub mod convert;
 pub mod editor;
 pub mod journey;
