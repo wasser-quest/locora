@@ -796,6 +796,7 @@ mod tests {
                 subscription: SubscriptionState::None,
                 plan: None,
                 period_end: None,
+                email_verified: false,
             },
         };
         (state, worker)
@@ -876,6 +877,7 @@ mod tests {
             subscription: SubscriptionState::Active,
             plan: Some(Plan::Trial),
             period_end: Some(2_000),
+            email_verified: false,
         };
         assert!(
             !wants_entitlement(&account),
@@ -977,6 +979,7 @@ mod tests {
                 subscription: SubscriptionState::None,
                 plan: None,
                 period_end: None,
+                email_verified: false,
             },
         };
         let upload = media_call(&state, Method::Put, "abc", Some(Body::Bytes(vec![1]))).unwrap();

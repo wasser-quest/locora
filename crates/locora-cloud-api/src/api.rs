@@ -52,6 +52,10 @@ pub struct Account {
     pub plan: Option<Plan>,
     /// Unix seconds when the paid period ends.
     pub period_end: Option<u64>,
+    /// Whether the address was confirmed with the link from the confirmation e-mail. Older
+    /// servers never send it.
+    #[serde(default)]
+    pub email_verified: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -185,6 +189,53 @@ pub struct XpState {
     pub xp_total: u64,
     pub journeys_finished: u64,
     pub journeys_open: u64,
+}
+
+/// `POST /v1/media/missing`: which of these media ids the server does not have yet, so a sync
+/// uploads only those (at most 1000 ids per request).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MediaQuery {
+    pub ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MediaMissing {
+    pub missing: Vec<String>,
+}
+
+/// `GET /v1/sync/pending?after=<cursor>&device=<node>`: how many operations other devices
+/// stored after the cursor; shown before a sync, without pulling them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingReply {
+    pub count: u64,
+}
+
+/// `POST /v1/email/verify`: the token from the confirmation link.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerifyEmail {
+    pub token: String,
+}
+
+/// `POST /v1/password/forgot`: always answers 204, whether the address has an account or not.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PasswordForgot {
+    pub email: String,
+}
+
+/// `POST /v1/password/reset`: the token from the reset link and the new password. Signs out
+/// every device; the encryption password and the cloud data stay as they are.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PasswordReset {
+    pub token: String,
+    pub new_password: String,
+}
+
+/// `GET /v1/me/usage`: what the account uses on the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Usage {
+    pub media_bytes: u64,
+    pub media_quota: u64,
+    pub ops: u64,
 }
 
 pub use locora_crypto::KeyBundle;
