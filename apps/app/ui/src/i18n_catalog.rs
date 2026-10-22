@@ -5614,4 +5614,45 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "名称需要 1 到 60 个字符",
         ],
     ),
+    (
+        "Locora Cloud – Wiederherstellungsschlüssel",
+        [
+            "Locora Cloud – recovery key",
+            "Locora Cloud – Wiederherstellungsschlüssel",
+            "Locora Cloud – clé de récupération",
+            "Locora Cloud – 復元用の鍵",
+            "Locora Cloud – 恢复密钥",
+        ],
+    ),
+    (
+        "Als Datei speichern…",
+        [
+            "Save as a file…",
+            "Als Datei speichern…",
+            "Enregistrer dans un fichier…",
+            "ファイルに保存…",
+            "保存为文件…",
+        ],
+    ),
+    ("Kopieren", ["Copy", "Kopieren", "Copier", "コピー", "复制"]),
+    (
+        "Kopiert.",
+        [
+            "Copied.",
+            "Kopiert.",
+            "Copié.",
+            "コピーしました。",
+            "已复制。",
+        ],
+    ),
+    (
+        "Kopieren nicht möglich. Bitte den Schlüssel abschreiben.",
+        [
+            "Copying is not possible. Please write the key down.",
+            "Kopieren nicht möglich. Bitte den Schlüssel abschreiben.",
+            "Impossible de copier. Recopie la clé à la main.",
+            "コピーできません。鍵を書き写してください。",
+            "无法复制。请手动抄下密钥。",
+        ],
+    ),
 ];

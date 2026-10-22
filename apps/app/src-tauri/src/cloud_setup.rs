@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus};
-use locora_cloud_api::api::SubscriptionState;
 use locora_runtime::cloud::{self, CloudState};
 use tauri::Manager;
 use zeroize::Zeroizing;
@@ -34,7 +33,7 @@ fn status(state: &CloudState) -> CloudStatus {
     CloudStatus {
         account: Some(state.account.email.clone()),
         server: Some(state.server.clone()),
-        access: cloud::access(state, cloud::now_secs()).is_some(),
+        access: cloud::can_sync(state, cloud::now_secs()),
     }
 }
 
@@ -198,7 +197,7 @@ pub async fn cloud_refresh(app: tauri::AppHandle) -> Result<CloudStatus, String>
             .map_err(err)?
             .ok_or_else(|| "Kein Cloud-Konto angemeldet".to_owned())?;
         cloud::me(&mut state).map_err(err)?;
-        if state.account.subscription == SubscriptionState::None {
+        if !cloud::wants_entitlement(&state.account) {
             state.entitlement = None;
         } else {
             cloud::refresh(&mut state).map_err(err)?;

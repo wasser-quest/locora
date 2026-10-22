@@ -30,7 +30,9 @@ after(async () => {
 
 /** A fresh browser profile: its own IndexedDB, so each test starts with no palaces. */
 async function openApp(options = {}) {
-  const context = await browser.newContext({ viewport: options.viewport ?? { width: 1000, height: 760 }, acceptDownloads: true });
+  // `phone` is a touch screen: the commands then sit in a bar at the bottom.
+  const phone = options.phone ? { hasTouch: true, isMobile: true } : {};
+  const context = await browser.newContext({ viewport: options.viewport ?? { width: 1000, height: 760 }, acceptDownloads: true, ...phone });
   // The language is chosen on the very first start; the tests speak English unless they ask for that choice.
   if (!options.chooseLanguage) await context.addInitScript(() => localStorage.setItem('locora-language-v1', 'en'));
   const page = await context.newPage();
@@ -611,6 +613,31 @@ test('an ⓘ button in a settings checkbox explains it without toggling it', asy
     await info.focus();
     await page.keyboard.press('Escape');
     await box.waitFor({ state: 'detached', timeout: 5000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('on a phone the tour hides the commands bar and moves up while a field is typed in', async () => {
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 760 } });
+  try {
+    const commands = page.getByRole('button', { name: 'Open the command palette' });
+    const panel = page.locator('.tour-panel');
+    const step = (n) => page.waitForFunction((n) => document.body.innerText.includes(`Step ${n} of 13`), n, { timeout: 15000 });
+    await commands.waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Start the app tour' }).click();
+    await step(1);
+    assert.equal(await commands.count(), 0, 'the bar makes room for the tour');
+    for (let n = 2; n <= 7; n += 1) {
+      await panel.getByRole('button', { name: 'Next' }).click();
+      await step(n);
+    }
+    // The keyboard would cover the lower half: with a field focused the panel sits at the top.
+    await page.locator('.editor-form textarea').first().focus();
+    await page.waitForFunction(() => document.querySelector('.tour-panel').getBoundingClientRect().top < 200, null, { timeout: 5000 });
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+    await commands.waitFor({ timeout: 15000 });
     assert.deepEqual(problems, []);
   } finally {
     await context.close();

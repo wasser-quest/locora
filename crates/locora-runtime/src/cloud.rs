@@ -17,7 +17,7 @@ use anyhow::{Context, Result, bail};
 use locora_cloud_api::api::{
     Account, EntitlementReply, KeyBundle, Login, Register, Session, SubscriptionState,
 };
-use locora_cloud_api::entitlement::{Access, Claims, parse_public_key, verify};
+use locora_cloud_api::entitlement::{Access, Claims, Plan, parse_public_key, verify};
 use serde::{Deserialize, Serialize};
 
 use crate::cloud_http::{self, Body, Call, Flow, Method, Reply, Step, json};
@@ -119,6 +119,25 @@ pub fn check_server(server: &str) -> Result<String> {
         bail!("Der Server muss https:// verwenden (http nur für localhost)")
     }
     Ok(parsed.as_str().trim_end_matches('/').to_owned())
+}
+
+/// Whether the account is a guest (every account until it pays) whose trial is still running.
+/// A guest gets no signed entitlement; the server checks the trial on every request.
+fn trial_running(account: &Account, now: u64) -> bool {
+    account.subscription != SubscriptionState::None
+        && account.plan == Some(Plan::Trial)
+        && account.period_end.is_some_and(|end| end > now)
+}
+
+/// Whether the server issues an entitlement for this account: only a paid plan has one.
+pub fn wants_entitlement(account: &Account) -> bool {
+    account.subscription != SubscriptionState::None && account.plan != Some(Plan::Trial)
+}
+
+/// Whether this device may sync now: with a current entitlement (paid, also offline) or with a
+/// guest's running trial.
+pub fn can_sync(state: &CloudState, now: u64) -> bool {
+    access(state, now).is_some() || trial_running(&state.account, now)
 }
 
 /// The entitlement when it is current or inside the offline grace period.
@@ -411,7 +430,7 @@ impl Flow for Connect {
         }
         let session: Session = json(reply)?;
         let state = state_from_session(self.server.clone(), session);
-        if state.account.subscription == SubscriptionState::None {
+        if !wants_entitlement(&state.account) {
             return Ok(Step::Done(state));
         }
         let call = entitlement_call(&state)?;
@@ -426,8 +445,8 @@ enum RefreshStage {
     Entitlement,
 }
 
-/// Reads the account and, with a subscription, its entitlement again. Without a subscription the
-/// old entitlement is dropped. A failing entitlement is an error, and the caller keeps the old state.
+/// Reads the account and, with a paid subscription, its entitlement again. Without one (also as a
+/// guest) the old entitlement is dropped. A failing entitlement is an error, and the caller keeps the old state.
 pub struct Refresh {
     state: CloudState,
     stage: RefreshStage,
@@ -450,7 +469,7 @@ impl Flow for Refresh {
             (RefreshStage::Account, None) => Ok(Step::Call(me_call(&self.state)?)),
             (RefreshStage::Account, Some(reply)) => {
                 self.state.account = json(reply)?;
-                if self.state.account.subscription == SubscriptionState::None {
+                if !wants_entitlement(&self.state.account) {
                     self.state.entitlement = None;
                     return Ok(Step::Done(self.state.clone()));
                 }
@@ -541,7 +560,7 @@ mod blocking {
     #[cfg(test)]
     pub(crate) fn finish_login(server: String, session: Session) -> Result<CloudState> {
         let mut state = state_from_session(server, session);
-        if state.account.subscription != SubscriptionState::None {
+        if wants_entitlement(&state.account) {
             // A valid account session must survive a transient entitlement failure.
             let _ = refresh(&mut state);
         }
@@ -846,6 +865,38 @@ mod tests {
         let signed_in = finish_login(state.server, session).unwrap();
         assert!(signed_in.entitlement.is_none());
         assert!(worker.join().unwrap().starts_with("POST /v1/entitlement "));
+    }
+
+    #[test]
+    fn a_guest_syncs_during_its_trial_without_an_entitlement() {
+        let mut account = Account {
+            id: "guest".into(),
+            email: "guest@example.invalid".into(),
+            display_name: "Gast".into(),
+            subscription: SubscriptionState::Active,
+            plan: Some(Plan::Trial),
+            period_end: Some(2_000),
+        };
+        assert!(
+            !wants_entitlement(&account),
+            "the server issues none for a trial"
+        );
+        let mut state = CloudState {
+            server: "https://cloud.example".into(),
+            token: "synthetic-test-token".into(),
+            sync_generation: 0,
+            entitlement: None,
+            account: account.clone(),
+        };
+        assert!(can_sync(&state, 1_000));
+        assert!(!can_sync(&state, 2_000), "not after the trial ended");
+        account.plan = Some(Plan::Monthly);
+        assert!(wants_entitlement(&account));
+        state.account = account;
+        assert!(
+            !can_sync(&state, 1_000),
+            "a paid plan needs its signed entitlement"
+        );
     }
 
     #[test]

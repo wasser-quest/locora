@@ -56,7 +56,7 @@ pub struct SyncReport {
 #[cfg(feature = "cloud")]
 pub fn sync_with_passphrase(data: &Path, store: &Store, passphrase: &str) -> Result<SyncReport> {
     let state = cloud::load(data)?.ok_or_else(|| anyhow!("Nicht bei Locora Cloud angemeldet"))?;
-    if cloud::access(&state, cloud::now_secs()).is_none() {
+    if !cloud::can_sync(&state, cloud::now_secs()) {
         bail!("Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren");
     }
     let mut state = state;
@@ -241,7 +241,7 @@ pub struct SyncFlow<S, K> {
 impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
     /// Refuses to start without a valid entitlement, as the sync always did.
     pub fn new(state: CloudState, store: S, dek: K) -> Result<Self> {
-        if cloud::access(&state, cloud::now_secs()).is_none() {
+        if !cloud::can_sync(&state, cloud::now_secs()) {
             bail!(
                 "Keine gültige Freischaltung: `locora cloud refresh` ausführen oder das Abo prüfen"
             );

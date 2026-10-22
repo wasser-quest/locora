@@ -174,6 +174,26 @@ fn visible_area() -> Option<(f64, f64, f64)> {
     (covered > 120.0).then_some((top, height, covered))
 }
 
+/// Whether the focused element takes typed text (and so opens an on-screen keyboard).
+fn text_entry_focused() -> bool {
+    let Some(element) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.active_element())
+    else {
+        return false;
+    };
+    match element.tag_name().as_str() {
+        "TEXTAREA" => true,
+        "INPUT" => !matches!(
+            element.get_attribute("type").unwrap_or_default().as_str(),
+            "checkbox" | "radio" | "button" | "submit" | "range" | "color" | "file"
+        ),
+        _ => element
+            .get_attribute("contenteditable")
+            .is_some_and(|value| value != "false"),
+    }
+}
+
 /// The app tour's current step, for the screens that act on it (Simo's example).
 #[derive(Clone, Copy)]
 pub struct TourStep(pub RwSignal<Option<HighlightRequest>>);
@@ -329,12 +349,19 @@ fn TourOverlay(
     // The part of the window an on-screen keyboard leaves visible (top, height, covered at the
     // bottom). Fixed elements stay put while the keyboard covers them, so the panel follows this.
     let visible = RwSignal::new(None::<(f64, f64, f64)>);
+    // A text field has the focus: on a phone its keyboard covers the screen's lower half, also
+    // where the browser does not report it (an edge-to-edge app), so the panel goes to the top.
+    let typing = RwSignal::new(false);
     let focused = StoredValue::new(None::<(u8, String)>);
     let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
     let highlight = move || {
         let keyboard = visible_area();
         if visible.get_untracked() != keyboard {
             visible.set(keyboard);
+        }
+        let entering = text_entry_focused();
+        if typing.get_untracked() != entering {
+            typing.set(entering);
         }
         let current = active.get_untracked();
         let Some(document) = web_sys::window().and_then(|window| window.document()) else {
@@ -397,6 +424,9 @@ fn TourOverlay(
     };
     // The panel takes the half of the visible area the highlighted control is not in.
     let panel_top = move || {
+        if typing.get() && visible.get().is_none() {
+            return true;
+        }
         let (top, height) = match visible.get() {
             Some((top, height, _)) => (top, height),
             None => (

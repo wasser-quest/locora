@@ -110,7 +110,7 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
                 bail!("Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen");
             }
             let state = saved(&data)?;
-            if cloud::access(&state, cloud::now_secs()).is_none() {
+            if !cloud::can_sync(&state, cloud::now_secs()) {
                 bail!(
                     "Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren"
                 );
@@ -236,7 +236,7 @@ fn status(state: Option<&CloudState>) -> CloudStatus {
         Some(state) => CloudStatus {
             account: Some(state.account.email.clone()),
             server: Some(state.server.clone()),
-            access: cloud::access(state, cloud::now_secs()).is_some(),
+            access: cloud::can_sync(state, cloud::now_secs()),
         },
         None => CloudStatus {
             account: None,

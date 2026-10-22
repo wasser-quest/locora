@@ -271,8 +271,10 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
         pointer_cancel.remove();
     });
 
+    let tour = use_context::<crate::TourStep>();
     view! {
-        <Show when=move || !open.get()>
+        // The app tour's panel sits where this button is; it comes back when the tour ends.
+        <Show when=move || !open.get() && tour.is_none_or(|tour| tour.0.with(Option::is_none))>
             <button class="palette-mobile-trigger" type="button" aria-label=t("Befehlspalette öffnen")
                 on:click=move |_| show()>{t("Befehle")}</button>
         </Show>

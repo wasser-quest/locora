@@ -75,6 +75,8 @@ pub struct UiAssets {
 }
 pub const CMD_EXPORT_PICK: &str = "export_pick";
 pub const CMD_DUMP_PICK: &str = "dump_pick";
+/// Save a short text (the cloud recovery key) as a file the person picks; `None` when cancelled.
+pub const CMD_SAVE_TEXT_PICK: &str = "save_text_pick";
 
 /// After importing a `.locora` file.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

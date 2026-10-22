@@ -7,7 +7,7 @@ use leptos::task::spawn_local;
 use locora_app_api::{
     CMD_CLOUD_CONNECT, CMD_CLOUD_DELETE_ACCOUNT, CMD_CLOUD_ERASE, CMD_CLOUD_KEYS_SETUP,
     CMD_CLOUD_KEYS_STATUS, CMD_CLOUD_LOGOUT, CMD_CLOUD_REFRESH, CMD_CLOUD_STATUS, CMD_CLOUD_SYNC,
-    CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, CloudSyncResult,
+    CMD_SAVE_TEXT_PICK, CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, CloudSyncResult,
 };
 use serde::Serialize;
 
@@ -183,19 +183,20 @@ pub fn CloudSettings() -> impl IntoView {
                 }.into_any(),
             }}
             {move || recovery.get().map(|result| view! {
-                <div class="verdict" role="status">
-                    <p>{t("Wiederherstellungsschlüssel – nur jetzt sichtbar. Sicher außerhalb der App aufbewahren:")}</p>
-                    <code class="recovery-key">{result.recovery_key}</code>
+                <div class="recovery-panel" role="status">
+                    <p><strong>{t("Wiederherstellungsschlüssel – nur jetzt sichtbar. Sicher außerhalb der App aufbewahren:")}</strong></p>
+                    <pre class="recovery-key">{result.recovery_key.clone()}</pre>
+                    <SaveRecoveryKey key=result.recovery_key />
                     {result.warning.map(|warning| view! { <p class="notes" role="alert">{warning}</p> })}
-                    <p>{t("Ohne Verschlüsselungs-Passwort und diesen Schlüssel sind Cloud-Daten nicht mehr lesbar.")}</p>
+                    <p class="meta">{t("Ohne Verschlüsselungs-Passwort und diesen Schlüssel sind Cloud-Daten nicht mehr lesbar.")}</p>
                     {move || match keys.get() {
                         Some(Ok(true)) => view! {
-                            <button type="button" on:click=move |_| recovery.set(None)>
+                            <button type="button" class="primary wide" on:click=move |_| recovery.set(None)>
                                 {t("Ich habe den Schlüssel gesichert")}
                             </button>
                         }.into_any(),
                         Some(Ok(false)) => view! {
-                            <button type="button" on:click=move |_| recovery.set(None)>
+                            <button type="button" class="wide" on:click=move |_| recovery.set(None)>
                                 {t("Server hat keinen Schlüssel – neuen Versuch starten")}
                             </button>
                         }.into_any(),
@@ -303,6 +304,88 @@ fn DeleteCloud(
                 <button type="submit" class="danger" disabled=move || busy.get()>{t("Konto endgültig löschen")}</button>
             </form>
         </details>
+    }
+}
+
+#[derive(Serialize)]
+struct SaveTextArgs {
+    name: String,
+    text: String,
+}
+
+/// Save the recovery key as a text file or copy it, so it can be kept outside the app.
+#[component]
+fn SaveRecoveryKey(key: String) -> impl IntoView {
+    let key = StoredValue::new(key);
+    let saved = RwSignal::new(None::<Result<String, String>>);
+    let busy = RwSignal::new(false);
+    let save = move |_| {
+        if busy.get_untracked() {
+            return;
+        }
+        busy.set(true);
+        saved.set(None);
+        let text = format!(
+            "{}\n\n{}\n\n{}\n",
+            t("Locora Cloud – Wiederherstellungsschlüssel"),
+            key.get_value(),
+            t(
+                "Ohne Verschlüsselungs-Passwort und diesen Schlüssel sind Cloud-Daten nicht mehr lesbar."
+            ),
+        );
+        spawn_local(async move {
+            let args = SaveTextArgs {
+                name: "locora-recovery-key.txt".into(),
+                text,
+            };
+            match call::<Option<String>>(CMD_SAVE_TEXT_PICK, args).await {
+                Ok(Some(message)) => saved.set(Some(Ok(crate::i18n::translate(&message)))),
+                Ok(None) => {}
+                Err(message) => saved.set(Some(Err(message))),
+            }
+            busy.set(false);
+        });
+    };
+    let copy = move |_| {
+        // The clipboard API is reached through JavaScript; a refusal shows as an error.
+        let clipboard = web_sys::window()
+            .and_then(|window| js_sys::Reflect::get(&window.navigator(), &"clipboard".into()).ok())
+            .filter(|clipboard| !clipboard.is_undefined());
+        let written = clipboard.and_then(|clipboard| {
+            let write = js_sys::Reflect::get(&clipboard, &"writeText".into()).ok()?;
+            let write: js_sys::Function = wasm_bindgen::JsCast::dyn_into(write).ok()?;
+            let promise = write.call1(&clipboard, &key.get_value().into()).ok()?;
+            wasm_bindgen::JsCast::dyn_into::<js_sys::Promise>(promise).ok()
+        });
+        match written {
+            Some(promise) => spawn_local(async move {
+                saved.set(Some(
+                    match wasm_bindgen_futures::JsFuture::from(promise).await {
+                        Ok(_) => Ok(t("Kopiert.").into()),
+                        Err(_) => Err(t(
+                            "Kopieren nicht möglich. Bitte den Schlüssel abschreiben.",
+                        )
+                        .into()),
+                    },
+                ));
+            }),
+            None => saved.set(Some(Err(t(
+                "Kopieren nicht möglich. Bitte den Schlüssel abschreiben.",
+            )
+            .into()))),
+        }
+    };
+    view! {
+        <div class="row">
+            <button type="button" class="primary" disabled=move || busy.get() on:click=save>
+                {t("Als Datei speichern…")}
+            </button>
+            <button type="button" on:click=copy>{t("Kopieren")}</button>
+        </div>
+        {move || saved.get().map(|result| match result {
+            Ok(message) => view! { <p class="verdict ok" role="status">{message}</p> }.into_any(),
+            Err(message) => view! { <p class="notes" role="alert">{message}</p> }.into_any(),
+        })}
     }
 }
 

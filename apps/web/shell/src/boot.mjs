@@ -127,6 +127,8 @@ async function invoke(cmd, args = {}) {
       return exportFile('export_file', { palaceId: args.id });
     case 'dump_pick':
       return exportFile('dump_file', { palaceId: args.id });
+    case 'save_text_pick':
+      return downloadText(args.name, args.text);
     case 'notifications':
       return deliverNotifications();
     default:
@@ -257,6 +259,16 @@ async function exportFile(name, args) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 60000);
   return message;
+}
+
+/** Saves a short text (the cloud recovery key) as a download. */
+function downloadText(name, text) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+  return 'Gespeichert.';
 }
 
 /**

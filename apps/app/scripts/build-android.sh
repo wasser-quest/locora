@@ -53,6 +53,9 @@ if [[ ! -d src-tauri/gen/android ]]; then
 fi
 # Keep an existing generated project in sync with the versioned launcher icons.
 cp -R src-tauri/icons/android/. src-tauri/gen/android/app/src/main/res/
+main_activity="$(find src-tauri/gen/android/app/src/main -name MainActivity.kt | head -n 1)"
+[[ -f "$main_activity" ]] || fail "MainActivity.kt fehlt im Android-Projekt"
+python3 "$app_dir/scripts/android-keyboard-insets.py" "$main_activity"
 
 # RELEASE=1 builds the Play Store bundle (.aab), signed with the upload key whose properties file
 # LOCORA_ANDROID_KEYSTORE names (storeFile, storePassword, keyAlias, keyPassword). The file and the

@@ -650,6 +650,48 @@ async fn export_pick(
         .map_err(err)
 }
 
+/// Save a short text, such as the cloud recovery key, as a `.txt` file; `None` when cancelled.
+#[tauri::command]
+async fn save_text_pick(
+    app: tauri::AppHandle,
+    name: String,
+    text: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let picker_app = app.clone();
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        picker_app
+            .dialog()
+            .file()
+            .set_file_name(name)
+            .add_filter("Text", &["txt"])
+            .blocking_save_file()
+    })
+    .await
+    .map_err(|e| format!("Dateiauswahl fehlgeschlagen: {e}"))?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    #[cfg(mobile)]
+    {
+        let mut staged = tempfile::Builder::new()
+            .suffix(".txt")
+            .tempfile()
+            .map_err(|e| format!("Datei vorbereiten: {e}"))?;
+        std::io::Write::write_all(&mut staged, text.as_bytes())
+            .map_err(|e| format!("Datei schreiben: {e}"))?;
+        mobile_files::save(&app, selected, staged.path())?;
+    }
+    #[cfg(desktop)]
+    {
+        let path = selected
+            .into_path()
+            .map_err(|_| "Dieses Ziel ist keine lokale Datei".to_owned())?;
+        std::fs::write(&path, text).map_err(|e| format!("Datei schreiben: {e}"))?;
+    }
+    Ok(Some("Gespeichert.".to_owned()))
+}
+
 /// Export a TOML source and its media to a chosen local directory.
 #[cfg(desktop)]
 #[tauri::command]
@@ -867,7 +909,7 @@ async fn cloud_status(state: State<'_, Shared>) -> Result<locora_app_api::CloudS
             .as_ref()
             .and_then(|state| locora_runtime::cloud::check_server(&state.server).ok()),
         access: saved.as_ref().is_some_and(|state| {
-            locora_runtime::cloud::access(state, locora_runtime::cloud::now_secs()).is_some()
+            locora_runtime::cloud::can_sync(state, locora_runtime::cloud::now_secs())
         }),
     })
 }
@@ -1283,6 +1325,7 @@ pub fn run() {
             import_pick,
             export_pick,
             dump_pick,
+            save_text_pick,
             settings_set,
             settings_optimize,
             set_utc_offset,
