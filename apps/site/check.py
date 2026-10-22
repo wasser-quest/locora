@@ -10,7 +10,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_FILES = {"index.html", "privacy.html", "impressum.html", "konto-loeschen.html", "style.css", "_headers", "README.md", "check.py", "Dockerfile", "nginx.conf"}
 # Only these are allowed to leave the site: the project's own repository, as a plain link.
 # The forum and the browser app run as their own services at their public addresses.
-ALLOWED_LINKS = ("https://github.com/wasser-quest/locora", "https://bb.locora.cloud/", "https://app.locora.cloud/")
+# The account site web.locora.cloud is the project's own page for managing a Locora Cloud account.
+ALLOWED_LINKS = ("https://github.com/wasser-quest/locora", "https://bb.locora.cloud/", "https://app.locora.cloud/",
+                 "https://web.locora.cloud/")
+# Pictures: only PNG files in img/ of this site (img-src 'self'), each with an alt text.
+IMAGE_DIR = "img"
+LOCAL_IMAGE = re.compile(r"^img/[\w-]+\.png$")
 FORBIDDEN_TAGS = {"script", "iframe", "frame", "frameset", "object", "embed", "applet", "base", "form",
                   "svg", "math", "audio", "video", "source", "track", "style", "noscript", "template"}
 FORBIDDEN_SCHEMES = re.compile(r"^\s*(javascript|vbscript|data|blob|file)\s*:", re.I)
@@ -26,6 +31,8 @@ class Checker(HTMLParser):
         self.findings.append(f"index.html:{self.getpos()[0]}: {what}")
 
     def handle_starttag(self, tag, attrs):
+        if tag == "img" and "alt" not in (name.lower() for name, _ in attrs):
+            self.report("<img> needs an alt text")
         if tag in FORBIDDEN_TAGS:
             self.report(f"<{tag}> is not allowed on a static page")
         for name, value in attrs:
@@ -52,6 +59,9 @@ class Checker(HTMLParser):
                     self.report(f"link to {value[:60]!r} is not an allowed destination")
                 elif tag == "link" and name == "href" and not value.startswith(("style", "#")) and not re.match(r"^[\w.\-/]+\.css$", value):
                     self.report(f"stylesheet {value!r} must be a local .css file")
+                elif tag == "img" and name == "src" and LOCAL_IMAGE.match(value) \
+                        and os.path.isfile(os.path.join(HERE, value)):
+                    continue
                 elif tag not in ("a", "link"):
                     self.report(f"<{tag} {name}={value[:40]!r}> loads something; only text is allowed")
 
@@ -69,14 +79,18 @@ def check_css(path):
 def main():
     findings = []
     names = set(os.listdir(HERE))
-    extra = names - ALLOWED_FILES - {"__pycache__"}
+    extra = names - ALLOWED_FILES - {"__pycache__", ".git", IMAGE_DIR}  # .git: the standalone site repository
     for name in sorted(extra):
         findings.append(f"unexpected file {name!r} in the static site")
+    if IMAGE_DIR in names:
+        for name in sorted(os.listdir(os.path.join(HERE, IMAGE_DIR))):
+            if not LOCAL_IMAGE.match(f"{IMAGE_DIR}/{name}"):
+                findings.append(f"unexpected file {IMAGE_DIR}/{name!r}: only .png pictures belong there")
     for required in ("index.html", "privacy.html", "style.css", "_headers"):
         if required not in names:
             findings.append(f"missing {required}")
     if not findings:
-        for page in ("index.html", "privacy.html", "konto-loeschen.html"):
+        for page in ("index.html", "privacy.html", "impressum.html", "konto-loeschen.html"):
             checker = Checker()
             checker.feed(open(os.path.join(HERE, page), encoding="utf-8").read())
             findings += [f"{page}: {f}" for f in checker.findings]
@@ -84,7 +98,7 @@ def main():
         headers = open(os.path.join(HERE, "_headers"), encoding="utf-8").read()
         if CSP_TOKEN not in headers or "Content-Security-Policy:" not in headers:
             findings.append("_headers has no strict Content-Security-Policy")
-        for page in ("index.html", "privacy.html", "konto-loeschen.html"):
+        for page in ("index.html", "privacy.html", "impressum.html", "konto-loeschen.html"):
             if CSP_TOKEN not in open(os.path.join(HERE, page), encoding="utf-8").read():
                 findings.append(f"{page} has no strict Content-Security-Policy meta tag")
     if findings:
