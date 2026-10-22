@@ -80,7 +80,7 @@ test('a sign-in keeps the account, and the status shows it', async () => {
   assert.equal((await run('cloud_status')).account, 'learner@example.org');
 });
 
-test('the summary before a sync names this device's changes; an older server tells nothing more', async () => {
+test('the summary before a sync names the changes of this device; an older server tells nothing more', async () => {
   const pending = await run('cloud_pending');
   assert.equal(pending.remote, null, 'the stub has no pending count');
   assert.equal(typeof pending.local.total, 'number');

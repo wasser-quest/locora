@@ -172,14 +172,11 @@ pub fn SyncPanel(status: RwSignal<Option<Result<CloudStatus, String>>>) -> impl 
             .await;
             if result.is_ok() {
                 let at = (js_sys::Date::now() / 1000.0) as i64;
+                // The status line follows the driver's time; the account's status stays as it
+                // is, so this form (and its result) is not drawn anew.
                 if let Some(auto) = auto {
                     auto.synced(at);
                 }
-                status.update(|status| {
-                    if let Some(Ok(status)) = status {
-                        status.last_sync_at = Some(at);
-                    }
-                });
             }
             outcome.set(Some(result));
             busy.set(false);

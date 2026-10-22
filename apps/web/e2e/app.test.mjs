@@ -687,3 +687,126 @@ test('the first start asks for the language and then speaks it', async () => {
     await context.close();
   }
 });
+
+/**
+ * A Locora Cloud in the test: the page's requests to the cloud's address are answered here, so the
+ * sync runs end to end in the browser (keys, Argon2 in its worker, sealing) without a server.
+ */
+async function fakeCloud(page) {
+  const cloud = { keys: null, ops: [], media: new Set(), verified: false, resent: 0, pushes: 0, log: [] };
+  const account = () => ({
+    id: 'account-1', email: 'learner@example.org', display_name: 'Learner',
+    subscription: 'active', plan: 'trial', period_end: 4102444800, email_verified: cloud.verified,
+  });
+  const retention = { state: 'active', last_successful_sync_at: 0, expires_at: 4102444800, generation: 0 };
+  await page.route('https://api.locora.cloud/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: body === undefined ? '' : JSON.stringify(body) });
+    const key = `${request.method()} ${url.pathname}`;
+    cloud.log.push(key);
+    if (key === 'POST /v1/accounts') return json(200, { token: 'session', account: account() });
+    if (key === 'GET /v1/me') return json(200, account());
+    if (key === 'POST /v1/email/resend') {
+      cloud.resent += 1;
+      return json(204);
+    }
+    if (key === 'GET /v1/keys') return cloud.keys ? json(200, cloud.keys) : json(404, { error: 'none' });
+    if (key === 'POST /v1/keys') {
+      cloud.keys = request.postDataJSON();
+      return json(200, {});
+    }
+    if (key === 'GET /v1/sync/retention' || key === 'POST /v1/sync/complete') return json(200, retention);
+    if (key === 'GET /v1/sync/pending') return json(200, { count: 5 });
+    if (key === 'POST /v1/media/missing') {
+      return json(200, { missing: request.postDataJSON().ids.filter((id) => !cloud.media.has(id)) });
+    }
+    if (request.method() === 'PUT' && url.pathname.startsWith('/v1/media/')) {
+      cloud.media.add(url.pathname.split('/').pop());
+      return json(200, {});
+    }
+    if (key === 'POST /v1/sync/ops') {
+      cloud.pushes += 1;
+      cloud.ops.push(...request.postDataJSON().ops);
+      return json(200, { stored: 0 });
+    }
+    if (key === 'GET /v1/sync/ops') return json(200, { ops: [], cursor: Number(url.searchParams.get('after')) });
+    return json(404, { error: `not in the test cloud: ${key}` });
+  });
+  return cloud;
+}
+
+test('a cloud sync shows what it sends and asks before a palace deletion reaches the other devices', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    const cloud = await fakeCloud(page);
+    // The tour sets up the tutorial palace; the start page then shows it.
+    await page.getByRole('button', { name: 'Start the app tour' }).click();
+    await page.getByRole('region', { name: 'App tour' }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: /^Learn Locora/ }).first().waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Settings & statistics' }).click();
+    const panel = page.getByRole('region', { name: 'Locora Cloud' });
+    await panel.getByLabel('Email').fill('learner@example.org');
+    await panel.getByRole('checkbox', { name: /^Create a new account/ }).check();
+    await panel.getByLabel(/^Display name/).fill('Learner');
+    await panel.getByLabel(/^Cloud password/).fill('a long cloud password');
+    await panel.getByLabel(/^Repeat cloud password/).fill('a long cloud password');
+    await panel.getByRole('button', { name: 'Create account' }).click();
+    // A new account confirms its address; the link can be sent again.
+    await panel.getByText(/Please confirm your e-mail address: we sent you a link at learner@example.org/).waitFor({ timeout: 15000 });
+    await panel.getByRole('button', { name: 'Send the link again' }).click();
+    await panel.getByText('We sent the link again.').waitFor({ timeout: 5000 });
+    assert.equal(cloud.resent, 1);
+    cloud.verified = true;
+    await panel.getByRole('button', { name: 'I have confirmed – check' }).click();
+    await panel.getByText(/Please confirm your e-mail address/).waitFor({ state: 'detached', timeout: 5000 });
+
+    await panel.getByLabel(/^New encryption password/).fill('a long encryption passphrase');
+    await panel.getByLabel(/^Repeat encryption password/).fill('a long encryption passphrase');
+    await panel.getByRole('button', { name: 'Set up encryption' }).click();
+    await panel.getByRole('button', { name: 'I have saved the key' }).click({ timeout: 30000 });
+
+    // The first sync names the new palace, and what waits from other devices.
+    await panel.getByLabel(/^Encryption password/).fill('a long encryption passphrase');
+    await panel.getByRole('button', { name: 'Sync now' }).click();
+    await panel.getByText('This device sends:').waitFor({ timeout: 15000 });
+    assert.match(await panel.innerText(), /“Learn Locora” – new/);
+    assert.match(await panel.innerText(), /5 changes from your other devices are waiting in the cloud\./);
+    await panel.getByText('Sync finished.').waitFor({ timeout: 30000 });
+    assert.ok(cloud.ops.length > 0, 'the palace reached the cloud');
+    assert.ok(cloud.media.size > 0, 'with its pictures');
+    assert.match(await panel.innerText(), /Last synced: /);
+
+    // Deleted on this device: nothing is sent before the person agrees.
+    await page.evaluate(async () => {
+      const home = await window.__TAURI__.core.invoke('home');
+      const tutorial = home.palaces.find((card) => card.name === 'Learn Locora');
+      await window.__TAURI__.core.invoke('palace_delete', { palaceId: tutorial.id });
+    });
+    const pushes = cloud.pushes;
+    await panel.getByLabel(/^Encryption password/).fill('a long encryption passphrase');
+    await panel.getByRole('button', { name: 'Sync now' }).click();
+    await panel.getByText('Palace “Learn Locora” will also be deleted in the cloud and on your other devices.').waitFor({ timeout: 15000 });
+    assert.match(await panel.innerText(), /“Learn Locora” – deleted/);
+    await page.waitForTimeout(500);
+    assert.equal(cloud.pushes, pushes, 'nothing was sent yet');
+    await panel.getByRole('button', { name: 'Confirm deletion and sync' }).click();
+    await panel.getByText('Sync finished.').waitFor({ timeout: 30000 });
+    assert.ok(cloud.pushes > pushes, 'the confirmed deletion was sent');
+
+    // Auto-sync keeps the key in this browser and then syncs by itself.
+    const checks = () => cloud.log.filter((entry) => entry === 'GET /v1/sync/retention').length;
+    const before = checks();
+    await panel.getByLabel(/^Encryption password/).fill('a long encryption passphrase');
+    await panel.getByRole('button', { name: 'Turn on auto-sync' }).click();
+    await panel.getByText(/^Auto-sync is on/).waitFor({ timeout: 30000 });
+    for (let wait = 0; wait < 30 && checks() === before; wait += 1) await page.waitForTimeout(500);
+    assert.ok(checks() > before, 'an automatic sync ran without the password');
+    await panel.getByRole('button', { name: 'Forget the key on this device' }).click();
+    await panel.getByRole('button', { name: 'Turn on auto-sync' }).waitFor({ timeout: 10000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
