@@ -1,0 +1,88 @@
+name: Web preview
+
+# Every push to `testing` builds the web app, runs its browser tests and, when they pass, deploys it
+# as a preview on Netlify under the fixed alias `testing`:
+# https://testing--<netlify site name>.netlify.app. The live app (app.locora.cloud) only changes with
+# a release tag (release.yml).
+#
+# The Netlify token lives in the `preview` environment (Settings → Environments → preview, deployment
+# branches: `testing` only), as the secret NETLIFY_AUTH_TOKEN and the variable NETLIFY_SITE_ID. Without
+# them the build and tests still run and the deploy step is skipped with a notice.
+
+on:
+  push:
+    branches: [testing]
+  workflow_dispatch:
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CI: "true"
+  # Keep in sync with release.yml.
+  TRUNK_VERSION: 0.21.14
+
+jobs:
+  web:
+    name: Build, test and deploy the preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      LOCORA_ZIGBUILD: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: rustup show && rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            .
+            plugins
+          key: preview-web
+      - name: Install Trunk, zig and cargo-zigbuild
+        run: |
+          cargo install trunk --version "=$TRUNK_VERSION" --locked
+          cargo install cargo-zigbuild --version "=0.23.4" --locked
+          pip install ziglang==0.17.0
+      - name: Plugins as browser modules
+        run: |
+          cargo build --locked --release --target wasm32-wasip2 --manifest-path plugins/Cargo.toml \
+            -p core -p review -p notify -p tutorial -p gamification
+          cd apps/web/plugin-host
+          npm ci
+          node scripts/transpile.mjs ../../../plugins/target/wasm32-wasip2/release/{core,review,notify,tutorial,gamification}.wasm
+      - name: Build the web app
+        run: |
+          (cd apps/web && npm ci)
+          node apps/web/build.mjs
+      - name: Shell tests
+        working-directory: apps/web
+        run: npm test
+      - name: Browser tests
+        working-directory: apps/web/e2e
+        run: |
+          npm ci
+          npx playwright-core install --with-deps chromium
+          npm test
+      - name: Deploy the preview
+        id: deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::notice::No Netlify token in the preview environment: the preview is built and tested, not deployed."
+            exit 0
+          fi
+          npx --yes netlify-cli@27.13.0 deploy --no-build --dir apps/web/dist --site "$NETLIFY_SITE_ID" \
+            --alias testing --message "testing ${GITHUB_SHA::7}" --json > deploy.json
+          url=$(node -e 'const d = require("./deploy.json"); console.log(d.deploy_url)')
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview: $url" >> "$GITHUB_STEP_SUMMARY"
