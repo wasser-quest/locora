@@ -92,7 +92,8 @@ pub fn auto_outcome(result: anyhow::Result<SyncReport>) -> CloudAutoOutcome {
                 // The session ended (signed out elsewhere, password changed) or the access
                 // ended: a person has to act.
                 Some(401..=403) => outcome.paused = Some(format!("{error:#}")),
-                Some(429) => {
+                // Too many requests or a busy server: waits longer before the next try.
+                Some(429 | 503) => {
                     outcome.rate_limited = true;
                     outcome.error = Some(format!("{error:#}"));
                 }
@@ -126,6 +127,11 @@ mod tests {
             body: Vec::new(),
         })));
         assert!(busy.rate_limited && busy.error.is_some());
+        let crowded = auto_outcome(Err(cloud_http::failure(&cloud_http::Reply {
+            status: 503,
+            body: Vec::new(),
+        })));
+        assert!(crowded.rate_limited && crowded.error.is_some());
         let gone = auto_outcome(Err(cloud_http::failure(&cloud_http::Reply {
             status: 401,
             body: br#"{"error":"Anmeldung abgelaufen"}"#.to_vec(),

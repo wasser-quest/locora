@@ -2163,13 +2163,13 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate. Mit einem Abo bleiben sie dauerhaft.",
+        "Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate lang.",
         [
-            "Your data stays while you sync; without a sync for six months. With a subscription it stays permanently.",
-            "Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate. Mit einem Abo bleiben sie dauerhaft.",
-            "Vos données restent tant que vous synchronisez ; sans synchronisation pendant six mois. Avec un abonnement, elles restent durablement.",
-            "同期している限りデータは残ります。6か月同期しないと削除されます。購読中は永続的に残ります。",
-            "只要你同步，数据就会保留；六个月不同步则删除。有订阅则永久保留。",
+            "Your data stays while you sync; without a sync for six months.",
+            "Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate lang.",
+            "Vos données restent tant que vous synchronisez ; sans synchronisation pendant six mois.",
+            "同期している限りデータは残ります。同期しない場合は6か月間残ります。",
+            "只要你同步，数据就会保留；不同步时保留六个月。",
         ],
     ),
     (
@@ -5515,16 +5515,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "Der Speicher für Medien ist voll. Mit einem Abo gibt es mehr Platz.",
-        [
-            "The media storage is full. A subscription gives you more space.",
-            "Der Speicher für Medien ist voll. Mit einem Abo gibt es mehr Platz.",
-            "L'espace pour les médias est plein. Un abonnement donne plus de place.",
-            "メディアの保存容量がいっぱいです。購読するともっと使えます。",
-            "媒体存储空间已满。订阅后可获得更多空间。",
-        ],
-    ),
-    (
         "Der gemeinsame Medienspeicher ist voll. Bitte später erneut versuchen.",
         [
             "The shared media storage is full. Please try again later.",
@@ -5675,16 +5665,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "在你确认删除之前，自动同步会等待。",
         ],
     ),
-    (
-        "Später",
-        [
-            "Later",
-            "Später",
-            "Plus tard",
-            "あとで",
-            "稍后",
-        ],
-    ),
+    ("Später", ["Later", "Später", "Plus tard", "あとで", "稍后"]),
     (
         "(ohne Namen)",
         [
@@ -6016,13 +5997,23 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "Der Speicher in Locora Cloud ist voll. Lösche Bilder oder Videos, oder wähle ein Abo mit mehr Platz",
+        "Der Speicher in Locora Cloud ist voll. Lösche nicht mehr benötigte Bilder oder Videos oder versuche es später erneut",
         [
-            "Your Locora Cloud storage is full. Delete pictures or videos, or choose a plan with more space",
-            "Der Speicher in Locora Cloud ist voll. Lösche Bilder oder Videos, oder wähle ein Abo mit mehr Platz",
-            "Le stockage Locora Cloud est plein. Supprime des images ou des vidéos, ou choisis un abonnement avec plus d’espace",
-            "Locora Cloud の容量がいっぱいです。画像や動画を削除するか、容量の多いプランを選んでください",
-            "Locora Cloud 存储空间已满。请删除图片或视频，或选择空间更大的订阅",
+            "Your Locora Cloud storage is full. Delete pictures or videos you no longer need, or try again later",
+            "Der Speicher in Locora Cloud ist voll. Lösche nicht mehr benötigte Bilder oder Videos oder versuche es später erneut",
+            "Le stockage Locora Cloud est plein. Supprime les images ou vidéos dont tu n’as plus besoin, ou réessaie plus tard",
+            "Locora Cloud の容量がいっぱいです。不要な画像や動画を削除するか、あとでもう一度お試しください",
+            "Locora Cloud 存储空间已满。请删除不再需要的图片或视频，或稍后再试",
+        ],
+    ),
+    (
+        "Locora Cloud ist gerade ausgelastet. Bitte später erneut versuchen",
+        [
+            "Locora Cloud is busy right now. Please try again later",
+            "Locora Cloud ist gerade ausgelastet. Bitte später erneut versuchen",
+            "Locora Cloud est très sollicité en ce moment. Réessaie plus tard",
+            "Locora Cloud は現在混み合っています。あとでもう一度お試しください",
+            "Locora Cloud 当前繁忙。请稍后再试",
         ],
     ),
     (

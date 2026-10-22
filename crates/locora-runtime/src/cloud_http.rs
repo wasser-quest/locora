@@ -141,18 +141,17 @@ pub fn failure(reply: &Reply) -> anyhow::Error {
         error: String,
     }
     // Status 0 is a reply that never came: the page could not reach the server.
-    // Full storage and too many requests get the app's own words, which it translates.
-    let message = if reply.status == 0 {
-        "Locora Cloud nicht erreichbar".to_owned()
-    } else if reply.status == 429 {
-        "Gerade zu viele Anfragen an Locora Cloud. Bitte später erneut versuchen".to_owned()
-    } else if reply.status == 507 {
-        "Der Speicher in Locora Cloud ist voll. Lösche Bilder oder Videos, oder wähle ein Abo mit mehr Platz".to_owned()
-    } else {
-        match serde_json::from_slice::<ErrorBody>(&reply.body) {
+    // Full storage, too many requests and a busy server get the app's own words, which it
+    // translates. They stay neutral: the apps never send anyone to a shop.
+    let message = match reply.status {
+        0 => "Locora Cloud nicht erreichbar".to_owned(),
+        429 => "Gerade zu viele Anfragen an Locora Cloud. Bitte später erneut versuchen".to_owned(),
+        503 => "Locora Cloud ist gerade ausgelastet. Bitte später erneut versuchen".to_owned(),
+        507 => "Der Speicher in Locora Cloud ist voll. Lösche nicht mehr benötigte Bilder oder Videos oder versuche es später erneut".to_owned(),
+        _ => match serde_json::from_slice::<ErrorBody>(&reply.body) {
             Ok(body) => body.error,
             Err(_) => format!("Locora Cloud antwortet mit {}", reply.status),
-        }
+        },
     };
     anyhow::Error::new(HttpError {
         status: reply.status,
@@ -302,6 +301,20 @@ mod tests {
             plain.unwrap_err().to_string(),
             "Locora Cloud antwortet mit 500"
         );
+        // Full storage, rate limits and a busy server get the app's own neutral words, even
+        // where the server's message differs.
+        for (status, start) in [
+            (429, "Gerade zu viele Anfragen"),
+            (503, "Locora Cloud ist gerade ausgelastet"),
+            (507, "Der Speicher in Locora Cloud ist voll"),
+        ] {
+            let error = failure(&Reply {
+                status,
+                body: br#"{"error":"the server's own words"}"#.to_vec(),
+            });
+            assert!(error.to_string().starts_with(start), "{status}: {error}");
+            assert_eq!(status_of(&error), Some(status));
+        }
     }
 
     struct Echo;

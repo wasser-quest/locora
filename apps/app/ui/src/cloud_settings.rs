@@ -448,7 +448,7 @@ fn ConnectForm(
             <label><input type="checkbox" prop:checked=move || register.get()
                 on:change=move |event| register.set(event_target_checked(&event)) />{t("Neues Konto erstellen")}<Info text="Einschalten, wenn du noch kein Cloud-Konto hast. Sonst meldest du dich mit deinem Konto an." /></label>
             <Show when=move || register.get()>
-                <p class="meta">{t("Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate. Mit einem Abo bleiben sie dauerhaft.")}</p>
+                <p class="meta">{t("Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate lang.")}</p>
                 <label class="input"><span class="info-head">{t("Anzeigename")}<Info text="So heißt du für deine Freunde in Locora Cloud, z. B. in der Rangliste." /></span>
                     <input type="text" maxlength="32" bind:value=display_name />
                 </label>
