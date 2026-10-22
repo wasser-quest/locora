@@ -20,8 +20,12 @@ use sha2::{Digest, Sha256};
 pub use locora_api::journey::{Answer, AnswerKind, QuizOption};
 
 mod history;
+mod outbox;
 mod pull_queue;
 mod sync;
+pub use outbox::{
+    ChangeKind, ChangeSummary, OpHead, PalaceChange, change_kind, effective_fields, superseded,
+};
 pub use pull_queue::{PullAttempt, PullRetry};
 pub use sync::{ApplyReport, RemoteOp, media_refs};
 
@@ -843,9 +847,14 @@ impl Store {
     /// Delete a palace with all rooms and loci. Returns false if it did not exist.
     pub fn delete_palace(&self, id: &str) -> Result<bool> {
         let conn = self.conn();
+        let name: Option<String> = conn
+            .query_row("SELECT name FROM palaces WHERE id = ?1", [id], |r| r.get(0))
+            .optional()?;
         let deleted = conn.execute("DELETE FROM palaces WHERE id = ?1", [id])? > 0;
         if deleted {
-            self.log(&conn, "palace", id, "delete", None)?;
+            // The name goes along, so the sync can say which palace is deleted (applying ignores it).
+            let data = name.map(|name| serde_json::json!({ "name": name }));
+            self.log(&conn, "palace", id, "delete", data)?;
         }
         Ok(deleted)
     }
