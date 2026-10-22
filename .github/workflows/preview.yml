@@ -2,7 +2,7 @@ name: Web preview
 
 # Every push to `testing` builds the web app, runs its browser tests and, when they pass, deploys it
 # as a preview on Netlify under the fixed alias `testing`:
-# https://testing--<netlify site name>.netlify.app. The live app (app.locora.cloud) only changes with
+# https://testing--locora-app.netlify.app (linked from the README). The live app (app.locora.cloud) only changes with
 # a release tag (release.yml).
 #
 # The Netlify token lives in the `preview` environment (Settings → Environments → preview, deployment
