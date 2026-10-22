@@ -23,6 +23,8 @@ mod palette;
 mod settings;
 mod sply;
 mod startup;
+#[cfg(test)]
+mod store_rules;
 mod tauri;
 mod theme;
 mod video_frames;
