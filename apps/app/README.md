@@ -89,6 +89,17 @@ The script locates `JAVA_HOME` from `java` and `ANDROID_HOME` from `~/Android/Sd
 when possible. The SDK and Gradle downloads require network access in the build
 qube. The generated Android project stays local and is ignored by Git.
 
+On every build the script also patches the generated `MainActivity.kt` with
+`scripts/android-keyboard-insets.py`: the app draws edge to edge, and from Android 15 on
+the keyboard would cover the page (fields and the tour's panel at the bottom); the patch
+gives the page the keyboard's height as bottom padding. It runs once per generated
+project and stops with an error if the template changed. A manual build (below) needs
+the same step after `init`.
+
+Gradle and the JDK write temporary files to `java.io.tmpdir`, which ignores `TMPDIR`.
+When `/tmp` is small, point it elsewhere:
+`JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=$HOME/tmp ./apps/app/scripts/build-android.sh`.
+
 In a Qubes TemplateVM, install system packages in the **template**, then restart
 its AppVM; packages installed only in an ordinary AppVM do not persist. Keep the
 Android SDK and Cargo tools in the development AppVM's home directory, or use a
@@ -111,6 +122,7 @@ export AR_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
 rustup target add wasm32-unknown-unknown wasm32-wasip2 aarch64-linux-android
 cargo build --locked --manifest-path ../../plugins/Cargo.toml --release --target wasm32-wasip2 -p core -p review
 cargo tauri android init --ci --skip-targets-install
+python3 scripts/android-keyboard-insets.py "$(find src-tauri/gen/android/app/src/main -name MainActivity.kt)"
 cargo tauri android build --ci --debug --target aarch64 --apk
 ```
 
@@ -122,13 +134,23 @@ the upload key. `LOCORA_ANDROID_KEYSTORE` names its properties file (`storeFile`
 `scripts/android-release-signing.py` adds the signing to the generated project. Raise `version`
 in `src-tauri/tauri.conf.json` for every upload.
 
-**Releases:** raise `version` in `src-tauri/tauri.conf.json` (and the workspace versions), merge
-to `main`, then push a tag `vX.Y.Z` on that commit. `.github/workflows/release.yml` builds macOS
-(Apple silicon and Intel), Windows, Linux (AppImage, deb, rpm), Android and the `locora` CLI and publishes them as
-the GitHub release of that tag; a tag with a suffix (`v0.2.0-beta.1`) is a pre-release. For a
-signed Android APK (the Play Store bundle is built locally and never published), set the repository secrets `ANDROID_KEYSTORE_BASE64`
-(`base64 -w0 upload.jks`) and `ANDROID_KEYSTORE_PASSWORD`; without them the release carries a
-debug-signed APK. The desktop installers are not code-signed.
+**Releases:**
+
+1. Raise `version` in `src-tauri/tauri.conf.json` (and the workspace versions); the release
+   checks that the tag matches it.
+2. Write the release notes to `docs/releases/vX.Y.Z.md` (English, sections *New*, *Changed*,
+   *Downloads*). Without that file GitHub generates notes from the commits.
+3. Merge to `main`, then push a tag `vX.Y.Z` on that commit. A tag that is not on `main` fails.
+
+`.github/workflows/release.yml` then builds macOS (Apple silicon and Intel), Windows, Linux
+(AppImage, deb, rpm), Android, an unsigned iOS `.ipa` and the `locora` CLI (Linux x64 and ARM64,
+macOS Intel, Windows; the Apple silicon CLI is skipped for now, those Macs run the Intel one
+through Rosetta 2), publishes them with `SHA256SUMS.txt` as the GitHub release of that tag, and
+puts the web app live on Netlify. A tag with a suffix (`v0.2.0-beta.1`) is a pre-release. For a
+signed Android APK (the Play Store bundle is built locally and never published), set the
+repository secrets `ANDROID_KEYSTORE_BASE64` (`base64 -w0 upload.jks`) and
+`ANDROID_KEYSTORE_PASSWORD`; without them the release carries a debug-signed APK. The desktop
+installers are not code-signed.
 
 CI uploads `locora-android-arm64-debug` from
 `src-tauri/gen/android/app/build/outputs/apk/**/*.apk` (14-day retention).
@@ -214,8 +236,7 @@ signing/provisioning setup and device validation.
 ### Verification limits
 
 These workflows are build checks, not proof that Phase 2's device behavior, E2E
-click budgets, accessibility or startup-time requirements pass. Remote CI has not
-been run as part of adding them. Local validation cannot replace Android SDK/NDK
+click budgets, accessibility or startup-time requirements pass. Local validation cannot replace Android SDK/NDK
 and macOS/Xcode builds. Dependency, SDK and generated Gradle downloads require
 network access.
 
@@ -237,7 +258,14 @@ No release or device-readiness claim is implied by an uploaded build artifact.
 - `src-tauri/src/sply.rs`: `.sply` → interactive SVG with the vendored Splinely runtime,
   served as `locora://localhost/sply/<sha256>`. The graphic is mounted inline in the page
   (`splinely-mount.js`), not in a frame; its messages go through `sply_bridge.js`
-- `ui/src`: screens (start, palace with rooms and markers, journey); no domain logic
+- `src-tauri/src/cloud_auto.rs`, `keystore.rs`: auto-sync with the account key in the
+  system's keychain (see [`docs/CLOUD.md`](../../docs/CLOUD.md))
+- `ui/src`: screens (start, palace with rooms and markers, journey, settings with
+  `cloud_settings.rs`, `cloud_sync_form.rs`, `auto_sync.rs`); no domain logic
+- `ui/src/i18n.rs`, `i18n_catalog.rs`: the texts in English, German, French, Japanese and
+  Chinese. A test fails when a text in the code has no catalog row or a row misses a language.
+- `ui/src/store_rules.rs`: a test that the native apps show no prices, purchase wording or
+  checkout links (Locora Cloud is sold only on the web)
 
 ## Locus pictures
 
@@ -272,12 +300,13 @@ The list is an explicit submission, not an autosaved or durable draft.
 autosaves removal. Supported: PNG, JPEG, WebP, GIF, AVIF and binary `.sply`, up to
 500 MiB. The backend reuses source/CLI extension classification, checks raster MIME
 signatures and validates `.sply` with the existing SVG converter. Cancellation is a
-no-op; errors appear in German and leave the current assignment intact. Choose only
+no-op; errors appear in the chosen language and leave the current assignment intact. Choose only
 when edits have saved; form input is disabled while the picker is open. Files are
 copied into the profile media store, so originals need not remain in place.
 Only exact palace/room/locus IDs cross IPC, never a file path. The dialog plugin is
 backend-only: no dialog/filesystem permissions were added to the WebView and CSP
-is unchanged. Mobile content-URI selections are not supported yet (local files only).
+is unchanged. On mobile the picked `content://` and security-scoped files are streamed into
+private temporary files (see above).
 Native dialog interaction still needs a manual desktop/WebView smoke test.
 
 ## New palace from media
