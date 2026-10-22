@@ -47,7 +47,13 @@ on Windows choose *More info → Run anyway*. `SHA256SUMS.txt` lists the checksu
 - **Phone recordings as they are:** videos and sound keep the codec they were recorded in (H.264, HEVC,
   AV1, VP9, VP8; AAC, Opus, MP3, FLAC …) and your device plays them; Locora bundles no codec. Only
   rare formats (ProRes, AMR …) are converted, by Android, the browser, or an ffmpeg you installed.
+- **Sound at every locus:** an optional audio clip per locus, played when the answer is revealed.
 - **Minimal clicks:** one click starts a journey; drop an image or video to create a palace.
+- **A guided start:** an app tour in which Simo builds an example palace and walks its route with
+  you, and an ⓘ next to the editor's fields and the settings that explains each one.
+- **Five languages:** English, Deutsch, Français, 日本語 and 中文, chosen on the first start.
+- **Sync across devices (optional):** Locora Cloud keeps desktop, phone, browser and CLI in step,
+  end-to-end encrypted, by hand or automatically. See [Locora Cloud](#locora-cloud).
 - **Formulas:** workbook tables and formula bindings for content that can be calculated.
 - **Plugins everywhere:** `core`, `review`, `notify`, `tutorial` and `gamification` are Rust compiled to
   WebAssembly components, loaded at runtime, sandboxed and hot-reloadable.
@@ -113,6 +119,17 @@ Install the Locora app and the CLI. Follow https://raw.githubusercontent.com/was
 details it installs only the CLI. Afterwards [`llm.txt`](llm.txt) (`locora guide`) explains every
 command to the model.
 
+## Locora Cloud
+
+An optional service that syncs your palaces, media and progress between your devices. Everything
+is encrypted on the device with your own encryption password before it is sent; the server cannot
+read it. When you set up the encryption, the app shows a recovery key once: save it as a file or
+copy it. Sync by hand (the app first lists what it sends, by palace) or turn on auto-sync, which
+keeps the key in the system's keychain (in the browser: wrapped by WebCrypto). A deleted palace is
+deleted on your other devices only after you confirm it. New accounts can sync for six months
+without a subscription. Manage the account at [web.locora.cloud](https://web.locora.cloud).
+Details (German): [`docs/CLOUD.md`](docs/CLOUD.md).
+
 ## Building the app
 
 ```sh
@@ -120,9 +137,25 @@ cd apps/app && cargo tauri dev     # desktop app (Tauri 2 + Leptos); release: ca
 node apps/web/build.mjs            # the browser app into apps/web/dist
 ```
 
-Needs `trunk`, `tauri-cli` and the WebKit/GTK development packages; Android and iOS builds are
-described in [`apps/app/README.md`](apps/app/README.md), the web build in
+Needs `trunk`, `tauri-cli` and the WebKit/GTK development packages; Android and iOS builds and
+the release process are described in [`apps/app/README.md`](apps/app/README.md), the web build in
 [`apps/web/README.md`](apps/web/README.md).
+
+## Tests
+
+```sh
+cargo test                                  # core, CLI, store, sync (builds the test plugins)
+(cd plugins && cargo test --workspace --target x86_64-unknown-linux-gnu)  # plugin rules, natively
+(cd apps/app && cargo test --workspace)     # app backend and UI, incl. the translation catalog
+                                            # and the store rules (no prices or checkout links)
+(cd apps/web && npm test)                   # the browser core, plugins and cloud client in Node
+(cd apps/web/e2e && npm test)               # the browser app in Chromium, after node apps/web/build.mjs
+apps/app/tests/run_smoke.sh                 # the desktop app in WebKitGTK (Linux; build the debug app
+                                            # and the UI first, see the script's header)
+```
+
+CI runs `cargo fmt --check`, `clippy -D warnings` and the tests of both workspaces, and the native
+smoke test of the desktop app on Linux.
 
 ## Writing plugins
 
@@ -155,7 +188,7 @@ crates/locora-formula      safe, bounded formula language for workbook tables
 crates/locora-source       locora.toml source files: build palaces from text, dump them back
 crates/locora-crypto       end-to-end encryption of synced data
 plugins/                   the official plugins, compiled to wasm32-wasip2
-docs/                      plan, open work and notes (German)
+docs/                      plan, open work, Locora Cloud, release notes (German, release notes English)
 ```
 
 ## Simo
@@ -169,8 +202,9 @@ a memory palace, and his lantern and firefly light the way. All graphics are mad
 
 The whole app is MIT-licensed and free: the CLI, the desktop, mobile and web app, and the `core`,
 `review`, `notify`, `tutorial` and `gamification` plugins. Gamification (XP, trophies, daily
-challenges) works fully offline. Only the optional **Locora Cloud** web service (sync across
-devices, leaderboards, friends, shared challenges) is a proprietary service, end-to-end encrypted.
+challenges) works fully offline. Only the optional **Locora Cloud** web service (end-to-end
+encrypted sync across devices, leaderboards) is a proprietary service. A subscription is sold only
+on the web, never inside the apps.
 
 ## License
 

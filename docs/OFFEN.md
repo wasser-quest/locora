@@ -2,7 +2,7 @@
 
 Alles, was noch gebaut oder entschieden werden muss. Wird bei jedem Schritt aktualisiert. Erledigtes wird hier gestrichen und in `PLAN.md` (Abschnitt 13) bzw. den Commits festgehalten. Reihenfolge innerhalb eines Abschnitts = Empfehlung.
 
-Stand: 19.10.2026
+Stand: 22.10.2026
 
 ## Jetzt: Phase 2 – die App (Tauri 2 + Leptos)
 
@@ -62,7 +62,7 @@ Stand: 19.10.2026
 - [x] Grafiken als `.sply` (Stil `assets/STIL.md`): Kachel-Icons, Journey-Feedback (richtig/nochmal/geschafft), Willkommen mit Simo – `assets/ui/src/ui.py`, Simo aus `assets/mascot/src/simo.py`
 - [x] Weitere Grafiken: Raum-Arten in den Tabs, „nichts fällig“ mit Simo, Ladezustand mit dem Locora-Logo
 - [x] Mobile-CI `.github/workflows/mobile.yml`: Android-Debug-APK bei Push/PR, iOS-Simulator-App nur per Hand (macOS-Kontingent); TOML-Ordnerexport auf Mobil mit klarer Fehlermeldung
-- [ ] Mobile-Workflow nach Push auf `testing` remote prüfen; iOS verwendet Pulley statt JIT, Gerätetest und Signierung offen
+- [ ] iOS: Signierung (Apple-Entwicklerkonto) und Gerätetest; Releases enthalten bisher ein unsigniertes `.ipa`, iOS verwendet Pulley statt JIT
 - [ ] Mobile Befehlspalette per Abwärtswisch vom oberen Rand und sichtbarem „Befehle“-Knopf öffnen; WASM-Check und Gestenlogik-Test bestanden; Abwärtswisch auf dem Gerät noch offen (Knopf ist geprüft, siehe nächster Punkt)
 - [x] Android-Gerätesmoke-Test (Nothing A059P, Android 16, ARM64-Debug-APK aus `b11aad6`, 19.10.2026): Installation über die bestehende App ohne Datenverlust, Startseite mit Bestandsdaten, „Befehle“-Knopf öffnet die Palette mit Tastatur, Palastansicht öffnet sich per Karte; Logcat ohne Abstürze/ANRs. Journey-Ansicht rendert (Fortschritt, Herzen, Raumbild mit Marker; ohne Antwort). Bewertung auf dem Tutorial-Palast „Locora lernen“ geprüft (eine Frage, „Gut“): Combo und Herzen erscheinen, Weiter-Knopf bereit. Nicht geprüft: Marker-Layer, Video-Wiedergabe, Dateipicker. Abwärtswisch per `adb input swipe` nicht ausgelöst (Systemleiste fängt den oberen Rand). Beobachtung, nicht reproduziert: Android-Zurück aus der Journey hat die App einmal beendet
 - [x] Einstellung „Direkt in Core starten“ (PLAN 6.1): Gerätepräferenz, direkte Palastübersicht und wechselbares Raumvorschaubild auf Karten (Video mit Raum-Icon statt geladenem Film)
@@ -77,7 +77,7 @@ Stand: 19.10.2026
 - [x] Merkhilfe `note` pro Locus, beim Aufdecken gezeigt
 - [x] Abfragerichtungen: `--reverse`, `--numbers`, `--shuffle`
 - [x] Dieselben Übungsarten und die Merkhilfe in der App (Schalter in der Palastansicht)
-- [ ] Später: Ton beim Aufdecken (in mnemodim `soundPath`), über Audio in Splinely (`audioAssets`/`playAudio` im `.sply`)
+- [x] Ton beim Aufdecken: eigener Tonclip pro Locus (`audio`, `.locora` Format 4/5, `locora.toml`, CLI `--audio`, Editor, Sync); Audio in Splinely selbst ist nicht nötig
 - [x] Zoom pro Locus (1 bis 4): beim Abfragen zoomt die Bühne auf den Ort, der Ausschnitt bleibt im Bild (Schwenk ergibt sich aus der Position); Store, `.locora` (Format 3), `locora.toml`, CLI `--zoom`, Palast-Dienst, Editor
 
 ## Phase 1 – Reste
@@ -123,23 +123,45 @@ Stand: 19.10.2026
 - [x] Lernserie mit eigener `.sply`-Grafik in der Journey darstellen
 - [x] Lernserie auch in der Gamification-Kachel auf der Startseite darstellen
 - [x] Privates Repo `locora-cloud` (axum + Postgres, `wasser-quest/locora-cloud`): Konten, Sitzungen, Ranglisten, Freunde, Challenges, Sync, Medien; Tests gegen PostgreSQL
-- [ ] Zahlungsanbieter anbinden: Merchant of Record (Desktop) und In-App-Kauf (iOS/Android); der Webhook ist anbieterneutral, Verträge und Konten fehlen
+- [ ] Bezahlen über Paddle (Merchant of Record), **nur im Web**: 5 €/Monat oder 48 €/Jahr; nur bestätigte Adressen kaufen, die Konto-ID geht durch den Checkout. Kein In-App-Kauf: die nativen Apps zeigen nie Preise, Kaufknöpfe oder Links zu einer Kasse (Store-Regeln gegen Steering); `apps/app/ui/src/store_rules.rs` prüft das in den Tests. Der Webhook des Servers ist anbieterneutral; Konto und Vertrag bei Paddle fehlen
 - [x] Ed25519-Entitlements mit 14 Tagen Offline-Kulanz: der Server stellt sie aus, `locora cloud status` prüft sie ohne Netz
 
 ## Phase 6 und 7
 
 - [x] Sync über das Op-Log (HLC, Last-Writer-Wins pro Feld, Tombstones) mit Locora Cloud: `locora cloud sync`, Medien per Hash, Journeys werden auf dem Server gewertet
-  - Erledigt: Cloud-Anmeldung/Registrierung, Schlüsseleinrichtung mit einmalig gezeigtem Wiederherstellungsschlüssel und manueller verschlüsselter Sync in den App-Einstellungen; realen Server- und Gerätedurchlauf noch prüfen
+  - Erledigt: Cloud-Anmeldung/Registrierung, Schlüsseleinrichtung mit einmalig gezeigtem Wiederherstellungsschlüssel (als Datei speichern oder kopieren) und manueller verschlüsselter Sync in den App-Einstellungen, auch im Browser
+  - Erledigt: schnellerer Sync (eine Verbindung, Medien gesammelt prüfen, vier Übertragungen gleichzeitig, Pakete nach Größe, Ausgang zusammengefasst), Übersicht vor dem Sync nach Palast, Bestätigung vor dem Senden einer Palast-Löschung, Auto-Sync mit dem Schlüssel im Schlüsselspeicher des Systems bzw. WebCrypto im Browser; siehe [`CLOUD.md`](CLOUD.md)
+  - Erledigt: Gastkonten synchronisieren im sechsmonatigen Testzeitraum ohne signierte Freischaltung
+  - Offen: realer Durchlauf gegen den neuen Server und mit echten Geräten (Desktop, Android, iPhone, Browser), auch Auto-Sync
+  - Offen: Wiederherstellen mit dem Wiederherstellungsschlüssel gibt es nur in der CLI (`locora cloud encrypt recover`), nicht in der App
+  - Offen: Android hält den Auto-Sync-Schlüssel über den Android Keystore verschlüsselt in den privaten Einstellungen der App (`android-native-keyring-store`); auf einem echten Gerät prüfen, auch nach Neuinstallation und Sicherung
   - Erledigt für neu gebaute Paläste: Tutorial und Formel-Guide erhalten geräteübergreifend feste Kennungen für Palast, Räume und Loci. Bereits vorhandene Profile brauchen einen bewusst ausgelösten Neuaufbau; dieser setzt ihren bisherigen Wiederholungsstand zurück.
   - Offen: Gamification-Fortschritt wird noch als Ganzwert per LWW repliziert. Verlustfreies Zusammenführen braucht eindeutige Fortschrittsereignisse und eine Migration; alte Clients müssten für Sync aktualisiert werden.
 - [ ] Plugin-Verzeichnis, WASM-Plugins von Dritten mit deklarativer UI, Store-Prüfung für iOS/Android
 
+## Locora Cloud: als Nächstes
+
+Reihenfolge: Deploy → Rangliste → Bezahlen.
+
+- [x] Passwort zurücksetzen per E-Mail (Link 1 h, „Passwort vergessen?“ in der App führt zu `web.locora.cloud/forgot`)
+- [x] E-Mail-Bestätigung nach der Registrierung, mit „Link erneut senden“ und „Ich habe bestätigt – prüfen“ in der App
+- [x] Server gehärtet: Speicherkontingente pro Konto (Standard Medien 512 MiB Gast / 5 GiB mit Abo, Änderungen 256 MiB / 2 GiB), serverweite Budgets, Zeitlimits, Rate-Limits, Wartungs-Job (Warnung vor dem Löschen, Aufräumen), tägliches verschlüsseltes Datenbank-Backup; die App meldet volle Speicher (507), Überlast (503) und 429 neutral, ohne Abo-Hinweis
+- [x] Kontoseite `web.locora.cloud` (statisch, im Server-Repo unter `web/`): Konto, Speicher, Passwort, Abmelden, Daten oder Konto löschen, Mail-Links
+- [ ] Neuen Server und die Kontoseite deployen (vorher fragen); danach den Gerätedurchlauf oben
+- [ ] Rangliste neu: eine öffentliche Rangliste statt Freunden und Challenges, Zeiträume Tag/Woche/Monat/Jahr, Teilnahme nur auf Wunsch mit Anzeigename, kostenlos. „Melden“ (Schummeln, unpassender Name), automatisch ausgeblendet ab 5 Meldungen verschiedener bestätigter Konten; Ausblenden pro Gerät; Server-Befehle für den Betreiber. In der App als abschaltbare Kachel/Seite. Freunde und Challenges aus App, CLI und Server entfernen
+- [ ] Bezahlen über Paddle (siehe Phase 5), nur im Web
+- [ ] Rechtliches für das Abo: AGB, Widerrufsbelehrung, Preisseite, Datenschutzerklärung ergänzen
+- [ ] Support-Adresse einrichten und nennen
+- [ ] Sicherung der Medien im S3-Bucket (die Datenbank wird schon gesichert)
+- [ ] Datenexport (DSGVO)
+- [ ] Seite „Mnemotechnik lernen“ (in Arbeit)
+
 ## Entscheidungen, die noch anstehen
 
-- [ ] Betrieb von Locora Cloud: Hosting, TLS-Proxy, Sicherung der Datenbank, Konto löschen und exportieren (DSGVO), Passwort zurücksetzen; siehe `locora-cloud/README.md`
-- [x] Angemeldete Cloud-Passwortänderung (`PUT /v1/me/password`, `locora cloud password`) mit altem Passwort, 10 Versuchen je Stunde und Widerruf aller Sitzungen; vergessene Passwörter brauchen weiterhin einen E-Mail-Reset
+- [x] Betrieb von Locora Cloud: Hosting, TLS-Proxy (Caddy), Sicherung der Datenbank, Konto löschen, Passwort zurücksetzen; siehe `locora-cloud/README.md` und `locora-cloud/deploy/BETRIEB.md`
+- [x] Angemeldete Cloud-Passwortänderung (`PUT /v1/me/password`, `locora cloud password`) mit altem Passwort, 10 Versuchen je Stunde und Widerruf aller Sitzungen
 - [x] Cloud-Medienuploads pro Konto auf 200 neue Versuche je Stunde begrenzen; fertige Uploads lassen sich ohne weiteres Kontingent wiederholen (atomarer PostgreSQL-Zähler)
 - [ ] Cloud-Integrationstest für das Upload-Limit gegen PostgreSQL ausführen (Test kompiliert; hier ist derzeit keine Testdatenbank erreichbar)
 - [ ] Schlüsselverwaltung: Entitlement-Schlüssel und Webhook-Geheimnis liegen lokal in `~/.config/locora-cloud` (nicht im Repo); vor dem Betrieb in einen Secret-Store verlegen und Rotation planen
 - [x] Splinely-Release 0.5.2 lokal installiert; alle Locora-Grafiken bestehen `check` ohne Hinweise
-- [x] Repo privat; PRs und CI-Status über `gh` mit Token. Actions-Kontingent: CI nur noch auf Linux, macOS/Windows per Hand (`workflow_dispatch`)
+- [x] Repo öffentlich; CI prüft Pull Requests auf Linux, Pushes auf `main` auch auf macOS und Windows

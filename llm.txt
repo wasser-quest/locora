@@ -46,7 +46,8 @@ Diese Datei ist für dich geschrieben. `locora guide` gibt sie aus.
 | Palast teilen oder sichern | `locora export <PALAST>`, wieder laden mit `locora import <DATEI>` |
 | Palast aus Text bauen (locora.toml) | `locora build <DATEI>` |
 | Tutorial starten | `locora tutorial` |
-| Cloud | `locora cloud status` (ohne Netz) |
+| Cloud: Stand ohne Netz | `locora cloud status` |
+| Cloud: Geräte abgleichen | `locora cloud sync` (fragt das Verschlüsselungs-Passwort ab) |
 
 ## Ablauf für einen Nutzer, der lernen will
 
@@ -63,7 +64,11 @@ Diese Datei ist für dich geschrieben. `locora guide` gibt sie aus.
 - Ton zur Antwort eines Orts: `--audio <DATEI>` bei `add` oder `edit` (mp3, m4a, wav, ogg, weba, flac, aac; ohne Tags gespeichert, nie neu kodiert); `edit … --no-audio` entfernt ihn.
 - Mit `--data <ORDNER>` ein eigenes Testprofil verwenden; so verändert man nicht die echten Daten.
 - `locora rm` löscht unwiderruflich. Vorher `locora export <PALAST>` als Sicherung anbieten.
-- `locora cloud` (Konto, Sync, Ranglisten) ist optional und kostet später möglicherweise etwas.
+- `locora cloud` ist optional: Konto, Ende-zu-Ende-verschlüsselter Sync zwischen Geräten (auch mit der App und dem Browser), Ranglisten.
+  Ein neues Konto (`locora cloud register`) synchronisiert sechs Monate ohne Abo; danach braucht der Sync ein Abo, das nur im Web verkauft wird.
+  Erst `locora cloud encrypt setup`: Es zeigt einmal einen Wiederherstellungsschlüssel, den der Nutzer sichern muss.
+  Passwörter fragt die CLI ohne Echo im Terminal ab, nie als Argument: Lass den Nutzer diese Befehle selbst ausführen, statt nach Passwörtern zu fragen.
+  `locora cloud erase` und `locora cloud delete-account` löschen Daten auf dem Server; nur auf ausdrücklichen Wunsch.
 
 ## Befehlsübersicht
 
