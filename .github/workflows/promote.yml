@@ -32,11 +32,19 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           ok=true
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SHA&event=push&branch=testing")
           for name in "CI" "Web preview" "Mobile builds"; do
-            conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SHA&event=push&branch=testing" \
-              --jq "[.workflow_runs[] | select(.name == \"$name\")] | sort_by(.created_at) | last | .conclusion // \"missing\"")
-            echo "$name: $conclusion"
-            [ "$conclusion" = success ] || ok=false
+            id=$(jq -r --arg n "$name" '[.workflow_runs[] | select(.name == $n)] | sort_by(.created_at) | last | .id // empty' <<<"$runs")
+            if [ -z "$id" ]; then echo "$name: missing"; ok=false; continue; fi
+            # Every job must pass. Only a macOS job that never got a runner (cancelled before its
+            # first step) does not block: macOS is built again in full for every release.
+            bad=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" --jq '
+              .jobs[] | select(.conclusion != "success" and .conclusion != "skipped")
+              | select((.name | startswith("macos")) and .conclusion == "cancelled"
+                       and ([.steps[]? | select(.conclusion == "success")] | length) == 0 | not)
+              | "\(.name)=\(.conclusion)"')
+            echo "$name: ${bad:-ok}"
+            [ -z "$bad" ] || ok=false
           done
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
