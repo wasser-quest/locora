@@ -793,7 +793,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     ("Tabelle", ["Table", "Tabelle", "Table", "表", "表格"]),
-    ("Schlüssel", ["Key", "Schlüssel", "Clé", "キー", "键"]),
     ("Spalte", ["Column", "Spalte", "Colonne", "列", "列"]),
     ("Typ", ["Type", "Typ", "Type", "種類", "类型"]),
     ("Wert", ["Value", "Wert", "Valeur", "値", "值"]),
@@ -3498,6 +3497,2121 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "Son enregistré",
             "音声を保存しました",
             "音频已保存",
+        ],
+    ),
+    (
+        "Erklärung",
+        ["Explanation", "Erklärung", "Explication", "説明", "说明"],
+    ),
+    (
+        "So heißt dein Palast. Unter diesem Namen findest du ihn auf der Startseite.",
+        [
+            "This is your palace's name. You find it under this name on the home page.",
+            "So heißt dein Palast. Unter diesem Namen findest du ihn auf der Startseite.",
+            "C'est le nom de ton palais. Tu le retrouves sous ce nom sur la page d'accueil.",
+            "パレスの名前です。ホーム画面ではこの名前で表示されます。",
+            "这是你的宫殿的名称。在主页上可以用这个名称找到它。",
+        ],
+    ),
+    (
+        "Ist das eingeschaltet, legt jeder Tipp auf das Bild an dieser Stelle einen neuen Ort an.",
+        [
+            "When this is on, every tap on the picture adds a new place at that spot.",
+            "Ist das eingeschaltet, legt jeder Tipp auf das Bild an dieser Stelle einen neuen Ort an.",
+            "Quand c'est activé, chaque appui sur l'image ajoute un nouveau lieu à cet endroit.",
+            "オンにすると、画像をタップするたびにその位置に新しい場所ができます。",
+            "开启后，每次点按图片都会在该处添加一个新位置。",
+        ],
+    ),
+    (
+        "Wann im Video der neue Ort erscheint, in Sekunden ab Anfang. „Zeitgebundenen Ort hinzufügen“ legt ihn an.",
+        [
+            "When the new place appears in the video, in seconds from the start. “Add a time-bound place” creates it.",
+            "Wann im Video der neue Ort erscheint, in Sekunden ab Anfang. „Zeitgebundenen Ort hinzufügen“ legt ihn an.",
+            "Le moment où le nouveau lieu apparaît dans la vidéo, en secondes depuis le début. « Ajouter un lieu lié au temps » le crée.",
+            "新しい場所が動画に現れる時点（開始からの秒数）です。「時間つきの場所を追加」で作成します。",
+            "新位置在视频中出现的时间，从开头算起的秒数。点“添加带时间的位置”即可创建。",
+        ],
+    ),
+    (
+        "Aus einer Liste, z. B. einem Einkaufszettel, wird eine Route: Jede Zeile wird ein neuer Ort mit diesem Inhalt, der Reihe nach im Raum verteilt.",
+        [
+            "Turns a list, such as a shopping list, into a route: each line becomes a new place with that content, laid out in order across the room.",
+            "Aus einer Liste, z. B. einem Einkaufszettel, wird eine Route: Jede Zeile wird ein neuer Ort mit diesem Inhalt, der Reihe nach im Raum verteilt.",
+            "Transforme une liste, par exemple une liste de courses, en parcours : chaque ligne devient un nouveau lieu avec ce contenu, répartis dans l'ordre dans la pièce.",
+            "買い物リストなどのリストからルートを作ります。1 行ごとにその内容を持つ新しい場所になり、順番に部屋に並びます。",
+            "把一份清单（比如购物清单）变成路线：每一行成为一个带有该内容的新位置，按顺序排布在房间里。",
+        ],
+    ),
+    (
+        "Mit dem Regler springst du an eine Stelle im Video. Ein neuer Ort bekommt diesen Zeitpunkt.",
+        [
+            "Use the slider to jump to a point in the video. A new place gets this time.",
+            "Mit dem Regler springst du an eine Stelle im Video. Ein neuer Ort bekommt diesen Zeitpunkt.",
+            "Le curseur te fait sauter à un moment de la vidéo. Un nouveau lieu reçoit ce moment.",
+            "スライダーで動画の好きな位置に移動します。新しい場所にはこの時点が付きます。",
+            "拖动滑块可跳到视频中的某个位置。新位置会使用这个时间点。",
+        ],
+    ),
+    (
+        "So viele Sekunden vor seinem Zeitpunkt erscheint der Markerpunkt dieses Orts. Gilt nur für diesen Ort und nur auf diesem Gerät.",
+        [
+            "This many seconds before its time, this place's marker appears. Applies only to this place and only on this device.",
+            "So viele Sekunden vor seinem Zeitpunkt erscheint der Markerpunkt dieses Orts. Gilt nur für diesen Ort und nur auf diesem Gerät.",
+            "Le marqueur de ce lieu apparaît autant de secondes avant son moment. Vaut seulement pour ce lieu et sur cet appareil.",
+            "この場所のマーカーは、その時点の何秒前に現れるかを決めます。この場所とこの端末だけに適用されます。",
+            "此位置的标记会在其时间点之前这么多秒出现。只对这个位置和这台设备有效。",
+        ],
+    ),
+    (
+        "Die Stelle im Bild, z. B. „Sofa“ oder „Fenster“. Beim Lernen siehst du den Ort und erinnerst dich an den Inhalt.",
+        [
+            "The spot in the picture, such as “sofa” or “window”. While learning you see the place and recall the content.",
+            "Die Stelle im Bild, z. B. „Sofa“ oder „Fenster“. Beim Lernen siehst du den Ort und erinnerst dich an den Inhalt.",
+            "L'endroit sur l'image, par exemple « canapé » ou « fenêtre ». En apprenant, tu vois le lieu et tu te rappelles le contenu.",
+            "画像の中の場所です（例：「ソファ」「窓」）。学習中は場所を見て、内容を思い出します。",
+            "图片中的某个地方，比如“沙发”或“窗户”。学习时你看到位置，回想出内容。",
+        ],
+    ),
+    (
+        "Das, was du dir an diesem Ort merken willst, z. B. ein Wort oder eine Zahl. Beim Lernen ist das die Antwort.",
+        [
+            "What you want to remember at this place, such as a word or a number. While learning, this is the answer.",
+            "Das, was du dir an diesem Ort merken willst, z. B. ein Wort oder eine Zahl. Beim Lernen ist das die Antwort.",
+            "Ce que tu veux retenir à ce lieu, par exemple un mot ou un nombre. En apprenant, c'est la réponse.",
+            "この場所で覚えたいこと（単語や数字など）です。学習中はこれが答えになります。",
+            "你想在这个位置记住的东西，比如一个词或一个数字。学习时它就是答案。",
+        ],
+    ),
+    (
+        "Ein verrücktes Bild, das Ort und Inhalt verbindet. Je seltsamer, desto besser merkst du es dir.",
+        [
+            "A crazy picture that links the place and the content. The stranger it is, the better you remember it.",
+            "Ein verrücktes Bild, das Ort und Inhalt verbindet. Je seltsamer, desto besser merkst du es dir.",
+            "Une image folle qui relie le lieu et le contenu. Plus elle est bizarre, mieux tu t'en souviens.",
+            "場所と内容を結びつける、突飛なイメージです。奇妙なほど覚えやすくなります。",
+            "一个把位置和内容联系起来的疯狂画面。越离奇，越容易记住。",
+        ],
+    ),
+    (
+        "Ein Ton für diesen Ort, z. B. ein gesprochenes Wort. Beim Lernen spielt er, sobald du die Antwort aufdeckst.",
+        [
+            "A sound for this place, such as a spoken word. While learning, it plays as soon as you reveal the answer.",
+            "Ein Ton für diesen Ort, z. B. ein gesprochenes Wort. Beim Lernen spielt er, sobald du die Antwort aufdeckst.",
+            "Un son pour ce lieu, par exemple un mot prononcé. En apprenant, il se joue dès que tu révèles la réponse.",
+            "この場所の音声（読み上げた単語など）です。学習中、答えをめくるとすぐに再生されます。",
+            "这个位置的声音，比如一个读出来的词。学习时，一揭示答案就会播放。",
+        ],
+    ),
+    (
+        "Recall: Du deckst auf und bewertest dich selbst. Guess: Du tippst die Antwort ein. Quiz: Du wählst aus mehreren Antworten.",
+        [
+            "Recall: you reveal the answer and grade yourself. Guess: you type the answer. Quiz: you pick from several answers.",
+            "Recall: Du deckst auf und bewertest dich selbst. Guess: Du tippst die Antwort ein. Quiz: Du wählst aus mehreren Antworten.",
+            "Rappel : tu révèles la réponse et tu t'évalues toi-même. Deviner : tu tapes la réponse. Quiz : tu choisis parmi plusieurs réponses.",
+            "想起：答えをめくって自分で評価します。推測：答えを入力します。クイズ：いくつかの答えから選びます。",
+            "回忆：揭示答案后自己评分。猜测：输入答案。测验：从几个答案中选择。",
+        ],
+    ),
+    (
+        "Diese Eingaben zählen auch als richtig, z. B. andere Schreibweisen oder Abkürzungen.",
+        [
+            "These answers also count as correct, such as other spellings or abbreviations.",
+            "Diese Eingaben zählen auch als richtig, z. B. andere Schreibweisen oder Abkürzungen.",
+            "Ces saisies comptent aussi comme justes, par exemple d'autres orthographes ou des abréviations.",
+            "これらの入力も正解になります（別の表記や略語など）。",
+            "这些输入也算正确，比如其他写法或缩写。",
+        ],
+    ),
+    (
+        "Jede Zeile ist eine mögliche Antwort zum Antippen. Ein + am Anfang heißt richtig, ein - heißt falsch.",
+        [
+            "Each line is a possible answer to tap. A + at the start means correct, a - means wrong.",
+            "Jede Zeile ist eine mögliche Antwort zum Antippen. Ein + am Anfang heißt richtig, ein - heißt falsch.",
+            "Chaque ligne est une réponse possible à toucher. Un + au début veut dire juste, un - veut dire faux.",
+            "1 行が 1 つのタップできる答えの候補です。先頭の + は正解、- は不正解です。",
+            "每一行是一个可点选的答案。行首的 + 表示正确，- 表示错误。",
+        ],
+    ),
+    (
+        "Wie breit das Bild dieses Orts im Raum ist: 1 ist so breit wie der ganze Raum, 0.1 ein Zehntel davon.",
+        [
+            "How wide this place's picture is in the room: 1 is as wide as the whole room, 0.1 is a tenth of it.",
+            "Wie breit das Bild dieses Orts im Raum ist: 1 ist so breit wie der ganze Raum, 0.1 ein Zehntel davon.",
+            "La largeur de l'image de ce lieu dans la pièce : 1 est aussi large que toute la pièce, 0.1 en est un dixième.",
+            "この場所の画像の部屋の中での幅です。1 は部屋全体の幅、0.1 はその 10 分の 1 です。",
+            "这个位置的图片在房间里的宽度：1 与整个房间一样宽，0.1 是它的十分之一。",
+        ],
+    ),
+    (
+        "So nah holt die App diesen Ort beim Lernen heran. 1 zeigt den ganzen Raum, 4 ist ganz nah.",
+        [
+            "How close the app zooms in on this place while learning. 1 shows the whole room, 4 is very close.",
+            "So nah holt die App diesen Ort beim Lernen heran. 1 zeigt den ganzen Raum, 4 ist ganz nah.",
+            "À quel point l'app zoome sur ce lieu pendant l'apprentissage. 1 montre toute la pièce, 4 est tout près.",
+            "学習中にこの場所をどれだけ拡大するかです。1 は部屋全体、4 はとても近くです。",
+            "学习时应用把这个位置放大多少。1 显示整个房间，4 是非常近。",
+        ],
+    ),
+    (
+        "Die App öffnet dann eine schlichte Startseite nur mit deinen Palästen, ohne die anderen Kacheln.",
+        [
+            "The app then opens a plain home page with only your palaces, without the other tiles.",
+            "Die App öffnet dann eine schlichte Startseite nur mit deinen Palästen, ohne die anderen Kacheln.",
+            "L'app ouvre alors une page d'accueil simple avec seulement tes palais, sans les autres tuiles.",
+            "アプリはパレスだけのシンプルなホーム画面で開き、ほかのタイルは表示しません。",
+            "应用会打开一个只有你的宫殿的简洁主页，不显示其他卡片。",
+        ],
+    ),
+    (
+        "„System“ folgt der Einstellung deines Geräts. „Hoher Kontrast“ hilft, wenn du schlecht siehst.",
+        [
+            "“System” follows your device's setting. “High contrast” helps if you have trouble seeing.",
+            "„System“ folgt der Einstellung deines Geräts. „Hoher Kontrast“ hilft, wenn du schlecht siehst.",
+            "« Système » suit le réglage de ton appareil. « Contraste élevé » aide si tu vois mal.",
+            "「システム」は端末の設定に合わせます。「ハイコントラスト」は見えにくいときに役立ちます。",
+            "“跟随系统”使用设备的设置。“高对比度”适合视力不好的人。",
+        ],
+    ),
+    (
+        "Zeigt beim Lernen eine Leiste mit Punkten, Treffern in Folge und Herzen. Ausschalten blendet sie nur aus.",
+        [
+            "Shows a bar with points, correct answers in a row and hearts while learning. Turning it off only hides it.",
+            "Zeigt beim Lernen eine Leiste mit Punkten, Treffern in Folge und Herzen. Ausschalten blendet sie nur aus.",
+            "Affiche pendant l'apprentissage une barre avec les points, les bonnes réponses d'affilée et les cœurs. La désactiver la masque seulement.",
+            "学習中にポイント、連続正解、ハートのバーを表示します。オフにしても隠れるだけです。",
+            "学习时显示一条包含积分、连续答对次数和心的栏。关闭只是把它隐藏。",
+        ],
+    ),
+    (
+        "So viele Orte vor dem aktuellen Ort im selben Raum zeigen beim Lernen ihren Markerpunkt. 0 heißt: keiner.",
+        [
+            "How many places before the current one in the same room show their marker while learning. 0 means none.",
+            "So viele Orte vor dem aktuellen Ort im selben Raum zeigen beim Lernen ihren Markerpunkt. 0 heißt: keiner.",
+            "Le nombre de lieux avant le lieu actuel, dans la même pièce, qui montrent leur marqueur pendant l'apprentissage. 0 veut dire aucun.",
+            "学習中、同じ部屋で今の場所より前の場所をいくつマーカーで表示するかです。0 なら表示しません。",
+            "学习时，同一房间里当前位置之前有多少个位置显示标记。0 表示不显示。",
+        ],
+    ),
+    (
+        "So viele Orte nach dem aktuellen Ort im selben Raum zeigen beim Lernen schon ihren Markerpunkt. Das verrät, wo es weitergeht.",
+        [
+            "How many places after the current one in the same room already show their marker while learning. This gives away where the route goes next.",
+            "So viele Orte nach dem aktuellen Ort im selben Raum zeigen beim Lernen schon ihren Markerpunkt. Das verrät, wo es weitergeht.",
+            "Le nombre de lieux après le lieu actuel, dans la même pièce, qui montrent déjà leur marqueur pendant l'apprentissage. Cela révèle où va la suite.",
+            "学習中、同じ部屋で今の場所より後の場所をいくつ先にマーカーで表示するかです。次にどこへ進むかが分かってしまいます。",
+            "学习时，同一房间里当前位置之后有多少个位置提前显示标记。这会透露路线接下来去哪里。",
+        ],
+    ),
+    (
+        "Im Markerpunkt steht dann die Nummer des Orts auf der Route.",
+        [
+            "The marker then shows the place's number on the route.",
+            "Im Markerpunkt steht dann die Nummer des Orts auf der Route.",
+            "Le marqueur affiche alors le numéro du lieu sur le parcours.",
+            "マーカーにルート上の場所の番号が表示されます。",
+            "标记上会显示该位置在路线中的编号。",
+        ],
+    ),
+    (
+        "Nach dem Aufdecken verschwindet der Markerpunkt des aktuellen Orts, damit er das Bild nicht verdeckt.",
+        [
+            "After you reveal the answer, the current place's marker disappears so it doesn't cover the picture.",
+            "Nach dem Aufdecken verschwindet der Markerpunkt des aktuellen Orts, damit er das Bild nicht verdeckt.",
+            "Après la révélation, le marqueur du lieu actuel disparaît pour ne pas cacher l'image.",
+            "答えをめくると、今の場所のマーカーが消えて画像を隠しません。",
+            "揭示答案后，当前位置的标记会消失，以免挡住图片。",
+        ],
+    ),
+    (
+        "Orte im selben Raum, die du schon hattest, zeigen ihr Bild statt ihres Markerpunkts. So siehst du deinen bisherigen Weg.",
+        [
+            "Places in the same room that you already had show their picture instead of their marker. That way you see the route so far.",
+            "Orte im selben Raum, die du schon hattest, zeigen ihr Bild statt ihres Markerpunkts. So siehst du deinen bisherigen Weg.",
+            "Les lieux de la même pièce que tu as déjà vus montrent leur image au lieu de leur marqueur. Ainsi tu vois le chemin parcouru.",
+            "同じ部屋ですでに通った場所は、マーカーの代わりに画像を表示します。これまでの道のりが見えます。",
+            "同一房间里已经走过的位置会显示图片而不是标记。这样你能看到走过的路线。",
+        ],
+    ),
+    (
+        "Nach deiner Bewertung oder Antwort geht es sofort zum nächsten Ort, ohne Klick auf „Weiter“. Bewerten musst du weiter selbst.",
+        [
+            "After your grade or answer, you go straight to the next place without clicking “Next”. You still grade yourself.",
+            "Nach deiner Bewertung oder Antwort geht es sofort zum nächsten Ort, ohne Klick auf „Weiter“. Bewerten musst du weiter selbst.",
+            "Après ton évaluation ou ta réponse, tu passes tout de suite au lieu suivant, sans cliquer sur « Suivant ». L'évaluation reste à toi.",
+            "評価や回答のあと、「次へ」を押さなくてもすぐ次の場所へ進みます。評価は引き続き自分で行います。",
+            "评分或作答后会直接进入下一个位置，无需点“下一个”。评分仍由你自己完成。",
+        ],
+    ),
+    (
+        "Rückwärts tippst du auf die Stelle des Orts im Bild. So weit darf dein Tipp daneben liegen, in Prozent der Bildbreite.",
+        [
+            "Backwards, you tap where the place is in the picture. This is how far off your tap may be, in percent of the picture width.",
+            "Rückwärts tippst du auf die Stelle des Orts im Bild. So weit darf dein Tipp daneben liegen, in Prozent der Bildbreite.",
+            "À l'envers, tu touches l'endroit du lieu sur l'image. C'est l'écart permis pour ton appui, en pourcentage de la largeur de l'image.",
+            "逆向では画像の中の場所の位置をタップします。タップがどれだけずれてもよいかを、画像の幅に対するパーセントで決めます。",
+            "逆向模式下你要点出位置在图片中的地方。这里设置点按可以偏离多远，以图片宽度的百分比计。",
+        ],
+    ),
+    (
+        "In Videos erscheint der Markerpunkt eines Orts so viele Sekunden vor seinem Zeitpunkt. Bei 0 erst genau dann.",
+        [
+            "In videos, a place's marker appears this many seconds before its time. At 0, only at that exact moment.",
+            "In Videos erscheint der Markerpunkt eines Orts so viele Sekunden vor seinem Zeitpunkt. Bei 0 erst genau dann.",
+            "Dans les vidéos, le marqueur d'un lieu apparaît autant de secondes avant son moment. À 0, seulement à ce moment précis.",
+            "動画では、場所のマーカーがその時点の何秒前に現れるかを決めます。0 ならちょうどその時点です。",
+            "在视频中，位置的标记会在其时间点之前这么多秒出现。设为 0 则正好在那一刻出现。",
+        ],
+    ),
+    (
+        "Um diese Uhrzeit kommt die erste Erinnerung des Tages.",
+        [
+            "The first reminder of the day comes at this time.",
+            "Um diese Uhrzeit kommt die erste Erinnerung des Tages.",
+            "Le premier rappel de la journée arrive à cette heure.",
+            "この時刻にその日最初のリマインダーが届きます。",
+            "每天的第一次提醒在这个时间出现。",
+        ],
+    ),
+    (
+        "Nach dieser Uhrzeit kommt an diesem Tag keine Erinnerung mehr.",
+        [
+            "After this time, no more reminders come that day.",
+            "Nach dieser Uhrzeit kommt an diesem Tag keine Erinnerung mehr.",
+            "Après cette heure, plus aucun rappel ce jour-là.",
+            "この時刻を過ぎると、その日はもうリマインダーは届きません。",
+            "过了这个时间，当天不再提醒。",
+        ],
+    ),
+    (
+        "So viele Stunden liegen zwischen zwei Erinnerungen.",
+        [
+            "The number of hours between two reminders.",
+            "So viele Stunden liegen zwischen zwei Erinnerungen.",
+            "Le nombre d'heures entre deux rappels.",
+            "リマインダーとリマインダーの間の時間数です。",
+            "两次提醒之间相隔的小时数。",
+        ],
+    ),
+    (
+        "So viele Orte lernst du an einem Tag höchstens neu. Wiederholungen zählen nicht dazu.",
+        [
+            "The most new places you learn in one day. Reviews don't count toward this.",
+            "So viele Orte lernst du an einem Tag höchstens neu. Wiederholungen zählen nicht dazu.",
+            "Le nombre maximal de nouveaux lieux que tu apprends en un jour. Les révisions ne comptent pas.",
+            "1 日に新しく学ぶ場所の最大数です。復習は数に入りません。",
+            "每天最多新学的位置数。复习不计入其中。",
+        ],
+    ),
+    (
+        "Ab dieser Stunde beginnt ein neuer Lerntag. Bei 4 zählt Lernen kurz nach Mitternacht noch zum Vortag.",
+        [
+            "A new learning day starts at this hour. With 4, learning just after midnight still counts for the day before.",
+            "Ab dieser Stunde beginnt ein neuer Lerntag. Bei 4 zählt Lernen kurz nach Mitternacht noch zum Vortag.",
+            "Une nouvelle journée d'apprentissage commence à cette heure. Avec 4, apprendre juste après minuit compte encore pour la veille.",
+            "この時刻から新しい学習日が始まります。4 なら、深夜 0 時すぎの学習は前日分になります。",
+            "新的学习日从这个钟点开始。设为 4 时，午夜刚过的学习仍算前一天。",
+        ],
+    ),
+    (
+        "Wie viel du beim Abfragen noch wissen sollst. Je höher, desto öfter kommen die Orte zur Wiederholung.",
+        [
+            "How much you should still know when asked. The higher it is, the more often places come up for review.",
+            "Wie viel du beim Abfragen noch wissen sollst. Je höher, desto öfter kommen die Orte zur Wiederholung.",
+            "Ce que tu dois encore savoir quand on t'interroge. Plus c'est haut, plus les lieux reviennent souvent en révision.",
+            "出題されたときに覚えていたい割合です。高くするほど、場所が復習に出る回数が増えます。",
+            "被提问时你应当还记得的比例。设得越高，位置出现复习的次数越多。",
+        ],
+    ),
+    (
+        "Die Adresse des Servers, mit dem du synchronisierst. Lass sie so, außer du hast einen eigenen Server.",
+        [
+            "The address of the server you sync with. Leave it as it is unless you have your own server.",
+            "Die Adresse des Servers, mit dem du synchronisierst. Lass sie so, außer du hast einen eigenen Server.",
+            "L'adresse du serveur avec lequel tu synchronises. Laisse-la telle quelle, sauf si tu as ton propre serveur.",
+            "同期するサーバーのアドレスです。自分のサーバーがない限り、このままにしてください。",
+            "你用来同步的服务器地址。除非你有自己的服务器，否则保持不变。",
+        ],
+    ),
+    (
+        "Einschalten, wenn du noch kein Cloud-Konto hast. Sonst meldest du dich mit deinem Konto an.",
+        [
+            "Turn this on if you don't have a cloud account yet. Otherwise you sign in with your account.",
+            "Einschalten, wenn du noch kein Cloud-Konto hast. Sonst meldest du dich mit deinem Konto an.",
+            "Active ceci si tu n'as pas encore de compte cloud. Sinon, tu te connectes avec ton compte.",
+            "まだクラウドのアカウントがない場合はオンにします。オフなら既存のアカウントでログインします。",
+            "如果你还没有云账户，请开启。否则就用你的账户登录。",
+        ],
+    ),
+    (
+        "So heißt du für deine Freunde in Locora Cloud, z. B. in der Rangliste.",
+        [
+            "The name your friends see in Locora Cloud, for example in the ranking.",
+            "So heißt du für deine Freunde in Locora Cloud, z. B. in der Rangliste.",
+            "Le nom que voient tes amis dans Locora Cloud, par exemple dans le classement.",
+            "Locora Cloud で友だちに表示される名前です（ランキングなど）。",
+            "你在 Locora Cloud 中给好友看到的名字，比如在排行榜里。",
+        ],
+    ),
+    (
+        "Damit meldest du dich bei Locora Cloud an. Es ist ein anderes Passwort als das Verschlüsselungs-Passwort, das deine Daten schützt.",
+        [
+            "You use this to sign in to Locora Cloud. It is a different password from the encryption password that protects your data.",
+            "Damit meldest du dich bei Locora Cloud an. Es ist ein anderes Passwort als das Verschlüsselungs-Passwort, das deine Daten schützt.",
+            "Il sert à te connecter à Locora Cloud. C'est un autre mot de passe que le mot de passe de chiffrement qui protège tes données.",
+            "Locora Cloud へのログインに使います。データを守る暗号化パスワードとは別のパスワードです。",
+            "用于登录 Locora Cloud。它和保护你数据的加密密码不是同一个密码。",
+        ],
+    ),
+    (
+        "Damit werden deine Daten verschlüsselt, bevor sie in die Cloud gehen. Es ist ein eigenes Passwort, nicht dein Cloud-Passwort, und der Server kennt es nicht. Verlierst du es und den Wiederherstellungsschlüssel, kann niemand die Cloud-Daten wieder lesbar machen.",
+        [
+            "It encrypts your data before it goes to the cloud. It is a separate password, not your cloud password, and the server doesn't know it. If you lose it and the recovery key, no one can make the cloud data readable again.",
+            "Damit werden deine Daten verschlüsselt, bevor sie in die Cloud gehen. Es ist ein eigenes Passwort, nicht dein Cloud-Passwort, und der Server kennt es nicht. Verlierst du es und den Wiederherstellungsschlüssel, kann niemand die Cloud-Daten wieder lesbar machen.",
+            "Il chiffre tes données avant qu'elles partent dans le cloud. C'est un mot de passe à part, pas ton mot de passe cloud, et le serveur ne le connaît pas. Si tu le perds ainsi que la clé de récupération, personne ne pourra rendre les données du cloud lisibles.",
+            "データをクラウドに送る前に暗号化するためのパスワードです。クラウドのパスワードとは別のもので、サーバーも知りません。これと復元用の鍵の両方をなくすと、誰もクラウドのデータを読めるように戻せません。",
+            "它会在数据上传到云端之前加密你的数据。这是一个单独的密码，不是你的云密码，服务器也不知道它。如果你把它和恢复密钥都弄丢了，任何人都无法让云端数据重新可读。",
+        ],
+    ),
+    (
+        "Synchronisiert …",
+        [
+            "Syncing …",
+            "Synchronisiert …",
+            "Synchronisation …",
+            "同期中 …",
+            "正在同步 …",
+        ],
+    ),
+    (
+        "Jetzt synchronisieren",
+        [
+            "Sync now",
+            "Jetzt synchronisieren",
+            "Synchroniser maintenant",
+            "今すぐ同期",
+            "立即同步",
+        ],
+    ),
+    (
+        "Sync abgeschlossen: {0} Änderungen gesendet, {1} Medien hochgeladen, {2} Änderungen empfangen, {3} Medien geladen; {4} angewendet, {5} schon bekannt, {6} mit fehlendem Ort.",
+        [
+            "Sync complete: {0} changes sent, {1} media uploaded, {2} changes received, {3} media downloaded; {4} applied, {5} already known, {6} with a missing locus.",
+            "Sync abgeschlossen: {0} Änderungen gesendet, {1} Medien hochgeladen, {2} Änderungen empfangen, {3} Medien geladen; {4} angewendet, {5} schon bekannt, {6} mit fehlendem Ort.",
+            "Synchronisation terminée : {0} modifications envoyées, {1} médias téléversés, {2} modifications reçues, {3} médias téléchargés ; {4} appliquées, {5} déjà connues, {6} avec un locus manquant.",
+            "同期完了：{0} 件の変更を送信、{1} 件のメディアをアップロード、{2} 件の変更を受信、{3} 件のメディアをダウンロード。{4} 件を適用、{5} 件は既知、{6} 件は場所が見つかりません。",
+            "同步完成：已发送 {0} 项更改，已上传 {1} 个媒体，已接收 {2} 项更改，已下载 {3} 个媒体；已应用 {4} 项，{5} 项已存在，{6} 项缺少地点。",
+        ],
+    ),
+    (
+        "{0} Änderungen konnten nicht angewendet werden, {1} wurden in Quarantäne abgelegt. Bitte lokalen Datenbestand prüfen.",
+        [
+            "{0} changes could not be applied, {1} were put in quarantine. Please check your local data.",
+            "{0} Änderungen konnten nicht angewendet werden, {1} wurden in Quarantäne abgelegt. Bitte lokalen Datenbestand prüfen.",
+            "{0} modifications n'ont pas pu être appliquées, {1} ont été mises en quarantaine. Vérifie tes données locales.",
+            "{0} 件の変更を適用できず、{1} 件を隔離しました。端末のデータを確認してください。",
+            "{0} 项更改无法应用，{1} 项已隔离。请检查本地数据。",
+        ],
+    ),
+    (
+        "{0} von {1} gewusst · 1 Punkt",
+        [
+            "{0} of {1} known · 1 point",
+            "{0} von {1} gewusst · 1 Punkt",
+            "{0} sur {1} sus · 1 point",
+            "{1} 問中 {0} 問正解 · 1 ポイント",
+            "答对 {0}/{1} · 1 分",
+        ],
+    ),
+    (
+        "{0} von {1} gewusst · {2} Punkte",
+        [
+            "{0} of {1} known · {2} points",
+            "{0} von {1} gewusst · {2} Punkte",
+            "{0} sur {1} sus · {2} points",
+            "{1} 問中 {0} 問正解 · {2} ポイント",
+            "答对 {0}/{1} · {2} 分",
+        ],
+    ),
+    (
+        "Passwörter anzeigen",
+        [
+            "Show passwords",
+            "Passwörter anzeigen",
+            "Afficher les mots de passe",
+            "パスワードを表示",
+            "显示密码",
+        ],
+    ),
+    (
+        "Konto erstellen",
+        [
+            "Create account",
+            "Konto erstellen",
+            "Créer un compte",
+            "アカウントを作成",
+            "创建账户",
+        ],
+    ),
+    (
+        "Anmelden",
+        ["Sign in", "Anmelden", "Se connecter", "ログイン", "登录"],
+    ),
+    (
+        "Angemeldet als {0} bei {1}.",
+        [
+            "Signed in as {0} at {1}.",
+            "Angemeldet als {0} bei {1}.",
+            "Connecté en tant que {0} sur {1}.",
+            "{1} に {0} としてログイン中です。",
+            "已以 {0} 身份登录 {1}。",
+        ],
+    ),
+    (
+        "Die Liste darf höchstens 64 KiB groß sein",
+        [
+            "The list may be at most 64 KiB",
+            "Die Liste darf höchstens 64 KiB groß sein",
+            "La liste ne doit pas dépasser 64 Kio",
+            "リストは 64 KiB までです",
+            "列表最多 64 KiB",
+        ],
+    ),
+    (
+        "Ort darf nicht leer sein",
+        [
+            "The place must not be empty",
+            "Ort darf nicht leer sein",
+            "Le lieu ne doit pas être vide",
+            "場所を空にはできません",
+            "位置不能为空",
+        ],
+    ),
+    (
+        "Bildgröße muss eine Zahl sein",
+        [
+            "The picture size must be a number",
+            "Bildgröße muss eine Zahl sein",
+            "La taille de l'image doit être un nombre",
+            "画像サイズは数値で入力してください",
+            "图片大小必须是数字",
+        ],
+    ),
+    (
+        "Bildgröße muss zwischen 0.05 und 1 liegen",
+        [
+            "The picture size must be between 0.05 and 1",
+            "Bildgröße muss zwischen 0.05 und 1 liegen",
+            "La taille de l'image doit être comprise entre 0.05 et 1",
+            "画像サイズは 0.05〜1 の範囲で入力してください",
+            "图片大小必须在 0.05 到 1 之间",
+        ],
+    ),
+    (
+        "Zoom muss eine Zahl sein",
+        [
+            "The zoom must be a number",
+            "Zoom muss eine Zahl sein",
+            "Le zoom doit être un nombre",
+            "ズームは数値で入力してください",
+            "缩放必须是数字",
+        ],
+    ),
+    (
+        "Zoom muss zwischen 1 (ganzer Raum) und 4 liegen",
+        [
+            "The zoom must be between 1 (whole room) and 4",
+            "Zoom muss zwischen 1 (ganzer Raum) und 4 liegen",
+            "Le zoom doit être compris entre 1 (toute la pièce) et 4",
+            "ズームは 1（部屋全体）〜4 の範囲で入力してください",
+            "缩放必须在 1（整个房间）到 4 之间",
+        ],
+    ),
+    (
+        "Lokaler Entwurf konnte nicht gespeichert/gelesen werden (Browserspeicher)",
+        [
+            "The local draft could not be saved/read (browser storage)",
+            "Lokaler Entwurf konnte nicht gespeichert/gelesen werden (Browserspeicher)",
+            "Le brouillon local n'a pas pu être enregistré/lu (stockage du navigateur)",
+            "ローカルの下書きを保存/読み込みできませんでした（ブラウザーのストレージ）",
+            "无法保存/读取本地草稿（浏览器存储）",
+        ],
+    ),
+    (
+        "Kein Fenster",
+        [
+            "No window",
+            "Kein Fenster",
+            "Pas de fenêtre",
+            "ウィンドウがありません",
+            "没有窗口",
+        ],
+    ),
+    (
+        "Entwurf konnte nicht serialisiert werden",
+        [
+            "The draft could not be serialized",
+            "Entwurf konnte nicht serialisiert werden",
+            "Le brouillon n'a pas pu être sérialisé",
+            "下書きをシリアライズできませんでした",
+            "无法序列化草稿",
+        ],
+    ),
+    (
+        "Ort gelöscht",
+        [
+            "Place deleted",
+            "Ort gelöscht",
+            "Lieu supprimé",
+            "場所を削除しました",
+            "已删除位置",
+        ],
+    ),
+    (
+        "Änderungen sind noch nicht gespeichert",
+        [
+            "Changes are not saved yet",
+            "Änderungen sind noch nicht gespeichert",
+            "Les modifications ne sont pas encore enregistrées",
+            "変更はまだ保存されていません",
+            "更改尚未保存",
+        ],
+    ),
+    (
+        "Für ein Ortsbild bitte Bearbeiten aktivieren und einen Ort auswählen. Weitere Räume: „+ Raum aus Bild oder Video“.",
+        [
+            "For a locus picture, switch on editing and select a place. More rooms: “+ Room from a picture or video”.",
+            "Für ein Ortsbild bitte Bearbeiten aktivieren und einen Ort auswählen. Weitere Räume: „+ Raum aus Bild oder Video“.",
+            "Pour une image de lieu, active la modification et sélectionne un lieu. D'autres pièces : « + Pièce depuis une image ou une vidéo ».",
+            "場所の画像を使うには、編集をオンにして場所を選んでください。部屋を増やすには「＋ 画像や動画から部屋を追加」。",
+            "要使用位置图片，请开启编辑并选择一个位置。添加更多房间：“+ 用图片或视频添加房间”。",
+        ],
+    ),
+    (
+        "Dieser Browser-Drop enthält keine native Dateifreigabe. Bitte „Bild wählen…“ verwenden oder eine Datei im nativen App-Fenster ablegen.",
+        [
+            "This browser drop holds no native file share. Please use “Choose picture…” or drop a file into the native app window.",
+            "Dieser Browser-Drop enthält keine native Dateifreigabe. Bitte „Bild wählen…“ verwenden oder eine Datei im nativen App-Fenster ablegen.",
+            "Ce dépôt du navigateur ne contient aucun partage de fichier natif. Utilise « Choisir une image… » ou dépose un fichier dans la fenêtre native de l'app.",
+            "このブラウザーからのドロップにはネイティブのファイル共有が含まれていません。「画像を選択…」を使うか、ネイティブのアプリ画面にファイルをドロップしてください。",
+            "此浏览器拖放不包含原生文件共享。请使用“选择图片…”，或将文件拖到原生应用窗口中。",
+        ],
+    ),
+    (
+        "Bitte eine nichtnegative Sekundenzahl eingeben",
+        [
+            "Please enter a non-negative number of seconds",
+            "Bitte eine nichtnegative Sekundenzahl eingeben",
+            "Saisis un nombre de secondes positif ou nul",
+            "0 以上の秒数を入力してください",
+            "请输入非负的秒数",
+        ],
+    ),
+    (
+        "Die Animation ist noch nicht geladen",
+        [
+            "The animation is not loaded yet",
+            "Die Animation ist noch nicht geladen",
+            "L'animation n'est pas encore chargée",
+            "アニメーションはまだ読み込まれていません",
+            "动画尚未加载",
+        ],
+    ),
+    (
+        "Das Video ist noch nicht geladen",
+        [
+            "The video is not loaded yet",
+            "Das Video ist noch nicht geladen",
+            "La vidéo n'est pas encore chargée",
+            "動画はまだ読み込まれていません",
+            "视频尚未加载",
+        ],
+    ),
+    (
+        "Video konnte nicht angehalten werden",
+        [
+            "The video could not be paused",
+            "Video konnte nicht angehalten werden",
+            "La vidéo n'a pas pu être mise en pause",
+            "動画を一時停止できませんでした",
+            "无法暂停视频",
+        ],
+    ),
+    (
+        "Der Ort liegt hinter dem Ende der Animation",
+        [
+            "The place lies past the end of the animation",
+            "Der Ort liegt hinter dem Ende der Animation",
+            "Le lieu se trouve après la fin de l'animation",
+            "場所がアニメーションの終わりより後にあります",
+            "该位置在动画结束之后",
+        ],
+    ),
+    (
+        "Der Ort liegt hinter dem Ende des Videos",
+        [
+            "The place lies past the end of the video",
+            "Der Ort liegt hinter dem Ende des Videos",
+            "Le lieu se trouve après la fin de la vidéo",
+            "場所が動画の終わりより後にあります",
+            "该位置在视频结束之后",
+        ],
+    ),
+    (
+        "Video: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken. Taste L setzt einen Ort in der Mitte; , und . springen einen Frame.",
+        [
+            "Video: choose a moment on the timeline, switch on “Place a locus” and click into the picture. The L key places a locus in the middle; , and . step one frame.",
+            "Video: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken. Taste L setzt einen Ort in der Mitte; , und . springen einen Frame.",
+            "Vidéo : choisis un moment sur la frise, active « Placer un lieu » et clique dans l'image. La touche L place un lieu au milieu ; , et . avancent d'une image.",
+            "動画：タイムラインで時点を選び、「場所を置く」をオンにして画像をクリックします。L キーで中央に場所を置き、, と . で 1 フレーム移動します。",
+            "视频：在时间轴上选择时间点，打开“放置位置”，然后点击画面。按 L 键在中间放置位置；按 , 和 . 跳一帧。",
+        ],
+    ),
+    (
+        "Splinely: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken.",
+        [
+            "Splinely: choose a moment on the timeline, switch on “Place a locus” and click into the picture.",
+            "Splinely: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken.",
+            "Splinely : choisis un moment sur la frise, active « Placer un lieu » et clique dans l'image.",
+            "Splinely：タイムラインで時点を選び、「場所を置く」をオンにして画像をクリックします。",
+            "Splinely：在时间轴上选择时间点，打开“放置位置”，然后点击画面。",
+        ],
+    ),
+    (
+        "Position {0} s",
+        [
+            "Position {0} s",
+            "Position {0} s",
+            "Position {0} s",
+            "位置 {0} 秒",
+            "位置 {0} 秒",
+        ],
+    ),
+    (
+        "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame",
+        [
+            "Video room – focus the stage: L places a locus at the current time, , and . step one frame",
+            "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame",
+            "Pièce vidéo – mettre le focus sur la scène : L place un lieu au moment actuel, , et . avancent d'une image",
+            "動画の部屋 – 舞台にフォーカス：L で現在の時点に場所を置き、, と . で 1 フレーム移動",
+            "视频房间 – 聚焦舞台：L 在当前时间放置位置，, 和 . 跳一帧",
+        ],
+    ),
+    (
+        "Animationsraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit",
+        [
+            "Animation room – focus the stage: L places a locus at the current time",
+            "Animationsraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit",
+            "Pièce animée – mettre le focus sur la scène : L place un lieu au moment actuel",
+            "アニメーションの部屋 – 舞台にフォーカス：L で現在の時点に場所を置く",
+            "动画房间 – 聚焦舞台：L 在当前时间放置位置",
+        ],
+    ),
+    (
+        "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen",
+        [
+            "Room – in edit mode, Ctrl+V pastes a list as a route",
+            "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen",
+            "Pièce – en mode modification, Ctrl+V colle une liste comme trajet",
+            "部屋 – 編集モードで Ctrl+V を押すとリストをルートとして貼り付け",
+            "房间 – 在编辑模式下按 Ctrl+V 将列表粘贴为路线",
+        ],
+    ),
+    (
+        "Zwischenablage konnte nicht gelesen werden",
+        [
+            "The clipboard could not be read",
+            "Zwischenablage konnte nicht gelesen werden",
+            "Le presse-papiers n'a pas pu être lu",
+            "クリップボードを読み取れませんでした",
+            "无法读取剪贴板",
+        ],
+    ),
+    (
+        "Zeitgesteuertes Medium ist noch nicht geladen",
+        [
+            "The timed media is not loaded yet",
+            "Zeitgesteuertes Medium ist noch nicht geladen",
+            "Le média temporisé n'est pas encore chargé",
+            "時間付きのメディアはまだ読み込まれていません",
+            "定时媒体尚未加载",
+        ],
+    ),
+    (
+        "Splinely-Zeitleiste konnte nicht gesteuert werden",
+        [
+            "The Splinely timeline could not be controlled",
+            "Splinely-Zeitleiste konnte nicht gesteuert werden",
+            "La frise Splinely n'a pas pu être pilotée",
+            "Splinely のタイムラインを操作できませんでした",
+            "无法控制 Splinely 时间轴",
+        ],
+    ),
+    (
+        "Workbook-Ort: {0} kommt aus Formeln und wird in der Quelldatei geändert; alles andere ist hier bearbeitbar.",
+        [
+            "Workbook locus: {0} comes from formulas and is changed in the source file; everything else can be edited here.",
+            "Workbook-Ort: {0} kommt aus Formeln und wird in der Quelldatei geändert; alles andere ist hier bearbeitbar.",
+            "Lieu de classeur : {0} vient des formules et se modifie dans le fichier source ; tout le reste se modifie ici.",
+            "ワークブックの場所：{0} は数式から来ており、元のファイルで変更します。それ以外はここで編集できます。",
+            "工作簿位置：{0} 来自公式，需要在源文件中修改；其他内容都可以在这里编辑。",
+        ],
+    ),
+    (
+        "Noch nicht gespeichert: {0}",
+        [
+            "Not saved yet: {0}",
+            "Noch nicht gespeichert: {0}",
+            "Pas encore enregistré : {0}",
+            "まだ保存されていません：{0}",
+            "尚未保存：{0}",
+        ],
+    ),
+    (
+        "Datei nicht übernommen: erst Änderungen speichern/verwerfen und einen bearbeitbaren Ort auswählen.",
+        [
+            "File not used: first save/discard the changes and select an editable place.",
+            "Datei nicht übernommen: erst Änderungen speichern/verwerfen und einen bearbeitbaren Ort auswählen.",
+            "Fichier non repris : enregistre ou abandonne d'abord les modifications et sélectionne un lieu modifiable.",
+            "ファイルは使われませんでした。先に変更を保存/破棄し、編集できる場所を選んでください。",
+            "未使用该文件：请先保存/放弃更改，并选择一个可编辑的位置。",
+        ],
+    ),
+    (
+        "Eingaben für diese Journey",
+        [
+            "Inputs for this journey",
+            "Eingaben für diese Journey",
+            "Saisies pour ce parcours",
+            "このジャーニーの入力",
+            "本次旅程的输入",
+        ],
+    ),
+    (
+        "Los ▶",
+        ["Go ▶", "Los ▶", "C'est parti ▶", "開始 ▶", "开始 ▶"],
+    ),
+    (
+        "Unbekanntes Ziel der App-Tour",
+        [
+            "Unknown target of the app tour",
+            "Unbekanntes Ziel der App-Tour",
+            "Cible inconnue de la visite de l'app",
+            "アプリのツアーの対象が不明です",
+            "应用导览的目标未知",
+        ],
+    ),
+    (
+        "In der letzten Sitzung ist ein Fehler aufgetreten.",
+        [
+            "An error happened in the last session.",
+            "In der letzten Sitzung ist ein Fehler aufgetreten.",
+            "Une erreur s'est produite lors de la dernière session.",
+            "前回のセッションでエラーが発生しました。",
+            "上次会话中发生了错误。",
+        ],
+    ),
+    (
+        "Auf GitHub melden",
+        [
+            "Report it on GitHub",
+            "Auf GitHub melden",
+            "Le signaler sur GitHub",
+            "GitHub で報告",
+            "在 GitHub 上报告",
+        ],
+    ),
+    (
+        "1 Locus",
+        ["1 locus", "1 Locus", "1 locus", "1 個の場所", "1 个位置"],
+    ),
+    (
+        "„{0}“ importiert",
+        [
+            "“{0}” imported",
+            "„{0}“ importiert",
+            "« {0} » importé",
+            "「{0}」をインポートしました",
+            "已导入“{0}”",
+        ],
+    ),
+    (
+        "„{0}“ importiert als „{1}“",
+        [
+            "“{0}” imported as “{1}”",
+            "„{0}“ importiert als „{1}“",
+            "« {0} » importé sous le nom « {1} »",
+            "「{0}」を「{1}」としてインポートしました",
+            "已将“{0}”导入为“{1}”",
+        ],
+    ),
+    (
+        "Abstand: ganze Stunden von 1 bis 12",
+        [
+            "Interval: whole hours from 1 to 12",
+            "Abstand: ganze Stunden von 1 bis 12",
+            "Intervalle : heures entières de 1 à 12",
+            "間隔：1〜12 の整数の時間",
+            "间隔：1 到 12 的整小时数",
+        ],
+    ),
+    (
+        "Lerntag beginnt: volle Stunde von 0 bis 23",
+        [
+            "Learning day starts: full hour from 0 to 23",
+            "Lerntag beginnt: volle Stunde von 0 bis 23",
+            "Début de la journée d'apprentissage : heure pleine de 0 à 23",
+            "学習日の開始：0〜23 の正時",
+            "学习日开始：0 到 23 的整点",
+        ],
+    ),
+    (
+        "Neue Loci pro Tag: ganze Zahl von 0 bis {0}",
+        [
+            "New places per day: whole number from 0 to {0}",
+            "Neue Loci pro Tag: ganze Zahl von 0 bis {0}",
+            "Nouveaux lieux par jour : nombre entier de 0 à {0}",
+            "1 日あたりの新しい場所：0〜{0} の整数",
+            "每天的新位置：0 到 {0} 的整数",
+        ],
+    ),
+    (
+        "Gespeichert.",
+        [
+            "Saved.",
+            "Gespeichert.",
+            "Enregistré.",
+            "保存しました。",
+            "已保存。",
+        ],
+    ),
+    (
+        "{0} Std.",
+        ["{0} h", "{0} Std.", "{0} h", "{0} 時間", "{0} 小时"],
+    ),
+    (
+        " – jetzt {0}",
+        [
+            " – now {0}",
+            " – jetzt {0}",
+            " – actuellement {0}",
+            " – 現在 {0}",
+            " – 当前 {0}",
+        ],
+    ),
+    (
+        "Aus {0} Wiederholungen kann Locora deine Gewichte neu berechnen.",
+        [
+            "Locora can recalculate your weights from {0} reviews.",
+            "Aus {0} Wiederholungen kann Locora deine Gewichte neu berechnen.",
+            "Locora peut recalculer tes poids à partir de {0} révisions.",
+            "Locora は {0} 回の復習から重みを計算し直せます。",
+            "Locora 可以根据 {0} 次复习重新计算你的权重。",
+        ],
+    ),
+    (
+        "{0} von mindestens {1} Wiederholungen mit einem Tag Abstand",
+        [
+            "{0} of at least {1} reviews a day apart",
+            "{0} von mindestens {1} Wiederholungen mit einem Tag Abstand",
+            "{0} sur au moins {1} révisions espacées d'un jour",
+            "1 日以上間隔をあけた復習 {0} 回（最低 {1} 回必要）",
+            "{0} 次（至少需要 {1} 次）间隔一天以上的复习",
+        ],
+    ),
+    (
+        "{0} ({1} von {2})",
+        [
+            "{0} ({1} of {2})",
+            "{0} ({1} von {2})",
+            "{0} ({1} sur {2})",
+            "{0}（{2} 中 {1}）",
+            "{0}（{2} 中的 {1}）",
+        ],
+    ),
+    (
+        "Antworten insgesamt",
+        [
+            "Answers in total",
+            "Antworten insgesamt",
+            "Réponses au total",
+            "回答の合計",
+            "作答总数",
+        ],
+    ),
+    ("Heute", ["Today", "Heute", "Aujourd'hui", "今日", "今天"]),
+    (
+        "{0} Antworten, {1} neue Loci",
+        [
+            "{0} answers, {1} new places",
+            "{0} Antworten, {1} neue Loci",
+            "{0} réponses, {1} nouveaux lieux",
+            "{0} 回答、新しい場所 {1}",
+            "{0} 次作答，{1} 个新位置",
+        ],
+    ),
+    (
+        "Trefferquote 30 Tage",
+        [
+            "Hit rate, 30 days",
+            "Trefferquote 30 Tage",
+            "Taux de réussite sur 30 jours",
+            "正答率（30 日）",
+            "命中率（30 天）",
+        ],
+    ),
+    (
+        "Serie",
+        ["Streak", "Serie", "Série", "連続記録", "连续天数"],
+    ),
+    ("1 Tag", ["1 day", "1 Tag", "1 jour", "1 日", "1 天"]),
+    (
+        "{0} Tage",
+        ["{0} days", "{0} Tage", "{0} jours", "{0} 日", "{0} 天"],
+    ),
+    (
+        "Geplante Loci",
+        [
+            "Scheduled places",
+            "Geplante Loci",
+            "Lieux planifiés",
+            "予定された場所",
+            "已安排的位置",
+        ],
+    ),
+    (
+        "Ungültige Dateifreigabe",
+        [
+            "Invalid file share",
+            "Ungültige Dateifreigabe",
+            "Partage de fichier non valide",
+            "無効なファイル共有です",
+            "无效的文件共享",
+        ],
+    ),
+    (
+        "Video konnte nicht gelesen werden",
+        [
+            "The video could not be read",
+            "Video konnte nicht gelesen werden",
+            "La vidéo n'a pas pu être lue",
+            "動画を読み込めませんでした",
+            "无法读取视频",
+        ],
+    ),
+    (
+        "Ton konnte nicht gelesen werden",
+        [
+            "The sound could not be read",
+            "Ton konnte nicht gelesen werden",
+            "Le son n'a pas pu être lu",
+            "音声を読み込めませんでした",
+            "无法读取声音",
+        ],
+    ),
+    ("Palast", ["Palace", "Palast", "Palais", "パレス", "宫殿"]),
+    (
+        "▶ Route",
+        ["▶ Route", "▶ Route", "▶ Trajet", "▶ ルート", "▶ 路线"],
+    ),
+    (
+        "Sudden Death: die Runde endete bei der ersten falschen Antwort.",
+        [
+            "Sudden death: the round ended at the first wrong answer.",
+            "Sudden Death: die Runde endete bei der ersten falschen Antwort.",
+            "Mort subite : la manche s'est arrêtée à la première mauvaise réponse.",
+            "サドンデス：最初の不正解でラウンドが終わりました。",
+            "突然死：本轮在第一次答错时结束。",
+        ],
+    ),
+    (
+        "leere erwartete Antwort – nicht bewertet",
+        [
+            "empty expected answer – not graded",
+            "leere erwartete Antwort – nicht bewertet",
+            "réponse attendue vide – non évaluée",
+            "期待される答えが空です – 採点しません",
+            "预期答案为空 – 未评分",
+        ],
+    ),
+    (
+        "Bitte 1 bis 100 Begriffe einfügen",
+        [
+            "Please paste 1 to 100 terms",
+            "Bitte 1 bis 100 Begriffe einfügen",
+            "Colle de 1 à 100 termes",
+            "1〜100 語を貼り付けてください",
+            "请粘贴 1 到 100 个词条",
+        ],
+    ),
+    (
+        "Jeder Begriff braucht eine nichtleere Zeile mit höchstens 500 Bytes",
+        [
+            "Each term needs a non-empty line of at most 500 bytes",
+            "Jeder Begriff braucht eine nichtleere Zeile mit höchstens 500 Bytes",
+            "Chaque terme doit occuper une ligne non vide de 500 octets au maximum",
+            "各語は 500 バイト以内の空でない 1 行にしてください",
+            "每个词条需要占一行，不能为空，最多 500 字节",
+        ],
+    ),
+    (
+        "Weitere gültige Antworten gibt es nur bei Guess",
+        [
+            "Other valid answers exist only for Guess",
+            "Weitere gültige Antworten gibt es nur bei Guess",
+            "Les autres réponses valides n'existent que pour Guess",
+            "ほかの正解は Guess でのみ使えます",
+            "其他有效答案仅适用于 Guess",
+        ],
+    ),
+    (
+        "Höchstens 20 weitere gültige Antworten",
+        [
+            "At most 20 other valid answers",
+            "Höchstens 20 weitere gültige Antworten",
+            "20 autres réponses valides au maximum",
+            "ほかの正解は 20 個までです",
+            "其他有效答案最多 20 个",
+        ],
+    ),
+    (
+        "Weitere gültige Antworten müssen nichtleer und eindeutig sein",
+        [
+            "Other valid answers must be non-empty and unique",
+            "Weitere gültige Antworten müssen nichtleer und eindeutig sein",
+            "Les autres réponses valides doivent être non vides et uniques",
+            "ほかの正解は空でなく、重複しないようにしてください",
+            "其他有效答案不能为空且不能重复",
+        ],
+    ),
+    (
+        "Nur Quiz darf Antwortoptionen enthalten",
+        [
+            "Only Quiz may have answer options",
+            "Nur Quiz darf Antwortoptionen enthalten",
+            "Seul Quiz peut avoir des options de réponse",
+            "選択肢を持てるのは Quiz だけです",
+            "只有 Quiz 可以包含答案选项",
+        ],
+    ),
+    (
+        "Quiz braucht 2 bis 30 Optionen",
+        [
+            "Quiz needs 2 to 30 options",
+            "Quiz braucht 2 bis 30 Optionen",
+            "Quiz demande de 2 à 30 options",
+            "Quiz には 2〜30 個の選択肢が必要です",
+            "Quiz 需要 2 到 30 个选项",
+        ],
+    ),
+    (
+        "Höchstens 9 richtige Quizoptionen",
+        [
+            "At most 9 correct quiz options",
+            "Höchstens 9 richtige Quizoptionen",
+            "9 bonnes options de quiz au maximum",
+            "正解の選択肢は 9 個までです",
+            "正确的测验选项最多 9 个",
+        ],
+    ),
+    (
+        "Quizoptionen müssen nichtleer und eindeutig sein",
+        [
+            "Quiz options must be non-empty and unique",
+            "Quizoptionen müssen nichtleer und eindeutig sein",
+            "Les options de quiz doivent être non vides et uniques",
+            "選択肢は空でなく、重複しないようにしてください",
+            "测验选项不能为空且不能重复",
+        ],
+    ),
+    (
+        "Quiz braucht richtige und falsche Optionen",
+        [
+            "Quiz needs both right and wrong options",
+            "Quiz braucht richtige und falsche Optionen",
+            "Quiz demande des options justes et fausses",
+            "Quiz には正解と不正解の両方の選択肢が必要です",
+            "Quiz 需要同时有正确和错误的选项",
+        ],
+    ),
+    (
+        "Bitte eine Antwort eingeben",
+        [
+            "Please enter an answer",
+            "Bitte eine Antwort eingeben",
+            "Saisis une réponse",
+            "答えを入力してください",
+            "请输入答案",
+        ],
+    ),
+    (
+        "Die Antwort darf nicht leer sein",
+        [
+            "The answer must not be empty",
+            "Die Antwort darf nicht leer sein",
+            "La réponse ne doit pas être vide",
+            "答えを空にはできません",
+            "答案不能为空",
+        ],
+    ),
+    (
+        "Ungültige Quiz-Auswahl",
+        [
+            "Invalid quiz choice",
+            "Ungültige Quiz-Auswahl",
+            "Choix de quiz non valide",
+            "無効なクイズの選択です",
+            "无效的测验选择",
+        ],
+    ),
+    (
+        "Doppelte Quiz-Auswahl",
+        [
+            "Duplicate quiz choice",
+            "Doppelte Quiz-Auswahl",
+            "Choix de quiz en double",
+            "クイズの選択が重複しています",
+            "重复的测验选择",
+        ],
+    ),
+    (
+        "Ungültige oder doppelte Quiz-Auswahl",
+        [
+            "Invalid or duplicate quiz choice",
+            "Ungültige oder doppelte Quiz-Auswahl",
+            "Choix de quiz non valide ou en double",
+            "無効または重複したクイズの選択です",
+            "无效或重复的测验选择",
+        ],
+    ),
+    (
+        "Antwort passt nicht zur Frage",
+        [
+            "The answer does not fit the question",
+            "Antwort passt nicht zur Frage",
+            "La réponse ne correspond pas à la question",
+            "答えが問題に合っていません",
+            "答案与问题不符",
+        ],
+    ),
+    (
+        "Antwort passt nicht zur Abfrageart",
+        [
+            "The answer does not fit the answer type",
+            "Antwort passt nicht zur Abfrageart",
+            "La réponse ne correspond pas au type de réponse",
+            "答えが答えの種類に合っていません",
+            "答案与答案类型不符",
+        ],
+    ),
+    (
+        "Bewertung 1 bis 4",
+        [
+            "Grade 1 to 4",
+            "Bewertung 1 bis 4",
+            "Note de 1 à 4",
+            "評価は 1〜4",
+            "评分 1 到 4",
+        ],
+    ),
+    (
+        "Noch keine Frage beantwortet",
+        [
+            "No question answered yet",
+            "Noch keine Frage beantwortet",
+            "Aucune question répondue pour l'instant",
+            "まだ問題に答えていません",
+            "还没有回答任何问题",
+        ],
+    ),
+    (
+        "Die Journey ist beendet",
+        [
+            "The journey has ended",
+            "Die Journey ist beendet",
+            "Le parcours est terminé",
+            "ジャーニーは終了しました",
+            "旅程已结束",
+        ],
+    ),
+    (
+        "Keine Journey aktiv",
+        [
+            "No journey running",
+            "Keine Journey aktiv",
+            "Aucun parcours en cours",
+            "進行中のジャーニーはありません",
+            "没有进行中的旅程",
+        ],
+    ),
+    (
+        "Das Core-Plugin fehlt – ohne es kann Locora keine Antworten prüfen.",
+        [
+            "The core plugin is missing – without it, Locora cannot check answers.",
+            "Das Core-Plugin fehlt – ohne es kann Locora keine Antworten prüfen.",
+            "Le plugin core manque – sans lui, Locora ne peut pas vérifier les réponses.",
+            "Core プラグインがありません。これがないと Locora は答えを確認できません。",
+            "缺少 Core 插件——没有它，Locora 无法检查答案。",
+        ],
+    ),
+    (
+        "Der Raum ist nicht mehr vorhanden",
+        [
+            "The room no longer exists",
+            "Der Raum ist nicht mehr vorhanden",
+            "La pièce n'existe plus",
+            "その部屋はもうありません",
+            "该房间已不存在",
+        ],
+    ),
+    (
+        "Der Palast ist nicht mehr vorhanden",
+        [
+            "The palace no longer exists",
+            "Der Palast ist nicht mehr vorhanden",
+            "Le palais n'existe plus",
+            "そのパレスはもうありません",
+            "该宫殿已不存在",
+        ],
+    ),
+    (
+        "Diese Auswahl ist keine lokale Datei",
+        [
+            "This choice is not a local file",
+            "Diese Auswahl ist keine lokale Datei",
+            "Ce choix n'est pas un fichier local",
+            "選んだものはローカルファイルではありません",
+            "所选内容不是本地文件",
+        ],
+    ),
+    (
+        "Dieses Ziel ist keine lokale Datei",
+        [
+            "This destination is not a local file",
+            "Dieses Ziel ist keine lokale Datei",
+            "Cette destination n'est pas un fichier local",
+            "保存先がローカルファイルではありません",
+            "该目标不是本地文件",
+        ],
+    ),
+    (
+        "Dieses Ziel ist kein lokaler Ordner",
+        [
+            "This destination is not a local folder",
+            "Dieses Ziel ist kein lokaler Ordner",
+            "Cette destination n'est pas un dossier local",
+            "保存先がローカルフォルダーではありません",
+            "该目标不是本地文件夹",
+        ],
+    ),
+    (
+        "Dateifreigabe blockiert",
+        [
+            "File share blocked",
+            "Dateifreigabe blockiert",
+            "Partage de fichier bloqué",
+            "ファイル共有がブロックされています",
+            "文件共享被阻止",
+        ],
+    ),
+    (
+        "Keine Datei verfügbar",
+        [
+            "No file available",
+            "Keine Datei verfügbar",
+            "Aucun fichier disponible",
+            "利用できるファイルがありません",
+            "没有可用的文件",
+        ],
+    ),
+    (
+        "Bitte genau eine Bild- oder Videodatei hineinziehen",
+        [
+            "Please drag in exactly one picture or video file",
+            "Bitte genau eine Bild- oder Videodatei hineinziehen",
+            "Glisse exactement un fichier image ou vidéo",
+            "画像か動画のファイルを 1 つだけドラッグしてください",
+            "请只拖入一个图片或视频文件",
+        ],
+    ),
+    (
+        "Bitte die App neu starten",
+        [
+            "Please restart the app",
+            "Bitte die App neu starten",
+            "Redémarre l'app",
+            "アプリを再起動してください",
+            "请重新启动应用",
+        ],
+    ),
+    (
+        "Keine hineingezogene Datei verfügbar",
+        [
+            "No dragged-in file available",
+            "Keine hineingezogene Datei verfügbar",
+            "Aucun fichier glissé disponible",
+            "ドラッグされたファイルがありません",
+            "没有可用的拖入文件",
+        ],
+    ),
+    (
+        "Datei bitte erneut hineinziehen",
+        [
+            "Please drag the file in again",
+            "Datei bitte erneut hineinziehen",
+            "Glisse à nouveau le fichier",
+            "ファイルをもう一度ドラッグしてください",
+            "请重新拖入文件",
+        ],
+    ),
+    (
+        "Die Dateifreigabe ist abgelaufen. Bitte die Datei erneut hineinziehen.",
+        [
+            "The file share has expired. Please drag the file in again.",
+            "Die Dateifreigabe ist abgelaufen. Bitte die Datei erneut hineinziehen.",
+            "Le partage de fichier a expiré. Glisse à nouveau le fichier.",
+            "ファイル共有の期限が切れました。ファイルをもう一度ドラッグしてください。",
+            "文件共享已过期。请重新拖入文件。",
+        ],
+    ),
+    (
+        "Auf dem Handy bitte eine .locora-Datei importieren; TOML mit separaten Medien benötigt einen gemeinsamen Ordner",
+        [
+            "On a phone, please import a .locora file; TOML with separate media needs a shared folder",
+            "Auf dem Handy bitte eine .locora-Datei importieren; TOML mit separaten Medien benötigt einen gemeinsamen Ordner",
+            "Sur téléphone, importe un fichier .locora ; un TOML avec des médias séparés demande un dossier commun",
+            "スマートフォンでは .locora ファイルをインポートしてください。メディアが別になった TOML には共通のフォルダーが必要です",
+            "在手机上请导入 .locora 文件；带独立媒体的 TOML 需要共享文件夹",
+        ],
+    ),
+    (
+        "TOML-Ordnerexport ist nur auf dem Desktop verfügbar; bitte .locora exportieren",
+        [
+            "TOML folder export is only available on desktop; please export a .locora file",
+            "TOML-Ordnerexport ist nur auf dem Desktop verfügbar; bitte .locora exportieren",
+            "L'export TOML vers un dossier n'existe que sur ordinateur ; exporte un fichier .locora",
+            "TOML のフォルダー書き出しはデスクトップ版だけです。.locora で書き出してください",
+            "TOML 文件夹导出仅在桌面版可用；请导出 .locora 文件",
+        ],
+    ),
+    (
+        "Palast als .locora exportiert",
+        [
+            "Palace exported as .locora",
+            "Palast als .locora exportiert",
+            "Palais exporté en .locora",
+            "パレスを .locora として書き出しました",
+            "已将宫殿导出为 .locora",
+        ],
+    ),
+    (
+        "Unbekanntes Tonformat (mp3, m4a, wav, ogg, opus, weba, flac, aac)",
+        [
+            "Unknown sound format (mp3, m4a, wav, ogg, opus, weba, flac, aac)",
+            "Unbekanntes Tonformat (mp3, m4a, wav, ogg, opus, weba, flac, aac)",
+            "Format audio inconnu (mp3, m4a, wav, ogg, opus, weba, flac, aac)",
+            "不明な音声形式です（mp3, m4a, wav, ogg, opus, weba, flac, aac）",
+            "未知的声音格式（mp3、m4a、wav、ogg、opus、weba、flac、aac）",
+        ],
+    ),
+    (
+        "Die Tondatei ist leer",
+        [
+            "The sound file is empty",
+            "Die Tondatei ist leer",
+            "Le fichier audio est vide",
+            "音声ファイルが空です",
+            "声音文件为空",
+        ],
+    ),
+    (
+        "Dieses Videoformat kann der Browser nicht lesen. Bitte als MP4, MOV oder WebM speichern.",
+        [
+            "The browser cannot read this video format. Please save it as MP4, MOV or WebM.",
+            "Dieses Videoformat kann der Browser nicht lesen. Bitte als MP4, MOV oder WebM speichern.",
+            "Le navigateur ne peut pas lire ce format vidéo. Enregistre-la en MP4, MOV ou WebM.",
+            "この動画形式はブラウザーで読み込めません。MP4、MOV、WebM で保存してください。",
+            "浏览器无法读取此视频格式。请保存为 MP4、MOV 或 WebM。",
+        ],
+    ),
+    (
+        "Im Video wurde keine Bildspur gefunden.",
+        [
+            "No picture track was found in the video.",
+            "Im Video wurde keine Bildspur gefunden.",
+            "Aucune piste d'image n'a été trouvée dans la vidéo.",
+            "動画に映像トラックが見つかりませんでした。",
+            "视频中没有找到画面轨道。",
+        ],
+    ),
+    (
+        "Dieser Browser kann keine Videos umwandeln. Speichere das Video vorher als MP4 (H.264) oder WebM.",
+        [
+            "This browser cannot convert videos. Save the video as MP4 (H.264) or WebM first.",
+            "Dieser Browser kann keine Videos umwandeln. Speichere das Video vorher als MP4 (H.264) oder WebM.",
+            "Ce navigateur ne peut pas convertir de vidéos. Enregistre d'abord la vidéo en MP4 (H.264) ou WebM.",
+            "このブラウザーは動画を変換できません。先に動画を MP4（H.264）か WebM で保存してください。",
+            "此浏览器无法转换视频。请先将视频保存为 MP4（H.264）或 WebM。",
+        ],
+    ),
+    (
+        "Dieser Browser kann das Video nicht umwandeln. Füge es in der Android-App hinzu oder speichere es vorher als MP4 (H.264) oder WebM.",
+        [
+            "This browser cannot convert the video. Add it in the Android app or save it as MP4 (H.264) or WebM first.",
+            "Dieser Browser kann das Video nicht umwandeln. Füge es in der Android-App hinzu oder speichere es vorher als MP4 (H.264) oder WebM.",
+            "Ce navigateur ne peut pas convertir la vidéo. Ajoute-la dans l'app Android ou enregistre-la d'abord en MP4 (H.264) ou WebM.",
+            "このブラウザーではこの動画を変換できません。Android アプリで追加するか、先に MP4（H.264）か WebM で保存してください。",
+            "此浏览器无法转换该视频。请在 Android 应用中添加，或先保存为 MP4（H.264）或 WebM。",
+        ],
+    ),
+    (
+        "Kein Ort für die Datei",
+        [
+            "No place for the file",
+            "Kein Ort für die Datei",
+            "Aucun lieu pour le fichier",
+            "ファイルを置く場所がありません",
+            "没有用于该文件的位置",
+        ],
+    ),
+    (
+        "Kein Palast für den Raum",
+        [
+            "No palace for the room",
+            "Kein Palast für den Raum",
+            "Aucun palais pour la pièce",
+            "部屋を入れるパレスがありません",
+            "没有用于该房间的宫殿",
+        ],
+    ),
+    (
+        "TOML-Datei ist zu groß",
+        [
+            "The TOML file is too large",
+            "TOML-Datei ist zu groß",
+            "Le fichier TOML est trop volumineux",
+            "TOML ファイルが大きすぎます",
+            "TOML 文件过大",
+        ],
+    ),
+    (
+        "Zu viele Räume",
+        [
+            "Too many rooms",
+            "Zu viele Räume",
+            "Trop de pièces",
+            "部屋が多すぎます",
+            "房间过多",
+        ],
+    ),
+    (
+        "Zu viele Loci",
+        [
+            "Too many places",
+            "Zu viele Loci",
+            "Trop de lieux",
+            "場所が多すぎます",
+            "位置过多",
+        ],
+    ),
+    (
+        "Zu viele Tabellenzeilen",
+        [
+            "Too many table rows",
+            "Zu viele Tabellenzeilen",
+            "Trop de lignes de tableau",
+            "表の行が多すぎます",
+            "表格行过多",
+        ],
+    ),
+    (
+        "Der Wert ist zu lang",
+        [
+            "The value is too long",
+            "Der Wert ist zu lang",
+            "La valeur est trop longue",
+            "値が長すぎます",
+            "值过长",
+        ],
+    ),
+    (
+        "Zelle konnte nicht gespeichert werden",
+        [
+            "The cell could not be saved",
+            "Zelle konnte nicht gespeichert werden",
+            "La cellule n'a pas pu être enregistrée",
+            "セルを保存できませんでした",
+            "无法保存单元格",
+        ],
+    ),
+    (
+        "Zeile nicht gefunden",
+        [
+            "Row not found",
+            "Zeile nicht gefunden",
+            "Ligne introuvable",
+            "行が見つかりません",
+            "找不到该行",
+        ],
+    ),
+    (
+        "Der Ort gehört nicht zu diesem Palast",
+        [
+            "The place does not belong to this palace",
+            "Der Ort gehört nicht zu diesem Palast",
+            "Le lieu n'appartient pas à ce palais",
+            "その場所はこのパレスのものではありません",
+            "该位置不属于此宫殿",
+        ],
+    ),
+    (
+        "Die Formel ist leer oder zu lang",
+        [
+            "The formula is empty or too long",
+            "Die Formel ist leer oder zu lang",
+            "La formule est vide ou trop longue",
+            "数式が空か長すぎます",
+            "公式为空或过长",
+        ],
+    ),
+    (
+        "Die Formel ist zu lang",
+        [
+            "The formula is too long",
+            "Die Formel ist zu lang",
+            "La formule est trop longue",
+            "数式が長すぎます",
+            "公式过长",
+        ],
+    ),
+    (
+        "Bindung konnte nicht gespeichert werden",
+        [
+            "The binding could not be saved",
+            "Bindung konnte nicht gespeichert werden",
+            "La liaison n'a pas pu être enregistrée",
+            "バインディングを保存できませんでした",
+            "无法保存绑定",
+        ],
+    ),
+    (
+        "Formel konnte nicht berechnet werden",
+        [
+            "The formula could not be calculated",
+            "Formel konnte nicht berechnet werden",
+            "La formule n'a pas pu être calculée",
+            "数式を計算できませんでした",
+            "无法计算公式",
+        ],
+    ),
+    (
+        "Der Tag beginnt zu einer vollen Stunde von 0 bis 23",
+        [
+            "The day starts at a full hour from 0 to 23",
+            "Der Tag beginnt zu einer vollen Stunde von 0 bis 23",
+            "La journée commence à une heure pleine de 0 à 23",
+            "1 日の開始は 0〜23 の正時です",
+            "一天从 0 到 23 的整点开始",
+        ],
+    ),
+    (
+        "Die Ziel-Behaltensrate muss zwischen 0,70 und 0,99 liegen",
+        [
+            "The target retention must be between 0.70 and 0.99",
+            "Die Ziel-Behaltensrate muss zwischen 0,70 und 0,99 liegen",
+            "Le taux de rétention visé doit être compris entre 0,70 et 0,99",
+            "目標の定着率は 0.70〜0.99 の範囲にしてください",
+            "目标记忆保持率必须在 0.70 到 0.99 之间",
+        ],
+    ),
+    (
+        "Locora Cloud nicht erreichbar",
+        [
+            "Locora Cloud is not reachable",
+            "Locora Cloud nicht erreichbar",
+            "Locora Cloud est injoignable",
+            "Locora Cloud に接続できません",
+            "无法连接 Locora Cloud",
+        ],
+    ),
+    (
+        "Antwort von Locora Cloud ist ungültig",
+        [
+            "The reply from Locora Cloud is invalid",
+            "Antwort von Locora Cloud ist ungültig",
+            "La réponse de Locora Cloud n'est pas valide",
+            "Locora Cloud からの応答が無効です",
+            "Locora Cloud 的回复无效",
+        ],
+    ),
+    (
+        "Locora Cloud ist im Browser-Build noch nicht verfügbar. Alle Daten bleiben auf diesem Gerät.",
+        [
+            "Locora Cloud is not available in the browser version yet. All data stays on this device.",
+            "Locora Cloud ist im Browser-Build noch nicht verfügbar. Alle Daten bleiben auf diesem Gerät.",
+            "Locora Cloud n'est pas encore disponible dans la version navigateur. Toutes les données restent sur cet appareil.",
+            "Locora Cloud はブラウザー版ではまだ使えません。データはすべてこの端末に残ります。",
+            "浏览器版尚不支持 Locora Cloud。所有数据都保留在此设备上。",
+        ],
+    ),
+    (
+        "Nicht bei Locora Cloud angemeldet",
+        [
+            "Not signed in to Locora Cloud",
+            "Nicht bei Locora Cloud angemeldet",
+            "Non connecté à Locora Cloud",
+            "Locora Cloud にログインしていません",
+            "未登录 Locora Cloud",
+        ],
+    ),
+    (
+        "Kein Cloud-Konto angemeldet",
+        [
+            "No cloud account signed in",
+            "Kein Cloud-Konto angemeldet",
+            "Aucun compte cloud connecté",
+            "クラウドアカウントにログインしていません",
+            "未登录云账户",
+        ],
+    ),
+    (
+        "Auf diesem Gerät ist bereits ein Cloud-Konto angemeldet",
+        [
+            "A cloud account is already signed in on this device",
+            "Auf diesem Gerät ist bereits ein Cloud-Konto angemeldet",
+            "Un compte cloud est déjà connecté sur cet appareil",
+            "この端末ではすでにクラウドアカウントにログインしています",
+            "此设备上已登录一个云账户",
+        ],
+    ),
+    (
+        "Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren",
+        [
+            "No valid cloud unlock. Check the subscription and refresh the unlock",
+            "Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren",
+            "Aucune activation cloud valide. Vérifie l'abonnement et actualise l'activation",
+            "有効なクラウドのライセンスがありません。購読を確認してライセンスを更新してください",
+            "没有有效的云解锁。请检查订阅并刷新解锁状态",
+        ],
+    ),
+    (
+        "Verschlüsselung fehlt. In den Einstellungen einrichten",
+        [
+            "Encryption is missing. Set it up in the settings",
+            "Verschlüsselung fehlt. In den Einstellungen einrichten",
+            "Le chiffrement manque. Configure-le dans les réglages",
+            "暗号化が設定されていません。設定で設定してください",
+            "缺少加密。请在设置中设置",
+        ],
+    ),
+    (
+        "Ungültige Cloud-Serveradresse",
+        [
+            "Invalid cloud server address",
+            "Ungültige Cloud-Serveradresse",
+            "Adresse du serveur cloud non valide",
+            "クラウドサーバーのアドレスが無効です",
+            "无效的云服务器地址",
+        ],
+    ),
+    (
+        "Cloud-Serveradresse darf keine Zugangsdaten, Abfrage oder Fragment enthalten",
+        [
+            "The cloud server address must not contain credentials, a query or a fragment",
+            "Cloud-Serveradresse darf keine Zugangsdaten, Abfrage oder Fragment enthalten",
+            "L'adresse du serveur cloud ne doit contenir ni identifiants, ni requête, ni fragment",
+            "クラウドサーバーのアドレスに認証情報、クエリ、フラグメントは含められません",
+            "云服务器地址不能包含凭据、查询或片段",
+        ],
+    ),
+    (
+        "Der Server muss https:// verwenden (http nur für localhost)",
+        [
+            "The server must use https:// (http only for localhost)",
+            "Der Server muss https:// verwenden (http nur für localhost)",
+            "Le serveur doit utiliser https:// (http seulement pour localhost)",
+            "サーバーは https:// を使う必要があります（http は localhost のみ）",
+            "服务器必须使用 https://（http 仅限 localhost）",
+        ],
+    ),
+    (
+        "Serveradresse ist zu lang",
+        [
+            "The server address is too long",
+            "Serveradresse ist zu lang",
+            "L'adresse du serveur est trop longue",
+            "サーバーのアドレスが長すぎます",
+            "服务器地址过长",
+        ],
+    ),
+    (
+        "Eine gültige E-Mail-Adresse eingeben",
+        [
+            "Enter a valid email address",
+            "Eine gültige E-Mail-Adresse eingeben",
+            "Saisis une adresse e-mail valide",
+            "有効なメールアドレスを入力してください",
+            "请输入有效的电子邮件地址",
+        ],
+    ),
+    (
+        "Cloud-Passwort eingeben",
+        [
+            "Enter the cloud password",
+            "Cloud-Passwort eingeben",
+            "Saisis le mot de passe cloud",
+            "クラウドのパスワードを入力してください",
+            "请输入云密码",
+        ],
+    ),
+    (
+        "Cloud-Passwort braucht 10 bis 256 Zeichen",
+        [
+            "The cloud password needs 10 to 256 characters",
+            "Cloud-Passwort braucht 10 bis 256 Zeichen",
+            "Le mot de passe cloud doit contenir de 10 à 256 caractères",
+            "クラウドのパスワードは 10〜256 文字にしてください",
+            "云密码需要 10 到 256 个字符",
+        ],
+    ),
+    (
+        "Das Cloud-Passwort stimmt nicht",
+        [
+            "The cloud password is wrong",
+            "Das Cloud-Passwort stimmt nicht",
+            "Le mot de passe cloud est incorrect",
+            "クラウドのパスワードが違います",
+            "云密码不正确",
+        ],
+    ),
+    (
+        "Anzeigename braucht 1 bis 32 Zeichen",
+        [
+            "The display name needs 1 to 32 characters",
+            "Anzeigename braucht 1 bis 32 Zeichen",
+            "Le nom affiché doit contenir de 1 à 32 caractères",
+            "表示名は 1〜32 文字にしてください",
+            "显示名称需要 1 到 32 个字符",
+        ],
+    ),
+    (
+        "Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen",
+        [
+            "The encryption password needs 12 to 1024 characters",
+            "Verschlüsselungs-Passwort braucht 12 bis 1024 Zeichen",
+            "Le mot de passe de chiffrement doit contenir de 12 à 1024 caractères",
+            "暗号化パスワードは 12〜1024 文字にしてください",
+            "加密密码需要 12 到 1024 个字符",
+        ],
+    ),
+    (
+        "Die Verschlüsselung ist für dieses Konto bereits eingerichtet",
+        [
+            "Encryption is already set up for this account",
+            "Die Verschlüsselung ist für dieses Konto bereits eingerichtet",
+            "Le chiffrement est déjà configuré pour ce compte",
+            "このアカウントの暗号化はすでに設定されています",
+            "此账户已设置加密",
+        ],
+    ),
+    (
+        "Ein anderes Gerät hat die Verschlüsselung inzwischen eingerichtet. Diesen neu erzeugten Schlüssel nicht verwenden.",
+        [
+            "Another device has set up encryption in the meantime. Do not use this newly created key.",
+            "Ein anderes Gerät hat die Verschlüsselung inzwischen eingerichtet. Diesen neu erzeugten Schlüssel nicht verwenden.",
+            "Un autre appareil a configuré le chiffrement entre-temps. N'utilise pas cette clé qui vient d'être créée.",
+            "その間に別の端末が暗号化を設定しました。新しく作ったこの鍵は使わないでください。",
+            "另一台设备已在此期间设置了加密。请不要使用这个新生成的密钥。",
+        ],
+    ),
+    (
+        "Eine Cloud-Aktion läuft bereits",
+        [
+            "A cloud action is already running",
+            "Eine Cloud-Aktion läuft bereits",
+            "Une action cloud est déjà en cours",
+            "クラウドの操作がすでに実行中です",
+            "已有云操作正在进行",
+        ],
+    ),
+    (
+        "Ein Cloud-Sync läuft bereits",
+        [
+            "A cloud sync is already running",
+            "Ein Cloud-Sync läuft bereits",
+            "Une synchronisation cloud est déjà en cours",
+            "クラウド同期はすでに実行中です",
+            "云同步已在进行",
+        ],
+    ),
+    (
+        "Ein Cloud-Sync läuft gerade",
+        [
+            "A cloud sync is running right now",
+            "Ein Cloud-Sync läuft gerade",
+            "Une synchronisation cloud est en cours",
+            "クラウド同期を実行中です",
+            "云同步正在进行",
+        ],
+    ),
+    (
+        "Eine Operation lässt sich nicht öffnen (falscher Schlüssel oder beschädigt)",
+        [
+            "An operation cannot be opened (wrong key or damaged)",
+            "Eine Operation lässt sich nicht öffnen (falscher Schlüssel oder beschädigt)",
+            "Une opération ne peut pas être ouverte (mauvaise clé ou endommagée)",
+            "操作を開けません（鍵が違うか、破損しています）",
+            "无法打开某个操作（密钥错误或已损坏）",
+        ],
+    ),
+    (
+        "Bitte zuerst anmelden",
+        [
+            "Please sign in first",
+            "Bitte zuerst anmelden",
+            "Connecte-toi d'abord",
+            "先にログインしてください",
+            "请先登录",
+        ],
+    ),
+    (
+        "Für diese Funktion ist ein aktives Abo nötig",
+        [
+            "This feature needs an active subscription",
+            "Für diese Funktion ist ein aktives Abo nötig",
+            "Cette fonction demande un abonnement actif",
+            "この機能には有効な購読が必要です",
+            "此功能需要有效的订阅",
+        ],
+    ),
+    (
+        "Zu viele Versuche, bitte später erneut versuchen",
+        [
+            "Too many attempts, please try again later",
+            "Zu viele Versuche, bitte später erneut versuchen",
+            "Trop de tentatives, réessaie plus tard",
+            "試行回数が多すぎます。しばらくしてからもう一度お試しください",
+            "尝试次数过多，请稍后再试",
+        ],
+    ),
+    (
+        "Die Anfrage ist nicht erlaubt",
+        [
+            "This request is not allowed",
+            "Die Anfrage ist nicht erlaubt",
+            "Cette requête n'est pas autorisée",
+            "このリクエストは許可されていません",
+            "不允许此请求",
+        ],
+    ),
+    (
+        "Die Registrierung ist derzeit geschlossen",
+        [
+            "Registration is currently closed",
+            "Die Registrierung ist derzeit geschlossen",
+            "Les inscriptions sont actuellement fermées",
+            "現在、新規登録は受け付けていません",
+            "注册目前已关闭",
+        ],
+    ),
+    (
+        "Der Cloud-Bestand ist abgelaufen; ein Neuaufbau aus lokalen Daten ist nötig",
+        [
+            "The cloud data has expired; it has to be rebuilt from local data",
+            "Der Cloud-Bestand ist abgelaufen; ein Neuaufbau aus lokalen Daten ist nötig",
+            "Les données cloud ont expiré ; il faut les reconstruire à partir des données locales",
+            "クラウドのデータは期限切れです。ローカルのデータから作り直す必要があります",
+            "云端数据已过期；需要用本地数据重建",
+        ],
+    ),
+    (
+        "Interner Fehler",
+        [
+            "Internal error",
+            "Interner Fehler",
+            "Erreur interne",
+            "内部エラー",
+            "内部错误",
+        ],
+    ),
+    (
+        "Kein Konto zu dieser E-Mail-Adresse",
+        [
+            "No account with this email address",
+            "Kein Konto zu dieser E-Mail-Adresse",
+            "Aucun compte avec cette adresse e-mail",
+            "このメールアドレスのアカウントはありません",
+            "没有使用此电子邮件地址的账户",
+        ],
+    ),
+    (
+        "Zu dieser E-Mail-Adresse gibt es schon ein Konto",
+        [
+            "There is already an account with this email address",
+            "Zu dieser E-Mail-Adresse gibt es schon ein Konto",
+            "Un compte existe déjà avec cette adresse e-mail",
+            "このメールアドレスのアカウントはすでにあります",
+            "此电子邮件地址已有账户",
+        ],
+    ),
+    (
+        "Bitte eine gültige E-Mail-Adresse angeben",
+        [
+            "Please give a valid email address",
+            "Bitte eine gültige E-Mail-Adresse angeben",
+            "Indique une adresse e-mail valide",
+            "有効なメールアドレスを入力してください",
+            "请提供有效的电子邮件地址",
+        ],
+    ),
+    (
+        "Das Passwort braucht 10 bis 256 Zeichen",
+        [
+            "The password needs 10 to 256 characters",
+            "Das Passwort braucht 10 bis 256 Zeichen",
+            "Le mot de passe doit contenir de 10 à 256 caractères",
+            "パスワードは 10〜256 文字にしてください",
+            "密码需要 10 到 256 个字符",
+        ],
+    ),
+    (
+        "Der Anzeigename braucht 1 bis 32 Zeichen",
+        [
+            "The display name needs 1 to 32 characters",
+            "Der Anzeigename braucht 1 bis 32 Zeichen",
+            "Le nom affiché doit contenir de 1 à 32 caractères",
+            "表示名は 1〜32 文字にしてください",
+            "显示名称需要 1 到 32 个字符",
+        ],
+    ),
+    (
+        "Noch keine Verschlüsselung eingerichtet",
+        [
+            "No encryption set up yet",
+            "Noch keine Verschlüsselung eingerichtet",
+            "Aucun chiffrement configuré pour l'instant",
+            "まだ暗号化が設定されていません",
+            "尚未设置加密",
+        ],
+    ),
+    (
+        "Die Verschlüsselung ist schon eingerichtet",
+        [
+            "Encryption is already set up",
+            "Die Verschlüsselung ist schon eingerichtet",
+            "Le chiffrement est déjà configuré",
+            "暗号化はすでに設定されています",
+            "加密已设置",
+        ],
+    ),
+    (
+        "Die Schlüsseldaten sind ungültig",
+        [
+            "The key data is invalid",
+            "Die Schlüsseldaten sind ungültig",
+            "Les données de clé ne sont pas valides",
+            "鍵のデータが無効です",
+            "密钥数据无效",
+        ],
+    ),
+    (
+        "Der Speicher für Medien ist voll. Mit einem Abo gibt es mehr Platz.",
+        [
+            "The media storage is full. A subscription gives you more space.",
+            "Der Speicher für Medien ist voll. Mit einem Abo gibt es mehr Platz.",
+            "L'espace pour les médias est plein. Un abonnement donne plus de place.",
+            "メディアの保存容量がいっぱいです。購読するともっと使えます。",
+            "媒体存储空间已满。订阅后可获得更多空间。",
+        ],
+    ),
+    (
+        "Der gemeinsame Medienspeicher ist voll. Bitte später erneut versuchen.",
+        [
+            "The shared media storage is full. Please try again later.",
+            "Der gemeinsame Medienspeicher ist voll. Bitte später erneut versuchen.",
+            "L'espace partagé pour les médias est plein. Réessaie plus tard.",
+            "共有のメディア保存容量がいっぱいです。しばらくしてからもう一度お試しください。",
+            "共享媒体存储空间已满。请稍后再试。",
+        ],
+    ),
+    (
+        "Das Medium wird bereits hochgeladen",
+        [
+            "The media is already being uploaded",
+            "Das Medium wird bereits hochgeladen",
+            "Le média est déjà en cours d'envoi",
+            "このメディアはすでにアップロード中です",
+            "该媒体已在上传中",
+        ],
+    ),
+    (
+        "Medium nicht gefunden",
+        [
+            "Media not found",
+            "Medium nicht gefunden",
+            "Média introuvable",
+            "メディアが見つかりません",
+            "找不到媒体",
+        ],
+    ),
+    (
+        "Die Datei hat eine ungültige Größe",
+        [
+            "The file has an invalid size",
+            "Die Datei hat eine ungültige Größe",
+            "Le fichier a une taille non valide",
+            "ファイルのサイズが無効です",
+            "文件大小无效",
+        ],
+    ),
+    (
+        "Sync-Generation hat sich geändert",
+        [
+            "The sync generation has changed",
+            "Sync-Generation hat sich geändert",
+            "La génération de synchronisation a changé",
+            "同期の世代が変わりました",
+            "同步代次已更改",
+        ],
+    ),
+    (
+        "Du kannst dich nicht selbst hinzufügen",
+        [
+            "You cannot add yourself",
+            "Du kannst dich nicht selbst hinzufügen",
+            "Tu ne peux pas t'ajouter toi-même",
+            "自分自身は追加できません",
+            "你不能添加自己",
+        ],
+    ),
+    (
+        "Challenge nicht gefunden",
+        [
+            "Challenge not found",
+            "Challenge nicht gefunden",
+            "Défi introuvable",
+            "チャレンジが見つかりません",
+            "找不到挑战",
+        ],
+    ),
+    (
+        "Die Challenge ist beendet",
+        [
+            "The challenge has ended",
+            "Die Challenge ist beendet",
+            "Le défi est terminé",
+            "チャレンジは終了しました",
+            "挑战已结束",
+        ],
+    ),
+    (
+        "Der Name braucht 1 bis 60 Zeichen",
+        [
+            "The name needs 1 to 60 characters",
+            "Der Name braucht 1 bis 60 Zeichen",
+            "Le nom doit contenir de 1 à 60 caractères",
+            "名前は 1〜60 文字にしてください",
+            "名称需要 1 到 60 个字符",
         ],
     ),
 ];

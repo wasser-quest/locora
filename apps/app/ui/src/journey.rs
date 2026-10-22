@@ -1173,12 +1173,17 @@ fn Done(
             } else {
                 view! {
                     <div class="prompt">
-                        {format!(
-                            "{} von {} gewusst · {} Punkte",
-                            summary.correct,
-                            summary.asked,
-                            summary.points,
-                        )}
+                        {if summary.points == 1 {
+                            crate::i18n::tf(
+                                "{0} von {1} gewusst · 1 Punkt",
+                                &[&summary.correct, &summary.asked],
+                            )
+                        } else {
+                            crate::i18n::tf(
+                                "{0} von {1} gewusst · {2} Punkte",
+                                &[&summary.correct, &summary.asked, &summary.points],
+                            )
+                        }}
                     </div>
                 }
                     .into_any()
@@ -1186,7 +1191,7 @@ fn Done(
             {summary
                 .notes
                 .into_iter()
-                .map(|n| view! { <p class="notes">{n}</p> })
+                .map(|n| view! { <p class="notes">{crate::i18n::translate_message(&n)}</p> })
                 .collect_view()}
             <button class="primary" on:click=move |_| screen.set(crate::start_screen())>
                 {t("Zur Übersicht")}
@@ -1310,7 +1315,7 @@ fn Inputs(
                 submit();
             }
         >
-            <div class="prompt">"Eingaben für diese Journey"</div>
+            <div class="prompt">{t("Eingaben für diese Journey")}</div>
             {fields
                 .into_iter()
                 .zip(values)
@@ -1355,7 +1360,7 @@ fn Inputs(
                     }
                 })
                 .collect_view()}
-            <button class="primary" type="submit">"Los ▶"</button>
+            <button class="primary" type="submit">{t("Los ▶")}</button>
         </form>
     }
 }

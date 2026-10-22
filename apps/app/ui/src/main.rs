@@ -11,6 +11,7 @@ mod editor;
 mod formulas;
 mod i18n;
 mod i18n_catalog;
+mod info;
 mod journey;
 mod language_choice;
 mod locus_display;
@@ -82,6 +83,7 @@ fn Root() -> impl IntoView {
     provide_context(i18n::Language(language));
     // On the very first start the language comes first; the app starts once it is chosen.
     let chosen = RwSignal::new(i18n::is_saved());
+    FIRST_START.with(|first| first.set(!chosen.get_untracked()));
     move || {
         language.get();
         if chosen.get() {
@@ -154,6 +156,24 @@ const TOUR_TARGETS: [&str; 15] = [
     "tour-journey-grade",
 ];
 
+/// The visible part of the window while an on-screen keyboard covers some of it: its top, its
+/// height and how much of the window's bottom is covered, all in CSS pixels. None without a
+/// keyboard, or where the browser has no `visualViewport`.
+fn visible_area() -> Option<(f64, f64, f64)> {
+    let window = web_sys::window()?;
+    let full = window.inner_height().ok()?.as_f64()?;
+    let viewport = js_sys::Reflect::get(&window, &"visualViewport".into()).ok()?;
+    let number = |name: &str| {
+        js_sys::Reflect::get(&viewport, &name.into())
+            .ok()
+            .and_then(|value| value.as_f64())
+    };
+    let (top, height) = (number("offsetTop")?, number("height")?);
+    let covered = full - top - height;
+    // Pinch zoom also shrinks the visual viewport; a keyboard takes at least this much.
+    (covered > 120.0).then_some((top, height, covered))
+}
+
 /// The app tour's current step, for the screens that act on it (Simo's example).
 #[derive(Clone, Copy)]
 pub struct TourStep(pub RwSignal<Option<HighlightRequest>>);
@@ -161,6 +181,9 @@ pub struct TourStep(pub RwSignal<Option<HighlightRequest>>);
 thread_local! {
     /// The id of Simo's example palace once the tour has made it.
     static TOUR_DEMO: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+    /// True until the app starts after the first start's language choice. A tour step left over
+    /// from an earlier install (Android restores app data, browsers keep it) is not resumed then.
+    static FIRST_START: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// The tour step's target while the tour shows Simo's example palace `palace_id`. Reactive.
@@ -286,7 +309,7 @@ async fn route_tour_step(
                 }));
             }
         }
-        _ => return Err("Unbekanntes Ziel der App-Tour".into()),
+        _ => return Err(t("Unbekanntes Ziel der App-Tour").into()),
     }
     Ok(())
 }
@@ -303,9 +326,16 @@ fn TourOverlay(
     // Where the highlighted control is on screen (with its label): the spotlight frames it, and
     // the panel moves to the other half of the screen so it never covers it.
     let spot = RwSignal::new(None::<(f64, f64, f64, f64)>);
+    // The part of the window an on-screen keyboard leaves visible (top, height, covered at the
+    // bottom). Fixed elements stay put while the keyboard covers them, so the panel follows this.
+    let visible = RwSignal::new(None::<(f64, f64, f64)>);
     let focused = StoredValue::new(None::<(u8, String)>);
     let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
     let highlight = move || {
+        let keyboard = visible_area();
+        if visible.get_untracked() != keyboard {
+            visible.set(keyboard);
+        }
         let current = active.get_untracked();
         let Some(document) = web_sys::window().and_then(|window| window.document()) else {
             return;
@@ -365,6 +395,21 @@ fn TourOverlay(
             }
         }
     };
+    // The panel takes the half of the visible area the highlighted control is not in.
+    let panel_top = move || {
+        let (top, height) = match visible.get() {
+            Some((top, height, _)) => (top, height),
+            None => (
+                0.0,
+                web_sys::window()
+                    .and_then(|w| w.inner_height().ok())
+                    .and_then(|h| h.as_f64())
+                    .unwrap_or(800.0),
+            ),
+        };
+        spot.get()
+            .is_some_and(|(_, y, _, h)| y + h / 2.0 > top + height / 2.0)
+    };
     highlight();
     let timer = set_interval_with_handle(highlight, std::time::Duration::from_millis(150)).ok();
     on_cleanup(move || {
@@ -384,10 +429,13 @@ fn TourOverlay(
         })}
         <Show when=move || active.get().is_some()>
                 <aside class="tour-panel card" role="region" aria-label=t("App-Tour") aria-live="polite"
-                    class:top=move || {
-                        let height = web_sys::window().and_then(|w| w.inner_height().ok()).and_then(|h| h.as_f64()).unwrap_or(800.0);
-                        spot.get().is_some_and(|(_, y, _, h)| y + h / 2.0 > height / 2.0)
-                    }>
+                    class:top=panel_top
+                    // With a keyboard open the panel sits in the visible part, above the keyboard
+                    // or at the top, and scrolls inside when that part is small.
+                    style:bottom=move || visible.get().filter(|_| !panel_top()).map(|(_, _, covered)| format!("{}px", covered + 8.0))
+                    style:top=move || visible.get().filter(|_| panel_top()).map(|(top, _, _)| format!("{}px", top + 8.0))
+                    style:max-height=move || visible.get().map(|(_, height, _)| format!("{}px", (height / 2.0 - 16.0).max(120.0)))
+                    style:overflow-y=move || visible.get().map(|_| "auto")>
                     <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
                     <div class="tour-copy">
                         <small>{move || active.get().map(|step| crate::i18n::tf("Schritt {0} von {1}", &[&step.step, &step.total])).unwrap_or_default()}</small>
@@ -422,15 +470,15 @@ fn App() -> impl IntoView {
     provide_context(TourStep(tour));
     let tour_error = RwSignal::new(String::new());
     let tour_route_ready = RwSignal::new(false);
+    // The first start shows only the language choice and then the welcome page; the tour starts
+    // from its button.
+    let action = if FIRST_START.with(|first| first.replace(false)) {
+        TourAction::Skip
+    } else {
+        TourAction::Resume
+    };
     spawn_local(async move {
-        match call::<Option<HighlightRequest>>(
-            CMD_TOUR,
-            TourArgs {
-                action: TourAction::Resume,
-            },
-        )
-        .await
-        {
+        match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action }).await {
             Ok(step) => {
                 tour.set(step.clone());
                 match route_tour_step(step, screen).await {
@@ -511,12 +559,12 @@ fn App() -> impl IntoView {
             let url = crash::issue_url(&report);
             view! {
                 <aside class="card notes" role="alert" style="margin:.6rem;">
-                    <strong>"An error happened in the last session."</strong>
+                    <strong>{t("In der letzten Sitzung ist ein Fehler aufgetreten.")}</strong>
                     <p>{format!("{} · {}", report.message, report.location)}</p>
                     <p>
-                        <a href=url target="_blank" rel="noopener">"Report it on GitHub"</a>
+                        <a href=url target="_blank" rel="noopener">{t("Auf GitHub melden")}</a>
                         " · "
-                        <button on:click=move |_| crash_notice.set(None)>"Dismiss"</button>
+                        <button on:click=move |_| crash_notice.set(None)>{t("Schließen")}</button>
                     </p>
                 </aside>
             }
@@ -602,9 +650,9 @@ fn import_message(result: &locora_app_api::ImportResult) -> String {
         .iter()
         .map(|p| {
             if p.name == p.original_name {
-                format!("„{}“ importiert", p.name)
+                tf("„{0}“ importiert", &[&p.name])
             } else {
-                format!("„{}“ importiert als „{}“", p.original_name, p.name)
+                tf("„{0}“ importiert als „{1}“", &[&p.original_name, &p.name])
             }
         })
         .collect();
@@ -614,13 +662,18 @@ fn import_message(result: &locora_app_api::ImportResult) -> String {
             &[&n],
         ));
     }
-    parts.extend(result.notes.iter().cloned());
+    parts.extend(
+        result
+            .notes
+            .iter()
+            .map(|note| crate::i18n::translate_message(note)),
+    );
     parts.join(" · ")
 }
 
 fn loci_text(n: u32) -> String {
     if n == 1 {
-        "1 Locus".into()
+        t("1 Locus").into()
     } else {
         crate::i18n::tf("{0} Loci", &[&n])
     }
@@ -996,7 +1049,7 @@ fn HomeView(
                         {home
                             .notes
                             .into_iter()
-                            .map(|n| view! { <p class="notes">{n}</p> })
+                            .map(|n| view! { <p class="notes">{crate::i18n::translate_message(&n)}</p> })
                             .collect_view()}
                     }
                         .into_any();
@@ -1182,7 +1235,7 @@ fn HomeView(
                     {home
                         .notes
                         .into_iter()
-                        .map(|n| view! { <p class="notes">{n}</p> })
+                        .map(|n| view! { <p class="notes">{crate::i18n::translate_message(&n)}</p> })
                         .collect_view()}
                 }
                     .into_any()
@@ -1451,7 +1504,7 @@ fn PalaceScreen(
                         match call::<Option<String>>(locora_app_api::CMD_EXPORT_PICK, IdArgs { id })
                             .await
                         {
-                            Ok(Some(text)) => saved.set(Ok(text)),
+                            Ok(Some(text)) => saved.set(Ok(crate::i18n::translate(&text))),
                             Err(text) => saved.set(Err(text)),
                             Ok(None) => {}
                         }
@@ -1470,7 +1523,7 @@ fn PalaceScreen(
                     exporting.set(true);
                     spawn_local(async move {
                         match call::<Option<String>>(locora_app_api::CMD_DUMP_PICK, IdArgs { id }).await {
-                            Ok(Some(text)) => saved.set(Ok(text)),
+                            Ok(Some(text)) => saved.set(Ok(crate::i18n::translate(&text))),
                             Err(text) => saved.set(Err(text)),
                             Ok(None) => {}
                         }

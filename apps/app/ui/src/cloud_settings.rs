@@ -1,6 +1,7 @@
 //! Cloud sign-in, account-key setup and manually triggered encrypted sync.
 
-use crate::i18n::t;
+use crate::i18n::{t, tf};
+use crate::info::Info;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -33,6 +34,32 @@ struct DeleteAccountArgs {
     password: String,
 }
 
+/// Whether the cloud forms show the passwords as typed; one switch for all of them.
+#[derive(Clone, Copy)]
+struct PasswordsShown(RwSignal<bool>);
+
+/// The `type` of a password field: plain text while the passwords are shown.
+fn password_type() -> impl Fn() -> &'static str + Copy {
+    let shown = use_context::<PasswordsShown>().map(|shown| shown.0);
+    move || {
+        if shown.is_some_and(|shown| shown.get()) {
+            "text"
+        } else {
+            "password"
+        }
+    }
+}
+
+/// The "Passwörter anzeigen" checkbox under a form's password fields.
+#[component]
+fn ShowPasswords() -> impl IntoView {
+    let shown =
+        use_context::<PasswordsShown>().map_or_else(|| RwSignal::new(false), |shown| shown.0);
+    view! {
+        <label class="input check"><input type="checkbox" bind:checked=shown />{t("Passwörter anzeigen")}</label>
+    }
+}
+
 fn refresh_keys_for(
     status: RwSignal<Option<Result<CloudStatus, String>>>,
     keys: RwSignal<Option<Result<bool, String>>>,
@@ -58,6 +85,7 @@ fn refresh_keys_for(
 
 #[component]
 pub fn CloudSettings() -> impl IntoView {
+    provide_context(PasswordsShown(RwSignal::new(false)));
     let status = load(call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}));
     let keys = RwSignal::new(None::<Result<bool, String>>);
     let recovery = RwSignal::new(None::<CloudKeyCreated>);
@@ -121,7 +149,7 @@ pub fn CloudSettings() -> impl IntoView {
                     <ConnectForm status=status message=message busy=busy />
                 }.into_any(),
                 Some(Ok(CloudStatus { account: Some(account), server, access })) => view! {
-                    <p class="progress">{format!("Angemeldet als {account} bei {}.", server.unwrap_or_default())}</p>
+                    <p class="progress">{tf("Angemeldet als {0} bei {1}.", &[&account, &server.unwrap_or_default()])}</p>
                     <button type="button" disabled=move || busy.get() on:click=move |_| refresh_access()>
                         {t("Freischaltung aktualisieren")}
                     </button>
@@ -268,9 +296,10 @@ fn DeleteCloud(
             </Show>
             <form on:submit=move |event| { event.prevent_default(); delete_account(); }>
                 <p class="notes">{t("Konto löschen entfernt das Konto mit allen Daten vom Server und meldet dieses Gerät ab. Ein Abo beim Zahlungsanbieter bitte dort kündigen.")}</p>
-                <label class="input"><span>{t("Cloud-Passwort")}</span>
-                    <input type="password" autocomplete="current-password" bind:value=password />
+                <label class="input"><span class="info-head">{t("Cloud-Passwort")}<Info text="Damit meldest du dich bei Locora Cloud an. Es ist ein anderes Passwort als das Verschlüsselungs-Passwort, das deine Daten schützt." /></span>
+                    <input type=password_type() autocomplete="current-password" bind:value=password />
                 </label>
+                <ShowPasswords />
                 <button type="submit" class="danger" disabled=move || busy.get()>{t("Konto endgültig löschen")}</button>
             </form>
         </details>
@@ -332,30 +361,31 @@ fn ConnectForm(
     view! {
         <p class="notes">{t("Konto und Verschlüsselung lassen sich hier direkt auf diesem Gerät einrichten.")}</p>
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
-            <label class="input"><span>{t("Cloud-Server (HTTPS)")}</span>
+            <label class="input"><span class="info-head">{t("Cloud-Server (HTTPS)")}<Info text="Die Adresse des Servers, mit dem du synchronisierst. Lass sie so, außer du hast einen eigenen Server." /></span>
                 <input type="url" placeholder="https://api.locora.cloud" autocomplete="url" bind:value=server required />
             </label>
             <label class="input"><span>{t("E-Mail")}</span>
                 <input type="email" autocomplete="username" bind:value=email required />
             </label>
             <label><input type="checkbox" prop:checked=move || register.get()
-                on:change=move |event| register.set(event_target_checked(&event)) />{t("Neues Konto erstellen")}</label>
+                on:change=move |event| register.set(event_target_checked(&event)) />{t("Neues Konto erstellen")}<Info text="Einschalten, wenn du noch kein Cloud-Konto hast. Sonst meldest du dich mit deinem Konto an." /></label>
             <Show when=move || register.get()>
                 <p class="meta">{t("Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate. Mit einem Abo bleiben sie dauerhaft.")}</p>
-                <label class="input"><span>{t("Anzeigename")}</span>
+                <label class="input"><span class="info-head">{t("Anzeigename")}<Info text="So heißt du für deine Freunde in Locora Cloud, z. B. in der Rangliste." /></span>
                     <input type="text" maxlength="32" bind:value=display_name />
                 </label>
             </Show>
-            <label class="input"><span>{t("Cloud-Passwort")}</span>
-                <input type="password" autocomplete="current-password" bind:value=password required />
+            <label class="input"><span class="info-head">{t("Cloud-Passwort")}<Info text="Damit meldest du dich bei Locora Cloud an. Es ist ein anderes Passwort als das Verschlüsselungs-Passwort, das deine Daten schützt." /></span>
+                <input type=password_type() autocomplete="current-password" bind:value=password required />
             </label>
             <Show when=move || register.get()>
                 <label class="input"><span>{t("Cloud-Passwort wiederholen")}</span>
-                    <input type="password" autocomplete="new-password" bind:value=confirmation />
+                    <input type=password_type() autocomplete="new-password" bind:value=confirmation />
                 </label>
             </Show>
+            <ShowPasswords />
             <button class="primary" type="submit" disabled=move || busy.get()>
-                {move || if register.get() { "Konto erstellen" } else { "Anmelden" }}
+                {move || if register.get() { t("Konto erstellen") } else { t("Anmelden") }}
             </button>
         </form>
     }
@@ -416,12 +446,13 @@ fn KeySetupForm(
     };
     view! {
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
-            <label class="input"><span>{t("Neues Verschlüsselungs-Passwort (mindestens 12 Zeichen)")}</span>
-                <input type="password" autocomplete="new-password" bind:value=passphrase required />
+            <label class="input"><span class="info-head">{t("Neues Verschlüsselungs-Passwort (mindestens 12 Zeichen)")}<Info text="Damit werden deine Daten verschlüsselt, bevor sie in die Cloud gehen. Es ist ein eigenes Passwort, nicht dein Cloud-Passwort, und der Server kennt es nicht. Verlierst du es und den Wiederherstellungsschlüssel, kann niemand die Cloud-Daten wieder lesbar machen." /></span>
+                <input type=password_type() autocomplete="new-password" bind:value=passphrase required />
             </label>
             <label class="input"><span>{t("Verschlüsselungs-Passwort wiederholen")}</span>
-                <input type="password" autocomplete="new-password" bind:value=confirmation required />
+                <input type=password_type() autocomplete="new-password" bind:value=confirmation required />
             </label>
+            <ShowPasswords />
             <button class="primary" type="submit" disabled=move || busy.get()>
                 {t("Verschlüsselung einrichten")}
             </button>
@@ -456,24 +487,25 @@ fn SyncForm() -> impl IntoView {
     view! {
         <p class="progress">{t("Änderungen werden nur auf Knopfdruck Ende-zu-Ende-verschlüsselt synchronisiert.")}</p>
         <form on:submit=move |event| { event.prevent_default(); submit(); }>
-            <label class="input"><span>{t("Verschlüsselungs-Passwort")}</span>
-                <input type="password" autocomplete="off" bind:value=passphrase />
+            <label class="input"><span class="info-head">{t("Verschlüsselungs-Passwort")}<Info text="Damit werden deine Daten verschlüsselt, bevor sie in die Cloud gehen. Es ist ein eigenes Passwort, nicht dein Cloud-Passwort, und der Server kennt es nicht. Verlierst du es und den Wiederherstellungsschlüssel, kann niemand die Cloud-Daten wieder lesbar machen." /></span>
+                <input type=password_type() autocomplete="off" bind:value=passphrase />
             </label>
+            <ShowPasswords />
             <button class="primary" type="submit" disabled=move || busy.get()>
-                {move || if busy.get() { "Synchronisiert …" } else { "Jetzt synchronisieren" }}
+                {move || if busy.get() { t("Synchronisiert …") } else { t("Jetzt synchronisieren") }}
             </button>
         </form>
         {move || outcome.get().map(|result| match result {
             Ok(report) => view! {
-                <p class="verdict ok" role="status">{format!(
-                    "Sync abgeschlossen: {} Änderungen gesendet, {} Medien hochgeladen, {} Änderungen empfangen, {} Medien geladen; {} angewendet, {} schon bekannt, {} mit fehlendem Ort.",
-                    report.pushed, report.media_uploaded, report.pulled,
-                    report.media_downloaded, report.applied, report.stale, report.missing,
+                <p class="verdict ok" role="status">{tf(
+                    "Sync abgeschlossen: {0} Änderungen gesendet, {1} Medien hochgeladen, {2} Änderungen empfangen, {3} Medien geladen; {4} angewendet, {5} schon bekannt, {6} mit fehlendem Ort.",
+                    &[&report.pushed, &report.media_uploaded, &report.pulled,
+                    &report.media_downloaded, &report.applied, &report.stale, &report.missing],
                 )}</p>
                 {(report.failed != 0 || report.quarantined != 0).then(|| view! {
-                    <p class="notes" role="alert">{format!(
-                        "{} Änderungen konnten nicht angewendet werden, {} wurden in Quarantäne abgelegt. Bitte lokalen Datenbestand prüfen.",
-                        report.failed, report.quarantined,
+                    <p class="notes" role="alert">{tf(
+                        "{0} Änderungen konnten nicht angewendet werden, {1} wurden in Quarantäne abgelegt. Bitte lokalen Datenbestand prüfen.",
+                        &[&report.failed, &report.quarantined],
                     )}</p>
                 })}
             }.into_any(),

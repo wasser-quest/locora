@@ -1,5 +1,6 @@
 //! Room editor and pointer gestures; mutations and validation go through IPC.
 use crate::i18n::t;
+use crate::info::Info;
 use leptos::{html, prelude::*, task::spawn_local};
 use locora_app_api::{
     CMD_EDITOR_CHANGE, EditorAction, EditorAnswer, EditorAnswerKind, EditorChange, EditorUpdated,
@@ -32,7 +33,7 @@ fn stage_point(x: f64, y: f64, left: f64, top: f64, width: f64, height: f64) -> 
 
 fn parse_list(text: &str) -> Result<Vec<String>, String> {
     if text.len() > locora_app_api::MAX_PASTE_BYTES {
-        return Err("Die Liste darf höchstens 64 KiB groß sein".into());
+        return Err(t("Die Liste darf höchstens 64 KiB groß sein").into());
     }
     let items = text
         .lines()
@@ -40,7 +41,7 @@ fn parse_list(text: &str) -> Result<Vec<String>, String> {
         .filter(|line| !line.is_empty())
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    locora_app_api::validate_paste_items(&items).map_err(str::to_owned)?;
+    locora_app_api::validate_paste_items(&items).map_err(crate::i18n::translate)?;
     Ok(items)
 }
 
@@ -139,26 +140,26 @@ impl Draft {
 
     fn content(&self) -> Result<LocusContent, String> {
         if self.place.trim().is_empty() {
-            return Err("Ort darf nicht leer sein".into());
+            return Err(t("Ort darf nicht leer sein").into());
         }
         let image_size = self
             .size
             .parse::<f64>()
-            .map_err(|_| "Bildgröße muss eine Zahl sein")?;
+            .map_err(|_| t("Bildgröße muss eine Zahl sein"))?;
         if !image_size.is_finite() || !(0.05..=1.0).contains(&image_size) {
-            return Err("Bildgröße muss zwischen 0.05 und 1 liegen".into());
+            return Err(t("Bildgröße muss zwischen 0.05 und 1 liegen").into());
         }
         let zoom = self
             .zoom
             .trim()
             .replace(',', ".")
             .parse::<f64>()
-            .map_err(|_| "Zoom muss eine Zahl sein")?;
+            .map_err(|_| t("Zoom muss eine Zahl sein"))?;
         if !zoom.is_finite() || !(1.0..=4.0).contains(&zoom) {
-            return Err("Zoom muss zwischen 1 (ganzer Raum) und 4 liegen".into());
+            return Err(t("Zoom muss zwischen 1 (ganzer Raum) und 4 liegen").into());
         }
         let answer = parse_answer(&self.kind, &self.accept, &self.quiz)?;
-        answer.validate().map_err(str::to_owned)?;
+        answer.validate().map_err(crate::i18n::translate)?;
         Ok(LocusContent {
             place: self.place.clone(),
             item: self.item.clone(),
@@ -275,11 +276,12 @@ fn draft_key(palace: &str, room: &str, locus: &str) -> String {
 #[cfg(target_arch = "wasm32")]
 fn storage(method: &str, key: &str, value: Option<&str>) -> Result<wasm_bindgen::JsValue, String> {
     use wasm_bindgen::{JsCast, JsValue};
-    let error =
-        |_| "Lokaler Entwurf konnte nicht gespeichert/gelesen werden (Browserspeicher)".to_owned();
+    let error = |_| {
+        t("Lokaler Entwurf konnte nicht gespeichert/gelesen werden (Browserspeicher)").to_owned()
+    };
     let store = js_sys::Reflect::get(
         &web_sys::window()
-            .ok_or_else(|| "Kein Fenster".to_owned())?
+            .ok_or_else(|| t("Kein Fenster").to_owned())?
             .into(),
         &JsValue::from_str("localStorage"),
     )
@@ -317,9 +319,9 @@ fn persist_draft(key: &str, draft: Option<&Draft>) -> Result<(), String> {
         if let Some(draft) = draft {
             let value = serde_wasm_bindgen::to_value(draft).map_err(|e| e.to_string())?;
             let text = js_sys::JSON::stringify(&value)
-                .map_err(|_| "Entwurf konnte nicht serialisiert werden".to_owned())?
+                .map_err(|_| t("Entwurf konnte nicht serialisiert werden").to_owned())?
                 .as_string()
-                .ok_or_else(|| "Entwurf konnte nicht serialisiert werden".to_owned())?;
+                .ok_or_else(|| t("Entwurf konnte nicht serialisiert werden").to_owned())?;
             storage("setItem", key, Some(&text))?;
         } else {
             storage("removeItem", key, None)?;
@@ -415,7 +417,7 @@ impl Editor {
         let submitted_draft = draft_storage_key.as_deref().and_then(load_draft);
         let pasted = matches!(&action, EditorAction::Paste { .. });
         let toast_text = match (&action, replay) {
-            (EditorAction::Delete { .. }, None) => Some("Ort gelöscht".to_owned()),
+            (EditorAction::Delete { .. }, None) => Some(t("Ort gelöscht").to_owned()),
             (EditorAction::Paste { items }, None) => Some(match items.len() {
                 1 => t("1 Ort eingefügt").to_owned(),
                 n => crate::i18n::tf("{0} Orte eingefügt", &[&n]),
@@ -697,7 +699,8 @@ fn PalaceNames(editor: Editor) -> impl IntoView {
             }).collect_view();
             let palace_editor = editor.clone();
             view! {
-                <label>{t("Palastname")}
+                <label class="info-head">{t("Palastname")}
+                    <Info text="So heißt dein Palast. Unter diesem Namen findest du ihn auf der Startseite." />
                     <input type="text" prop:value=palace.name.clone()
                         on:change=move |ev| palace_command(name_editor.clone(), "palace_rename",
                             RenamePalaceArgs { palace_id: name_id.clone(), name: event_target_value(&ev) }, None)/>
@@ -821,7 +824,7 @@ pub fn Rooms(
     let unload = window_event_listener(leptos::ev::beforeunload, move |event| {
         if busy.get_untracked() || dirty.get_untracked() {
             event.prevent_default();
-            event.set_return_value("Änderungen sind noch nicht gespeichert");
+            event.set_return_value(t("Änderungen sind noch nicht gespeichert"));
         }
     });
     on_cleanup(move || unload.remove());
@@ -895,7 +898,7 @@ pub fn Rooms(
     let drop_selection = editor.selected;
     crate::tauri::on_file_drop(move |_| {
         if !editing.get_untracked() || drop_selection.get_untracked().is_none() {
-            drop_message.set("Für ein Ortsbild bitte Bearbeiten aktivieren und einen Ort auswählen. Weitere Räume: „+ Raum aus Bild oder Video“.".into());
+            drop_message.set(t("Für ein Ortsbild bitte Bearbeiten aktivieren und einen Ort auswählen. Weitere Räume: „+ Raum aus Bild oder Video“.").into());
         }
     });
     view! {
@@ -910,7 +913,7 @@ pub fn Rooms(
                     // Never interpret dropped filenames as trusted native paths,
                     // and do not let a browser navigate away from an unsaved draft.
                     ev.prevent_default();
-                    drop_message.set("Dieser Browser-Drop enthält keine native Dateifreigabe. Bitte „Bild wählen…“ verwenden oder eine Datei im nativen App-Fenster ablegen.".into());
+                    drop_message.set(t("Dieser Browser-Drop enthält keine native Dateifreigabe. Bitte „Bild wählen…“ verwenden oder eine Datei im nativen App-Fenster ablegen.").into());
                 }
             }
             on:keydown=move |ev: web_sys::KeyboardEvent| {
@@ -947,6 +950,8 @@ pub fn Rooms(
                     <summary>{t("Orte")}</summary>
                     <div class="editor-group-body">
                         <label><input id="tour-editor-adding" type="checkbox" bind:checked=adding disabled=move || busy.get() || dirty.get() || dragging.get() />{t("Ort setzen (Bühne anklicken)")}</label>
+                        // Beside the label, not in it: the checkbox keeps its exact name for the native smoke test.
+                        <Info text="Ist das eingeschaltet, legt jeder Tipp auf das Bild an dieser Stelle einen neuen Ort an." />
                         <button disabled=move || video_room.get() || busy.get() || dirty.get() || dragging.get()
                             on:click={let editor = editor.clone(); move |_| {
                                 revealed.set(false);
@@ -964,7 +969,8 @@ pub fn Rooms(
                     <details class="editor-group" open>
                         <summary>{t("Video")}</summary>
                         <div class="editor-group-body">
-                            <label>{t("Zeit in Sekunden ")}<input type="number" min="0" step="any"
+                            <label class="info-head">{t("Zeit in Sekunden ")}
+                                <Info text="Wann im Video der neue Ort erscheint, in Sekunden ab Anfang. „Zeitgebundenen Ort hinzufügen“ legt ihn an." /><input type="number" min="0" step="any"
                                 bind:value=video_time disabled=move || busy.get() || dirty.get() || dragging.get() /></label>
                             <button disabled=move || busy.get() || dirty.get() || dragging.get()
                                 on:click=move |_| {
@@ -974,7 +980,7 @@ pub fn Rooms(
                                             revealed.set(false);
                                             editor.change(EditorAction::CreateVideo { time });
                                         }
-                                        _ => editor.message.set("Bitte eine nichtnegative Sekundenzahl eingeben".into()),
+                                        _ => editor.message.set(t("Bitte eine nichtnegative Sekundenzahl eingeben").into()),
                                     }
                                 }>{t("Zeitgebundenen Ort hinzufügen")}</button>
                         </div>
@@ -1108,7 +1114,8 @@ fn ListPaste(editor: Editor) -> impl IntoView {
         // Collapsed by default so the stage stays above the fold; Ctrl/⌘+V on
         // the focused stage works without opening it.
         <details class="panel editor-form list-paste">
-            <summary>{t("Liste als Route einfügen (oder Strg/⌘+V auf der Bühne)")}</summary>
+            <summary>{t("Liste als Route einfügen (oder Strg/⌘+V auf der Bühne)")}
+                <Info text="Aus einer Liste, z. B. einem Einkaufszettel, wird eine Route: Jede Zeile wird ein neuer Ort mit diesem Inhalt, der Reihe nach im Raum verteilt." /></summary>
             <label>{t("Ein Begriff pro Zeile")}
                 <textarea rows="4" bind:value=text maxlength="65536"
                     disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some()) || unavailable.get() />
@@ -1264,7 +1271,7 @@ fn RoomStage(
             if video_duration.get_untracked().is_none() {
                 timed_editor
                     .message
-                    .set("Die Animation ist noch nicht geladen".into());
+                    .set(t("Die Animation ist noch nicht geladen").into());
                 return;
             }
             playhead.get_untracked()
@@ -1275,13 +1282,13 @@ fn RoomStage(
             if player.ready_state() == 0 {
                 timed_editor
                     .message
-                    .set("Das Video ist noch nicht geladen".into());
+                    .set(t("Das Video ist noch nicht geladen").into());
                 return;
             }
             if player.pause().is_err() {
                 timed_editor
                     .message
-                    .set("Video konnte nicht angehalten werden".into());
+                    .set(t("Video konnte nicht angehalten werden").into());
                 return;
             }
             player.current_time()
@@ -1313,13 +1320,13 @@ fn RoomStage(
         if player.ready_state() == 0 {
             stepped_editor
                 .message
-                .set("Das Video ist noch nicht geladen".into());
+                .set(t("Das Video ist noch nicht geladen").into());
             return;
         }
         if player.pause().is_err() {
             stepped_editor
                 .message
-                .set("Video konnte nicht angehalten werden".into());
+                .set(t("Video konnte nicht angehalten werden").into());
             return;
         }
         let duration = player.duration();
@@ -1331,7 +1338,7 @@ fn RoomStage(
     });
     view! {
         <Show when=move || editing.get() && timed>
-            <p class="notes">{if video { "Video: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken. Taste L setzt einen Ort in der Mitte; , und . springen einen Frame." } else { "Splinely: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken." }}</p>
+            <p class="notes">{if video { t("Video: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken. Taste L setzt einen Ort in der Mitte; , und . springen einen Frame.") } else { t("Splinely: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken.") }}</p>
             <button disabled=move || busy.get() || dirty.get() || gesture.with(|g| g.is_some())
                 on:click=move |_| create_at_playhead.with_value(|create| create())>
                 {t("Ort an aktueller Zeit")}
@@ -1356,7 +1363,7 @@ fn RoomStage(
                             <span>{move || format!("{:.2} s", video_duration.get().unwrap_or_default())}</span>
                         </div>
                     </Show>
-                    <p class="notes video-playhead">{move || format!("Position {:.2} s", playhead.get())}</p>
+                    <p class="notes video-playhead">{move || crate::i18n::tf("Position {0} s", &[&format!("{:.2}", playhead.get())])}</p>
                     // A Splinely room has its own play and pause below; these drive only a video.
                     {(!timed_sply).then(|| view! {
                     <div class="video-transport" role="group" aria-label=t("Wiedergabe")>
@@ -1384,7 +1391,8 @@ fn RoomStage(
                             }>{t("⏮ Zum Anfang")}</button>
                     </div>
                     })}
-                    <label class="video-seek">{t("Zeitpunkt wählen")}
+                    <label class="video-seek info-head">{t("Zeitpunkt wählen")}
+                        <Info text="Mit dem Regler springst du an eine Stelle im Video. Ein neuer Ort bekommt diesen Zeitpunkt." />
                         <input type="range" min="0" step="0.01"
                             max=move || video_duration.get().unwrap_or(0.0).to_string()
                             prop:value=move || playhead.get().to_string()
@@ -1444,11 +1452,11 @@ fn RoomStage(
                                     if busy.get_untracked() || dirty.get_untracked() || gesture.with_untracked(|g| g.is_some()) { return; }
                                     if timed_sply {
                                         let Some(duration) = video_duration.get_untracked() else {
-                                            editor.message.set("Die Animation ist noch nicht geladen".into());
+                                            editor.message.set(t("Die Animation ist noch nicht geladen").into());
                                             return;
                                         };
                                         if time > duration {
-                                            editor.message.set("Der Ort liegt hinter dem Ende der Animation".into());
+                                            editor.message.set(t("Der Ort liegt hinter dem Ende der Animation").into());
                                             return;
                                         }
                                         sply_command.update(|command| {
@@ -1460,16 +1468,16 @@ fn RoomStage(
                                     } else {
                                         let Some(player) = player.get() else { return; };
                                         if player.ready_state() == 0 {
-                                            editor.message.set("Das Video ist noch nicht geladen".into());
+                                            editor.message.set(t("Das Video ist noch nicht geladen").into());
                                             return;
                                         }
                                         let duration = player.duration();
                                         if duration.is_finite() && time > duration {
-                                            editor.message.set("Der Ort liegt hinter dem Ende des Videos".into());
+                                            editor.message.set(t("Der Ort liegt hinter dem Ende des Videos").into());
                                             return;
                                         }
                                         if player.pause().is_err() {
-                                            editor.message.set("Video konnte nicht angehalten werden".into());
+                                            editor.message.set(t("Video konnte nicht angehalten werden").into());
                                             return;
                                         }
                                         player.set_current_time(time);
@@ -1492,7 +1500,8 @@ fn RoomStage(
                                     editor.change(EditorAction::Retime { id: retime_id.clone(), time });
                                 }
                             />
-                            <label>{t("Marker vorher (s)")}
+                            <label class="info-head">{t("Marker vorher (s)")}
+                                <Info text="So viele Sekunden vor seinem Zeitpunkt erscheint der Markerpunkt dieses Orts. Gilt nur für diesen Ort und nur auf diesem Gerät." />
                                 <input type="number" min="0" max="30" step="0.1"
                                     prop:value=move || leads.get().get(&lead_id).copied().unwrap_or(display.get().video_lead).to_string()
                                     on:change=move |ev| {
@@ -1511,7 +1520,7 @@ fn RoomStage(
             })
         } else { None }}
         <div id="tour-editor-stage" class="stage" class:editing=move || editing.get() node_ref=node tabindex="0"
-            aria-label=if video { "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame" } else if timed_sply { "Animationsraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit" } else { "Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen" }
+            aria-label=if video { t("Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame") } else if timed_sply { t("Animationsraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit") } else { t("Raum – im Bearbeitungsmodus mit Strg+V eine Liste als Route einfügen") }
             on:keydown=move |ev: web_sys::KeyboardEvent| {
                 // Only the stage itself, never native video controls or markers.
                 let stage_focused = ev.target().is_some() && ev.target() == ev.current_target();
@@ -1536,7 +1545,7 @@ fn RoomStage(
                 }
                 let Some(data) = ev.clipboard_data() else { return; };
                 ev.prevent_default();
-                match data.get_data("text/plain").map_err(|_| "Zwischenablage konnte nicht gelesen werden".to_owned()).and_then(|text| parse_list(&text)) {
+                match data.get_data("text/plain").map_err(|_| t("Zwischenablage konnte nicht gelesen werden").to_owned()).and_then(|text| parse_list(&text)) {
                     Ok(items) => {
                         revealed.set(false);
                         paste_editor.change(EditorAction::Paste { items });
@@ -1567,7 +1576,7 @@ fn RoomStage(
                             } else { playhead.get_untracked() };
                             playhead.set(time);
                             if video_duration.get_untracked().is_none() {
-                                finish.message.set("Zeitgesteuertes Medium ist noch nicht geladen".into());
+                                finish.message.set(t("Zeitgesteuertes Medium ist noch nicht geladen").into());
                                 None
                             } else {
                                 Some(EditorAction::CreateTimed { time, x: g.point.0, y: g.point.1 })
@@ -1620,7 +1629,7 @@ fn RoomStage(
                         })
                         on_timed_position=Box::new(move |time| playhead.set(time))
                         on_timed_at=Box::new(move |time| playhead.set(time))
-                        on_timed_error=Box::new({ let message = editor.message; move || message.set("Splinely-Zeitleiste konnte nicht gesteuert werden".into()) })
+                        on_timed_error=Box::new({ let message = editor.message; move || message.set(t("Splinely-Zeitleiste konnte nicht gesteuert werden").into()) })
                     /> }.into_any()
                 } else {
                     view! { <Shown media=media class="backdrop" /> }.into_any()
@@ -1743,9 +1752,14 @@ fn ContentForm(
 ) -> impl IntoView {
     let name_field = NodeRef::<html::Input>::new();
     let place = RwSignal::new(locus.place.clone());
+    // During the app tour the field is not focused: on a phone that opens the keyboard, which
+    // covers the tour's panel. The tour fills the fields itself.
+    let touring =
+        use_context::<crate::TourStep>().is_some_and(|tour| tour.0.with_untracked(Option::is_some));
     Effect::new(move |_| {
         if let Some(input) = name_field.get()
             && adding.get_untracked()
+            && !touring
         {
             // The bound value may not be applied yet; set it first so typing
             // replaces the default name instead of appending to it.
@@ -1764,20 +1778,20 @@ fn ContentForm(
     let item_bound = locus.is_bound("item");
     let bound_note = {
         let fields: Vec<&str> = [
-            ("place", "Ort"),
-            ("item", "Inhalt"),
+            ("place", t("Ort")),
+            ("item", t("Inhalt")),
             ("x", "x"),
             ("y", "y"),
-            ("visible", "Sichtbar"),
-            ("active", "Aktiv"),
+            ("visible", t("Sichtbar")),
+            ("active", t("Aktiv")),
         ]
         .into_iter()
         .filter(|(field, _)| locus.is_bound(field))
         .map(|(_, label)| label)
         .collect();
-        format!(
-            "Workbook-Ort: {} kommt aus Formeln und wird in der Quelldatei geändert; alles andere ist hier bearbeitbar.",
-            fields.join(", ")
+        crate::i18n::tf(
+            "Workbook-Ort: {0} kommt aus Formeln und wird in der Quelldatei geändert; alles andere ist hier bearbeitbar.",
+            &[&fields.join(", ")],
         )
     };
     let item = RwSignal::new(locus.item.clone());
@@ -1913,7 +1927,9 @@ fn ContentForm(
                 id: save_id.clone(),
                 content,
             }),
-            Err(error) => save.message.set(format!("Noch nicht gespeichert: {error}")),
+            Err(error) => save
+                .message
+                .set(crate::i18n::tf("Noch nicht gespeichert: {0}", &[&error])),
         }
     });
     let finish = editor.clone();
@@ -1954,7 +1970,7 @@ fn ContentForm(
     let import_picture = StoredValue::new(move |ticket: Option<String>, sound: bool| {
         if busy.get_untracked() || dirty.get_untracked() || dragging.get_untracked() {
             if ticket.is_some() {
-                picker.message.set("Datei nicht übernommen: erst Änderungen speichern/verwerfen und einen bearbeitbaren Ort auswählen.".into());
+                picker.message.set(t("Datei nicht übernommen: erst Änderungen speichern/verwerfen und einen bearbeitbaren Ort auswählen.").into());
             }
             return;
         }
@@ -2101,9 +2117,9 @@ fn ContentForm(
             <Show when=move || !storage_error.get().is_empty()><p role="alert">{move || storage_error.get()}</p></Show>
             <Show when=move || locus.bound><p class="notes">{bound_note.clone()}</p></Show>
             <fieldset disabled=move || recovery.get().is_some() || picking.get() || dragging.get()>
-                <label id="tour-editor-place">{t("Ort")}<input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
-                <label id="tour-editor-content">{t("Inhalt")}<input type="text" bind:value=item disabled=item_bound /></label>
-                <label id="tour-editor-note">{t("Merkhilfe")}<textarea bind:value=note /></label>
+                <label id="tour-editor-place"><span class="info-head">{t("Ort")}<Info text="Die Stelle im Bild, z. B. „Sofa“ oder „Fenster“. Beim Lernen siehst du den Ort und erinnerst dich an den Inhalt." /></span><input type="text" node_ref=name_field bind:value=place disabled=place_bound /></label>
+                <label id="tour-editor-content"><span class="info-head">{t("Inhalt")}<Info text="Das, was du dir an diesem Ort merken willst, z. B. ein Wort oder eine Zahl. Beim Lernen ist das die Antwort." /></span><input type="text" bind:value=item disabled=item_bound /></label>
+                <label id="tour-editor-note"><span class="info-head">{t("Merkhilfe")}<Info text="Ein verrücktes Bild, das Ort und Inhalt verbindet. Je seltsamer, desto besser merkst du es dir." /></span><textarea bind:value=note /></label>
                 <div class="tabs">
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=pick>{t("Bild wählen…")}</button>
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() || image.get().is_empty()
@@ -2113,6 +2129,7 @@ fn ContentForm(
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() on:click=pick_audio>{t("Audio wählen…")}</button>
                     <button type="button" disabled=move || busy.get() || dirty.get() || dragging.get() || audio.get().is_empty()
                         on:click=move |_| audio.set(String::new())>{t("Audio entfernen")}</button>
+                    <Info text="Ein Ton für diesen Ort, z. B. ein gesprochenes Wort. Beim Lernen spielt er, sobald du die Antwort aufdeckst." />
                 </div>
                 {move || {
                     let hash = audio.get();
@@ -2121,16 +2138,16 @@ fn ContentForm(
                         view! { <crate::audio::LocusAudio media=media /> }
                     })
                 }}
-                <label id="tour-editor-answer">{t("Antwortart")}<select bind:value=kind>
+                <label id="tour-editor-answer"><span class="info-head">{t("Antwortart")}<Info text="Recall: Du deckst auf und bewertest dich selbst. Guess: Du tippst die Antwort ein. Quiz: Du wählst aus mehreren Antworten." /></span><select bind:value=kind>
                     <option value="recall">{t("Recall (Selbstbewertung)")}</option><option value="guess">{t("Guess (Eingabe)")}</option><option value="quiz">{t("Quiz")}</option>
                 </select></label>
-                <Show when=move || kind.get() == "guess"><label>{t("Weitere gültige Antworten (eine pro Zeile)")}<textarea bind:value=accept /></label></Show>
-                <Show when=move || kind.get() == "quiz"><label>{t("Quizoptionen (eine pro Zeile: + richtig, - falsch; beliebig viele + pro Frage möglich)")}<textarea rows="5" bind:value=quiz /></label></Show>
+                <Show when=move || kind.get() == "guess"><label><span class="info-head">{t("Weitere gültige Antworten (eine pro Zeile)")}<Info text="Diese Eingaben zählen auch als richtig, z. B. andere Schreibweisen oder Abkürzungen." /></span><textarea bind:value=accept /></label></Show>
+                <Show when=move || kind.get() == "quiz"><label><span class="info-head">{t("Quizoptionen (eine pro Zeile: + richtig, - falsch; beliebig viele + pro Frage möglich)")}<Info text="Jede Zeile ist eine mögliche Antwort zum Antippen. Ein + am Anfang heißt richtig, ein - heißt falsch." /></span><textarea rows="5" bind:value=quiz /></label></Show>
                 // Rarely needed: kept out of the way so the form stays short.
                 <details class="editor-more">
                     <summary>{t("Weitere Einstellungen")}</summary>
-                    <label>{t("Bildgröße (Anteil der Raumbreite, 0.05–1)")}<input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
-                    <label>{t("Zoom beim Abfragen (1 = ganzer Raum bis 4)")}<input type="text" inputmode="decimal" bind:value=zoom /></label>
+                    <label><span class="info-head">{t("Bildgröße (Anteil der Raumbreite, 0.05–1)")}<Info text="Wie breit das Bild dieses Orts im Raum ist: 1 ist so breit wie der ganze Raum, 0.1 ein Zehntel davon." /></span><input type="number" min="0.05" max="1" step="any" bind:value=size /></label>
+                    <label><span class="info-head">{t("Zoom beim Abfragen (1 = ganzer Raum bis 4)")}<Info text="So nah holt die App diesen Ort beim Lernen heran. 1 zeigt den ganzen Raum, 4 ist ganz nah." /></span><input type="text" inputmode="decimal" bind:value=zoom /></label>
                     <p class="notes">{t("Ein Ortsbild kann auch ins App-Fenster gezogen werden (ausgewählter Ort, keine offenen Änderungen). Weitere Räume: „+ Raum aus Bild oder Video“ neben den Räumen.")}</p>
                 </details>
             </fieldset>

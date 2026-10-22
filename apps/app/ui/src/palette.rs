@@ -321,7 +321,7 @@ pub fn Palette(screen: RwSignal<Screen>, editing: Editing) -> impl IntoView {
                                             on:click=move |_| run(pick.clone())
                                         >
                                             <span>{command.label.clone()}</span>
-                                            <small>{command.hint}</small>
+                                            <small>{t(command.hint)}</small>
                                         </li>
                                     }
                                 })

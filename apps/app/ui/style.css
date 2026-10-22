@@ -257,6 +257,26 @@ img.sply { display: block; width: 100%; height: 100%; max-height: min(70vw, 300p
 .actions button { font-size: .9rem; padding: .3rem .7rem; }
 label.input { display: flex; flex-direction: column; gap: .25rem; }
 label.input.check { flex-direction: row; align-items: center; }
+/* ⓘ explanations: the label text and its button share a line; the opened box takes its own line
+   below, after the field (order) when the field sits in the same flex line. In a plain checkbox
+   label the button flows after the last word and the box breaks below. */
+.info-head { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; }
+/* A span with the button role (see info.rs), drawn like a small round button. */
+.info-button { flex: none; width: 1.6em; height: 1.6em; border-radius: 50%; cursor: pointer;
+  display: inline-grid; place-items: center; font: italic 700 1rem/1 Georgia, "Times New Roman", serif;
+  margin-inline-start: .15rem;
+  color: var(--indigo); background: var(--surface); border: 1px solid var(--line); vertical-align: middle;
+  position: relative; -webkit-user-select: none; user-select: none; }
+.info-button:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+/* A finger-sized target around the small circle. */
+.info-button::after { content: ""; position: absolute; inset: -.5rem; }
+.info-button[aria-expanded="true"] { background: var(--indigo); border-color: var(--indigo); color: #fff; }
+.info-box { flex-basis: 100%; display: block; padding: .45rem .7rem; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: .9rem;
+  font-weight: normal; line-height: 1.4; cursor: auto; }
+.info-head > .info-box { order: 1; }
+:not(.info-head) > .info-box { margin-top: .35rem; }
+.tabs > .info-button { align-self: center; }
 input[type=number] { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); width: 100%; }
 dl.stats { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0; }

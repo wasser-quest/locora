@@ -1,6 +1,7 @@
 //! Settings (new loci per day, target retention) and learning statistics.
 
 use crate::i18n::t;
+use crate::info::Info;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -63,7 +64,7 @@ fn StartView() -> impl IntoView {
                     let value = event_target_checked(&event);
                     startup::set_in_core(value);
                     in_core.set(value);
-                } />{t("Direkt in Core starten")}</label>
+                } />{t("Direkt in Core starten")}<Info text="Die App öffnet dann eine schlichte Startseite nur mit deinen Palästen, ohne die anderen Kacheln." /></label>
         </section>
     }
 }
@@ -74,7 +75,8 @@ fn LocusDisplay() -> impl IntoView {
     view! {
         <section class="card panel" aria-label=t("Darstellung")>
             <h2>{t("Darstellung")}</h2>
-            <label>{t("Farben ")}
+            <label class="info-head">{t("Farben ")}
+                <Info text="„System“ folgt der Einstellung deines Geräts. „Hoher Kontrast“ hilft, wenn du schlecht siehst." />
                 <select prop:value=move || crate::theme::current().key() on:change=move |event| {
                     let theme = crate::theme::Theme::from_key(&event_target_value(&event));
                     crate::theme::save(theme);
@@ -86,7 +88,7 @@ fn LocusDisplay() -> impl IntoView {
                 </select>
             </label>
             <label><input type="checkbox" prop:checked=move || crate::locus_display::signal().get().gamification
-                on:change=move |event| { crate::locus_display::signal().update(|p| p.gamification = event_target_checked(&event)); crate::locus_display::save(crate::locus_display::signal().get_untracked()); } />{t("Erfahrungspunkte, Combo und Herzen in der Journey anzeigen")}</label>
+                on:change=move |event| { crate::locus_display::signal().update(|p| p.gamification = event_target_checked(&event)); crate::locus_display::save(crate::locus_display::signal().get_untracked()); } />{t("Erfahrungspunkte, Combo und Herzen in der Journey anzeigen")}<Info text="Zeigt beim Lernen eine Leiste mit Punkten, Treffern in Folge und Herzen. Ausschalten blendet sie nur aus." /></label>
             <label>{t("Sprache")}
                 <select prop:value=move || crate::i18n::current().code() on:change=move |event| {
                     crate::i18n::switch(crate::i18n::Lang::from_code(&event_target_value(&event)));
@@ -100,7 +102,8 @@ fn LocusDisplay() -> impl IntoView {
         <section class="card panel" aria-label=t("Locus-Anzeige")>
             <h2>{t("Loci anzeigen")}</h2>
             <p class="notes">{t("Die Auswahl gilt für dieses Gerät. Der aktuelle Ort ist immer sichtbar, bis du ihn aufdeckst.")}</p>
-            <label>{t("Vorherige Orte ")}
+            <label class="info-head">{t("Vorherige Orte ")}
+                <Info text="So viele Orte vor dem aktuellen Ort im selben Raum zeigen beim Lernen ihren Markerpunkt. 0 heißt: keiner." />
                 <input type="number" min="0" max="10" prop:value=move || settings.get().previous.to_string()
                     on:change=move |event| {
                         if let Ok(value) = event_target_value(&event).parse::<u8>() {
@@ -109,7 +112,8 @@ fn LocusDisplay() -> impl IntoView {
                         }
                     } />
             </label>
-            <label>{t("Nächste Orte ")}
+            <label class="info-head">{t("Nächste Orte ")}
+                <Info text="So viele Orte nach dem aktuellen Ort im selben Raum zeigen beim Lernen schon ihren Markerpunkt. Das verrät, wo es weitergeht." />
                 <input type="number" min="0" max="10" prop:value=move || settings.get().next.to_string()
                     on:change=move |event| {
                         if let Ok(value) = event_target_value(&event).parse::<u8>() {
@@ -119,14 +123,15 @@ fn LocusDisplay() -> impl IntoView {
                     } />
             </label>
             <label><input type="checkbox" prop:checked=move || settings.get().numbers
-                on:change=move |event| { settings.update(|p| p.numbers = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Ortsnummern im Markerpunkt anzeigen")}</label>
+                on:change=move |event| { settings.update(|p| p.numbers = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Ortsnummern im Markerpunkt anzeigen")}<Info text="Im Markerpunkt steht dann die Nummer des Orts auf der Route." /></label>
             <label><input type="checkbox" prop:checked=move || settings.get().hide_revealed
-                on:change=move |event| { settings.update(|p| p.hide_revealed = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Aktuellen Ort nach dem Aufdecken ausblenden")}</label>
+                on:change=move |event| { settings.update(|p| p.hide_revealed = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Aktuellen Ort nach dem Aufdecken ausblenden")}<Info text="Nach dem Aufdecken verschwindet der Markerpunkt des aktuellen Orts, damit er das Bild nicht verdeckt." /></label>
             <label><input type="checkbox" prop:checked=move || settings.get().keep_previous
-                on:change=move |event| { settings.update(|p| p.keep_previous = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Aufgedeckte Bilder bereits durchlaufener Orte weiter anzeigen")}</label>
+                on:change=move |event| { settings.update(|p| p.keep_previous = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Aufgedeckte Bilder bereits durchlaufener Orte weiter anzeigen")}<Info text="Orte im selben Raum, die du schon hattest, zeigen ihr Bild statt ihres Markerpunkts. So siehst du deinen bisherigen Weg." /></label>
             <label><input type="checkbox" prop:checked=move || settings.get().quick_next
-                on:change=move |event| { settings.update(|p| p.quick_next = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Schnell weiter: nach der Bewertung oder der Eingabe direkt zum nächsten Ort")}</label>
-            <label>{t("Rückwärts: Trefferradius (% der Bühnenbreite) ")}
+                on:change=move |event| { settings.update(|p| p.quick_next = event_target_checked(&event)); locus_display::save(settings.get_untracked()); } />{t("Schnell weiter: nach der Bewertung oder der Eingabe direkt zum nächsten Ort")}<Info text="Nach deiner Bewertung oder Antwort geht es sofort zum nächsten Ort, ohne Klick auf „Weiter“. Bewerten musst du weiter selbst." /></label>
+            <label class="info-head">{t("Rückwärts: Trefferradius (% der Bühnenbreite) ")}
+                <Info text="Rückwärts tippst du auf die Stelle des Orts im Bild. So weit darf dein Tipp daneben liegen, in Prozent der Bildbreite." />
                 <input type="number" min="2" max="30" step="1" prop:value=move || (settings.get().reverse_radius * 100.0).round().to_string()
                     on:change=move |event| {
                         if let Ok(percent) = event_target_value(&event).parse::<f64>() {
@@ -135,7 +140,8 @@ fn LocusDisplay() -> impl IntoView {
                         }
                     } />
             </label>
-            <label>{t("Video: Marker frühestens vor dem Stopp (Sekunden) ")}
+            <label class="info-head">{t("Video: Marker frühestens vor dem Stopp (Sekunden) ")}
+                <Info text="In Videos erscheint der Markerpunkt eines Orts so viele Sekunden vor seinem Zeitpunkt. Bei 0 erst genau dann." />
                 <input type="number" min="0" max="30" step="0.1" prop:value=move || settings.get().video_lead.to_string()
                     on:change=move |event| {
                         if let Ok(value) = event_target_value(&event).parse::<f64>()
@@ -166,7 +172,7 @@ fn Reminders(
     };
     let save = move || {
         let Ok(hours) = every.get_untracked().parse::<u8>() else {
-            message.set(Some(Err("Abstand: ganze Stunden von 1 bis 12".into())));
+            message.set(Some(Err(t("Abstand: ganze Stunden von 1 bis 12").into())));
             return;
         };
         let reminders = RemindersChange {
@@ -200,16 +206,19 @@ fn Reminders(
             <p class="notes">{t("Die Erinnerung erscheint in der App, solange sie läuft.")}</p>
             <label><input type="checkbox" bind:checked=enabled disabled=move || busy.get() />{t("Erinnerungen einschalten")}</label>
             <div class="editor-group-body">
-                <label>{t("Erste Erinnerung ")}
+                <label class="info-head">{t("Erste Erinnerung ")}
+                    <Info text="Um diese Uhrzeit kommt die erste Erinnerung des Tages." />
                     <input type="time" bind:value=start disabled=move || busy.get() || !enabled.get() />
                 </label>
-                <label>{t("Letzte Erinnerung ")}
+                <label class="info-head">{t("Letzte Erinnerung ")}
+                    <Info text="Nach dieser Uhrzeit kommt an diesem Tag keine Erinnerung mehr." />
                     <input type="time" bind:value=end disabled=move || busy.get() || !enabled.get() />
                 </label>
-                <label>{t("Abstand ")}
+                <label class="info-head">{t("Abstand ")}
+                    <Info text="So viele Stunden liegen zwischen zwei Erinnerungen." />
                     <select bind:value=every disabled=move || busy.get() || !enabled.get()>
                         {(1..=12u8).map(|hours| view! {
-                            <option value=hours.to_string()>{format!("{hours} Std.")}</option>
+                            <option value=hours.to_string()>{crate::i18n::tf("{0} Std.", &[&hours])}</option>
                         }).collect_view()}
                     </select>
                 </label>
@@ -256,14 +265,15 @@ fn Form(
     let save = move || {
         let count = new_per_day.get_untracked();
         let Ok(count) = count.trim().parse::<u32>() else {
-            message.set(Some(Err(format!(
-                "Neue Loci pro Tag: ganze Zahl von 0 bis {max}"
+            message.set(Some(Err(crate::i18n::tf(
+                "Neue Loci pro Tag: ganze Zahl von 0 bis {0}",
+                &[&max],
             ))));
             return;
         };
         let Ok(hour) = day_start.get_untracked().trim().parse::<u8>() else {
             message.set(Some(Err(
-                "Lerntag beginnt: volle Stunde von 0 bis 23".into()
+                t("Lerntag beginnt: volle Stunde von 0 bis 23").into()
             )));
             return;
         };
@@ -279,7 +289,7 @@ fn Form(
         spawn_local(async move {
             match call::<SettingsView>(CMD_SETTINGS_SET, ChangeArgs { change }).await {
                 Ok(v) => {
-                    message.set(Some(Ok("Gespeichert.".into())));
+                    message.set(Some(Ok(t("Gespeichert.").into())));
                     // Rebuilds the form; `busy` belongs to the old one.
                     data.set(Some(Ok(v)));
                 }
@@ -299,13 +309,16 @@ fn Form(
             }
         >
             <label class="input">
-                <span>{t("Neue Loci pro Tag")}</span>
+                <span class="info-head">{t("Neue Loci pro Tag")}<Info text="So viele Orte lernst du an einem Tag höchstens neu. Wiederholungen zählen nicht dazu." /></span>
                 <input type="text" inputmode="numeric" bind:value=new_per_day />
             </label>
             <label class="input">
-                <span>
-                    {t("Lerntag beginnt um (volle Stunde, 0–23)")}
-                    <small>{format!(" – jetzt {}", view.day_start)}</small>
+                <span class="info-head">
+                    <span>
+                        {t("Lerntag beginnt um (volle Stunde, 0–23)")}
+                        <small>{crate::i18n::tf(" – jetzt {0}", &[&view.day_start])}</small>
+                    </span>
+                    <Info text="Ab dieser Stunde beginnt ein neuer Lerntag. Bei 4 zählt Lernen kurz nach Mitternacht noch zum Vortag." />
                 </span>
                 <input type="text" inputmode="numeric" bind:value=day_start />
             </label>
@@ -313,7 +326,7 @@ fn Form(
                 .then(|| {
                     view! {
                         <label class="input">
-                            <span>{t("Ziel-Behaltensrate (70–99 %)")}</span>
+                            <span class="info-head">{t("Ziel-Behaltensrate (70–99 %)")}<Info text="Wie viel du beim Abfragen noch wissen sollst. Je höher, desto öfter kommen die Orte zur Wiederholung." /></span>
                             <input type="text" inputmode="decimal" bind:value=retention />
                         </label>
                         <div class="progress">
@@ -326,15 +339,14 @@ fn Form(
                         <div class="optimize">
                             <span class="progress">
                                 {if view.optimize_hint {
-                                    format!(
-                                        "Aus {} Wiederholungen kann Locora deine Gewichte neu berechnen.",
-                                        view.usable_reviews,
+                                    crate::i18n::tf(
+                                        "Aus {0} Wiederholungen kann Locora deine Gewichte neu berechnen.",
+                                        &[&view.usable_reviews],
                                     )
                                 } else {
-                                    format!(
-                                        "{} von mindestens {} Wiederholungen mit einem Tag Abstand",
-                                        view.usable_reviews,
-                                        view.needed_reviews,
+                                    crate::i18n::tf(
+                                        "{0} von mindestens {1} Wiederholungen mit einem Tag Abstand",
+                                        &[&view.usable_reviews, &view.needed_reviews],
                                     )
                                 }}
                             </span>
@@ -370,33 +382,35 @@ fn Stats(stats: StatsView) -> impl IntoView {
     let rate = if stats.recent == 0 {
         "–".to_owned()
     } else {
-        format!(
-            "{} ({} von {})",
-            percent(f64::from(stats.recent_known) / f64::from(stats.recent)),
-            stats.recent_known,
-            stats.recent
+        crate::i18n::tf(
+            "{0} ({1} von {2})",
+            &[
+                &percent(f64::from(stats.recent_known) / f64::from(stats.recent)),
+                &stats.recent_known,
+                &stats.recent,
+            ],
         )
     };
     let rows = [
-        ("Antworten insgesamt", stats.answers.to_string()),
+        (t("Antworten insgesamt"), stats.answers.to_string()),
         (
-            "Heute",
-            format!(
-                "{} Antworten, {} neue Loci",
-                stats.answered_today, stats.new_today
+            t("Heute"),
+            crate::i18n::tf(
+                "{0} Antworten, {1} neue Loci",
+                &[&stats.answered_today, &stats.new_today],
             ),
         ),
-        ("Trefferquote 30 Tage", rate),
+        (t("Trefferquote 30 Tage"), rate),
         (
-            "Serie",
-            format!(
-                "{} {}",
-                stats.streak,
-                if stats.streak == 1 { "Tag" } else { "Tage" }
-            ),
+            t("Serie"),
+            if stats.streak == 1 {
+                t("1 Tag").to_owned()
+            } else {
+                crate::i18n::tf("{0} Tage", &[&stats.streak])
+            },
         ),
         (
-            "Geplante Loci",
+            t("Geplante Loci"),
             crate::i18n::tf("{0} (davon {1} fällig)", &[&stats.scheduled, &stats.due]),
         ),
     ];

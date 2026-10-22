@@ -6,6 +6,8 @@ use serde::de::DeserializeOwned;
 use wasm_bindgen::prelude::*;
 use web_sys::Url;
 
+use crate::i18n::{t, translate_message};
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], catch)]
@@ -23,12 +25,14 @@ fn message(value: JsValue) -> String {
     value.as_string().unwrap_or_else(|| format!("{value:?}"))
 }
 
-/// Call a backend command; errors are messages for people.
+/// Call a backend command; errors are messages for people, in the current language.
 pub async fn call<T: DeserializeOwned>(cmd: &str, args: impl Serialize) -> Result<T, String> {
     let args = args
         .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
         .map_err(|e| e.to_string())?;
-    let value = invoke(cmd, args).await.map_err(message)?;
+    let value = invoke(cmd, args)
+        .await
+        .map_err(|error| translate_message(&message(error)))?;
     serde_wasm_bindgen::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -44,9 +48,9 @@ pub fn on_file_drop(callback: impl Fn(Result<String, String>) + 'static) {
                 .and_then(|v| v.as_string())
         };
         callback(match (field("ticket"), field("error")) {
-            (_, Some(error)) => Err(error),
+            (_, Some(error)) => Err(translate_message(&error)),
             (Some(ticket), _) => Ok(ticket),
-            _ => Err("Ungültige Dateifreigabe".into()),
+            _ => Err(t("Ungültige Dateifreigabe").into()),
         });
     });
     on_cleanup(move || listener.remove());
@@ -80,7 +84,7 @@ pub async fn video_url(media: &Media) -> Result<String, String> {
     if let Some(object) = cached_video_url(media) {
         return Ok(object);
     }
-    let object = object_url(media, "Video konnte nicht gelesen werden").await?;
+    let object = object_url(media, t("Video konnte nicht gelesen werden")).await?;
     // Another question for the same video may have fetched it meanwhile; keep that URL.
     let kept = LAST_VIDEO.with(|last| {
         let mut last = last.borrow_mut();
@@ -102,7 +106,7 @@ pub async fn video_url(media: &Media) -> Result<String, String> {
 /// A stored sound clip as a blob URL, for `<audio>`: like videos, WebKitGTK's media player
 /// refuses the custom scheme. The caller revokes the URL when its element goes away.
 pub async fn audio_url(media: &Media) -> Result<String, String> {
-    object_url(media, "Ton konnte nicht gelesen werden").await
+    object_url(media, t("Ton konnte nicht gelesen werden")).await
 }
 
 /// The stored bytes behind `media`, fetched over the custom scheme, as a new blob URL.

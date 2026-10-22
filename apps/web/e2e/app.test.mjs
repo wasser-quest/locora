@@ -568,6 +568,83 @@ test('a recorded WebM sound clip is kept as it is and plays at its locus', async
   }
 });
 
+test('an ⓘ button explains an editor field and hides the explanation again', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await openTutorial(page);
+    await page.getByRole('checkbox', { name: 'Edit' }).check();
+    await page.locator('.marker button').first().click();
+    // Found by its label: the ⓘ inside must not take the label over from the field.
+    const field = page.locator('label', { has: page.getByRole('textbox', { name: /^Memory aid/ }) });
+    const info = field.getByRole('button', { name: 'Explanation' });
+    await info.click();
+    const box = field.getByRole('note');
+    await box.waitFor({ timeout: 5000 });
+    assert.match(await box.innerText(), /crazy picture/);
+    assert.equal(await info.getAttribute('aria-expanded'), 'true');
+    assert.notEqual(await page.evaluate(() => document.activeElement?.tagName), 'TEXTAREA', 'the field keeps out of it');
+    await info.click();
+    await box.waitFor({ state: 'detached', timeout: 5000 });
+    assert.equal(await info.getAttribute('aria-expanded'), 'false');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('an ⓘ button in a settings checkbox explains it without toggling it', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.getByRole('button', { name: 'Settings & statistics' }).click();
+    const checkbox = page.getByRole('checkbox', { name: /^Hide the current place after revealing/ });
+    const before = await checkbox.isChecked();
+    const field = page.locator('label', { has: checkbox });
+    const info = field.getByRole('button', { name: 'Explanation' });
+    await info.click();
+    const box = field.getByRole('note');
+    await box.waitFor({ timeout: 5000 });
+    assert.match(await box.innerText(), /marker disappears/);
+    // Tapping the explanation itself must not toggle the checkbox either.
+    await box.click();
+    assert.equal(await checkbox.isChecked(), before, 'the checkbox is untouched');
+    // Escape on the ⓘ closes the explanation too.
+    await info.focus();
+    await page.keyboard.press('Escape');
+    await box.waitFor({ state: 'detached', timeout: 5000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the first start shows only the language choice, not a tour left from earlier', async () => {
+  const { context, page, problems } = await openApp({ chooseLanguage: true });
+  try {
+    await page.getByRole('button', { name: 'English' }).click();
+    // A tour stopped halfway, then the language is forgotten, as after a reinstall that kept the
+    // app's data (Android restores it from the backup).
+    await page.getByRole('button', { name: 'Start the app tour' }).click();
+    await page.getByRole('region', { name: 'App tour' }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.waitForFunction(() => document.body.innerText.includes('Step 2 of 13'), null, { timeout: 15000 });
+    await page.evaluate(() => localStorage.removeItem('locora-language-v1'));
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('dialog').waitFor({ timeout: 15000 });
+    assert.equal(await page.getByRole('region', { name: 'App tour' }).count(), 0, 'no tour behind the choice');
+    await page.getByRole('button', { name: 'English' }).click();
+    await page.getByRole('button', { name: 'App tour', exact: true }).waitFor({ timeout: 15000 });
+    await page.waitForTimeout(1000);
+    assert.equal(await page.getByRole('region', { name: 'App tour' }).count(), 0, 'the old tour does not resume');
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'App tour', exact: true }).waitFor({ timeout: 15000 });
+    await page.waitForTimeout(1000);
+    assert.equal(await page.getByRole('region', { name: 'App tour' }).count(), 0, 'and stays closed');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
 test('the first start asks for the language and then speaks it', async () => {
   const { context, page, problems } = await openApp({ chooseLanguage: true });
   try {
