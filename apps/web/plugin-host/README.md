@@ -20,9 +20,8 @@ which connects the plugin's host imports to `src/host-core.mjs`.
 - Events are delivered after the call that published them returns.
 - Filters run in priority order.
 
-## Not yet
+## Host services
 
-- `call-host` services that read palaces (`core.palaces@1` and friends) need the Rust core in the
-  browser. They return an error until a handler is registered with `provideHostService`.
-- The Rust core (`locora-runtime`) does not build for the browser yet: `locora-host` (wasmtime) is
-  still required, so the plugin host here is not yet connected to the rest of the app.
+`call-host` services return an error until a handler is registered with `provideHostService`.
+The web app's shell (`apps/web/shell/src/boot.mjs`) registers `core.palaces@1`, answered by the
+Rust core in the browser (`crates/locora-web-core`), and `ui.highlight@1` for the app tour.
