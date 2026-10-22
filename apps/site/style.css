@@ -52,10 +52,8 @@ header.top, footer {
   max-width: 72rem; margin: 0 auto; padding: 1.1rem 1.5rem;
 }
 .brand { display: inline-flex; align-items: center; gap: .6rem; font-weight: 800; font-size: 1.2rem; color: var(--ink); text-decoration: none; }
-.mark {
-  display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 9px;
-  background: linear-gradient(150deg, var(--accent), var(--accent-strong)); color: #fff; font-weight: 800;
-}
+/* The Locora palace arch (favicon.svg), as in the app. */
+.mark { display: block; width: 2rem; height: 2rem; }
 nav { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; }
 nav a { color: var(--muted); text-decoration: none; font-weight: 600; }
 nav a:hover { color: var(--accent); }

@@ -61,6 +61,8 @@ class Checker(HTMLParser):
                     continue  # the site's own icon (the Locora palace arch), a local file
                 elif tag == "link" and name == "href" and not value.startswith(("style", "#")) and not re.match(r"^[\w.\-/]+\.css$", value):
                     self.report(f"stylesheet {value!r} must be a local .css file")
+                elif tag == "img" and name == "src" and value == "favicon.svg":
+                    continue  # the Locora mark in the header, the same file as the favicon
                 elif tag == "img" and name == "src" and LOCAL_IMAGE.match(value) \
                         and os.path.isfile(os.path.join(HERE, value)):
                     continue
