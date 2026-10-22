@@ -66,7 +66,7 @@ test('the app tour is shown by the tutorial plugin: each step is a highlight of 
   const step = core('tour', { action: 'Start' }).ok;
   assert.equal(step.target, 'tour-home-media');
   assert.equal(step.step, 1);
-  assert.equal(step.total, 9);
+  assert.equal(step.total, 13);
   assert.ok(step.title.length > 0 && step.text.length > 0);
 });
 
