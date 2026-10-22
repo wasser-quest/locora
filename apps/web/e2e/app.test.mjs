@@ -55,10 +55,21 @@ async function openApp(options = {}) {
   return { context, page, problems, requests };
 }
 
+/**
+ * Starts the app tour with `button`. While the lessons of „Learn mnemonics“ are open, the app asks
+ * first; this answers „start the tour anyway“.
+ */
+async function startTour(page, button = page.getByRole('button', { name: 'Start the app tour' })) {
+  await button.click();
+  const ask = page.getByRole('dialog', { name: 'Have you practised the memory techniques yet?' });
+  await ask.waitFor({ timeout: 15000 });
+  await ask.getByRole('button', { name: 'I know this already – start the tour' }).click();
+  await page.getByRole('region', { name: 'App tour' }).waitFor({ timeout: 15000 });
+}
+
 /** The welcome page starts the app tour, which sets up the tutorial palace: close the tour, open the palace. */
 async function openTutorial(page) {
-  await page.getByRole('button', { name: 'Start the app tour' }).click();
-  await page.getByRole('region', { name: 'App tour' }).waitFor({ timeout: 15000 });
+  await startTour(page);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('button', { name: /^Learn Locora/ }).first().click();
   await page.getByRole('button', { name: /Walk the route/ }).waitFor({ timeout: 15000 });
@@ -159,7 +170,7 @@ test('a file name that looks like markup is shown as text and never runs', async
     const name = '<img src=x onerror="window.__xss=1">.png';
     const [chooser] = await Promise.all([
       page.waitForEvent('filechooser'),
-      page.getByRole('button', { name: /Own palace from image/ }).click(),
+      page.getByRole('button', { name: 'Choose image/video…' }).click(),
     ]);
     await chooser.setFiles({ name, mimeType: 'image/png', buffer: png });
     await page.waitForTimeout(2500);
@@ -275,10 +286,17 @@ test('the palace exports as a ZIP of its source and media (the folder export)', 
 test('the app tour is shown: the tutorial plugin highlights the controls step by step', async () => {
   const { context, page, problems } = await openApp();
   try {
-    await page.getByRole('button', { name: 'App tour', exact: true }).click();
+    await startTour(page, page.getByRole('button', { name: 'App tour', exact: true }));
     await page.waitForFunction(() => document.body.innerText.includes('Step 1 of 13'), null, { timeout: 15000 });
     await page.locator('.tour-panel').getByRole('button', { name: 'Next' }).click();
     await page.waitForFunction(() => document.body.innerText.includes('Step 2 of 13'), null, { timeout: 15000 });
+    // Closing the tour early does not unlock „Tour completed“.
+    await page.locator('.tour-panel').getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('region', { name: 'App tour' }).waitFor({ state: 'detached', timeout: 15000 });
+    assert.equal(await page.locator('.celebration').count(), 0, 'nothing to celebrate');
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
+    await page.locator('.medal[data-achievement="tour-done"].locked').waitFor({ timeout: 15000 });
     assert.deepEqual(problems, []);
   } finally {
     await context.close();
@@ -290,7 +308,7 @@ test('the app tour shows Simo building an example palace and walking its route',
   try {
     const panel = page.locator('.tour-panel');
     const step = (n) => page.waitForFunction((n) => document.body.innerText.includes(`Step ${n} of 13`), n, { timeout: 15000 });
-    await page.getByRole('button', { name: 'App tour', exact: true }).click();
+    await startTour(page, page.getByRole('button', { name: 'App tour', exact: true }));
     await step(1);
     // The page stays usable during the tour: the dimming lets clicks through.
     assert.equal(await page.locator('.tour-spot, .tour-scrim').evaluateAll((nodes) => nodes.every((n) => getComputedStyle(n).pointerEvents === 'none')), true);
@@ -312,6 +330,10 @@ test('the app tour shows Simo building an example palace and walking its route',
     await step(13);
     await panel.getByRole('button', { name: 'Done' }).click();
     await page.getByRole('button', { name: /^Simo's example/ }).first().waitFor({ timeout: 15000 });
+    // „Done“ on the last step completes the tour: its achievement is unlocked and celebrated.
+    await page.locator('.celebration', { hasText: 'Tour completed' }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
+    await page.locator('.medal[data-achievement="tour-done"]:not(.locked)').waitFor({ timeout: 15000 });
     assert.deepEqual(problems, []);
   } finally {
     await context.close();
@@ -528,7 +550,7 @@ test('a browser recording (WebM) becomes a video palace as it is, without conver
     await watchConversions(page);
     const [chooser] = await Promise.all([
       page.waitForEvent('filechooser'),
-      page.getByRole('button', { name: /Own palace from image/ }).click(),
+      page.getByRole('button', { name: 'Choose image/video…' }).click(),
     ]);
     await chooser.setFiles({ name: 'Recording.webm', mimeType: 'video/webm', buffer: webm });
     await page.waitForFunction(() => [...document.querySelectorAll('video')].some((video) => video.readyState >= 1), null, {
@@ -626,7 +648,7 @@ test('on a phone the tour hides the commands bar and moves up while a field is t
     const panel = page.locator('.tour-panel');
     const step = (n) => page.waitForFunction((n) => document.body.innerText.includes(`Step ${n} of 13`), n, { timeout: 15000 });
     await commands.waitFor({ timeout: 15000 });
-    await page.getByRole('button', { name: 'Start the app tour' }).click();
+    await startTour(page);
     await step(1);
     assert.equal(await commands.count(), 0, 'the bar makes room for the tour');
     for (let n = 2; n <= 7; n += 1) {
@@ -650,8 +672,7 @@ test('the first start shows only the language choice, not a tour left from earli
     await page.getByRole('button', { name: 'English' }).click();
     // A tour stopped halfway, then the language is forgotten, as after a reinstall that kept the
     // app's data (Android restores it from the backup).
-    await page.getByRole('button', { name: 'Start the app tour' }).click();
-    await page.getByRole('region', { name: 'App tour' }).waitFor({ timeout: 15000 });
+    await startTour(page);
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.waitForFunction(() => document.body.innerText.includes('Step 2 of 13'), null, { timeout: 15000 });
     await page.evaluate(() => localStorage.removeItem('locora-language-v1'));
@@ -682,6 +703,137 @@ test('the first start asks for the language and then speaks it', async () => {
     await page.reload({ waitUntil: 'load' });
     await page.getByRole('button', { name: 'App-Tour starten' }).waitFor({ timeout: 15000 });
     assert.equal(await page.getByRole('dialog').count(), 0, 'the choice is remembered');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('„Learn mnemonics“ is on the start page and shows a tile for every lesson', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
+    await page.getByRole('heading', { name: 'Learn mnemonics' }).waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('.learn-tile').count(), 17, 'one tile per lesson');
+    const text = await page.locator('body').innerText();
+    for (const name of ['Simo', 'Mina', 'Cami', 'Bruno', 'Hafiza']) assert.match(text, new RegExp(name));
+    assert.match(text, /0 of 17 done/);
+    // Every lesson can report a wrong translation as a prefilled issue, without personal data.
+    const report = await page.getByRole('link', { name: 'Wrong translation? Report it' }).getAttribute('href');
+    assert.match(report, /^https:\/\/github\.com\/wasser-quest\/locora\/issues\/new\?labels=translation&title=Translation%3A%20overview%20%28en%29/);
+    assert.ok(report.length < 6000);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a lesson opens with its character, its check unlocks an achievement, and next/back move between lessons', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
+    await page.getByRole('button', { name: /What is the method of loci\?/ }).click();
+    await page.getByRole('heading', { name: 'What is the method of loci?' }).waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('.bubble-name').innerText(), 'Simo');
+    await page.locator('.lesson-figure svg').first().waitFor({ timeout: 15000 });
+    // A wrong answer gives a hint and the achievement stays locked.
+    await page.getByRole('button', { name: 'Writing everything down on notes' }).click();
+    await page.getByText(/Not quite\. Almost!/).waitFor();
+    assert.equal(await page.locator('.celebration').count(), 0);
+    // The right answer completes the exercise and unlocks the lesson's achievement.
+    await page.getByRole('button', { name: 'Putting pictures at familiar places and walking past them in order' }).click();
+    await page.getByText('Right! The exercise is done.').waitFor();
+    await page.locator('.celebration', { hasText: 'What is the method of loci?' }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Next lesson ▶' }).click();
+    await page.getByRole('heading', { name: 'Visualising: vivid pictures' }).waitFor();
+    assert.equal(await page.locator('.bubble-name').innerText(), 'Cami');
+    await page.getByRole('button', { name: '◀ Previous lesson' }).click();
+    await page.getByRole('heading', { name: 'What is the method of loci?' }).waitFor();
+    await page.getByRole('button', { name: '← All lessons' }).click();
+    await page.getByText('1 of 17 done').waitFor();
+    assert.equal(await page.locator('.learn-tile.done').count(), 1);
+    // Kept in the store with the other achievements: still there after a reload.
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
+    await page.getByText('1 of 17 done').waitFor({ timeout: 15000 });
+    await page.locator('.medal[data-achievement="learn-basics"]:not(.locked)').waitFor({ state: 'attached', timeout: 15000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the app tour first offers the lessons while they are open', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.getByRole('button', { name: 'App tour', exact: true }).click();
+    const ask = page.getByRole('dialog', { name: 'Have you practised the memory techniques yet?' });
+    await ask.waitFor({ timeout: 15000 });
+    await ask.getByRole('button', { name: 'Learn mnemonics first' }).click();
+    await page.getByRole('heading', { name: 'Learn mnemonics' }).waitFor({ timeout: 15000 });
+    assert.equal(await page.getByRole('region', { name: 'App tour' }).count(), 0, 'no tour yet');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('after the last lesson a closing card offers the app tour and starts it', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
+    await page.getByRole('button', { name: /Memory sports/ }).click();
+    await page.getByRole('heading', { name: 'Memory sports' }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'To the finish ▶' }).click();
+    const finish = page.locator('.learn-finish');
+    await finish.waitFor();
+    assert.match(await finish.innerText(), /You have reached the end/);
+    await finish.getByRole('button', { name: 'Start the app tour' }).click();
+    // Straight into the tour: no question in between.
+    await page.getByRole('region', { name: 'App tour' }).waitFor({ timeout: 15000 });
+    await page.waitForFunction(() => document.body.innerText.includes('Step 1 of 13'), null, { timeout: 15000 });
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the first own palace: a photo, 5 places with a shopping list, one walk, an achievement', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Choose a photo…' }).click(),
+    ]);
+    await chooser.setFiles({ name: 'Kitchen.png', mimeType: 'image/png', buffer: png });
+    const guide = page.getByRole('region', { name: 'Your first own palace' });
+    await guide.getByText('Step 1 of 3: set places').waitFor({ timeout: 15000 });
+    const items = ['Milk', 'Bread', 'Apples', 'Cheese', 'Coffee'];
+    const stage = page.locator('#tour-editor-stage');
+    for (let i = 0; i < 5; i += 1) {
+      const box = await stage.boundingBox();
+      await stage.click({ position: { x: box.width * (0.12 + i * 0.18), y: box.height * 0.5 } });
+      await guide.getByText(`${i + 1} of 5 places set`).or(guide.getByText('Step 2 of 3: put down the shopping list')).waitFor({ timeout: 15000 });
+      await page.locator('#tour-editor-content input').fill(items[i]);
+      await page.waitForTimeout(700);
+    }
+    await guide.getByText('Step 3 of 3: walk the route').waitFor({ timeout: 15000 });
+    await guide.getByRole('button', { name: 'Walk the route now ▶' }).click();
+    await page.waitForFunction(() => document.body.innerText.includes('1/5'), null, { timeout: 15000 });
+    for (let n = 2; n <= 6; n += 1) {
+      await page.keyboard.press('Space');
+      await page.keyboard.press('3');
+      if (n <= 5) await page.waitForFunction((n) => document.body.innerText.includes(`${n}/5`), n, { timeout: 15000 });
+    }
+    // The walk finished the exercise: the achievement is unlocked and celebrated, and the guide
+    // says when the first review comes.
+    await page.locator('.celebration', { hasText: 'First own palace' }).waitFor({ timeout: 20000 });
+    await page.getByText('Your first review is due tomorrow.', { exact: false }).waitFor({ timeout: 20000 });
     assert.deepEqual(problems, []);
   } finally {
     await context.close();

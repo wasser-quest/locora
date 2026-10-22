@@ -159,6 +159,8 @@ class MotionScenario:
         self.motion("welcome-simo", welcome=True)
         # The app tour sets up the tutorial palace; close it and open the palace.
         self.click("App-Tour starten")
+        # While the lessons of „Mnemotechnik lernen“ are open, the app asks first.
+        self.click(self.until(lambda: self.find("Ich kenne das schon – Tour starten")).get_name())
         self.until(lambda: self.find("Schließen"))
         self.click("Schließen")
         self.click(self.until(lambda: self.find("Locora lernen", prefix=True)).get_name())
