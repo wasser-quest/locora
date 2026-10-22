@@ -3,7 +3,9 @@
 mod achievements;
 mod activity;
 mod audio;
+mod auto_sync;
 mod cloud_settings;
+mod cloud_sync_form;
 mod crash;
 mod dashboard;
 mod dashboard_editor;
@@ -547,6 +549,8 @@ fn App() -> impl IntoView {
     // One request at a time; when it returns, the latest sample wins, so an
     // older answer can never overwrite a newer offset.
     let offset_revision = RwSignal::new(0_u64);
+    // Auto-sync runs on every screen; a sync that brought changes reloads the start page.
+    auto_sync::start(offset_revision);
     let sent = StoredValue::new(None::<i32>);
     let wanted = StoredValue::new(None::<i32>);
     let sending = StoredValue::new(false);
@@ -599,6 +603,7 @@ fn App() -> impl IntoView {
                 </aside>
             }
         })}
+        <auto_sync::DeletionNotice />
         <Notifications screen=screen />
         <TourOverlay active=tour screen=screen error=tour_error route_ready=tour_route_ready />
         <main>

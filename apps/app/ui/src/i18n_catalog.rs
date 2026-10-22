@@ -5655,4 +5655,424 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "无法复制。请手动抄下密钥。",
         ],
     ),
+    (
+        "Löschen bestätigen",
+        [
+            "Confirm deletion",
+            "Löschen bestätigen",
+            "Confirmer la suppression",
+            "削除を確認",
+            "确认删除",
+        ],
+    ),
+    (
+        "Auto-Sync wartet, bis du das Löschen bestätigst.",
+        [
+            "Auto-sync waits until you confirm the deletion.",
+            "Auto-Sync wartet, bis du das Löschen bestätigst.",
+            "La synchronisation automatique attend que tu confirmes la suppression.",
+            "削除を確認するまで自動同期は待機します。",
+            "在你确认删除之前，自动同步会等待。",
+        ],
+    ),
+    (
+        "Später",
+        [
+            "Later",
+            "Später",
+            "Plus tard",
+            "あとで",
+            "稍后",
+        ],
+    ),
+    (
+        "(ohne Namen)",
+        [
+            "(no name)",
+            "(ohne Namen)",
+            "(sans nom)",
+            "（名前なし）",
+            "（无名称）",
+        ],
+    ),
+    (
+        "Palast „{0}“ wird auch in der Cloud und auf deinen anderen Geräten gelöscht.",
+        [
+            "Palace “{0}” will also be deleted in the cloud and on your other devices.",
+            "Palast „{0}“ wird auch in der Cloud und auf deinen anderen Geräten gelöscht.",
+            "Le palais « {0} » sera aussi supprimé dans le cloud et sur tes autres appareils.",
+            "宮殿「{0}」はクラウドとほかの端末からも削除されます。",
+            "宫殿“{0}”也会在云端和你的其他设备上被删除。",
+        ],
+    ),
+    (
+        "In der Cloud wartet nichts Neues von deinen anderen Geräten.",
+        [
+            "Nothing new from your other devices is waiting in the cloud.",
+            "In der Cloud wartet nichts Neues von deinen anderen Geräten.",
+            "Rien de nouveau de tes autres appareils n’attend dans le cloud.",
+            "ほかの端末からの新しい変更はクラウドにありません。",
+            "云端没有来自你其他设备的新内容。",
+        ],
+    ),
+    (
+        "Dieses Gerät hat keine neuen Änderungen.",
+        [
+            "This device has no new changes.",
+            "Dieses Gerät hat keine neuen Änderungen.",
+            "Cet appareil n’a pas de nouvelles modifications.",
+            "この端末に新しい変更はありません。",
+            "此设备没有新的更改。",
+        ],
+    ),
+    (
+        "Dieses Gerät sendet:",
+        [
+            "This device sends:",
+            "Dieses Gerät sendet:",
+            "Cet appareil envoie :",
+            "この端末から送信するもの：",
+            "此设备将发送：",
+        ],
+    ),
+    (
+        "Von deinen anderen Geräten kam nichts Neues.",
+        [
+            "Nothing new came from your other devices.",
+            "Von deinen anderen Geräten kam nichts Neues.",
+            "Rien de nouveau n’est venu de tes autres appareils.",
+            "ほかの端末からの新しい変更はありませんでした。",
+            "你的其他设备没有新内容。",
+        ],
+    ),
+    (
+        "Von deinen anderen Geräten:",
+        [
+            "From your other devices:",
+            "Von deinen anderen Geräten:",
+            "De tes autres appareils :",
+            "ほかの端末から：",
+            "来自你的其他设备：",
+        ],
+    ),
+    (
+        "Sync abgeschlossen.",
+        [
+            "Sync finished.",
+            "Sync abgeschlossen.",
+            "Synchronisation terminée.",
+            "同期が完了しました。",
+            "同步完成。",
+        ],
+    ),
+    (
+        "Noch nicht synchronisiert.",
+        [
+            "Not synced yet.",
+            "Noch nicht synchronisiert.",
+            "Pas encore synchronisé.",
+            "まだ同期していません。",
+            "尚未同步。",
+        ],
+    ),
+    (
+        "Auto-Sync einschalten",
+        [
+            "Turn on auto-sync",
+            "Auto-Sync einschalten",
+            "Activer la synchronisation automatique",
+            "自動同期をオンにする",
+            "开启自动同步",
+        ],
+    ),
+    (
+        "Mit Auto-Sync synchronisiert die App von selbst. Dafür wird der Schlüssel sicher auf diesem Gerät gespeichert, im Schlüsselspeicher des Systems.",
+        [
+            "With auto-sync the app syncs by itself. For this, the key is kept safely on this device, in the system’s key store.",
+            "Mit Auto-Sync synchronisiert die App von selbst. Dafür wird der Schlüssel sicher auf diesem Gerät gespeichert, im Schlüsselspeicher des Systems.",
+            "Avec la synchronisation automatique, l’app se synchronise toute seule. Pour cela, la clé est gardée en sécurité sur cet appareil, dans le trousseau du système.",
+            "自動同期では、アプリが自分で同期します。そのために鍵はこの端末のシステムの鍵保管庫に安全に保存されます。",
+            "开启自动同步后，应用会自行同步。为此，密钥会安全地保存在此设备的系统密钥库中。",
+        ],
+    ),
+    (
+        "Auto-Sync ist an: Die App synchronisiert beim Start, kurz nach deinen Änderungen und alle zehn Minuten.",
+        [
+            "Auto-sync is on: the app syncs when it starts, shortly after your changes and every ten minutes.",
+            "Auto-Sync ist an: Die App synchronisiert beim Start, kurz nach deinen Änderungen und alle zehn Minuten.",
+            "La synchronisation automatique est active : l’app se synchronise au démarrage, peu après tes modifications et toutes les dix minutes.",
+            "自動同期はオンです：起動時、変更の少しあと、そして10分ごとに同期します。",
+            "自动同步已开启：应用会在启动时、你更改后不久以及每十分钟同步一次。",
+        ],
+    ),
+    (
+        "Schlüssel auf diesem Gerät vergessen",
+        [
+            "Forget the key on this device",
+            "Schlüssel auf diesem Gerät vergessen",
+            "Oublier la clé sur cet appareil",
+            "この端末の鍵を削除",
+            "在此设备上忘记密钥",
+        ],
+    ),
+    (
+        "Löschen bestätigen und synchronisieren",
+        [
+            "Confirm deletion and sync",
+            "Löschen bestätigen und synchronisieren",
+            "Confirmer la suppression et synchroniser",
+            "削除を確認して同期",
+            "确认删除并同步",
+        ],
+    ),
+    (
+        "„{0}“ – neu",
+        [
+            "“{0}” – new",
+            "„{0}“ – neu",
+            "« {0} » – nouveau",
+            "「{0}」– 新規",
+            "“{0}” – 新建",
+        ],
+    ),
+    (
+        "„{0}“ – {1} Änderungen",
+        [
+            "“{0}” – {1} changes",
+            "„{0}“ – {1} Änderungen",
+            "« {0} » – {1} modifications",
+            "「{0}」– {1} 件の変更",
+            "“{0}” – {1} 处更改",
+        ],
+    ),
+    (
+        "„{0}“ – gelöscht",
+        [
+            "“{0}” – deleted",
+            "„{0}“ – gelöscht",
+            "« {0} » – supprimé",
+            "「{0}」– 削除",
+            "“{0}” – 已删除",
+        ],
+    ),
+    (
+        "{0} weitere Änderungen, zum Beispiel Wiederholungen",
+        [
+            "{0} other changes, for example reviews",
+            "{0} weitere Änderungen, zum Beispiel Wiederholungen",
+            "{0} autres modifications, par exemple des révisions",
+            "そのほかの変更 {0} 件（復習など）",
+            "另外 {0} 处更改，例如复习",
+        ],
+    ),
+    (
+        "{0} Änderungen von deinen anderen Geräten warten in der Cloud.",
+        [
+            "{0} changes from your other devices are waiting in the cloud.",
+            "{0} Änderungen von deinen anderen Geräten warten in der Cloud.",
+            "{0} modifications de tes autres appareils attendent dans le cloud.",
+            "ほかの端末からの変更 {0} 件がクラウドで待っています。",
+            "云端有 {0} 处来自你其他设备的更改正在等待。",
+        ],
+    ),
+    (
+        "„{0}“ ist neu dazugekommen",
+        [
+            "“{0}” was added",
+            "„{0}“ ist neu dazugekommen",
+            "« {0} » a été ajouté",
+            "「{0}」が追加されました",
+            "新增了“{0}”",
+        ],
+    ),
+    (
+        "„{0}“ wurde geändert ({1} Änderungen)",
+        [
+            "“{0}” was changed ({1} changes)",
+            "„{0}“ wurde geändert ({1} Änderungen)",
+            "« {0} » a été modifié ({1} modifications)",
+            "「{0}」が変更されました（{1} 件）",
+            "“{0}”已更改（{1} 处更改）",
+        ],
+    ),
+    (
+        "„{0}“ wurde gelöscht",
+        [
+            "“{0}” was deleted",
+            "„{0}“ wurde gelöscht",
+            "« {0} » a été supprimé",
+            "「{0}」が削除されました",
+            "“{0}”已被删除",
+        ],
+    ),
+    (
+        "{0} Änderungen gesendet, {1} Bilder oder Videos hochgeladen.",
+        [
+            "{0} changes sent, {1} pictures or videos uploaded.",
+            "{0} Änderungen gesendet, {1} Bilder oder Videos hochgeladen.",
+            "{0} modifications envoyées, {1} images ou vidéos téléversées.",
+            "{0} 件の変更を送信し、画像または動画を {1} 件アップロードしました。",
+            "已发送 {0} 处更改，已上传 {1} 个图片或视频。",
+        ],
+    ),
+    (
+        "{0} Änderungen sind zu groß für die Cloud und bleiben nur auf diesem Gerät.",
+        [
+            "{0} changes are too large for the cloud and stay on this device only.",
+            "{0} Änderungen sind zu groß für die Cloud und bleiben nur auf diesem Gerät.",
+            "{0} modifications sont trop volumineuses pour le cloud et restent seulement sur cet appareil.",
+            "{0} 件の変更はクラウドには大きすぎるため、この端末にだけ残ります。",
+            "{0} 处更改对云端来说太大，只保留在此设备上。",
+        ],
+    ),
+    (
+        "Zuletzt synchronisiert: {0}",
+        [
+            "Last synced: {0}",
+            "Zuletzt synchronisiert: {0}",
+            "Dernière synchronisation : {0}",
+            "最終同期：{0}",
+            "上次同步：{0}",
+        ],
+    ),
+    (
+        "Auto-Sync klappt gerade nicht: {0}. Die App versucht es später noch einmal.",
+        [
+            "Auto-sync is not working right now: {0}. The app will try again later.",
+            "Auto-Sync klappt gerade nicht: {0}. Die App versucht es später noch einmal.",
+            "La synchronisation automatique ne fonctionne pas pour le moment : {0}. L’app réessaiera plus tard.",
+            "自動同期は現在うまくいきません：{0}。あとでもう一度試します。",
+            "自动同步暂时失败：{0}。应用稍后会再试。",
+        ],
+    ),
+    (
+        "Passwort vergessen?",
+        [
+            "Forgot your password?",
+            "Passwort vergessen?",
+            "Mot de passe oublié ?",
+            "パスワードをお忘れですか？",
+            "忘记密码？",
+        ],
+    ),
+    (
+        "Wir haben den Link noch einmal geschickt.",
+        [
+            "We sent the link again.",
+            "Wir haben den Link noch einmal geschickt.",
+            "Nous avons renvoyé le lien.",
+            "リンクをもう一度送りました。",
+            "我们已重新发送链接。",
+        ],
+    ),
+    (
+        "Die Adresse ist noch nicht bestätigt. Bitte öffne den Link in der E-Mail.",
+        [
+            "The address is not confirmed yet. Please open the link in the e-mail.",
+            "Die Adresse ist noch nicht bestätigt. Bitte öffne den Link in der E-Mail.",
+            "L’adresse n’est pas encore confirmée. Ouvre le lien dans l’e-mail.",
+            "アドレスはまだ確認されていません。メールのリンクを開いてください。",
+            "地址尚未确认。请打开邮件中的链接。",
+        ],
+    ),
+    (
+        "Link erneut senden",
+        [
+            "Send the link again",
+            "Link erneut senden",
+            "Renvoyer le lien",
+            "リンクを再送信",
+            "重新发送链接",
+        ],
+    ),
+    (
+        "Ich habe bestätigt – prüfen",
+        [
+            "I have confirmed – check",
+            "Ich habe bestätigt – prüfen",
+            "J’ai confirmé – vérifier",
+            "確認しました – チェック",
+            "我已确认 – 检查",
+        ],
+    ),
+    (
+        "Bitte bestätige deine E-Mail-Adresse: Wir haben dir einen Link an {0} geschickt.",
+        [
+            "Please confirm your e-mail address: we sent you a link at {0}.",
+            "Bitte bestätige deine E-Mail-Adresse: Wir haben dir einen Link an {0} geschickt.",
+            "Confirme ton adresse e-mail : nous t’avons envoyé un lien à {0}.",
+            "メールアドレスを確認してください：{0} にリンクを送りました。",
+            "请确认你的电子邮件地址：我们已向 {0} 发送了一个链接。",
+        ],
+    ),
+    (
+        "Gerade zu viele Anfragen an Locora Cloud. Bitte später erneut versuchen",
+        [
+            "Too many requests to Locora Cloud right now. Please try again later",
+            "Gerade zu viele Anfragen an Locora Cloud. Bitte später erneut versuchen",
+            "Trop de requêtes vers Locora Cloud pour le moment. Réessaie plus tard",
+            "Locora Cloud へのリクエストが多すぎます。あとでもう一度お試しください",
+            "目前对 Locora Cloud 的请求过多。请稍后再试",
+        ],
+    ),
+    (
+        "Der Speicher in Locora Cloud ist voll. Lösche Bilder oder Videos, oder wähle ein Abo mit mehr Platz",
+        [
+            "Your Locora Cloud storage is full. Delete pictures or videos, or choose a plan with more space",
+            "Der Speicher in Locora Cloud ist voll. Lösche Bilder oder Videos, oder wähle ein Abo mit mehr Platz",
+            "Le stockage Locora Cloud est plein. Supprime des images ou des vidéos, ou choisis un abonnement avec plus d’espace",
+            "Locora Cloud の容量がいっぱいです。画像や動画を削除するか、容量の多いプランを選んでください",
+            "Locora Cloud 存储空间已满。请删除图片或视频，或选择空间更大的订阅",
+        ],
+    ),
+    (
+        "Auf diesem Gerät gibt es keinen sicheren Schlüsselspeicher. Auto-Sync ist deshalb nicht möglich",
+        [
+            "This device has no secure key store, so auto-sync is not possible",
+            "Auf diesem Gerät gibt es keinen sicheren Schlüsselspeicher. Auto-Sync ist deshalb nicht möglich",
+            "Cet appareil n’a pas de stockage de clés sécurisé ; la synchronisation automatique n’est donc pas possible",
+            "この端末には安全な鍵保管庫がないため、自動同期は使えません",
+            "此设备没有安全的密钥存储，因此无法使用自动同步",
+        ],
+    ),
+    (
+        "Dieser Browser kann den Schlüssel nicht sicher aufbewahren. Auto-Sync ist hier nicht möglich.",
+        [
+            "This browser cannot keep the key safely. Auto-sync is not possible here.",
+            "Dieser Browser kann den Schlüssel nicht sicher aufbewahren. Auto-Sync ist hier nicht möglich.",
+            "Ce navigateur ne peut pas garder la clé en sécurité. La synchronisation automatique n’est pas possible ici.",
+            "このブラウザは鍵を安全に保管できません。ここでは自動同期は使えません。",
+            "此浏览器无法安全保存密钥。这里无法使用自动同步。",
+        ],
+    ),
+    (
+        "Die Cloud-Daten werden neu aufgebaut. Bitte einmal von Hand synchronisieren",
+        [
+            "The cloud data is being rebuilt. Please sync by hand once",
+            "Die Cloud-Daten werden neu aufgebaut. Bitte einmal von Hand synchronisieren",
+            "Les données du cloud sont reconstruites. Synchronise une fois manuellement",
+            "クラウドのデータを作り直しています。一度手動で同期してください",
+            "云端数据正在重建。请手动同步一次",
+        ],
+    ),
+    (
+        "Das Löschen eines Palasts muss erst bestätigt werden",
+        [
+            "Deleting a palace has to be confirmed first",
+            "Das Löschen eines Palasts muss erst bestätigt werden",
+            "La suppression d’un palais doit d’abord être confirmée",
+            "宮殿の削除を先に確認する必要があります",
+            "删除宫殿需要先确认",
+        ],
+    ),
+    (
+        "Dieser Server verschickt keine Bestätigungs-E-Mails",
+        [
+            "This server does not send confirmation e-mails",
+            "Dieser Server verschickt keine Bestätigungs-E-Mails",
+            "Ce serveur n’envoie pas d’e-mails de confirmation",
+            "このサーバーは確認メールを送信しません",
+            "此服务器不发送确认邮件",
+        ],
+    ),
 ];

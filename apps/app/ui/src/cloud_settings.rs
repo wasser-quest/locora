@@ -5,9 +5,10 @@ use crate::info::Info;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    CMD_CLOUD_CONNECT, CMD_CLOUD_DELETE_ACCOUNT, CMD_CLOUD_ERASE, CMD_CLOUD_KEYS_SETUP,
-    CMD_CLOUD_KEYS_STATUS, CMD_CLOUD_LOGOUT, CMD_CLOUD_REFRESH, CMD_CLOUD_STATUS, CMD_CLOUD_SYNC,
-    CMD_SAVE_TEXT_PICK, CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, CloudSyncResult,
+    CMD_CLOUD_CONNECT, CMD_CLOUD_DELETE_ACCOUNT, CMD_CLOUD_EMAIL_RESEND, CMD_CLOUD_ERASE,
+    CMD_CLOUD_KEYS_SETUP, CMD_CLOUD_KEYS_STATUS, CMD_CLOUD_LOGOUT, CMD_CLOUD_REFRESH,
+    CMD_CLOUD_STATUS, CMD_SAVE_TEXT_PICK, CloudConnect, CloudKeyCreated, CloudKeySetup,
+    CloudStatus,
 };
 use serde::Serialize;
 
@@ -25,11 +26,6 @@ struct KeyArgs {
 }
 
 #[derive(Serialize)]
-struct SyncArgs {
-    passphrase: String,
-}
-
-#[derive(Serialize)]
 struct DeleteAccountArgs {
     password: String,
 }
@@ -39,7 +35,7 @@ struct DeleteAccountArgs {
 struct PasswordsShown(RwSignal<bool>);
 
 /// The `type` of a password field: plain text while the passwords are shown.
-fn password_type() -> impl Fn() -> &'static str + Copy {
+pub(crate) fn password_type() -> impl Fn() -> &'static str + Copy {
     let shown = use_context::<PasswordsShown>().map(|shown| shown.0);
     move || {
         if shown.is_some_and(|shown| shown.get()) {
@@ -52,7 +48,7 @@ fn password_type() -> impl Fn() -> &'static str + Copy {
 
 /// The "Passwörter anzeigen" checkbox under a form's password fields.
 #[component]
-fn ShowPasswords() -> impl IntoView {
+pub(crate) fn ShowPasswords() -> impl IntoView {
     let shown =
         use_context::<PasswordsShown>().map_or_else(|| RwSignal::new(false), |shown| shown.0);
     view! {
@@ -126,11 +122,10 @@ pub fn CloudSettings() -> impl IntoView {
             match call::<()>(CMD_CLOUD_LOGOUT, NoArgs {}).await {
                 Ok(()) => {
                     recovery.set(None);
-                    status.set(Some(Ok(CloudStatus {
-                        account: None,
-                        server: None,
-                        access: false,
-                    })));
+                    status.set(Some(Ok(CloudStatus::signed_out())));
+                    if let Some(auto) = crate::auto_sync::use_auto_sync() {
+                        auto.set_enabled(false);
+                    }
                     message.set(Some(Ok(t("Auf diesem Gerät abgemeldet.").into())));
                 }
                 Err(error) => message.set(Some(Err(error))),
@@ -148,8 +143,9 @@ pub fn CloudSettings() -> impl IntoView {
                 Some(Ok(CloudStatus { account: None, .. })) => view! {
                     <ConnectForm status=status message=message busy=busy />
                 }.into_any(),
-                Some(Ok(CloudStatus { account: Some(account), server, access })) => view! {
+                Some(Ok(CloudStatus { account: Some(account), server, access, email_verified, .. })) => view! {
                     <p class="progress">{tf("Angemeldet als {0} bei {1}.", &[&account, &server.unwrap_or_default()])}</p>
+                    {(email_verified == Some(false)).then(|| view! { <EmailPrompt status=status email=account.clone() /> })}
                     <button type="button" disabled=move || busy.get() on:click=move |_| refresh_access()>
                         {t("Freischaltung aktualisieren")}
                     </button>
@@ -174,7 +170,7 @@ pub fn CloudSettings() -> impl IntoView {
                             {if recovery.get().is_some() {
                                 view! { <p class="notes">{t("Wiederherstellungsschlüssel zuerst sichern.")}</p> }.into_any()
                             } else if access {
-                                view! { <SyncForm /> }.into_any()
+                                view! { <crate::cloud_sync_form::SyncPanel status=status /> }.into_any()
                             } else {
                                 view! { <p class="notes">{t("Verschlüsselung eingerichtet. Für Cloud-Sync fehlt derzeit eine gültige Freischaltung.")}</p> }.into_any()
                             }}
@@ -260,11 +256,10 @@ fn DeleteCloud(
                 Ok(()) => {
                     password.set(String::new());
                     recovery.set(None);
-                    status.set(Some(Ok(CloudStatus {
-                        account: None,
-                        server: None,
-                        access: false,
-                    })));
+                    status.set(Some(Ok(CloudStatus::signed_out())));
+                    if let Some(auto) = crate::auto_sync::use_auto_sync() {
+                        auto.set_enabled(false);
+                    }
                     message.set(Some(Ok(t(
                         "Cloud-Konto gelöscht. Die Daten auf diesem Gerät bleiben.",
                     )
@@ -470,6 +465,9 @@ fn ConnectForm(
             <button class="primary" type="submit" disabled=move || busy.get()>
                 {move || if register.get() { t("Konto erstellen") } else { t("Anmelden") }}
             </button>
+            <Show when=move || !register.get()>
+                <p class="meta"><a href=locora_app_api::CLOUD_FORGOT_URL target="_blank" rel="noopener">{t("Passwort vergessen?")}</a></p>
+            </Show>
         </form>
     }
 }
@@ -543,56 +541,58 @@ fn KeySetupForm(
     }
 }
 
+/// After registering: the address is confirmed with the link from an e-mail. Shown while the
+/// server says it is not confirmed (servers that do not confirm say nothing).
 #[component]
-fn SyncForm() -> impl IntoView {
-    let passphrase = RwSignal::new(String::new());
+fn EmailPrompt(
+    status: RwSignal<Option<Result<CloudStatus, String>>>,
+    email: String,
+) -> impl IntoView {
+    let note = RwSignal::new(None::<Result<String, String>>);
     let busy = RwSignal::new(false);
-    let outcome = RwSignal::new(None::<Result<CloudSyncResult, String>>);
-    let submit = move || {
+    let resend = move |_| {
         if busy.get_untracked() {
             return;
         }
-        let secret = passphrase.get_untracked();
-        if secret.is_empty() {
-            outcome.set(Some(Err(t("Verschlüsselungs-Passwort eingeben.").into())));
-            return;
-        }
-        passphrase.set(String::new());
         busy.set(true);
-        outcome.set(None);
         spawn_local(async move {
-            outcome.set(Some(
-                call::<CloudSyncResult>(CMD_CLOUD_SYNC, SyncArgs { passphrase: secret }).await,
+            note.set(Some(
+                match call::<()>(CMD_CLOUD_EMAIL_RESEND, NoArgs {}).await {
+                    Ok(()) => Ok(t("Wir haben den Link noch einmal geschickt.").into()),
+                    Err(error) => Err(error),
+                },
             ));
             busy.set(false);
         });
     };
+    let check = move |_| {
+        if busy.get_untracked() {
+            return;
+        }
+        busy.set(true);
+        spawn_local(async move {
+            match call::<CloudStatus>(CMD_CLOUD_REFRESH, NoArgs {}).await {
+                Ok(updated) => {
+                    if updated.email_verified == Some(false) {
+                        note.set(Some(Err(t("Die Adresse ist noch nicht bestätigt. Bitte öffne den Link in der E-Mail.").into())));
+                    }
+                    status.set(Some(Ok(updated)));
+                }
+                Err(error) => note.set(Some(Err(error))),
+            }
+            busy.set(false);
+        });
+    };
     view! {
-        <p class="progress">{t("Änderungen werden nur auf Knopfdruck Ende-zu-Ende-verschlüsselt synchronisiert.")}</p>
-        <form on:submit=move |event| { event.prevent_default(); submit(); }>
-            <label class="input"><span class="info-head">{t("Verschlüsselungs-Passwort")}<Info text="Damit werden deine Daten verschlüsselt, bevor sie in die Cloud gehen. Es ist ein eigenes Passwort, nicht dein Cloud-Passwort, und der Server kennt es nicht. Verlierst du es und den Wiederherstellungsschlüssel, kann niemand die Cloud-Daten wieder lesbar machen." /></span>
-                <input type=password_type() autocomplete="off" bind:value=passphrase />
-            </label>
-            <ShowPasswords />
-            <button class="primary" type="submit" disabled=move || busy.get()>
-                {move || if busy.get() { t("Synchronisiert …") } else { t("Jetzt synchronisieren") }}
-            </button>
-        </form>
-        {move || outcome.get().map(|result| match result {
-            Ok(report) => view! {
-                <p class="verdict ok" role="status">{tf(
-                    "Sync abgeschlossen: {0} Änderungen gesendet, {1} Medien hochgeladen, {2} Änderungen empfangen, {3} Medien geladen; {4} angewendet, {5} schon bekannt, {6} mit fehlendem Ort.",
-                    &[&report.pushed, &report.media_uploaded, &report.pulled,
-                    &report.media_downloaded, &report.applied, &report.stale, &report.missing],
-                )}</p>
-                {(report.failed != 0 || report.quarantined != 0).then(|| view! {
-                    <p class="notes" role="alert">{tf(
-                        "{0} Änderungen konnten nicht angewendet werden, {1} wurden in Quarantäne abgelegt. Bitte lokalen Datenbestand prüfen.",
-                        &[&report.failed, &report.quarantined],
-                    )}</p>
-                })}
-            }.into_any(),
-            Err(error) => view! { <p class="notes" role="alert">{error}</p> }.into_any(),
-        })}
+        <div class="notes cloud-email" role="status">
+            <p><strong>{tf("Bitte bestätige deine E-Mail-Adresse: Wir haben dir einen Link an {0} geschickt.", &[&email])}</strong></p>
+            <button type="button" disabled=move || busy.get() on:click=resend>{t("Link erneut senden")}</button>
+            " "
+            <button type="button" disabled=move || busy.get() on:click=check>{t("Ich habe bestätigt – prüfen")}</button>
+            {move || note.get().map(|result| match result {
+                Ok(text) => view! { <p class="verdict ok">{text}</p> }.into_any(),
+                Err(text) => view! { <p class="meta" role="alert">{text}</p> }.into_any(),
+            })}
+        </div>
     }
 }

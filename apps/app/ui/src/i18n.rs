@@ -187,6 +187,8 @@ mod tests {
         ("achievements.rs", include_str!("achievements.rs")),
         ("activity.rs", include_str!("activity.rs")),
         ("audio.rs", include_str!("audio.rs")),
+        ("auto_sync.rs", include_str!("auto_sync.rs")),
+        ("cloud_sync_form.rs", include_str!("cloud_sync_form.rs")),
         ("cloud_settings.rs", include_str!("cloud_settings.rs")),
         ("crash.rs", include_str!("crash.rs")),
         ("dashboard.rs", include_str!("dashboard.rs")),
