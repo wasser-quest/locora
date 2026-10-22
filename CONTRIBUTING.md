@@ -7,12 +7,12 @@ licence.
 
 | Branch | What goes there | What runs |
 |---|---|---|
-| `unstable` | **Your pull requests.** Open them against `unstable`. Changes are collected and tried here. | CI on every pull request (Linux: format, clippy, tests). |
-| `testing` | Changes taken over from `unstable` and the maintainer's own work, before they go out. | The web app is built, tested in Chromium and deployed as a preview: https://testing--locora-app.netlify.app. |
-| `main` | What the next release is made of. | Full CI on Linux, macOS and Windows, the native smoke test and the mobile builds. |
+| `unstable` | **Your pull requests.** Open them against `unstable`. Changes are collected and tried here. | CI on every pull request (Linux: format, clippy, tests, and the web app's browser tests). Dependabot sends its update pull requests here too. |
+| `testing` | Changes taken over from `unstable` and the maintainer's own work, before they go out. | Full CI on Linux, macOS and Windows, the native smoke test, the mobile builds, and the web app tested in Chromium and deployed as a preview: https://testing--locora-app.netlify.app. |
+| `main` | What the next release is made of. | Nobody pushes here: once everything on `testing` passed, `main` moves to that commit by itself (`promote.yml`). |
 | tag `vX.Y.Z` on `main` | A release. | Installers, CLI, APK, `.ipa` and the live web app at app.locora.cloud. Notes come from `docs/releases/vX.Y.Z.md`. |
 
-Please don't open pull requests against `testing` or `main`.
+Please don't open pull requests against `testing` or `main`. Security problems: see [`SECURITY.md`](SECURITY.md).
 
 ## Before you send a change
 

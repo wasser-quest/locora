@@ -1,0 +1,59 @@
+name: Promote testing to main
+
+# `main` follows `testing`: when CI, the web preview and the mobile builds all passed for the same
+# commit on `testing`, `main` is fast-forwarded to that commit. Nothing else ever moves `main`
+# forward automatically, and it is never rewritten: a commit that is not a fast-forward is left for
+# the maintainer. Releases stay manual (a `vX.Y.Z` tag on `main`).
+
+on:
+  workflow_run:
+    workflows: [CI, Web preview, Mobile builds]
+    types: [completed]
+    branches: [testing]
+
+concurrency:
+  group: promote-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  promote:
+    name: Fast-forward main
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: All checks of the commit passed
+        id: checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          ok=true
+          for name in "CI" "Web preview" "Mobile builds"; do
+            conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SHA&event=push&branch=testing" \
+              --jq "[.workflow_runs[] | select(.name == \"$name\")] | sort_by(.created_at) | last | .conclusion // \"missing\"")
+            echo "$name: $conclusion"
+            [ "$conclusion" = success ] || ok=false
+          done
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.checks.outputs.ok == 'true'
+        with:
+          fetch-depth: 0
+      - name: Fast-forward main
+        if: steps.checks.outputs.ok == 'true'
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git fetch origin main
+          if git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "main already contains $SHA."
+          elif git merge-base --is-ancestor origin/main "$SHA"; then
+            git push origin "$SHA:refs/heads/main"
+            echo "main is now at ${SHA::7}." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::main has commits that testing lacks; not a fast-forward, left for the maintainer."
+          fi

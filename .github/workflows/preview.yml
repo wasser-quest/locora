@@ -81,6 +81,8 @@ jobs:
             echo "::notice::No Netlify token in the preview environment: the preview is built and tested, not deployed."
             exit 0
           fi
+          # A preview is not for search engines.
+          printf '\n/*\n  X-Robots-Tag: noindex, nofollow\n' >> apps/web/dist/_headers
           npx --yes netlify-cli@27.13.0 deploy --no-build --dir apps/web/dist --site "$NETLIFY_SITE_ID" \
             --alias testing --message "testing ${GITHUB_SHA::7}" --json > deploy.json
           url=$(node -e 'const d = require("./deploy.json"); console.log(d.deploy_url)')

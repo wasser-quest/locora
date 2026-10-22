@@ -2,10 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `testing` is checked in full; promote.yml moves `main` to a commit once it passed here, in
+    # the web preview and in the mobile builds.
+    branches: [main, testing]
   pull_request:
-  # Pull requests check Linux only; pushes to main and manual runs also macOS and Windows
-  # (free for public repositories).
+  # Pull requests check Linux only, plus the web app's browser tests; pushes and manual runs also
+  # macOS and Windows (free for public repositories).
   workflow_dispatch:
 
 # A newer push to the same branch replaces the run that is still going.
@@ -99,3 +101,47 @@ jobs:
           path: ${{ runner.temp }}/smoke
           if-no-files-found: ignore
           retention-days: 14
+
+  web:
+    name: Web app (browser tests)
+    # Pushes to `testing` run these in preview.yml before the preview goes out.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      LOCORA_ZIGBUILD: "1"
+      TRUNK_VERSION: 0.21.14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: rustup show && rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            .
+            plugins
+          key: pr-web
+      - name: Install Trunk, zig and cargo-zigbuild
+        run: |
+          cargo install trunk --version "=$TRUNK_VERSION" --locked
+          cargo install cargo-zigbuild --version "=0.23.4" --locked
+          pip install ziglang==0.17.0
+      - name: Plugins as browser modules
+        run: |
+          cargo build --locked --release --target wasm32-wasip2 --manifest-path plugins/Cargo.toml \
+            -p core -p review -p notify -p tutorial -p gamification
+          cd apps/web/plugin-host
+          npm ci
+          node scripts/transpile.mjs ../../../plugins/target/wasm32-wasip2/release/{core,review,notify,tutorial,gamification}.wasm
+      - name: Build the web app
+        run: |
+          (cd apps/web && npm ci)
+          node apps/web/build.mjs
+      - name: Shell tests
+        working-directory: apps/web
+        run: npm test
+      - name: Browser tests
+        working-directory: apps/web/e2e
+        run: |
+          npm ci
+          npx playwright-core install --with-deps chromium
+          npm test

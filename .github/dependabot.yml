@@ -1,0 +1,26 @@
+# Weekly update pull requests against `unstable`, grouped per ecosystem so there are few of them.
+# Security updates come as soon as an advisory is published.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: unstable
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
+  - package-ecosystem: cargo
+    directories: [/, /apps/app, /plugins]
+    target-branch: unstable
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor:
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directories: [/apps/web, /apps/web/e2e, /apps/web/plugin-host]
+    target-branch: unstable
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor:
+        update-types: [minor, patch]
