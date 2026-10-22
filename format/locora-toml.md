@@ -77,7 +77,7 @@ cells = [{ column = "name", type = "text", value = "Ada" }, { column = "age", ty
 | | `answer` | `"recall"` (default), `"guess"` or `{ type = "guess", accept = […] }` (further right answers), or a quiz: `{ type = "quiz", correct = […], wrong = […] }` or `{ type = "quiz", options = [{ text, correct }] }`; up to 30 options – each question shows all right ones plus three random wrong ones, shuffled |
 | | `note` | memory aid (the vivid image in words), shown after the answer |
 | | `image` | picture that belongs to the answer, shown when the locus is revealed: png, jpg, webp, gif, avif or a `.sply` animation (no video) |
-| | `audio` | sound clip that belongs to the answer, played when the locus is revealed: mp3, m4a (AAC), wav or ogg (Opus/Vorbis); stored without its tags |
+| | `audio` | sound clip that belongs to the answer, played when the locus is revealed: mp3, m4a (AAC), wav, ogg/opus (Opus/Vorbis), weba/webm, flac or aac; stored without its tags, never re-encoded. AMR, 3GP and CAF are converted where an ffmpeg is installed, otherwise refused |
 | | `image_size` | picture width as a fraction of room width: finite value from 0.05 to 1 inclusive, default 0.25; e.g. `image_size = 0.4` |
 | | `zoom` | how far the room zooms in on the locus while asking: 1 (whole room, default) to 4; the view is centred on the locus and kept inside the picture |
 | | `bindings` | formulas for `place`, `item`, `x`, `y`, `visible`, `active` |
