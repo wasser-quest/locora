@@ -7,7 +7,7 @@ import os, re, sys
 from html.parser import HTMLParser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ALLOWED_FILES = {"index.html", "privacy.html", "impressum.html", "konto-loeschen.html", "style.css", "_headers", "README.md", "check.py", "Dockerfile", "nginx.conf"}
+ALLOWED_FILES = {"favicon.svg", "index.html", "privacy.html", "impressum.html", "konto-loeschen.html", "style.css", "_headers", "README.md", "check.py", "Dockerfile", "nginx.conf"}
 # Only these are allowed to leave the site: the project's own repository, as a plain link.
 # The forum and the browser app run as their own services at their public addresses.
 # The account site web.locora.cloud is the project's own page for managing a Locora Cloud account.
@@ -57,6 +57,8 @@ class Checker(HTMLParser):
                     if re.match(r"^[\w-]+\.html(#[\w-]+)?$", value) and os.path.exists(os.path.join(HERE, value.split("#")[0])):
                         continue
                     self.report(f"link to {value[:60]!r} is not an allowed destination")
+                elif tag == "link" and name == "href" and value == "favicon.svg":
+                    continue  # the site's own icon (the Locora palace arch), a local file
                 elif tag == "link" and name == "href" and not value.startswith(("style", "#")) and not re.match(r"^[\w.\-/]+\.css$", value):
                     self.report(f"stylesheet {value!r} must be a local .css file")
                 elif tag == "img" and name == "src" and LOCAL_IMAGE.match(value) \
