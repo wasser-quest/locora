@@ -52,10 +52,10 @@ pub struct Account {
     pub plan: Option<Plan>,
     /// Unix seconds when the paid period ends.
     pub period_end: Option<u64>,
-    /// Whether the address was confirmed with the link from the confirmation e-mail. Older
-    /// servers never send it.
+    /// Whether the address was confirmed with the link from the confirmation e-mail; `None`
+    /// from older servers, which do not confirm addresses.
     #[serde(default)]
-    pub email_verified: bool,
+    pub email_verified: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
