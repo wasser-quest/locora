@@ -126,7 +126,7 @@ class Scenario:
         tour, open the palace); once the tour's example palace exists, „Tutorial anlegen“ does."""
         if not self.find("Locora lernen", "button", True):
             if self.find("App-Tour starten", "button"):
-                self.click("App-Tour starten")
+                self.start_tour("App-Tour starten")
                 self.until(lambda: self.find(tour_titles()[0], "heading"))
                 self.click("Schließen")
                 self.until(lambda: not self.find("App-Tour", "region"))
@@ -136,6 +136,12 @@ class Scenario:
                 return
         self.click(self.until(lambda: self.find("Locora lernen", "button", True)).get_name())
         self.until(lambda: self.find("▶ Route ablaufen", "button"))
+
+    def start_tour(self, button):
+        """Starts the app tour. While the lessons of „Mnemotechnik lernen“ are open, the app asks
+        first; the answer „Ich kenne das schon“ starts the tour anyway."""
+        self.click(button)
+        self.click(self.until(lambda: self.find("Ich kenne das schon – Tour starten", "button")).get_name())
 
     def tutorial_loci(self):
         return self.sql("SELECT count(*) FROM loci l JOIN rooms r ON r.id = l.room_id "
@@ -331,7 +337,7 @@ class Scenario:
 
     def check_tour_all(self):
         titles = tour_titles()
-        self.click("App-Tour")
+        self.start_tour("App-Tour")
         for title in titles:
             self.until(lambda: self.find(title, "heading"))
             if title != titles[-1]:
@@ -392,7 +398,7 @@ class Scenario:
             self.check_core_start()
             return
         first, second = tour_titles()[:2]
-        self.click("App-Tour")
+        self.start_tour("App-Tour")
         self.until(lambda: self.find(first, "heading"))
         self.click("Weiter")
         self.until(lambda: self.find(second, "heading"))

@@ -194,11 +194,15 @@ mod tests {
         ("dashboard.rs", include_str!("dashboard.rs")),
         ("dashboard_editor.rs", include_str!("dashboard_editor.rs")),
         ("editor.rs", include_str!("editor.rs")),
+        ("first_palace.rs", include_str!("first_palace.rs")),
         ("formulas.rs", include_str!("formulas.rs")),
         ("i18n.rs", include_str!("i18n.rs")),
         ("info.rs", include_str!("info.rs")),
         ("journey.rs", include_str!("journey.rs")),
         ("language_choice.rs", include_str!("language_choice.rs")),
+        ("learn.rs", include_str!("learn.rs")),
+        ("learn_content.rs", include_str!("learn_content.rs")),
+        ("learning_path.rs", include_str!("learning_path.rs")),
         ("locus_display.rs", include_str!("locus_display.rs")),
         ("look.rs", include_str!("look.rs")),
         ("main.rs", include_str!("main.rs")),
@@ -209,6 +213,7 @@ mod tests {
         ("startup.rs", include_str!("startup.rs")),
         ("tauri.rs", include_str!("tauri.rs")),
         ("theme.rs", include_str!("theme.rs")),
+        ("tour_gate.rs", include_str!("tour_gate.rs")),
         ("video_frames.rs", include_str!("video_frames.rs")),
     ];
 

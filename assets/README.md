@@ -5,10 +5,15 @@ All graphics are made with [Splinely](https://splinely.com) via `splinely-cli` a
 | File | What |
 |---|---|
 | `mascot/simo.sply` | **Simo**, the Locora mascot, named after Simonides of Ceos, who is credited with inventing the method of loci. Full body, no outlines, cel-shaded: light brown skin, a compact afro with a clean hairline, a lantern full of firefly light and three loci on his jacket that light up 1 → 2 → 3. He breathes, blinks and follows the pointer with his eyes; the lantern sways like a pendulum; clicking his face sends the firefly on a loop. Built by `mascot/src/simo.py`. |
+| `mascot/mina.sply` | **Mina** explains the basics and the research. Named after Mnemosyne, the Greek goddess of memory: an older woman with fair skin, a silver bun, round glasses and a teal dress, holding a book with a glowing bookmark. Signature move: her glasses slip down and she pushes them back up. Built by `mascot/src/mina.py`. |
+| `mascot/cami.sply` | **Cami** explains how to picture things. Named after Giulio Camillo and his "theatre of memory": a girl with dark brown skin, two braids sticking out sideways with glowing bobbles and a sunflower-yellow dress, holding a big pencil with a glowing tip. Signature move: she twirls the pencil. Built by `mascot/src/cami.py`. |
+| `mascot/bruno.sply` | **Bruno** explains palaces, places and routes. Named after Giordano Bruno, who wrote on the art of memory: a tall, broad man with a full ginger beard, a flat cap and a forest-green jacket, holding a map whose three loci light up 1 → 2 → 3. Signature move: he lifts his cap. Built by `mascot/src/bruno.py`. |
+| `mascot/hafiza.sply` | **Hafiza** explains numbers, repetition and memory sports. Her name means "memory" (Turkish *hafıza*): a young woman with warm brown skin in a raspberry headscarf and long coat, holding a stopwatch with a glowing face. Signature move: she lifts the stopwatch and checks it. Built by `mascot/src/hafiza.py`. |
 | `mascot/gluehwuermchen.sply` | Simo's firefly on its own, in the same lineless style as next to Simo: hovers, flaps, glows, blinks, follows the pointer with its eyes and hops on click, while a route of three numbered loci lights up 1 → 2 → 3. Built by `mascot/src/gluehwuermchen.py`. |
 | `tutorial/*.sply` | Graphics of the tutorial palace „Locora lernen“: three room backdrops (Eingangshalle, Bibliothek, Garten; 512 × 384) and seven locus pictures (Teppich, Laterne, Regal, Leseplatz, Uhr, Brunnen, Baum; 384 × 384), all animated. Built by `tutorial/src/tutorial.py`. |
 | `tutorial/locora-lernen.locora.toml` | The tutorial palace itself; every place shows a `.sply` (Simo and the firefly come from `mascot/`). Built into the CLI: `locora tutorial`. |
 | `marker/locus.sply` | Default locus marker: a glowing point with the states `neu`, `faellig`, `gewusst` (state machine `status`). The app places it at every locus; backdrops never contain loci. Built by `marker/src/marker.py`. |
+| `ui/erfolg-lernen-*.sply`, `ui/erfolg-tour*.sply`, `ui/erfolg-palast*.sply` | Medals of „Mnemotechnik lernen“ (one per lesson, in the colour of the character who teaches it, with a topic symbol, plus „all lessons“), of the finished app tour and of the first own palace; grey `-gesperrt` versions while locked (the lessons share one). Built by `ui/src/medaillen.py`. |
 | `brand/icon.sply` | App icon: a palace arch with a route of glowing loci and the firefly's light. |
 
 Style guide: [`STIL.md`](STIL.md) (German).
@@ -18,6 +23,7 @@ SPLINELY_CLI=splinely-cli python3 mascot/src/simo.py mascot/simo.sply   # rebuil
 splinely-cli export mascot/simo.sply --output mascot/simo.svg   # interactive SVG
 splinely-cli render mascot/simo.sply --output mascot/simo.gif --duration 3.6   # animated preview
 SPLINELY_CLI=splinely-cli python3 mascot/src/gluehwuermchen.py mascot/gluehwuermchen.sply   # rebuild the firefly
+for n in mina cami bruno hafiza; do SPLINELY_CLI=splinely-cli python3 mascot/src/$n.py mascot/$n.sply; done   # Simo's friends (shared parts: mascot/src/figur.py)
 SPLINELY_CLI=splinely-cli python3 tutorial/src/tutorial.py                                     # rebuild the tutorial graphics
 splinely-cli render brand/icon.sply --time 0 --output brand/icon.png
 ```

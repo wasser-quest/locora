@@ -41,6 +41,44 @@ pub const CMD_JOURNEY_START: &str = "journey_start";
 pub const CMD_GAMIFICATION_STATUS: &str = "gamification_status";
 pub const CMD_ACTIVITY: &str = "activity";
 pub const CMD_ACHIEVEMENTS: &str = "achievements";
+/// Unlock an achievement the UI earns (`AchievementArgs`): a lesson of „Mnemotechnik lernen“
+/// (`learn-<lesson>`) or the finished app tour (`tour-done`). Returns whether it was new.
+pub const CMD_ACHIEVEMENT_UNLOCK: &str = "achievement_unlock";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AchievementArgs {
+    pub id: String,
+}
+
+/// The lessons of „Mnemotechnik lernen“ in order; each one's achievement is `learn-<id>`.
+pub const LEARN_LESSONS: [&str; 17] = [
+    "basics",
+    "visualize",
+    "exaggerate",
+    "motion",
+    "senses",
+    "link",
+    "abstract",
+    "numbers",
+    "palace",
+    "loci",
+    "route",
+    "review",
+    "reuse",
+    "mistakes",
+    "history",
+    "research",
+    "sport",
+];
+
+/// Achievements the UI may unlock itself: the lessons and the finished tour. The others (the
+/// built-in palaces, all lessons, the first own palace) follow from what the backend sees.
+pub fn unlockable_by_ui(id: &str) -> bool {
+    id == "tour-done"
+        || id
+            .strip_prefix("learn-")
+            .is_some_and(|lesson| LEARN_LESSONS.contains(&lesson))
+}
 pub use locora_api::gamification::{StatusResponse as GamificationStatus, Trophy};
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
@@ -72,6 +110,19 @@ pub struct UiAssets {
     pub medal_tutorial_locked: Media,
     pub medal_formulas: Media,
     pub medal_formulas_locked: Media,
+    /// Medals of the other achievements by id (lessons, `learn-all`, `tour-done`,
+    /// `first-palace`): coloured once unlocked, grey while locked.
+    #[serde(default)]
+    pub medals: std::collections::BTreeMap<String, MedalArt>,
+    /// Simo's friends who teach the lessons, by name (`mina`, `cami`, `bruno`, `hafiza`).
+    #[serde(default)]
+    pub characters: std::collections::BTreeMap<String, Media>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MedalArt {
+    pub unlocked: Media,
+    pub locked: Media,
 }
 pub const CMD_EXPORT_PICK: &str = "export_pick";
 pub const CMD_DUMP_PICK: &str = "dump_pick";

@@ -875,6 +875,12 @@ async fn achievements(
     journey::achievements(&lock(&state)?.profile).map_err(err)
 }
 
+/// Unlock an achievement the UI earned (a lesson or the finished tour); whether it was new.
+#[tauri::command]
+async fn achievement_unlock(state: State<'_, Shared>, id: String) -> Result<bool, String> {
+    journey::unlock(&lock(&state)?.profile, &id).map_err(err)
+}
+
 /// Days shown in the activity overview: one year.
 const ACTIVITY_DAYS: usize = 365;
 
@@ -1321,6 +1327,7 @@ pub fn run() {
             gamification_status,
             activity,
             achievements,
+            achievement_unlock,
             import_pick,
             export_pick,
             dump_pick,

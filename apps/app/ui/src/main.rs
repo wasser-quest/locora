@@ -10,11 +10,15 @@ mod crash;
 mod dashboard;
 mod dashboard_editor;
 mod editor;
+mod first_palace;
 mod formulas;
 mod i18n;
 mod i18n_catalog;
 mod info;
 mod journey;
+mod learn;
+mod learn_content;
+mod learning_path;
 mod language_choice;
 mod locus_display;
 mod look;
@@ -27,6 +31,7 @@ mod startup;
 mod store_rules;
 mod tauri;
 mod theme;
+mod tour_gate;
 mod video_frames;
 
 use crate::i18n::{t, tf};
@@ -51,6 +56,8 @@ pub enum Screen {
     Imported(PalaceView),
     Journey(JourneyStart),
     Settings,
+    /// „Mnemotechnik lernen“ (learn.rs).
+    Learn,
 }
 
 pub fn start_screen() -> Screen {
@@ -120,6 +127,14 @@ fn tour_action(
         return;
     }
     busy.set(true);
+    // „Fertig“ on the last step completes the tour; closing early does not.
+    let completed = action == TourAction::Next
+        && active
+            .get_untracked()
+            .is_some_and(|step| step.step == step.total);
+    if completed {
+        crate::achievements::unlock("tour-done");
+    }
     spawn_local(async move {
         match call::<Option<HighlightRequest>>(CMD_TOUR, TourArgs { action }).await {
             Ok(step) => {
@@ -504,6 +519,15 @@ fn App() -> impl IntoView {
     provide_context(TourStep(tour));
     let tour_error = RwSignal::new(String::new());
     let tour_route_ready = RwSignal::new(false);
+    provide_context(tour_gate::TourControl {
+        tour,
+        error: tour_error,
+        route_ready: tour_route_ready,
+        busy: RwSignal::new(false),
+        asking: RwSignal::new(false),
+    });
+    provide_context(achievements::Celebration(RwSignal::new(None)));
+    provide_context(first_palace::Guide(RwSignal::new(first_palace::load())));
     // The first start shows only the language choice and then the welcome page; the tour starts
     // from its button.
     let action = if FIRST_START.with(|first| first.replace(false)) {
@@ -608,15 +632,22 @@ fn App() -> impl IntoView {
         <auto_sync::DeletionNotice />
         <Notifications screen=screen />
         <TourOverlay active=tour screen=screen error=tour_error route_ready=tour_route_ready />
+        <tour_gate::TourQuestion screen=screen />
+        <achievements::CelebrationCard />
         <main>
+            // The first own palace: its walk ends with the guide's last word.
+            {move || match screen.get() {
+                Screen::Journey(JourneyStart { palace_id: Some(id), .. }) => Some(view! {
+                    <first_palace::GuidePanel palace_id=id screen=screen only_finished=true />
+                }),
+                _ => None,
+            }}
             {move || match screen.get() {
                 Screen::Home => view! {
-                    <HomeView screen=screen offset_revision=offset_revision tour=tour
-                        tour_error=tour_error tour_route_ready=tour_route_ready core_only=false/>
+                    <HomeView screen=screen offset_revision=offset_revision core_only=false/>
                 }.into_any(),
                 Screen::Core => view! {
-                    <HomeView screen=screen offset_revision=offset_revision tour=tour
-                        tour_error=tour_error tour_route_ready=tour_route_ready core_only=true/>
+                    <HomeView screen=screen offset_revision=offset_revision core_only=true/>
                 }.into_any(),
 
                 // A new palace opens like any other, with the editor already on.
@@ -626,6 +657,7 @@ fn App() -> impl IntoView {
                     view! { <journey::JourneyView start=start screen=screen/> }.into_any()
                 }
                 Screen::Settings => view! { <settings::SettingsView screen=screen/> }.into_any(),
+                Screen::Learn => view! { <learn::LearnView screen=screen/> }.into_any(),
             }}
         </main>
     }
@@ -823,9 +855,6 @@ fn Notifications(screen: RwSignal<Screen>) -> impl IntoView {
 fn HomeView(
     screen: RwSignal<Screen>,
     offset_revision: RwSignal<u64>,
-    tour: RwSignal<Option<HighlightRequest>>,
-    tour_error: RwSignal<String>,
-    tour_route_ready: RwSignal<bool>,
     core_only: bool,
 ) -> impl IntoView {
     let home = RwSignal::new(None::<Result<Home, String>>);
@@ -960,61 +989,7 @@ fn HomeView(
             }
         });
     };
-    let start_tour = move |_| {
-        if busy.get_untracked() {
-            return;
-        }
-        busy.set(true);
-        tour_route_ready.set(false);
-        let reload = expect_context::<HomeReload>().0;
-        spawn_local(async move {
-            // The tour always sets up both built-in palaces again, also after they were deleted.
-            let mut created = false;
-            created |= call::<String>(
-                CMD_TUTORIAL,
-                LanguageArgs {
-                    lang: current_language(),
-                },
-            )
-            .await
-            .is_ok();
-            created |= call::<String>(
-                CMD_FORMULA_GUIDE,
-                LanguageArgs {
-                    lang: current_language(),
-                },
-            )
-            .await
-            .is_ok();
-            if created {
-                reload.run(());
-            }
-            match call::<Option<HighlightRequest>>(
-                CMD_TOUR,
-                TourArgs {
-                    action: TourAction::Start,
-                },
-            )
-            .await
-            {
-                Ok(step) => {
-                    tour.set(step.clone());
-                    match route_tour_step(step, screen).await {
-                        Ok(()) => {
-                            tour_error.set(String::new());
-                            tour_route_ready.set(true);
-                        }
-                        Err(error) => tour_error.set(error),
-                    }
-                }
-                Err(error) => {
-                    tour_error.set(error.clone());
-                    message.set(error);
-                }
-            }
-            busy.set(false);
-        });
-    };
+    let tour = tour_gate::control();
     let dashboard_open = expect_context::<dashboard::Open>().0;
     view! {
         <header class="bar home-bar">
@@ -1024,10 +999,11 @@ fn HomeView(
                     <button class="wide" on:click=move |_| screen.set(Screen::Home)>{t("Startseite")}</button>
                 })}
                 <button class="primary wide" id="tour-home-media" disabled=move || busy.get() on:click=pick_media>{t("Bild/Video wählen…")}</button>
+                <button id="home-learn" on:click=move |_| screen.set(Screen::Learn)>{t("Mnemotechnik lernen")}</button>
+                <button disabled=move || tour.busy.get() on:click=move |_| tour_gate::request(screen)>{t("App-Tour")}</button>
                 <button id="tour-home-import" disabled=move || busy.get() on:click=import title=t("Paläste aus einer .locora-Datei oder locora.toml")>
                     {t("Importieren…")}
                 </button>
-                <button disabled=move || busy.get() on:click=start_tour>{t("App-Tour")}</button>
                 {(!core_only).then(|| view! {
                     <button on:click=move |_| dashboard_open.update(|open| *open = !*open)>{t("Seiten anpassen")}</button>
                 })}
@@ -1054,29 +1030,11 @@ fn HomeView(
                             </div>
                             <div class="text">
                                 <h2>{t("Willkommen bei Locora")}</h2>
-                                <p>
-                                    {t("Mit der Loci-Methode legst du, was du behalten willst, an Orte, die du ")}
-                                    {t("gut kennst – und gehst die Route später im Kopf ab.")}
-                                </p>
-                                <p class="meta">
-                                    {t("Am schnellsten lernst du Locora mit Locora selbst: Das Tutorial ist ein ")}
-                                    {t("kleiner Gedächtnispalast mit 3 Räumen und 9 Orten.")}
-                                </p>
-                                <div class="row">
-                                    <button
-                                        class="primary"
-                                        disabled=move || busy.get()
-                                        on:click=start_tour
-                                    >
-                                        {t("App-Tour starten")}
-                                    </button>
-                                    <button disabled=move || busy.get() on:click=pick_media>
-                                        {t("Eigener Palast aus Bild/Video…")}
-                                    </button>
-                                    <button disabled=move || busy.get() on:click=start_formula_guide>
-                                        {t("Formel-Guide öffnen")}
-                                    </button>
-                                </div>
+                                <p>{t("Merk dir alles, was du willst – mit Bildern an Orten, die du kennst. So fängst du an:")}</p>
+                                <learning_path::LearningPath screen=screen always=true />
+                                <button class="link formula-link" disabled=move || busy.get() on:click=start_formula_guide>
+                                    {t("Für Fortgeschrittene: Formel-Guide")}
+                                </button>
                             </div>
                         </section>
                         <Tiles tiles=home.tiles.clone() />
@@ -1262,6 +1220,12 @@ fn HomeView(
                 }
                 let editor_catalog = catalog.clone();
                 view! {
+                    {(!core_only).then(|| view! {
+                        <section class="card path-card">
+                            <h2>{t("Dein Weg in Locora")}</h2>
+                            <learning_path::LearningPath screen=screen />
+                        </section>
+                    })}
                     <dashboard::Tabs />
                     {move || {
                         dashboard_open
@@ -1577,6 +1541,7 @@ fn PalaceScreen(
             Ok(text) => view! { <p class="status" role="status">{text}</p> }.into_any(),
             Err(text) => view! { <p class="notes" role="alert">{text}</p> }.into_any(),
         }}
+        <first_palace::GuidePanel palace_id=id.get_value() screen=screen />
         <details class="modes" open=!editing && wide_screen()>
             <summary>{t("Modi und Optionen")}</summary>
             <label>
