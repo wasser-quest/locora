@@ -4,7 +4,9 @@
 Usage: SPLINELY_CLI=splinely-cli python3 assets/ui/src/ui.py [OUTPUT_DIR]
 
 Style: assets/STIL.md (no outlines, cel shading, light from the top left,
-lime glow for remembering). Every file moves a little, never hectically.
+lime glow for remembering). Every file moves a little, never hectically; whatever
+moves is a `Body` (assets/tutorial/src/tutorial.py), so its cel shading, shine and
+halo move with it.
 - Tile icons, 96 x 96, transparent: kachel-core, kachel-review, kachel-notify,
   kachel-tutorial, kachel-gamification, kachel-plugin (any other plugin).
 - Journey feedback, 192 x 192, transparent: richtig, nochmal, geschafft.
@@ -22,24 +24,6 @@ t.OUT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.pa
 INDIGO, INDIGO_SH, INDIGO_HI = t.INDIGO, t.INDIGO_SH, t.INDIGO_HI
 CREAM, CREAM_SH, LIME, AMBER = t.CREAM, t.CREAM_SH, t.LIME, t.AMBER
 AMBER_SH, AMBER_HI = "#B98A3A", "#F6DC9C"
-
-
-def swing(s, clip, target, degrees, period):
-    """A calm back-and-forth rotation (needs --pivot center on the target)."""
-    s.steps += [
-        f"keyframe --clip {clip} --target {target} --property rotation --time 0.01 --value {-degrees} --autoplay --loop",
-        f"keyframe --clip {clip} --target {target} --property rotation --time {period/2:g} --value {degrees} --easing ease-in-out",
-        f"keyframe --clip {clip} --target {target} --property rotation --time {period:g} --value {-degrees} --easing ease-in-out",
-    ]
-
-
-def breathe(s, clip, target, scale=1.12, period=2.4):
-    for prop in ("scaleX", "scaleY"):
-        extra = " --autoplay --loop" if prop == "scaleX" else ""
-        s.steps += [
-            f"keyframe --clip {clip} --target {target} --property {prop} --time {period/2:g} --value {scale} --easing ease-in-out{extra}",
-            f"keyframe --clip {clip} --target {target} --property {prop} --time {period:g} --value 1 --easing ease-in-out",
-        ]
 
 
 # ---------------------------------------------------------------- tile icons (96 x 96)
@@ -79,14 +63,13 @@ def kachel_review():
 def kachel_notify():
     s = Scene("kachel-notify", 96, 96, "Erinnerung")
     bell = s.add("path", "bell", d="M-26 18 C -22 12 -20 6 -20 -6 C -20 -22 -11 -30 0 -30 C 11 -30 20 -22 20 -6 C 20 6 22 12 26 18 Z",
-                 tx=48, ty=48, fill=INDIGO, pivot="center")
-    s.crescent(bell, -6, -5, INDIGO_SH)
-    s.crescent(bell, 4, 4, INDIGO_HI)
-    s.add("rect", "rim", x=20, y=64, width=56, height=7, rx=3.5, fill=INDIGO_SH)
-    s.glow("glow", 48, 76, 14)
-    s.light("clapper", 48, 76, 6)
-    s.add("circle", "knob", x=48, y=16, radius=4, fill=INDIGO_SH)
-    swing(s, "ring", bell, 6, 2.8)
+                 tx=48, ty=48, fill=INDIGO)
+    parts = [bell, s.crescent(bell, -6, -5, INDIGO_SH), s.crescent(bell, 4, 4, INDIGO_HI),
+             s.add("rect", "rim", x=20, y=64, width=56, height=7, rx=3.5, fill=INDIGO_SH),
+             s.glow("glow", 48, 76, 14), s.light("clapper", 48, 76, 6),
+             s.add("circle", "knob", x=48, y=16, radius=4, fill=INDIGO_SH)]
+    # The whole bell swings from its knob: shading, rim and clapper with it.
+    s.body("Glocke", parts, (48, 16)).swing("ring", 6, 2.8)
     s.pulse("clapper", ["glow"], low=0.35, period=2.8)
     s.finish("Eine Glocke mit leuchtendem Klöppel: Erinnerungen.")
 
@@ -115,7 +98,7 @@ def kachel_gamification():
     for i, (x, y, r) in enumerate([(20, 22, 4), (78, 20, 3), (80, 70, 3.5)]):
         s.light(f"spark{i}", x, y, r)
     s.sequence("twinkle", [["spark0"], ["spark1"], ["spark2"]], step=0.6, hold=2.4, cycle=3.2, low=0.15)
-    breathe(s, "breathe", "halo", scale=1.1, period=2.4)
+    s.body("Hof", ["halo"], (48, 50)).breathe("breathe", 1.1, 2.4)
     s.finish("Ein Stern mit funkelnden Lichtern: Punkte, Serien und Erfolge.")
 
 
@@ -148,7 +131,7 @@ def richtig():
         x, y = 96 + math.cos(a) * 82, 96 + math.sin(a) * 82
         rays.append([s.light(f"ray{i}", round(x, 1), round(y, 1), 5)])
     s.sequence("burst", rays, step=0.12, hold=1.6, cycle=2.4, low=0.0)
-    breathe(s, "breathe", "halo", scale=1.08, period=2.4)
+    s.body("Hof", ["halo"], (96, 96)).breathe("breathe", 1.08, 2.4)
     s.finish("Ein leuchtender Kreis mit Haken, um den Lichter aufblitzen: richtig erinnert.")
 
 
@@ -172,17 +155,16 @@ def nochmal():
 
 def geschafft():
     s = Scene("geschafft", 192, 192, "Geschafft")
-    s.glow("halo", 96, 84, 70, strength=0.6)
+    halo = s.glow("halo", 96, 84, 70, strength=0.6)
     star = s.add("star", "star", x=96, y=78, radius=50, tips=5, inner=0.45, fill=AMBER, pivot="center")
-    s.crescent(star, -8, -8, AMBER_SH)
-    s.crescent(star, 6, 6, AMBER_HI)
+    shining = s.body("Stern", [halo, star, s.crescent(star, -8, -8, AMBER_SH), s.crescent(star, 6, 6, AMBER_HI)], (96, 78))
     groups = []
     for i, x in enumerate((60, 96, 132)):
         s.glow(f"g{i}", x, 158, 16)
         s.light(f"l{i}", x, 158, 8)
         groups.append([f"g{i}", f"l{i}"])
     s.sequence("loci", groups, step=0.45, hold=2.4, cycle=3.0, low=0.2)
-    breathe(s, "breathe", "star", scale=1.06, period=2.4)
+    shining.breathe("breathe", 1.06, 2.4)
     s.finish("Ein Stern über drei Loci, die nacheinander aufleuchten: Route geschafft.")
 
 
@@ -194,16 +176,17 @@ GREY, GREY_SH, GREY_HI = "#B7B3AA", "#8F8B83", "#D2CEC5"
 def erfolg(name, title, tips, fill, shadow, light, description, unlocked):
     """A medal. Unlocked: coloured, breathing, a click spins it. Locked: grey and still."""
     s = Scene(name, 96, 96, title)
-    if unlocked:
-        s.glow("halo", 48, 48, 46, strength=0.5)
+    parts = [s.glow("halo", 48, 48, 46, strength=0.5)] if unlocked else []
     medal = s.add("star", "medal", x=48, y=48, radius=38, tips=tips, inner=0.72, fill=fill, pivot="center")
-    s.crescent(medal, -4, -4, shadow)
-    s.crescent(medal, 3, 3, light)
+    shade, edge = s.crescent(medal, -4, -4, shadow), s.crescent(medal, 3, 3, light)
+    parts += [medal, shade, edge]
     if unlocked:
-        breathe(s, "breathe", "medal", scale=1.06, period=2.4)
+        # Halo, medal and its cel shadow and light edge breathe and spin as one; while it spins,
+        # the light stays at the top left (the rims swap their tones half way round).
+        whole = s.body("Medaille", parts, (48, 48), rims={shade: (shadow, light), edge: (light, shadow)})
+        whole.breathe("breathe", 1.06, 2.4)
+        whole.spin("spin", 0.7)
         s.steps += [
-            "clip add --id spin --duration 0.7",
-            "keyframe --clip spin --target medal --property rotation --time 0.7 --value 360 --easing ease-in-out",
             "on --event click --target medal --play spin",
             f'a11y --node medal --label "{title}: klicken, dann dreht sich die Medaille"',
         ]
@@ -258,7 +241,7 @@ def raum_video():
     s.add("path", "play", d="M0 -6 L10 0 L0 6 Z", tx=21, ty=24, fill=CREAM, pivot="center")
     s.glow("g", 34, 33, 6)
     s.light("l", 34, 33, 2.5)
-    breathe(s, "play_anim", "play", scale=1.12, period=2.4)
+    s.body("Abspielen", ["play"], (26, 24)).breathe("play_anim", 1.12, 2.4)
     s.finish("Ein Bildschirm mit Abspielzeichen: Raum mit Video.")
 
 
