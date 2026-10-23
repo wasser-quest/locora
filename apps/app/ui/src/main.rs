@@ -1373,7 +1373,7 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
             })}
             <button class="name palace-title" disabled=move || busy.get()>{palace.name.clone()}</button>
             {palace.strength.filter(|s| s.loci > 0).map(|s| {
-                let text = crate::i18n::tf("Gefestigt: {0} von {1} Orten", &[&s.solid, &s.loci]);
+                let text = crate::achievements::strength_text(s);
                 view! {
                     <div class="strength">
                         <span class="meta">{text.clone()}<Info text="Ein Ort gilt als gefestigt, wenn er mindestens 30 Tage hält. Dahin bringen ihn nur Wiederholungen, die über mehrere Tage verteilt sind." /></span>

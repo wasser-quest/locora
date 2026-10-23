@@ -159,6 +159,14 @@ pub fn CelebrationCard() -> impl IntoView {
     }
 }
 
+/// How much of a palace is consolidated, for its card (the meter shows the same).
+pub fn strength_text(strength: locora_app_api::Strength) -> String {
+    crate::i18n::tf(
+        "Gefestigt: {0} von {1} Orten",
+        &[&strength.solid, &strength.loci],
+    )
+}
+
 /// The progress of a palace medal: how many loci hold long enough.
 pub fn palace_progress(id: &str, (hold, loci): (u32, u32)) -> String {
     let level = id.strip_prefix("palace-").unwrap_or_default();
@@ -333,5 +341,9 @@ mod tests {
             "4 von 9 Orten halten 30+ Tage"
         );
         assert!(describe("palace-9@Küche").is_none());
+        crate::i18n::set_current(crate::i18n::Lang::En);
+        let strength = locora_app_api::Strength { loci: 9, solid: 2 };
+        assert_eq!(strength_text(strength), "Consolidated: 2 of 9 loci");
+        crate::i18n::set_current(crate::i18n::Lang::De);
     }
 }

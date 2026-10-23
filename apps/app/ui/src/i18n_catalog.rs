@@ -8818,13 +8818,23 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "{0} XP · {1} Medaillen · {2} Lerntage",
+        "{0} Medaillen",
         [
-            "{0} XP · {1} medals · {2} learning days",
-            "{0} XP · {1} Medaillen · {2} Lerntage",
-            "{0} XP · {1} médailles · {2} jours d’apprentissage",
-            "{0} XP · メダル {1} 個 · 学習日 {2} 日",
-            "{0} XP · {1} 枚奖章 · {2} 个学习日",
+            "{0} medals",
+            "{0} Medaillen",
+            "{0} médailles",
+            "メダル {0} 個",
+            "{0} 枚奖章",
+        ],
+    ),
+    (
+        "1 Medaille",
+        [
+            "1 medal",
+            "1 Medaille",
+            "1 médaille",
+            "メダル 1 個",
+            "1 枚奖章",
         ],
     ),
     (

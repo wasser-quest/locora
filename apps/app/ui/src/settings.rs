@@ -410,6 +410,21 @@ pub fn reset_message(report: GameResetReport) -> String {
     }
 }
 
+/// The game's numbers in one line, with "1 medal" and "1 learning day" in the singular.
+pub fn progress_line(xp: u64, medals: usize, days: u32) -> String {
+    let medals = if medals == 1 {
+        t("1 Medaille").to_owned()
+    } else {
+        crate::i18n::tf("{0} Medaillen", &[&medals])
+    };
+    let days = if days == 1 {
+        t("1 Lerntag").to_owned()
+    } else {
+        crate::i18n::tf("{0} Lerntage", &[&days])
+    };
+    format!("{} · {medals} · {days}", crate::i18n::tf("{0} XP", &[&xp]))
+}
+
 /// The game: its numbers, the weekly goal, the journey bar, and deleting the progress on every
 /// device (with a confirmation that says what goes and what stays). Only with the plugin.
 #[component]
@@ -420,6 +435,9 @@ fn GameProgress() -> impl IntoView {
     let busy = RwSignal::new(false);
     let message = RwSignal::new(None::<Result<String, String>>);
     let warning = NodeRef::<leptos::html::P>::new();
+    // Looked up here: a task after an await has no owner to ask.
+    let auto_sync = crate::auto_sync::use_auto_sync();
+    // The numbers, and whether an account is signed in (it may have changed on this page).
     let reload = move || {
         spawn_local(async move {
             let args = GameStatusArgs { full: true };
@@ -428,14 +446,12 @@ fn GameProgress() -> impl IntoView {
             {
                 status.set(value);
             }
+            if let Ok(cloud) = call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}).await {
+                signed_in.set(cloud.account.is_some());
+            }
         });
     };
     reload();
-    spawn_local(async move {
-        if let Ok(cloud) = call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}).await {
-            signed_in.set(cloud.account.is_some());
-        }
-    });
     // The warning takes the focus, so a screen reader reads it first.
     Effect::new(move |_| {
         if confirming.get()
@@ -469,7 +485,7 @@ fn GameProgress() -> impl IntoView {
                 Ok(report) => {
                     message.set(Some(Ok(reset_message(report))));
                     // The other devices hear of it at their next sync: soon, when it runs by itself.
-                    if let Some(auto) = crate::auto_sync::use_auto_sync() {
+                    if let Some(auto) = auto_sync {
                         auto.nudge();
                     }
                     reload();
@@ -495,9 +511,10 @@ fn GameProgress() -> impl IntoView {
         <Show when=move || status.with(Option::is_some)>
             <section class="card panel game-progress" aria-label=t("Spielfortschritt & Erfolge")>
                 <h2>{t("Spielfortschritt & Erfolge")}</h2>
-                <p class="progress">{move || status.with(|game| game.as_ref().map(|game| crate::i18n::tf(
-                    "{0} XP · {1} Medaillen · {2} Lerntage",
-                    &[&game.xp, &medals(game), &game.learning_days],
+                <p class="progress">{move || status.with(|game| game.as_ref().map(|game| progress_line(
+                    game.xp,
+                    medals(game),
+                    game.learning_days,
                 )).unwrap_or_default())}</p>
                 <p class="notes">{move || if signed_in.get() {
                     t("Wird über Locora Cloud mit deinen Geräten abgeglichen.")
@@ -507,14 +524,16 @@ fn GameProgress() -> impl IntoView {
                 <label class="info-head">{t("Wochenziel")}
                     <Info text="Ein Lerntag zählt, wenn du auf einem deiner Geräte etwas wiederholst oder neu lernst, oder wenn nichts fällig ist. Ein verpasster Tag kostet nichts." />
                     <select disabled=move || busy.get()
-                        prop:value=move || status.with(|game| game.as_ref().map_or(4, |game| game.week.goal)).to_string()
                         on:change=move |event| {
                             if let Ok(days) = event_target_value(&event).parse::<u8>() {
                                 set_goal(days);
                             }
                         }>
                         {(1..=7u8).map(|days| view! {
-                            <option value=days.to_string()>{crate::i18n::tf("An {0} Tagen pro Woche lernen", &[&days])}</option>
+                            <option value=days.to_string()
+                                prop:selected=move || status.with(|game| game.as_ref().map_or(4, |game| game.week.goal)) == days>
+                                {crate::i18n::tf("An {0} Tagen pro Woche lernen", &[&days])}
+                            </option>
                         }).collect_view()}
                     </select>
                 </label>
@@ -523,7 +542,10 @@ fn GameProgress() -> impl IntoView {
                 <Show
                     when=move || confirming.get()
                     fallback=move || view! {
-                        <button type="button" class="danger" disabled=move || busy.get() on:click=move |_| confirming.set(true)>
+                        <button type="button" class="danger" disabled=move || busy.get() on:click=move |_| {
+                            reload();
+                            confirming.set(true);
+                        }>
                             {t("Spielfortschritt löschen …")}
                         </button>
                     }
@@ -664,5 +686,14 @@ mod tests {
             "Game progress deleted."
         );
         crate::i18n::set_current(crate::i18n::Lang::De);
+    }
+
+    #[test]
+    fn one_medal_and_one_learning_day_are_singular() {
+        crate::i18n::set_current(crate::i18n::Lang::En);
+        assert_eq!(progress_line(54, 1, 1), "54 XP · 1 medal · 1 learning day");
+        assert_eq!(progress_line(0, 0, 3), "0 XP · 0 medals · 3 learning days");
+        crate::i18n::set_current(crate::i18n::Lang::De);
+        assert_eq!(progress_line(54, 2, 1), "54 XP · 2 Medaillen · 1 Lerntag");
     }
 }

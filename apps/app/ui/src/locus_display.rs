@@ -20,7 +20,7 @@ pub struct Preferences {
     pub video_lead: f64,
     /// Reverse journeys: how far from the locus a click may land, as a share of the stage width.
     pub reverse_radius: f64,
-    /// Show the XP, combo and hearts strip in journeys.
+    /// Show the progress bar (XP, today's due goal, the week) in journeys.
     pub gamification: bool,
 }
 

@@ -73,15 +73,17 @@ struct LastFrame(StoredValue<Option<String>>);
 
 /// Reads the game's numbers again. A trophy that is new since the last reading was earned with
 /// this device's answer or journey and is celebrated; the first reading celebrates nothing.
-fn refresh_game(status: RwSignal<Option<GamificationStatus>>) {
+fn refresh_game(
+    status: RwSignal<Option<GamificationStatus>>,
+    celebration: Option<crate::achievements::Celebration>,
+) {
     spawn_local(async move {
         let args = GameStatusArgs { full: false };
         if let Ok(value) = call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, args).await {
             let before = status.with_untracked(|old| old.as_ref().map(trophy_ids));
             if let (Some(before), Some(after)) = (before, value.as_ref().map(trophy_ids))
                 && let Some(new) = after.into_iter().find(|id| !before.contains(id))
-                && let Some(crate::achievements::Celebration(shown)) =
-                    use_context::<crate::achievements::Celebration>()
+                && let Some(crate::achievements::Celebration(shown)) = celebration
             {
                 shown.set(Some(new));
             }
@@ -183,6 +185,8 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let error = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
     let game = RwSignal::new(None::<GamificationStatus>);
+    // New trophies and medals are celebrated (looked up here: a task after an await has no owner).
+    let celebration = use_context::<crate::achievements::Celebration>();
     // Feedback animations (assets/ui); the journey works without them.
     let art = crate::art();
 
@@ -215,11 +219,11 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             match call::<Step>(CMD_JOURNEY_START, StartArgs { start }).await {
                 Ok(Step::Question(q)) => {
                     question.set(Some(q));
-                    refresh_game(game);
+                    refresh_game(game, celebration);
                 }
                 Ok(Step::Done(s)) => {
                     summary.set(Some(s));
-                    refresh_game(game);
+                    refresh_game(game, celebration);
                 }
                 Err(e) => {
                     fields.set(retry);
@@ -243,7 +247,6 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let prefs = crate::locus_display::signal();
     // The end card; a medal this journey earned is celebrated (trophies of single answers are
     // celebrated when the bar reads the numbers again).
-    let celebration = use_context::<crate::achievements::Celebration>();
     let finished = move |s: Summary| {
         if let (Some(crate::achievements::Celebration(shown)), Some(medal)) = (
             celebration,
@@ -279,7 +282,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             match call::<Feedback>(CMD_JOURNEY_ANSWER, ReplyArgs { reply }).await {
                 Ok(f) => {
                     phase.set(Phase::Judged(Box::new(f)));
-                    refresh_game(game);
+                    refresh_game(game, celebration);
                     judged = true;
                 }
                 Err(e) => error.set(Some(e)),
