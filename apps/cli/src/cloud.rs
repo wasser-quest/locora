@@ -9,6 +9,8 @@ use locora_cloud_api::api::Friend;
 use locora_runtime::cloud::{self, CloudState};
 use locora_runtime::{cloud_http, cloud_sync};
 
+use crate::shown;
+
 #[derive(Subcommand)]
 pub enum CloudCommand {
     /// Neues Konto bei Locora Cloud anlegen
@@ -129,7 +131,10 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             let password = read_password("Neues Passwort (mind. 10 Zeichen): ")?;
             let state = cloud::register(&server, &email, &password, &name, guest)?;
             cloud::save(&data, &state)?;
-            println!("✓ Konto angelegt. Angemeldet als {}.", state.account.email);
+            println!(
+                "✓ Konto angelegt. Angemeldet als {}.",
+                shown::address(&state.account.email)
+            );
             print_status(&state);
             Ok(())
         }
@@ -138,7 +143,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             let password = read_password("Passwort: ")?;
             let state = cloud::login(&server, &email, &password)?;
             cloud::save(&data, &state)?;
-            println!("✓ Angemeldet als {}.", state.account.email);
+            println!("✓ Angemeldet als {}.", shown::address(&state.account.email));
             print_status(&state);
             Ok(())
         }
@@ -361,13 +366,16 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             let state = signed_in(&data)?;
             let friend = cloud::request_friend(&state, &email)?;
             if friend.accepted {
-                println!("✓ Ihr seid jetzt befreundet: {}", friend.display_name);
+                println!(
+                    "✓ Ihr seid jetzt befreundet: {}",
+                    shown::name(&friend.display_name)
+                );
             } else {
                 // A newer server names nobody before they answer, an older one the account asked.
                 let asked = match (&friend.email, friend.display_name.is_empty()) {
-                    (_, false) => &friend.display_name,
-                    (Some(address), true) => address,
-                    (None, true) => &email,
+                    (_, false) => shown::name(&friend.display_name),
+                    (Some(address), true) => shown::address(address),
+                    (None, true) => shown::address(&email),
                 };
                 println!("✓ Anfrage an {asked} gesendet.");
                 println!(
@@ -453,17 +461,18 @@ fn challenge(command: ChallengeCommand, data: &Path) -> Result<()> {
         ChallengeCommand::Create { name, days } => {
             let ends_at = cloud::now_secs() + days.clamp(1, 365) * 86_400;
             let challenge = cloud::create_challenge(&state, &name, ends_at)?;
+            let id = shown::address(&challenge.id);
             println!(
-                "✓ Challenge „{}“ angelegt: {}",
-                challenge.name, challenge.id
+                "✓ Challenge „{}“ angelegt: {id}",
+                shown::name(&challenge.name)
             );
-            println!("  Mitmachen: locora cloud challenge join {}", challenge.id);
+            println!("  Mitmachen: locora cloud challenge join {id}");
         }
         ChallengeCommand::Join { id } => {
             let challenge = cloud::join_challenge(&state, &id)?;
             println!(
                 "✓ Dabei: „{}“ (bis {})",
-                challenge.name,
+                shown::name(&challenge.name),
                 date(challenge.ends_at)
             );
         }
@@ -498,10 +507,10 @@ fn entry(friend: &Friend) -> Entry {
 
 /// Who an entry is: the name, or for a request this account sent the address it asked (the
 /// server names nobody before they answer).
-fn who(friend: &Friend) -> &str {
+fn who(friend: &Friend) -> String {
     match &friend.email {
-        Some(address) if !friend.accepted => address,
-        _ => &friend.display_name,
+        Some(address) if !friend.accepted => shown::address(address),
+        _ => shown::name(&friend.display_name),
     }
 }
 
@@ -545,7 +554,7 @@ fn friend_lines(friends: &[Friend]) -> Vec<String> {
         ));
         for friend in entries {
             lines.push(match &friend.id {
-                Some(id) => format!("  {:<32}  {id}", who(friend)),
+                Some(id) => format!("  {:<32}  {}", who(friend), shown::address(id)),
                 None => format!("  {}", who(friend)),
             });
         }
@@ -595,6 +604,7 @@ fn answer_friend(state: &CloudState, action: FriendCommand) -> Result<()> {
 
 /// The refusal for an id given to the command of another kind of entry, with the right command.
 fn other_kind(kind: Entry, id: &str) -> String {
+    let id = shown::address(id);
     match kind {
         Entry::Friend => {
             format!("{id} ist eine Freundschaft. Beenden: locora cloud friend remove {id}")
@@ -619,7 +629,7 @@ fn print_ranking(ranking: &locora_cloud_api::api::Ranking) {
         println!(
             "{:>3}. {:<24} {} XP",
             place + 1,
-            entry.display_name,
+            shown::name(&entry.display_name),
             entry.xp
         );
     }
@@ -657,10 +667,11 @@ fn read_password(prompt: &str) -> Result<String> {
 
 fn print_status(state: &CloudState) {
     let account = &state.account;
+    let name = shown::name(&account.display_name);
     if account.email.is_empty() {
-        println!("Konto: {} (ohne E-Mail-Adresse)", account.display_name);
+        println!("Konto: {name} (ohne E-Mail-Adresse)");
     } else {
-        println!("Konto: {} ({})", account.display_name, account.email);
+        println!("Konto: {name} ({})", shown::address(&account.email));
     }
     println!("Server: {}", state.server);
     match account.period_end {
@@ -767,6 +778,24 @@ mod tests {
         assert_eq!(
             friend_lines(&list),
             ["Freunde:", "  Ada", "", "Offene Anfragen:", "  Bob"]
+        );
+    }
+
+    #[test]
+    fn names_in_the_friend_list_are_printed_safely() {
+        let list = [
+            friend("Ada\u{202e}evol", true, Some("fr_1"), None),
+            friend("\u{1b}]52;c;aGk=\u{7}", false, Some("fr_2\u{1b}[2J"), None),
+            friend("", false, Some("fr_3"), Some("bob\u{200b}@example.org")),
+        ];
+        let lines = friend_lines(&list).join("\n");
+        assert!(lines.contains("Ada\\u{202e}evol"), "{lines}");
+        assert!(lines.contains("\\u{1b}]52;c;aGk=\\u{7}"), "{lines}");
+        assert!(lines.contains("fr_2\\u{1b}[2J"), "{lines}");
+        assert!(lines.contains("bob\\u{200b}@example.org"), "{lines}");
+        assert!(
+            !lines.chars().any(|c| c.is_control() && c != '\n'),
+            "{lines:?}"
         );
     }
 
