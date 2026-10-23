@@ -6,7 +6,7 @@ resolver = "3"
 members = ["plugins/video", "shared", "src-tauri", "ui"]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/wasser-quest/locora"
