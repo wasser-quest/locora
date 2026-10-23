@@ -1030,6 +1030,8 @@ async function fakeCloud(page) {
       cloud.keys = request.postDataJSON();
       return json(200, {});
     }
+    // A sync sends the stored bundle back with the key proof once a day; that changes nothing here.
+    if (key === 'PUT /v1/keys') return json(200);
     if (key === 'GET /v1/sync/retention' || key === 'POST /v1/sync/complete') return json(200, retention);
     if (key === 'GET /v1/sync/pending') return json(200, { count: 5 });
     if (key === 'POST /v1/media/missing') {
