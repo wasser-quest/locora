@@ -41,6 +41,7 @@ fn responses(replies: Vec<(u16, Value)>) -> (CloudState, thread::JoinHandle<Vec<
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
             account: Account {
                 id: "local".into(),
                 email: "test@example.invalid".into(),
@@ -322,6 +323,7 @@ fn app_sync_checks_access_before_fetching_keys() {
         entitlement: None,
         last_sync_at: None,
         auto_sync: false,
+        key_proof_sent_at: None,
     };
     cloud::save(data.path(), &state).unwrap();
     let error = sync_with_passphrase(data.path(), &store, "unused passphrase")
@@ -340,6 +342,8 @@ fn a_new_generation_of_the_server_starts_the_device_over() {
     let account = locora_crypto::create(passphrase).unwrap();
     let (mut state, _) = responses(Vec::new());
     state.server = "https://cloud.example".into();
+    // This device sent its key proof today.
+    state.key_proof_sent_at = Some(cloud::now_secs() as i64);
     let mut flow = UnlockSync::new(state, &store, passphrase.into());
     let reply = |body: Value| {
         Some(Reply {
@@ -369,4 +373,122 @@ fn a_new_generation_of_the_server_starts_the_device_over() {
     assert_eq!(flow.new_generation, Some(2));
     assert_eq!(store.sync_cursor("push").unwrap(), 0);
     assert_eq!(store.sync_cursor("pull").unwrap(), 0);
+}
+
+#[test]
+fn a_sync_sends_the_stored_bundle_back_with_the_key_proof_once_a_day() {
+    use crate::cloud_http::{Body, Call, Method};
+    use locora_cloud_api::api::KeyUpload;
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let passphrase = "passphrase for the key proof";
+    let account = locora_crypto::create(passphrase).unwrap();
+    let (mut state, _) = responses(Vec::new());
+    state.server = "https://cloud.example".into();
+    let reply = |status: u16, body: Value| {
+        Some(Reply {
+            status,
+            body: if body.is_null() {
+                Vec::new()
+            } else {
+                body.to_string().into_bytes()
+            },
+        })
+    };
+    let call = |step: Step<SyncReport>| match step {
+        Step::Call(call) => call,
+        _ => panic!("the sync ended early"),
+    };
+    // The bundle the server sent, unchanged, with the proof of the account key.
+    let sent_back = |put: Call| {
+        assert_eq!(put.method, Method::Put);
+        assert!(put.url.ends_with("/v1/keys"), "{}", put.url);
+        let Some(Body::Json(body)) = &put.body else {
+            panic!("a JSON body")
+        };
+        assert_eq!(
+            serde_json::from_slice::<KeyUpload>(body).unwrap(),
+            KeyUpload::new(account.bundle.clone(), &account.dek)
+        );
+    };
+    let kept = || {
+        Unlock::Key(Box::new(
+            Dek::from_bytes(account.dek.to_bytes().as_ref()).unwrap(),
+        ))
+    };
+
+    // With the passphrase, the bundle it opened goes back; whatever the answer (an older server
+    // says 200 as well and keeps nothing), the sync goes on.
+    for answer in [200, 403, 429] {
+        let mut flow = UnlockSync::new(state.clone(), &store, passphrase.into());
+        assert!(call(flow.step(None).unwrap()).url.ends_with("/v1/keys"));
+        sent_back(call(flow.step(reply(200, json!(account.bundle))).unwrap()));
+        let next = call(flow.step(reply(answer, Value::Null)).unwrap());
+        assert!(next.url.ends_with("/v1/sync/retention"), "{}", next.url);
+        assert_eq!(flow.key_proof_sent, answer == 200, "{answer}");
+    }
+    // With the kept key, the stored bundle is fetched for it first.
+    let mut flow = UnlockSync::start(state.clone(), &store, kept(), SyncOptions::default());
+    assert!(call(flow.step(None).unwrap()).url.ends_with("/v1/keys"));
+    sent_back(call(flow.step(reply(200, json!(account.bundle))).unwrap()));
+    let next = call(flow.step(reply(200, Value::Null)).unwrap());
+    assert!(next.url.ends_with("/v1/sync/retention"));
+    assert!(flow.key_proof_sent);
+    // Without a bundle, or without an answer, the sync goes on and sends nothing.
+    for (status, body) in [
+        (
+            404,
+            json!({"error": "Noch keine Verschlüsselung eingerichtet"}),
+        ),
+        (503, Value::Null),
+    ] {
+        let mut flow = UnlockSync::start(state.clone(), &store, kept(), SyncOptions::default());
+        flow.step(None).unwrap();
+        let next = call(flow.step(reply(status, body)).unwrap());
+        assert!(next.url.ends_with("/v1/sync/retention"), "{status}");
+        assert!(!flow.key_proof_sent);
+    }
+
+    // Within a day of the last time, neither way sends it …
+    state.key_proof_sent_at = Some(cloud::now_secs() as i64 - 3600);
+    let mut flow = UnlockSync::new(state.clone(), &store, passphrase.into());
+    flow.step(None).unwrap();
+    let next = call(flow.step(reply(200, json!(account.bundle))).unwrap());
+    assert!(next.url.ends_with("/v1/sync/retention"));
+    let mut flow = UnlockSync::start(state.clone(), &store, kept(), SyncOptions::default());
+    assert!(
+        call(flow.step(None).unwrap())
+            .url
+            .ends_with("/v1/sync/retention")
+    );
+    // … and a day later it is due again.
+    state.key_proof_sent_at = Some(cloud::now_secs() as i64 - 86_400);
+    let mut flow = UnlockSync::start(state, &store, kept(), SyncOptions::default());
+    assert!(call(flow.step(None).unwrap()).url.ends_with("/v1/keys"));
+}
+
+#[test]
+fn a_finished_sync_notes_when_it_sent_the_key_proof() {
+    let (mut state, _) = responses(Vec::new());
+    let mut report = SyncReport {
+        new_generation: Some(3),
+        ..SyncReport::default()
+    };
+    note_finished(&mut state, &report, 100);
+    assert_eq!(
+        (
+            state.sync_generation,
+            state.last_sync_at,
+            state.key_proof_sent_at
+        ),
+        (3, Some(100), None)
+    );
+    report.key_proof_sent = true;
+    note_finished(&mut state, &report, 200);
+    assert_eq!(state.key_proof_sent_at, Some(200));
+    // A cloud.json written before reads as never sent.
+    let mut saved = serde_json::to_value(&state).unwrap();
+    saved.as_object_mut().unwrap().remove("key_proof_sent_at");
+    let older: CloudState = serde_json::from_value(saved).unwrap();
+    assert_eq!(older.key_proof_sent_at, None);
 }

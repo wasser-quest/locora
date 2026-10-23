@@ -1,0 +1,26 @@
+name: Bug
+description: Something doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open …\n2. Tap …"
+  - type: input
+    id: version
+    attributes:
+      label: Locora version
+      description: Settings show it; for the CLI `locora --version`.
+    validations: { required: true }
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where
+      options: [Windows, macOS, Linux, Android, iPhone or iPad, Web app, CLI]
+    validations: { required: true }

@@ -5,9 +5,10 @@ A plain website: HTML and CSS only. No script runs, nothing is loaded from other
 ## Files
 
 - `index.html`: the page. Its meta tag carries the same strict policy as the headers.
+- `img/`: the characters Simo, Mina, Cami, Bruno and Hafiza as PNG files (300 px wide, downscaled from `assets/mascot/` of the app repository). Pictures are only loaded from this folder (`img-src 'self'`).
 - `style.css`: the only stylesheet. No `@import`, no `url()`, no fonts from elsewhere.
 - `_headers`: security headers for hosts that read this file (Netlify, Cloudflare Pages). It sets a strict Content-Security-Policy (`default-src 'none'`), `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and restrictive `Permissions-Policy`.
-- `check.py`: fails if anything makes the site non-static: a script, an iframe, an embedded object, an inline handler, a `javascript:` or `data:` URL, an external link other than the project repository, `@import`, or `url()` in the CSS.
+- `check.py`: fails if anything makes the site non-static: a script, an iframe, an embedded object, an inline handler, a `javascript:` or `data:` URL, an external link other than the project repository and its own services (app, forum, account site), a picture outside `img/` or without an alt text, `@import`, or `url()` in the CSS.
 
 ## Check and publish
 

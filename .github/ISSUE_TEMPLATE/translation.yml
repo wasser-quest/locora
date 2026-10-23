@@ -1,0 +1,21 @@
+name: Wrong translation
+description: A text in the app is wrong or sounds odd in your language.
+title: "Translation: "
+labels: [translation]
+body:
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options: [English, Deutsch, Français, 日本語, 中文]
+    validations: { required: true }
+  - type: textarea
+    id: text
+    attributes:
+      label: The text as the app shows it, and where
+    validations: { required: true }
+  - type: textarea
+    id: better
+    attributes:
+      label: Better wording
+    validations: { required: true }

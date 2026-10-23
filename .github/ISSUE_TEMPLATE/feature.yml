@@ -1,0 +1,9 @@
+name: Idea
+description: A wish or an idea for Locora.
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like, and what for?
+    validations: { required: true }

@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/wasser-quest/locora/actions/workflows/ci.yml"><img src="https://github.com/wasser-quest/locora/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/wasser-quest/locora/actions/workflows/preview.yml"><img src="https://github.com/wasser-quest/locora/actions/workflows/preview.yml/badge.svg?branch=testing" alt="Web preview"></a>
   <a href="https://github.com/wasser-quest/locora/releases/latest"><img src="https://img.shields.io/github/v/release/wasser-quest/locora?include_prereleases&sort=semver" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
 </p>
@@ -17,6 +18,7 @@
 <p align="center">
   <a href="https://locora.cloud">Website</a> ·
   <a href="https://app.locora.cloud">Web app</a> ·
+  <a href="https://testing--locora-app.netlify.app">Preview of the next version</a> ·
   <a href="https://github.com/wasser-quest/locora/releases/latest">Downloads</a>
 </p>
 
@@ -27,6 +29,7 @@
 | Platform | File (from the [latest release](https://github.com/wasser-quest/locora/releases/latest)) |
 |---|---|
 | **Web** | No install: [app.locora.cloud](https://app.locora.cloud), installable as an app, works offline |
+| **Preview** | The newest tested state of the `testing` branch: [testing--locora-app.netlify.app](https://testing--locora-app.netlify.app). Updated on every push to `testing`; may change at any time and keeps its own data in the browser. |
 | **Android** | `Locora_<version>_android-arm64.apk` |
 | **iPhone / iPad** | `Locora_<version>_ios-unsigned.ipa`, install it with AltStore or Sideloadly (they sign it with your Apple ID) |
 | **Windows** | `Locora_<version>_x64-setup.exe` or `.msi` |
