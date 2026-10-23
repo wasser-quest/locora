@@ -271,7 +271,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
                 bail!("Die Passwörter stimmen nicht überein");
             }
             let account = locora_crypto::create(&first).map_err(|e| anyhow::anyhow!("{e}"))?;
-            cloud::create_keys(&state, &account.bundle)?;
+            cloud::create_keys(&state, &account.bundle, &account.dek)?;
             println!("✓ Verschlüsselung eingerichtet.");
             println!();
             println!("  Wiederherstellungsschlüssel (nur jetzt angezeigt, sicher aufbewahren):");
@@ -297,7 +297,9 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             }
             let new_bundle = locora_crypto::rewrap(&dek, &recovery, &first)
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
-            cloud::replace_keys(&state, &new_bundle)?;
+            // With the key proof: a server that has one replaces the bundle only for a holder of
+            // the key.
+            cloud::replace_keys(&state, &new_bundle, &dek)?;
             println!(
                 "✓ Neues Verschlüsselungs-Passwort gesetzt. Der Wiederherstellungsschlüssel bleibt gültig."
             );

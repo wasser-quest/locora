@@ -15,9 +15,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use locora_cloud_api::api::{
-    Account, EntitlementReply, KeyBundle, Login, Register, Session, SessionKind, SubscriptionState,
+    Account, EntitlementReply, KeyBundle, KeyUpload, Login, Register, Session, SessionKind,
+    SubscriptionState,
 };
 use locora_cloud_api::entitlement::{Access, Claims, Plan, parse_public_key, verify};
+use locora_crypto::Dek;
 use serde::{Deserialize, Serialize};
 
 use crate::cloud_http::{self, Body, Call, Flow, Method, Reply, Step, json};
@@ -240,13 +242,31 @@ pub fn keys_reply(reply: Reply) -> Result<Option<KeyBundle>> {
     json(reply).map(Some)
 }
 
-pub fn create_keys_call(state: &CloudState, bundle: &KeyBundle) -> Result<Call> {
+/// Stores the keys of a new account. Every bundle goes with the key proof of the key it wraps
+/// (`KeyUpload`): a server that has it replaces the bundle later only for a holder of that key.
+/// An older server ignores the proof.
+pub fn create_keys_call(state: &CloudState, bundle: &KeyBundle, dek: &Dek) -> Result<Call> {
+    keys_upload_call(Method::Post, state, bundle, dek)
+}
+
+/// Replaces the stored bundle (a new passphrase after a recovery), with the key proof. Refused
+/// (403, with the server's message) when the server has another key's proof.
+pub fn replace_keys_call(state: &CloudState, bundle: &KeyBundle, dek: &Dek) -> Result<Call> {
+    keys_upload_call(Method::Put, state, bundle, dek)
+}
+
+fn keys_upload_call(
+    method: Method,
+    state: &CloudState,
+    bundle: &KeyBundle,
+    dek: &Dek,
+) -> Result<Call> {
     call(
-        Method::Post,
+        method,
         &state.server,
         "/v1/keys",
         Some(&state.token),
-        Some(json_body(bundle)?),
+        Some(json_body(&KeyUpload::new(bundle.clone(), dek))?),
     )
 }
 
@@ -736,16 +756,20 @@ mod blocking {
         run(Exchange::new(keys_call(state)?, keys_reply))
     }
 
-    pub fn create_keys(state: &CloudState, bundle: &KeyBundle) -> Result<()> {
+    /// Stores the keys of a new account, with the key proof of `dek`.
+    pub fn create_keys(state: &CloudState, bundle: &KeyBundle, dek: &Dek) -> Result<()> {
         run(Exchange::new(
-            create_keys_call(state, bundle)?,
+            create_keys_call(state, bundle, dek)?,
             ignore_reply,
         ))
     }
 
-    pub fn replace_keys(state: &CloudState, bundle: &KeyBundle) -> Result<()> {
-        let _: serde_json::Value = put(&state.server, "/v1/keys", &state.token, bundle)?;
-        Ok(())
+    /// Replaces the stored bundle with one that wraps the same key `dek`, with its key proof.
+    pub fn replace_keys(state: &CloudState, bundle: &KeyBundle, dek: &Dek) -> Result<()> {
+        run(Exchange::new(
+            replace_keys_call(state, bundle, dek)?,
+            ignore_reply,
+        ))
     }
 
     /// Starts a journey on the server; its clock starts now.
@@ -935,6 +959,94 @@ mod tests {
         let signed_in = finish_login(state.server, session).unwrap();
         assert!(signed_in.entitlement.is_none());
         assert!(worker.join().unwrap().starts_with("POST /v1/entitlement "));
+    }
+
+    fn bundle() -> KeyBundle {
+        KeyBundle {
+            v: 1,
+            salt: "c2FsdA==".into(),
+            wrapped_dek: "d3JhcHBlZA==".into(),
+            recovery_wrapped: "cmVjb3Zlcnk=".into(),
+        }
+    }
+
+    #[test]
+    fn every_bundle_sent_carries_the_proof_of_its_key() {
+        let state = CloudState {
+            server: "https://cloud.example".into(),
+            token: "t".into(),
+            sync_generation: 0,
+            entitlement: None,
+            last_sync_at: None,
+            auto_sync: false,
+            account: Account {
+                id: "a".into(),
+                email: "e@x.invalid".into(),
+                display_name: "D".into(),
+                subscription: SubscriptionState::None,
+                plan: None,
+                period_end: None,
+                email_verified: None,
+            },
+        };
+        let dek = Dek::from_bytes(&[7; 32]).unwrap();
+        let calls = [
+            (
+                create_keys_call(&state, &bundle(), &dek).unwrap(),
+                Method::Post,
+            ),
+            (
+                replace_keys_call(&state, &bundle(), &dek).unwrap(),
+                Method::Put,
+            ),
+        ];
+        for (call, method) in calls {
+            assert_eq!(call.method, method);
+            assert_eq!(call.url, format!("{}/v1/keys", state.server));
+            let Some(Body::Json(body)) = &call.body else {
+                panic!("a JSON body")
+            };
+            let upload: KeyUpload = serde_json::from_slice(body).unwrap();
+            assert_eq!(upload, KeyUpload::new(bundle(), &dek));
+            assert!(upload.key_proof.is_some());
+            // An older server reads the same body as the bundle alone.
+            assert_eq!(serde_json::from_slice::<KeyBundle>(body).unwrap(), bundle());
+        }
+        let other = Dek::from_bytes(&[8; 32]).unwrap();
+        let Some(Body::Json(body)) = replace_keys_call(&state, &bundle(), &other).unwrap().body
+        else {
+            panic!("a JSON body")
+        };
+        let upload: KeyUpload = serde_json::from_slice(&body).unwrap();
+        assert_ne!(
+            upload.key_proof,
+            KeyUpload::new(bundle(), &dek).key_proof,
+            "the proof is the key's"
+        );
+    }
+
+    #[test]
+    fn a_replacement_refused_for_its_proof_shows_the_servers_words() {
+        let body = r#"{"error":"Der Schlüssel konnte nicht bestätigt werden; die Schlüsselsicherung bleibt, wie sie war. Bitte die App aktualisieren und es erneut versuchen"}"#;
+        let (state, worker) = fixture(format!(
+            "HTTP/1.1 403 Forbidden\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        ));
+        let dek = Dek::from_bytes(&[7; 32]).unwrap();
+        let error = replace_keys(&state, &bundle(), &dek).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .starts_with("Der Schlüssel konnte nicht bestätigt werden"),
+            "{error:#}"
+        );
+        assert_eq!(cloud_http::status_of(&error), Some(403));
+        assert_eq!(worker.join().unwrap(), "PUT /v1/keys HTTP/1.1\r\n");
+
+        let (state, worker) =
+            fixture("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into());
+        replace_keys(&state, &bundle(), &dek).unwrap();
+        assert_eq!(worker.join().unwrap(), "PUT /v1/keys HTTP/1.1\r\n");
     }
 
     #[test]
