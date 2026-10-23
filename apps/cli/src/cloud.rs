@@ -5,8 +5,9 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 use clap::Subcommand;
+use locora_cloud_api::api::Friend;
 use locora_runtime::cloud::{self, CloudState};
-use locora_runtime::cloud_sync;
+use locora_runtime::{cloud_http, cloud_sync};
 
 #[derive(Subcommand)]
 pub enum CloudCommand {
@@ -55,10 +56,14 @@ pub enum CloudCommand {
         #[arg(long)]
         friends: bool,
     },
-    /// Freunde anzeigen oder anfragen (E-Mail-Adresse)
+    /// Freunde und offene Anfragen anzeigen, jemanden anfragen (E-Mail-Adresse), Freunde entfernen
+    /// und Anfragen zurückziehen oder ablehnen
+    #[command(args_conflicts_with_subcommands = true)]
     Friend {
-        /// E-Mail-Adresse der Person; ohne Angabe werden die Freunde gezeigt
+        /// E-Mail-Adresse der Person; ohne Angabe werden Freunde und offene Anfragen gezeigt
         email: Option<String>,
+        #[command(subcommand)]
+        action: Option<FriendCommand>,
     },
     /// Gemeinsame Challenges
     #[command(subcommand)]
@@ -82,6 +87,25 @@ pub enum ChallengeCommand {
     Join { id: String },
     /// Rangliste einer Challenge
     Ranking { id: String },
+}
+
+#[derive(Subcommand)]
+pub enum FriendCommand {
+    /// Eine Freundschaft beenden (für beide Seiten)
+    Remove {
+        /// Kennung aus `locora cloud friend`
+        id: String,
+    },
+    /// Eine eigene Anfrage zurückziehen
+    Withdraw {
+        /// Kennung aus `locora cloud friend`
+        id: String,
+    },
+    /// Eine Anfrage an dich ablehnen; die Person kann dich dann erst wieder anfragen, wenn du sie anfragst
+    Decline {
+        /// Kennung aus `locora cloud friend`
+        id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -321,32 +345,41 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             print_ranking(&ranking);
             Ok(())
         }
-        CloudCommand::Friend { email: None } => {
+        CloudCommand::Friend {
+            email: None,
+            action: None,
+        } => {
             let state = signed_in(&data)?;
-            let friends = cloud::friends(&state)?;
-            if friends.is_empty() {
-                println!("Noch keine Freunde. Hinzufügen: locora cloud friend <E-Mail>");
-            }
-            for friend in friends {
-                let status = if friend.accepted {
-                    ""
-                } else {
-                    " (Anfrage offen)"
-                };
-                println!("{}{status}", friend.display_name);
+            for line in friend_lines(&cloud::friends(&state)?) {
+                println!("{line}");
             }
             Ok(())
         }
-        CloudCommand::Friend { email: Some(email) } => {
+        CloudCommand::Friend {
+            email: Some(email), ..
+        } => {
             let state = signed_in(&data)?;
             let friend = cloud::request_friend(&state, &email)?;
             if friend.accepted {
                 println!("✓ Ihr seid jetzt befreundet: {}", friend.display_name);
             } else {
-                println!("✓ Anfrage an {} gesendet.", friend.display_name);
+                // A newer server names nobody before they answer, an older one the account asked.
+                let asked = match (&friend.email, friend.display_name.is_empty()) {
+                    (_, false) => &friend.display_name,
+                    (Some(address), true) => address,
+                    (None, true) => &email,
+                };
+                println!("✓ Anfrage an {asked} gesendet.");
+                println!(
+                    "  Angenommen ist sie, sobald die Person dich auch anfragt. Offene Anfragen: locora cloud friend"
+                );
             }
             Ok(())
         }
+        CloudCommand::Friend {
+            email: None,
+            action: Some(action),
+        } => answer_friend(&signed_in(&data)?, action),
         CloudCommand::Challenge(command) => challenge(command, &data),
         CloudCommand::Journeys => {
             let app = crate::app::App::open(Some(&data))?;
@@ -439,6 +472,143 @@ fn challenge(command: ChallengeCommand, data: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// What an entry of the friend list is. A newer server sends an id with every entry and the
+/// address asked with a request this account sent; an older one sends neither.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Entry {
+    Friend,
+    /// A request to this account.
+    Incoming,
+    /// A request (or an invite to an address without an account) this account sent.
+    Outgoing,
+    /// A request listed by an older server, which does not tell who sent it.
+    Open,
+}
+
+fn entry(friend: &Friend) -> Entry {
+    match (friend.accepted, &friend.email, &friend.id) {
+        (true, ..) => Entry::Friend,
+        (false, Some(_), _) => Entry::Outgoing,
+        (false, None, Some(_)) => Entry::Incoming,
+        (false, None, None) => Entry::Open,
+    }
+}
+
+/// Who an entry is: the name, or for a request this account sent the address it asked (the
+/// server names nobody before they answer).
+fn who(friend: &Friend) -> &str {
+    match &friend.email {
+        Some(address) if !friend.accepted => address,
+        _ => &friend.display_name,
+    }
+}
+
+/// The friend list: friends, requests to this account, requests it sent, each with its id and
+/// the command that answers it. An older server lists names alone, as before.
+fn friend_lines(friends: &[Friend]) -> Vec<String> {
+    if friends.is_empty() {
+        return vec!["Noch keine Freunde. Hinzufügen: locora cloud friend <E-Mail>".into()];
+    }
+    let with_ids = friends.iter().any(|friend| friend.id.is_some());
+    let sections = [
+        (
+            Entry::Friend,
+            "Freunde",
+            " (beenden: locora cloud friend remove <Kennung>)",
+        ),
+        (
+            Entry::Incoming,
+            "Anfragen an dich",
+            " (annehmen: locora cloud friend <E-Mail-Adresse der Person>; ablehnen: locora cloud friend decline <Kennung>)",
+        ),
+        (
+            Entry::Outgoing,
+            "Deine Anfragen, noch nicht angenommen",
+            " (zurückziehen: locora cloud friend withdraw <Kennung>)",
+        ),
+        (Entry::Open, "Offene Anfragen", ""),
+    ];
+    let mut lines = Vec::new();
+    for (kind, heading, commands) in sections {
+        let entries: Vec<&Friend> = friends.iter().filter(|f| entry(f) == kind).collect();
+        if entries.is_empty() {
+            continue;
+        }
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        lines.push(format!(
+            "{heading}{}:",
+            if with_ids { commands } else { "" }
+        ));
+        for friend in entries {
+            lines.push(match &friend.id {
+                Some(id) => format!("  {:<32}  {id}", who(friend)),
+                None => format!("  {}", who(friend)),
+            });
+        }
+    }
+    lines
+}
+
+/// Ends a friendship, withdraws a request or declines one. The list says first what the id is,
+/// so a friend's id given to `decline` is refused instead of ending the friendship, and the answer
+/// can name the person. Without a subscription the list is refused (402) but saying no still
+/// works; the server alone decides then.
+fn answer_friend(state: &CloudState, action: FriendCommand) -> Result<()> {
+    let (id, wanted) = match &action {
+        FriendCommand::Remove { id } => (id.as_str(), Entry::Friend),
+        FriendCommand::Withdraw { id } => (id.as_str(), Entry::Outgoing),
+        FriendCommand::Decline { id } => (id.as_str(), Entry::Incoming),
+    };
+    let found = match cloud::friends(state) {
+        Ok(friends) => friends
+            .into_iter()
+            .find(|friend| friend.id.as_deref() == Some(id)),
+        Err(error) if cloud_http::status_of(&error) == Some(402) => None,
+        Err(error) => return Err(error),
+    };
+    if let Some(friend) = &found {
+        let kind = entry(friend);
+        if kind != wanted {
+            bail!("{}", other_kind(kind, id));
+        }
+    }
+    cloud::remove_friend(state, id)?;
+    match (wanted, found.as_ref().map(who)) {
+        (Entry::Friend, Some(name)) => println!("✓ Freundschaft mit {name} beendet."),
+        (Entry::Friend, None) => println!("✓ Freundschaft beendet."),
+        (Entry::Incoming, Some(name)) => {
+            println!("✓ Anfrage von {name} abgelehnt.");
+            println!(
+                "  Neue Anfragen von dieser Person kommen erst wieder an, wenn du sie anfragst."
+            );
+        }
+        (Entry::Incoming, None) => println!("✓ Anfrage abgelehnt."),
+        (_, Some(address)) => println!("✓ Anfrage an {address} zurückgezogen."),
+        (_, None) => println!("✓ Anfrage zurückgezogen."),
+    }
+    Ok(())
+}
+
+/// The refusal for an id given to the command of another kind of entry, with the right command.
+fn other_kind(kind: Entry, id: &str) -> String {
+    match kind {
+        Entry::Friend => {
+            format!("{id} ist eine Freundschaft. Beenden: locora cloud friend remove {id}")
+        }
+        Entry::Incoming => {
+            format!("{id} ist eine Anfrage an dich. Ablehnen: locora cloud friend decline {id}")
+        }
+        Entry::Outgoing => {
+            format!(
+                "{id} ist deine eigene Anfrage. Zurückziehen: locora cloud friend withdraw {id}"
+            )
+        }
+        Entry::Open => format!("{id} ist eine offene Anfrage"),
+    }
 }
 
 fn print_ranking(ranking: &locora_cloud_api::api::Ranking) {
@@ -544,7 +714,77 @@ fn date(unix: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::date;
+    use super::{Entry, Friend, date, entry, friend_lines, other_kind};
+
+    fn friend(name: &str, accepted: bool, id: Option<&str>, email: Option<&str>) -> Friend {
+        Friend {
+            display_name: name.into(),
+            accepted,
+            id: id.map(Into::into),
+            email: email.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn the_friend_list_shows_ids_and_the_address_of_a_request_sent() {
+        let list = [
+            friend("Ada", true, Some("fr_1"), None),
+            friend("Carol", false, Some("fr_2"), None),
+            friend("", false, Some("fr_3"), Some("bob@example.org")),
+        ];
+        assert_eq!(
+            [entry(&list[0]), entry(&list[1]), entry(&list[2])],
+            [Entry::Friend, Entry::Incoming, Entry::Outgoing]
+        );
+        let lines = friend_lines(&list);
+        assert_eq!(
+            lines,
+            [
+                "Freunde (beenden: locora cloud friend remove <Kennung>):".to_owned(),
+                format!("  {:<32}  fr_1", "Ada"),
+                String::new(),
+                "Anfragen an dich (annehmen: locora cloud friend <E-Mail-Adresse der Person>; ablehnen: locora cloud friend decline <Kennung>):".into(),
+                format!("  {:<32}  fr_2", "Carol"),
+                String::new(),
+                "Deine Anfragen, noch nicht angenommen (zurückziehen: locora cloud friend withdraw <Kennung>):".into(),
+                format!("  {:<32}  fr_3", "bob@example.org"),
+            ]
+        );
+        assert_eq!(
+            friend_lines(&[]),
+            ["Noch keine Freunde. Hinzufügen: locora cloud friend <E-Mail>"]
+        );
+    }
+
+    #[test]
+    fn an_older_servers_friend_list_reads_as_before() {
+        // No ids, no addresses, and the names of both sides of a request.
+        let list = [
+            friend("Ada", true, None, None),
+            friend("Bob", false, None, None),
+        ];
+        assert_eq!(entry(&list[1]), Entry::Open);
+        assert_eq!(
+            friend_lines(&list),
+            ["Freunde:", "  Ada", "", "Offene Anfragen:", "  Bob"]
+        );
+    }
+
+    #[test]
+    fn an_id_given_to_the_command_of_another_kind_names_the_right_one() {
+        assert_eq!(
+            other_kind(Entry::Friend, "fr_1"),
+            "fr_1 ist eine Freundschaft. Beenden: locora cloud friend remove fr_1"
+        );
+        assert_eq!(
+            other_kind(Entry::Incoming, "fr_2"),
+            "fr_2 ist eine Anfrage an dich. Ablehnen: locora cloud friend decline fr_2"
+        );
+        assert_eq!(
+            other_kind(Entry::Outgoing, "fr_3"),
+            "fr_3 ist deine eigene Anfrage. Zurückziehen: locora cloud friend withdraw fr_3"
+        );
+    }
 
     #[test]
     fn unix_days_become_calendar_dates() {

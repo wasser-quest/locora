@@ -382,6 +382,32 @@ pub fn resend_email_reply(reply: Reply) -> Result<()> {
     cloud_http::expect_success(reply)
 }
 
+/// Removes a friend (for both sides), withdraws a request or an invite this account sent, or
+/// declines a request to it: `id` is the one `GET /v1/friends` lists with the entry.
+pub fn remove_friend_call(state: &CloudState, id: &str) -> Result<Call> {
+    let id = percent_encoding::utf8_percent_encode(id, percent_encoding::NON_ALPHANUMERIC);
+    call(
+        Method::Delete,
+        &state.server,
+        &format!("/v1/friends/{id}"),
+        Some(&state.token),
+        None,
+    )
+}
+
+/// The answer to `remove_friend_call`. An older server has no such route: it answers 404 with its
+/// general "Nicht gefunden" (a newer one names the friendship it did not find), or 405.
+pub fn remove_friend_reply(reply: Reply) -> Result<()> {
+    if reply.status == 405
+        || (reply.status == 404 && cloud_http::failure(&reply).to_string() == "Nicht gefunden")
+    {
+        bail!(
+            "Dieser Server kann Freundschaften und Anfragen noch nicht entfernen; das geht, sobald er aktualisiert ist"
+        );
+    }
+    cloud_http::expect_success(reply)
+}
+
 pub fn logout_call(state: &CloudState) -> Result<Call> {
     call(
         Method::Delete,
@@ -724,6 +750,14 @@ mod blocking {
         post(&state.server, "/v1/friends", Some(&state.token), &body)
     }
 
+    /// Removes a friend, withdraws a request or declines one (see `remove_friend_call`).
+    pub fn remove_friend(state: &CloudState, id: &str) -> Result<()> {
+        run(Exchange::new(
+            remove_friend_call(state, id)?,
+            remove_friend_reply,
+        ))
+    }
+
     pub fn create_challenge(state: &CloudState, name: &str, ends_at: u64) -> Result<Challenge> {
         let body = CreateChallenge {
             name: name.to_owned(),
@@ -1047,6 +1081,51 @@ mod tests {
             fixture("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into());
         replace_keys(&state, &bundle(), &dek).unwrap();
         assert_eq!(worker.join().unwrap(), "PUT /v1/keys HTTP/1.1\r\n");
+    }
+
+    #[test]
+    fn removing_a_friend_tells_an_older_server_from_an_unknown_id() {
+        let reply = |status: u16, error: &str| Reply {
+            status,
+            body: serde_json::json!({ "error": error })
+                .to_string()
+                .into_bytes(),
+        };
+        let older = remove_friend_reply(reply(404, "Nicht gefunden")).unwrap_err();
+        assert!(
+            older
+                .to_string()
+                .starts_with("Dieser Server kann Freundschaften"),
+            "{older:#}"
+        );
+        let older = remove_friend_reply(reply(405, "Diese Methode ist hier nicht erlaubt"));
+        assert!(
+            older
+                .unwrap_err()
+                .to_string()
+                .starts_with("Dieser Server kann")
+        );
+        let unknown = "Diese Freundschaft oder Anfrage gibt es nicht";
+        assert_eq!(
+            remove_friend_reply(reply(404, unknown))
+                .unwrap_err()
+                .to_string(),
+            unknown
+        );
+        remove_friend_reply(Reply {
+            status: 204,
+            body: Vec::new(),
+        })
+        .unwrap();
+
+        let (state, worker) = fixture(
+            "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+        );
+        remove_friend(&state, "fr_0a/../x?y").unwrap();
+        assert_eq!(
+            worker.join().unwrap(),
+            "DELETE /v1/friends/fr%5F0a%2F%2E%2E%2Fx%3Fy HTTP/1.1\r\n"
+        );
     }
 
     #[test]
