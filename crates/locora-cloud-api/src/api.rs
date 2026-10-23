@@ -85,14 +85,21 @@ pub struct FriendRequest {
     pub email: String,
 }
 
-/// One entry of `GET /v1/friends`, or the answer of `POST /v1/friends`.
+/// One entry of `GET /v1/friends`, or the answer of `POST /v1/friends` and of
+/// `POST /v1/friends/invites/{code}/accept`.
 ///
 /// The list holds accepted friends (with their names), requests to this account (with the
-/// sender's name, no `email`), and requests this account sent, among them requests to an address
-/// without a confirmed account (invites): those without a name (`display_name` is empty until the
-/// other side accepts) and with the address that was asked (`email`). So a request not accepted
-/// that has an `email` is one this account sent, one without is one it received. Older servers
-/// send neither `id` nor `email`, and the names of both sides of a request.
+/// sender's name, no `since`), and the requests this account sent that still wait, among them
+/// requests to an address without a confirmed account (invites): those without a name
+/// (`display_name` is empty until the other side accepts), without the address asked, and with
+/// `since`. So a request not accepted that has `since` (or, from a server of the 0.1.6 test
+/// builds, an empty name and an `id`) is one this account sent; one with a name is one it
+/// received. Older servers send neither `id` nor `since`, and the names of both sides of a
+/// request. The answer to `POST /v1/friends` is the same for every address: 201, an empty name,
+/// `accepted: false` (200 with the name and the id when asking back accepted a request).
+///
+/// The `id` also serves as the reference of the name shown for `POST /v1/reports`. A name the
+/// server hides after reports reads `Nutzer-XXXX`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Friend {
     pub display_name: String,
@@ -103,9 +110,10 @@ pub struct Friend {
     /// to a request that is still waiting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    /// The address asked, for a request this account sent that is still waiting.
+    /// Unix seconds when this account sent the request or invite; only on requests it sent that
+    /// still wait.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
+    pub since: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,11 +133,102 @@ pub struct Challenge {
 pub struct RankingEntry {
     pub display_name: String,
     pub xp: u64,
+    /// `ref` in JSON: an opaque reference to the name shown, for `POST /v1/reports`. Stable for
+    /// the account, never its id. Older servers do not send it.
+    #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ranking {
     pub entries: Vec<RankingEntry>,
+}
+
+/// `POST /v1/reports`: reports the name shown under `ref` (a ranking entry's `ref` or a friend
+/// list entry's `id`) as offensive or odd. The answer is 204 for every well-formed reference, known
+/// or not, so it tells nothing; a report counts only once its reporter's address is confirmed.
+/// Older servers answer 404 or 405.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NameReport {
+    #[serde(rename = "ref")]
+    pub reference: String,
+    /// Why, in a few words (at most 300 characters).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// An invite link of `POST /v1/friends/invites` (201) and of the list `GET /v1/friends/invites`.
+/// Whoever opens the link and accepts becomes this account's friend; the code works once, for 14
+/// days. Older servers answer 405.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriendInvite {
+    /// The code as people read it, `ABCD-EFGH-JKLM-NPQR` (see [`parse_invite_code`]).
+    pub code: String,
+    /// The page that shows the invite: `<account site>/einladung#<code>`.
+    pub url: String,
+    /// Unix seconds when the code stops working.
+    pub expires_at: u64,
+}
+
+/// `GET /v1/friends/invites/{code}` (no sign-in): who invites. 404 for a code that does not work
+/// (unknown, used, revoked or expired alike).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvitePreview {
+    /// The inviter's name as others see it (`Nutzer-XXXX` while it is hidden after reports).
+    pub display_name: String,
+    pub expires_at: u64,
+    /// `ref` in JSON: the reference of the name for `POST /v1/reports`.
+    #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
+}
+
+/// The characters of an invite code: capital letters and digits without `I`, `O`, `0` and `1`,
+/// which read alike. 16 of them carry 80 random bits.
+pub const INVITE_CODE_ALPHABET: &[u8; 32] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+/// Characters of an invite code, without the dashes between its groups of four.
+pub const INVITE_CODE_LENGTH: usize = 16;
+
+/// The invite code of 80 random bits, in groups of four (`ABCD-EFGH-JKLM-NPQR`).
+pub fn invite_code_from_bytes(bytes: [u8; 10]) -> String {
+    let bits = bytes
+        .iter()
+        .fold(0u128, |all, byte| (all << 8) | u128::from(*byte));
+    let chars: Vec<char> = (0..INVITE_CODE_LENGTH)
+        .map(|i| {
+            let index = (bits >> (75 - 5 * i)) & 31;
+            INVITE_CODE_ALPHABET[index as usize] as char
+        })
+        .collect();
+    grouped(&chars)
+}
+
+/// The invite code in `input`: the code itself, in any case, with or without dashes and spaces,
+/// or a link whose fragment is the code (`https://web.locora.cloud/einladung#ABCD-…`). Returns it
+/// in groups of four, or `None` when it is no code.
+pub fn parse_invite_code(input: &str) -> Option<String> {
+    let input = input.trim();
+    let code = match input.rsplit_once('#') {
+        Some((_, fragment)) => fragment,
+        None => input.rsplit('/').next().unwrap_or(input),
+    };
+    let chars: Vec<char> = code
+        .chars()
+        .filter(|c| *c != '-' && !c.is_whitespace())
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    let valid = chars.len() == INVITE_CODE_LENGTH
+        && chars
+            .iter()
+            .all(|c| c.is_ascii() && INVITE_CODE_ALPHABET.contains(&(*c as u8)));
+    valid.then(|| grouped(&chars))
+}
+
+fn grouped(chars: &[char]) -> String {
+    chars
+        .chunks(4)
+        .map(|group| group.iter().collect::<String>())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 /// One sealed operation. The server sees only the keyed id and the ciphertext
@@ -330,17 +429,17 @@ mod tests {
     fn friends_of_older_servers_and_of_newer_ones_read_alike() {
         let older: Friend =
             serde_json::from_value(json!({"display_name": "Ada", "accepted": true})).unwrap();
-        assert_eq!((older.id, older.email), (None, None));
+        assert_eq!((older.id, older.since), (None, None));
         let waiting = Friend {
             display_name: String::new(),
             accepted: false,
             id: Some("fr_1".into()),
-            email: Some("ada@example.com".into()),
+            since: Some(1_700_000_000),
         };
         let value = serde_json::to_value(&waiting).unwrap();
         assert_eq!(
             value,
-            json!({"display_name": "", "accepted": false, "id": "fr_1", "email": "ada@example.com"})
+            json!({"display_name": "", "accepted": false, "id": "fr_1", "since": 1_700_000_000})
         );
         assert_eq!(serde_json::from_value::<Friend>(value).unwrap(), waiting);
         // What a 0.1.5 client reads: unknown fields are ignored.
@@ -353,13 +452,90 @@ mod tests {
             .and_then(serde_json::from_value)
             .unwrap();
         assert_eq!((read.display_name.as_str(), read.accepted), ("", false));
+        // A server of the 0.1.6 test builds sent the address asked; it is ignored now.
+        let between: Friend = serde_json::from_value(json!({
+            "display_name": "", "accepted": false, "id": "fr_2", "email": "ada@example.com"
+        }))
+        .unwrap();
+        assert_eq!((between.id.as_deref(), between.since), (Some("fr_2"), None));
         let answer = Friend {
             display_name: String::new(),
             accepted: false,
             id: None,
-            email: Some("ada@example.com".into()),
+            since: None,
         };
-        assert!(serde_json::to_value(&answer).unwrap().get("id").is_none());
+        assert_eq!(
+            serde_json::to_value(&answer).unwrap(),
+            json!({"display_name": "", "accepted": false})
+        );
+    }
+
+    #[test]
+    fn ranking_entries_carry_a_reference_that_older_servers_lack() {
+        let older: RankingEntry =
+            serde_json::from_value(json!({"display_name": "Ada", "xp": 10})).unwrap();
+        assert_eq!(older.reference, None);
+        let newer = RankingEntry {
+            display_name: "Ada".into(),
+            xp: 10,
+            reference: Some("nr_0123".into()),
+        };
+        let value = serde_json::to_value(&newer).unwrap();
+        assert_eq!(
+            value,
+            json!({"display_name": "Ada", "xp": 10, "ref": "nr_0123"})
+        );
+        assert_eq!(
+            serde_json::from_value::<RankingEntry>(value).unwrap(),
+            newer
+        );
+        let report = NameReport {
+            reference: "nr_0123".into(),
+            reason: None,
+        };
+        assert_eq!(
+            serde_json::to_value(&report).unwrap(),
+            json!({"ref": "nr_0123"})
+        );
+        let preview: InvitePreview =
+            serde_json::from_value(json!({"display_name": "Ada", "expires_at": 5})).unwrap();
+        assert_eq!(preview.reference, None);
+    }
+
+    #[test]
+    fn invite_codes_are_read_from_codes_and_links() {
+        let code = invite_code_from_bytes([0xff; 10]);
+        assert_eq!(code, "9999-9999-9999-9999");
+        assert_eq!(invite_code_from_bytes([0; 10]), "AAAA-AAAA-AAAA-AAAA");
+        // Every 5 bits pick one character, from the first bits on.
+        let mut bytes = [0u8; 10];
+        bytes[0] = 0b0000_1000;
+        assert_eq!(invite_code_from_bytes(bytes), "BAAA-AAAA-AAAA-AAAA");
+        bytes[9] = 1;
+        assert_eq!(invite_code_from_bytes(bytes), "BAAA-AAAA-AAAA-AAAB");
+        for input in [
+            "ABCD-EFGH-JKLM-NPQR",
+            "abcdefghjkmlnpqr",
+            " abcd efgh jkml npqr ",
+            "https://web.locora.cloud/einladung#ABCD-EFGH-JKML-NPQR",
+        ] {
+            assert!(parse_invite_code(input).is_some(), "{input}");
+        }
+        assert_eq!(
+            parse_invite_code("https://web.locora.cloud/einladung#abcd-efgh-jkmn-pqrs").as_deref(),
+            Some("ABCD-EFGH-JKMN-PQRS")
+        );
+        for input in [
+            "",
+            "ABCD-EFGH-JKLM-NPQ",
+            "ABCD-EFGH-JKLM-NPQRS",
+            "ABCD-EFGH-JKLM-NPQ0",
+            "ABCD-EFGH-JKLM-NPQI",
+            "ÄBCD-EFGH-JKLM-NPQR",
+            "https://web.locora.cloud/einladung",
+        ] {
+            assert_eq!(parse_invite_code(input), None, "{input}");
+        }
     }
 
     #[test]

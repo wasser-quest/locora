@@ -381,10 +381,10 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
                 );
             } else {
                 // A newer server names nobody before they answer, an older one the account asked.
-                let asked = match (&friend.email, friend.display_name.is_empty()) {
-                    (_, false) => shown::name(&friend.display_name),
-                    (Some(address), true) => shown::address(address),
-                    (None, true) => shown::address(&email),
+                let asked = if friend.display_name.is_empty() {
+                    shown::address(&email)
+                } else {
+                    shown::name(&friend.display_name)
                 };
                 println!("✓ Anfrage an {asked} gesendet.");
                 println!(
@@ -492,8 +492,9 @@ fn challenge(command: ChallengeCommand, data: &Path) -> Result<()> {
     Ok(())
 }
 
-/// What an entry of the friend list is. A newer server sends an id with every entry and the
-/// address asked with a request this account sent; an older one sends neither.
+/// What an entry of the friend list is. A newer server sends an id with every entry and, with a
+/// request this account sent, no name but the time it was sent (`since`); a server of the 0.1.6
+/// test builds sent the address asked instead, which is ignored now. An older one sends neither.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Entry {
     Friend,
@@ -506,20 +507,25 @@ enum Entry {
 }
 
 fn entry(friend: &Friend) -> Entry {
-    match (friend.accepted, &friend.email, &friend.id) {
+    match (friend.accepted, friend.since, &friend.id) {
         (true, ..) => Entry::Friend,
         (false, Some(_), _) => Entry::Outgoing,
+        // A request received always shows its sender's name.
+        (false, None, Some(_)) if friend.display_name.is_empty() => Entry::Outgoing,
         (false, None, Some(_)) => Entry::Incoming,
         (false, None, None) => Entry::Open,
     }
 }
 
-/// Who an entry is: the name, or for a request this account sent the address it asked (the
-/// server names nobody before they answer).
+/// Who an entry is: the name, or for a request this account sent when it was sent (the server
+/// names nobody before they answer).
 fn who(friend: &Friend) -> String {
-    match &friend.email {
-        Some(address) if !friend.accepted => shown::address(address),
-        _ => shown::name(&friend.display_name),
+    if entry(friend) != Entry::Outgoing {
+        return shown::name(&friend.display_name);
+    }
+    match friend.since {
+        Some(since) => format!("Anfrage gesendet {}", date(since)),
+        None => "Anfrage gesendet".into(),
     }
 }
 
@@ -738,21 +744,21 @@ mod tests {
         CloudCommand, Entry, Friend, FriendCommand, date, entry, friend_lines, other_kind,
     };
 
-    fn friend(name: &str, accepted: bool, id: Option<&str>, email: Option<&str>) -> Friend {
+    fn friend(name: &str, accepted: bool, id: Option<&str>, since: Option<u64>) -> Friend {
         Friend {
             display_name: name.into(),
             accepted,
             id: id.map(Into::into),
-            email: email.map(Into::into),
+            since,
         }
     }
 
     #[test]
-    fn the_friend_list_shows_ids_and_the_address_of_a_request_sent() {
+    fn the_friend_list_shows_ids_and_when_a_request_was_sent() {
         let list = [
             friend("Ada", true, Some("fr_1"), None),
             friend("Carol", false, Some("fr_2"), None),
-            friend("", false, Some("fr_3"), Some("bob@example.org")),
+            friend("", false, Some("fr_3"), Some(1_700_000_000)),
         ];
         assert_eq!(
             [entry(&list[0]), entry(&list[1]), entry(&list[2])],
@@ -769,9 +775,12 @@ mod tests {
                 format!("  {:<32}  fr_2", "Carol"),
                 String::new(),
                 "Deine Anfragen, noch nicht angenommen (zurückziehen: locora cloud friend withdraw <Kennung>):".into(),
-                format!("  {:<32}  fr_3", "bob@example.org"),
+                format!("  {:<32}  fr_3", "Anfrage gesendet 2023-11-14"),
             ]
         );
+        // A server of the 0.1.6 test builds sent no time, but no name either.
+        let between = friend("", false, Some("fr_4"), None);
+        assert_eq!(entry(&between), Entry::Outgoing);
         assert_eq!(
             friend_lines(&[]),
             ["Noch keine Freunde. Hinzufügen: locora cloud friend <E-Mail>"]
@@ -797,13 +806,13 @@ mod tests {
         let list = [
             friend("Ada\u{202e}evol", true, Some("fr_1"), None),
             friend("\u{1b}]52;c;aGk=\u{7}", false, Some("fr_2\u{1b}[2J"), None),
-            friend("", false, Some("fr_3"), Some("bob\u{200b}@example.org")),
+            friend("", false, Some("fr_3\u{200b}"), Some(1_700_000_000)),
         ];
         let lines = friend_lines(&list).join("\n");
         assert!(lines.contains("Ada\\u{202e}evol"), "{lines}");
         assert!(lines.contains("\\u{1b}]52;c;aGk=\\u{7}"), "{lines}");
         assert!(lines.contains("fr_2\\u{1b}[2J"), "{lines}");
-        assert!(lines.contains("bob\\u{200b}@example.org"), "{lines}");
+        assert!(lines.contains("fr_3\\u{200b}"), "{lines}");
         assert!(
             !lines.chars().any(|c| c.is_control() && c != '\n'),
             "{lines:?}"
