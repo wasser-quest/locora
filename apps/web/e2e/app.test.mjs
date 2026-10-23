@@ -32,9 +32,15 @@ after(async () => {
 async function openApp(options = {}) {
   // `phone` is a touch screen: the commands then sit in a bar at the bottom.
   const phone = options.phone ? { hasTouch: true, isMobile: true } : {};
-  const context = await browser.newContext({ viewport: options.viewport ?? { width: 1000, height: 760 }, acceptDownloads: true, ...phone });
-  // The language is chosen on the very first start; the tests speak English unless they ask for that choice.
-  if (!options.chooseLanguage) await context.addInitScript(() => localStorage.setItem('locora-language-v1', 'en'));
+  const context = await browser.newContext({
+    viewport: options.viewport ?? { width: 1000, height: 760 }, acceptDownloads: true,
+    reducedMotion: options.reducedMotion ?? 'no-preference', ...phone,
+  });
+  // The language is chosen on the very first start; the tests speak English unless they ask for that choice
+  // (or for German, the app's own language).
+  const german = options.language === 'de';
+  if (!options.chooseLanguage) await context.addInitScript((language) => localStorage.setItem('locora-language-v1', language), german ? 'de' : 'en');
+  if (options.initScript) await context.addInitScript(options.initScript);
   const page = await context.newPage();
   const problems = [];
   const requests = [];
@@ -51,20 +57,20 @@ async function openApp(options = {}) {
   });
   page.on('request', (request) => requests.push(request.url()));
   await page.goto(origin + '/', { waitUntil: 'load' });
-  if (!options.chooseLanguage) await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
+  if (!options.chooseLanguage) await page.getByRole('button', { name: german ? 'App-Tour starten' : 'Start the app tour' }).waitFor({ timeout: 15000 });
   return { context, page, problems, requests };
 }
 
 /**
  * Starts the app tour with `button`. While the lessons of „Learn mnemonics“ are open, the app asks
- * first; this answers „start the tour anyway“.
+ * first; this answers „start the tour anyway“. `german` for an app opened with `language: 'de'`.
  */
-async function startTour(page, button = page.getByRole('button', { name: 'Start the app tour' })) {
-  await button.click();
-  const ask = page.getByRole('dialog', { name: 'Have you practised the memory techniques yet?' });
+async function startTour(page, button = null, german = false) {
+  await (button ?? page.getByRole('button', { name: german ? 'App-Tour starten' : 'Start the app tour' })).click();
+  const ask = page.getByRole('dialog', { name: german ? 'Hast du die Mnemotechniken schon geübt?' : 'Have you practised the memory techniques yet?' });
   await ask.waitFor({ timeout: 15000 });
-  await ask.getByRole('button', { name: 'I know this already – start the tour' }).click();
-  await page.getByRole('region', { name: 'App tour' }).waitFor({ timeout: 15000 });
+  await ask.getByRole('button', { name: german ? 'Ich kenne das schon – Tour starten' : 'I know this already – start the tour' }).click();
+  await page.getByRole('region', { name: german ? 'App-Tour' : 'App tour' }).waitFor({ timeout: 15000 });
 }
 
 /** The welcome page starts the app tour, which sets up the tutorial palace: close the tour, open the palace. */
@@ -672,6 +678,281 @@ test('on a phone the tour hides the commands bar and moves up while a field is t
     await page.waitForFunction(() => document.querySelector('.tour-panel').getBoundingClientRect().top < 200, null, { timeout: 5000 });
     await panel.getByRole('button', { name: 'Close', exact: true }).click();
     await commands.waitFor({ timeout: 15000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+/** Where the tour's highlighted control (with its label) and its panel are, and what of the window is seen. */
+function tourPlace(page) {
+  return page.evaluate(() => {
+    const node = document.querySelector('[data-tour-active]');
+    const panel = document.querySelector('.tour-panel');
+    if (!node || !panel) return null;
+    const target = (node.closest('label') ?? node).getBoundingClientRect();
+    const box = panel.getBoundingClientRect();
+    const field = document.activeElement;
+    return {
+      id: node.id, top: target.top, bottom: target.bottom, height: target.height,
+      panelTop: box.top, panelBottom: box.bottom, panelAtTop: panel.classList.contains('top'),
+      view: window.innerHeight, seenTop: visualViewport.offsetTop, seen: visualViewport.height,
+      scrollY: window.scrollY, scrolled: window.scrollY > 0,
+      typing: field?.tagName === 'TEXTAREA' || (field?.tagName === 'INPUT' && field.type === 'text'),
+    };
+  });
+}
+
+/**
+ * Where the tour's highlighted control and its panel are once scrolling has stopped: the same
+ * position three times in a row, 100 ms apart.
+ */
+async function settledTourPlace(page) {
+  let last = '';
+  let same = 0;
+  for (let i = 0; i < 60 && same < 3; i += 1) {
+    await page.waitForTimeout(100);
+    const key = JSON.stringify(await tourPlace(page));
+    same = key === last ? same + 1 : 0;
+    last = key;
+  }
+  return JSON.parse(last);
+}
+
+/** The positions of the page, the seen part of it, the control and the panel over `ms`: one where the tour holds still. */
+async function tourMoves(page, ms) {
+  const seen = new Set();
+  for (let t = 0; t < ms; t += 100) {
+    await page.waitForTimeout(100);
+    const place = await tourPlace(page);
+    seen.add(JSON.stringify(place && [place.scrollY, place.seenTop, place.top, place.panelAtTop].map((v) => (typeof v === 'number' ? Math.round(v) : v))));
+  }
+  return [...seen];
+}
+
+/**
+ * Where the tour puts a control (scroll_to_tour_place in apps/app/ui/src/main.rs): 30 % down `area`
+ * (top and height of the part of the window it lays out in), but clear of a panel above or below it.
+ */
+function expectedTourTop(place, [top, height]) {
+  const freeTop = place.panelAtTop ? Math.max(top + 16, place.panelBottom + 12) : top + 16;
+  const freeBottom = place.panelAtTop ? top + height - 12 : Math.min(top + height - 12, place.panelTop - 12);
+  return Math.max(Math.min(top + 0.3 * height, freeBottom - place.height), freeTop);
+}
+
+/** The tour's step `n` is shown, in English or German. */
+function tourStep(page, n) {
+  return page.waitForFunction((n) => /(Step|Schritt) (\d+) /.exec(document.querySelector('.tour-panel small')?.textContent ?? '')?.[2] === String(n), n, { timeout: 15000 });
+}
+
+test('on a phone the tour brings each highlighted control to the upper third, clear of its panel and of the keyboard', async () => {
+  // A usual phone, a small one in German (the longest texts, so the tallest panel), and that one with
+  // larger, taller text in the panel, as other fonts or a larger text size make it: there the
+  // controls do not fit beside the whole panel, so the panel gives way and scrolls inside.
+  for (const { language, viewport, last, css } of [
+    { language: 'en', viewport: { width: 390, height: 760 }, last: 13 },
+    { language: 'de', viewport: { width: 360, height: 640 }, last: 8 },
+    { language: 'de', viewport: { width: 360, height: 640 }, last: 8, css: '.tour-copy { font-size: 1.3rem; line-height: 1.7; }' },
+  ]) {
+    const { context, page, problems } = await openApp({ phone: true, viewport, language });
+    try {
+      if (css) await page.addStyleTag({ content: css });
+      const panel = page.locator('.tour-panel');
+      await startTour(page, null, language === 'de');
+      let placed = 0;
+      for (let n = 1; n <= last; n += 1) {
+        if (n > 1) await panel.locator('button.primary').click();
+        await tourStep(page, n);
+        const place = await settledTourPlace(page);
+        const shown = `${language} ${viewport.width}x${viewport.height}${css ? ` ${css}` : ''} step ${n} ${JSON.stringify(place)}`;
+        // Every step of the tour has a control to show.
+        assert.ok(place, `${shown}: a highlighted control`);
+        assert.ok(place.top >= 0 && place.bottom <= place.view, `${shown}: in view`);
+        assert.ok(place.bottom <= place.panelTop || place.top >= place.panelBottom, `${shown}: clear of the panel`);
+        // The tour focuses the fields of steps 5 to 7. No keyboard is reported in this browser, so the
+        // tour reckons with one over the lower half: the panel and the field share the upper half.
+        if (n >= 5 && n <= 7) {
+          assert.ok(place.typing && place.panelAtTop, `${shown}: the field has the focus, the panel is at the top`);
+          assert.ok(place.bottom <= 0.5 * place.view, `${shown}: above the keyboard`);
+        }
+        // Where the page could scroll, the control's top is 30 % down that part (or as near as fits).
+        if (place.scrolled) {
+          const expected = expectedTourTop(place, [0, place.typing ? place.view / 2 : place.view]);
+          assert.ok(Math.abs(place.top - expected) < 4, `${shown}: top at ${expected}`);
+          if (Math.abs(expected - 0.3 * place.view) < 1) placed += 1;
+        }
+        if (n === 7) {
+          // The person leaves the field and comes back to it: it is placed again, above the keyboard.
+          await page.evaluate(() => document.activeElement.blur());
+          assert.equal((await settledTourPlace(page)).typing, false);
+          await page.locator('#tour-editor-note textarea').focus();
+          const typing = await settledTourPlace(page);
+          const typed = JSON.stringify(typing);
+          assert.ok(typing.typing && typing.panelAtTop, `the panel is at the top while typing ${typed}`);
+          assert.ok(typing.top >= typing.panelBottom + 11, `the field is below the panel ${typed}`);
+          assert.ok(typing.bottom <= 0.5 * typing.view, `the field is above the keyboard ${typed}`);
+        }
+      }
+      if (language === 'en') assert.ok(placed >= 3, `controls were brought to 30 % at least three times (${placed})`);
+      await panel.locator('button').first().click();
+      assert.deepEqual(problems, []);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+/** A phone's on-screen keyboard as Chrome on Android shows it: while a text field has the focus it covers the lower 320 px. */
+function simulatedKeyboard() {
+  const height = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'height');
+  const typing = () => {
+    const field = document.activeElement;
+    return field?.tagName === 'TEXTAREA' || (field?.tagName === 'INPUT' && field.type === 'text');
+  };
+  Object.defineProperty(VisualViewport.prototype, 'height', { configurable: true, get() { return height.get.call(this) - (typing() ? 320 : 0); } });
+}
+
+test('with an on-screen keyboard the tour keeps the field in the part left visible, also where the keyboard resizes the window', async () => {
+  // Chrome on Android: the keyboard covers the lower part of the page (the visual viewport gets smaller).
+  const covered = await openApp({ phone: true, viewport: { width: 390, height: 760 }, initScript: simulatedKeyboard });
+  try {
+    const panel = covered.page.locator('.tour-panel');
+    await startTour(covered.page);
+    for (let n = 1; n <= 7; n += 1) {
+      if (n > 1) await panel.locator('button.primary').click();
+      await tourStep(covered.page, n);
+      if (n < 5) continue;
+      const place = await settledTourPlace(covered.page);
+      const shown = `step ${n} ${JSON.stringify(place)}`;
+      assert.ok(place.typing && place.seen <= place.view - 300, `${shown}: the keyboard is open`);
+      assert.ok(place.top >= place.seenTop && place.bottom <= place.seenTop + place.seen, `${shown}: in the visible part`);
+      assert.ok(place.bottom <= place.panelTop || place.top >= place.panelBottom, `${shown}: clear of the panel`);
+      const expected = expectedTourTop(place, [place.seenTop, place.seen]);
+      assert.ok(Math.abs(place.top - expected) < 4, `${shown}: top at ${expected}`);
+      const moves = await tourMoves(covered.page, 1000);
+      assert.equal(moves.length, 1, `${shown}: holds still ${moves.join(' ')}`);
+    }
+    assert.deepEqual(covered.problems, []);
+  } finally {
+    await covered.context.close();
+  }
+  // The Android app and Firefox: the keyboard makes the window itself smaller.
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 760 } });
+  try {
+    const panel = page.locator('.tour-panel');
+    await startTour(page);
+    for (let n = 2; n <= 7; n += 1) {
+      await panel.locator('button.primary').click();
+      await tourStep(page, n);
+    }
+    await settledTourPlace(page);
+    await page.setViewportSize({ width: 390, height: 430 });
+    const place = await settledTourPlace(page);
+    const shown = JSON.stringify(place);
+    assert.ok(place.typing && place.view === 430, shown);
+    assert.ok(place.top >= 0 && place.bottom <= place.view, `in the smaller window ${shown}`);
+    assert.ok(place.bottom <= place.panelTop || place.top >= place.panelBottom, `clear of the panel ${shown}`);
+    const expected = expectedTourTop(place, [0, place.view]);
+    assert.ok(Math.abs(place.top - expected) < 4, `top at ${expected} ${shown}`);
+    // The keyboard closes: back to the upper half.
+    await page.setViewportSize({ width: 390, height: 760 });
+    const back = await settledTourPlace(page);
+    assert.ok(back.bottom <= 0.5 * back.view && back.top >= back.panelBottom, JSON.stringify(back));
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the tour holds still: with reduced motion every step settles at once, and a pinch zoom stays as it is', async () => {
+  for (const options of [{ phone: true, viewport: { width: 390, height: 760 } }, { viewport: { width: 1440, height: 900 } }]) {
+    const { context, page, problems } = await openApp({ ...options, reducedMotion: 'reduce' });
+    try {
+      const panel = page.locator('.tour-panel');
+      await startTour(page);
+      for (let n = 1; n <= 9; n += 1) {
+        if (n > 1) await panel.locator('button.primary').click();
+        await tourStep(page, n);
+        const place = await settledTourPlace(page);
+        const moves = await tourMoves(page, 1000);
+        assert.equal(moves.length, 1, `${options.viewport.width}x${options.viewport.height} step ${n} ${JSON.stringify(place)}: holds still ${moves.join(' ')}`);
+        if (options.phone && n === 3) {
+          // Zoomed in, the person sees less of the window, but that is no keyboard: the page stays as they set it.
+          const cdp = await context.newCDPSession(page);
+          await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
+          await page.waitForTimeout(300);
+          const zoomed = await tourMoves(page, 2000);
+          assert.equal(zoomed.length, 1, `zoomed: holds still ${zoomed.join(' ')}`);
+          await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+          await cdp.detach();
+        }
+      }
+      assert.deepEqual(problems, []);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+test('the tour leaves the page where the person scrolls it, its spotlight moves along, and closing glides back', async () => {
+  const { context, page, problems } = await openApp({ viewport: { width: 1920, height: 1080 } });
+  try {
+    const panel = page.locator('.tour-panel');
+    await startTour(page);
+    for (let n = 2; n <= 4; n += 1) {
+      await panel.locator('button.primary').click();
+      await tourStep(page, n);
+    }
+    // In a wide window the panel is beside the stage: the stage comes to 30 % whichever side the
+    // panel is on, also when going back to it.
+    const stage = await settledTourPlace(page);
+    assert.ok(Math.abs(stage.top - 0.3 * stage.view) < 4, JSON.stringify(stage));
+    await panel.locator('button.primary').click();
+    await tourStep(page, 5);
+    await settledTourPlace(page);
+    await panel.getByRole('button', { name: 'Back' }).click();
+    await tourStep(page, 4);
+    const again = await settledTourPlace(page);
+    assert.ok(Math.abs(again.top - stage.top) < 2, `the same place going back ${JSON.stringify(again)}`);
+    // The person scrolls down to look at the form: the tour does not pull the page back.
+    await page.mouse.move(900, 540);
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(700);
+    const scrolled = await tourPlace(page);
+    await page.waitForTimeout(1200);
+    const later = await tourPlace(page);
+    assert.ok(scrolled.scrollY > again.scrollY + 300, JSON.stringify(scrolled));
+    assert.equal(Math.round(later.scrollY), Math.round(scrolled.scrollY), `the page stays where the person put it ${JSON.stringify(later)}`);
+    // The spotlight is part of the page, so it moves with it in the same frame.
+    const off = await page.evaluate(() => {
+      window.scrollBy({ top: -150, behavior: 'instant' });
+      const node = document.querySelector('[data-tour-active]');
+      return document.querySelector('.tour-spot').getBoundingClientRect().top + 8 - (node.closest('label') ?? node).getBoundingClientRect().top;
+    });
+    assert.ok(Math.abs(off) < 1, `the spotlight is on the control (${off} px off)`);
+    // Closing the tour in the room below the page: the page glides back to its own end.
+    for (let n = 5; n <= 8; n += 1) {
+      await panel.locator('button.primary').click();
+      await tourStep(page, n);
+    }
+    await settledTourPlace(page);
+    const room = await page.evaluate(() => {
+      const extra = parseFloat(getComputedStyle(document.querySelector('main'), '::after').height);
+      window.__scrolls = [];
+      const record = () => {
+        window.__scrolls.push(window.scrollY);
+        if (window.__scrolls.length < 150) requestAnimationFrame(record);
+      };
+      requestAnimationFrame(record);
+      return { end: document.documentElement.scrollHeight - extra - window.innerHeight, y: window.scrollY };
+    });
+    assert.ok(room.y > room.end + 100, `the tour has scrolled into the room below the page ${JSON.stringify(room)}`);
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.waitForFunction(() => !document.body.classList.contains('tour-room'), null, { timeout: 5000 });
+    const scrolls = await page.evaluate(() => window.__scrolls);
+    const jump = Math.max(...scrolls.slice(1).map((y, i) => Math.abs(y - scrolls[i])));
+    assert.ok(jump < 120, `no jump: at most ${jump} px from one frame to the next`);
+    assert.ok(Math.abs(await page.evaluate(() => window.scrollY) - room.end) < 2, 'at the end of the page');
     assert.deepEqual(problems, []);
   } finally {
     await context.close();
