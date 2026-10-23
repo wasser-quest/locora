@@ -15,6 +15,11 @@ import { openStorage as openPluginStorage, loadPluginStorage, flushPluginStorage
 import { host } from '../src/host-core.mjs';
 
 const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification'];
+/**
+ * Plugins whose storage is the core's own, so it is logged and synced with Locora Cloud like on the
+ * desktop (crates/locora-web-core, SYNCED_PLUGINS). The others keep theirs in IndexedDB.
+ */
+const SYNCED = ['gamification'];
 const MEDIA_ACCEPT = 'image/*,video/*,.sply,.png,.jpg,.jpeg,.webp,.gif,.avif,.mp4,.m4v,.mov,.webm,.mkv,.3gp';
 const ARCHIVE_ACCEPT = '.locora,.toml';
 const AUDIO_ACCEPT = 'audio/*,.mp3,.m4a,.wav,.ogg,.oga,.opus,.weba,.webm,.flac,.aac,.3gp,.3ga,.amr,.caf';
@@ -48,7 +53,7 @@ async function start() {
   pluginDb = await openPluginStorage(indexedDB);
   fileSystem = new MemFs();
   fileSystem.load(await loadFiles(files));
-  const wasm = await (await fetch('core/locora_web_core.wasm')).arrayBuffer();
+  const wasm = await fetchCore();
   core = await instantiateCore(wasm, { fs: fileSystem, bridge: host.asBridge() });
   // The plugins reach the core while they run: palace reads, tour steps and the events they publish.
   host.provideHostService('core.palaces@1', (_plugin, request) => unwrap(core.palaceService(request)));
@@ -65,17 +70,61 @@ async function start() {
       console.warn(`the core did not take an event of ${plugin}: ${error.message}`);
     }
   };
-  for (const id of PLUGINS) {
-    const module = await import(`../plugins/${id}/${id}.js`);
-    host.register(id, module, await loadPluginStorage(pluginDb, id));
-    host.start(id);
-  }
+  // The profile opens first: the synced plugins keep their storage in it.
   const opened = core('open', '/locora');
   if (opened.err) throw new Error(opened.err);
-  // The core shows the tiles and blocks of the plugins that run here.
+  for (const id of PLUGINS) {
+    const module = await import(`../plugins/${id}/${id}.js`);
+    if (SYNCED.includes(id)) {
+      await takeOverStorage(id);
+      host.register(id, module, new Map(), core.syncedStorage(id));
+    } else {
+      host.register(id, module, await loadPluginStorage(pluginDb, id));
+    }
+    host.start(id);
+  }
+  // The core shows the tiles and blocks of the plugins that run here (and takes over the game's
+  // progress from before the sync, once).
   const listed = core('set_plugins', { plugins: PLUGINS.map((id) => host.require(id).manifest) });
   if (listed.err) throw new Error(listed.err);
   for (const id of PLUGINS) await flushPluginStorage(pluginDb, id, host.takeDirty(id));
+  persist();
+}
+
+/**
+ * The first start after the update: a synced plugin's keys from IndexedDB go into the core's store,
+ * only those the store does not have. The IndexedDB copy stays as it is, as a backup, and is not
+ * read again.
+ */
+async function takeOverStorage(id) {
+  const marker = `locora-synced-storage-${id}-v1`;
+  try {
+    if (localStorage.getItem(marker)) return;
+  } catch (_) {
+    // Without localStorage the takeover runs again; it never overwrites a key.
+  }
+  const storage = core.syncedStorage(id);
+  for (const [key, value] of await loadPluginStorage(pluginDb, id)) {
+    if (storage.get(key) === undefined) storage.set(key, value);
+  }
+  try {
+    localStorage.setItem(marker, '1');
+  } catch (_) {
+    // See above.
+  }
+}
+
+/**
+ * The core's module. A private window keeps its HTTP cache in memory, where one entry may hold at
+ * most a few MB: writing the core there can fail the download. It is fetched again without the
+ * cache then.
+ */
+async function fetchCore() {
+  try {
+    return await (await fetch('core/locora_web_core.wasm')).arrayBuffer();
+  } catch {
+    return (await fetch('core/locora_web_core.wasm', { cache: 'no-store' })).arrayBuffer();
+  }
 }
 
 /** A WIT result as a value: the bytes, or an error thrown with the plugin's message. */
@@ -131,6 +180,9 @@ async function invoke(cmd, args = {}) {
       return downloadText(args.name, args.text);
     case 'notifications':
       return deliverNotifications();
+    // Deleted here first, then the server is asked about the rankings (a cloud step).
+    case 'game_reset':
+      return runCloud(core, persist, cmd, args);
     default:
       if (cmd.startsWith('cloud_')) return runCloud(core, persist, cmd, args);
       reply = command(cmd, args);

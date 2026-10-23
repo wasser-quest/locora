@@ -63,6 +63,13 @@ mod plugins {
         #[link_name = "filter"]
         fn host_filter(hook: *const u8, hook_len: usize, value: *const u8, value_len: usize)
         -> u64;
+        #[link_name = "publish"]
+        fn host_publish(
+            topic: *const u8,
+            topic_len: usize,
+            payload: *const u8,
+            payload_len: usize,
+        ) -> u32;
     }
 
     pub struct Bridge;
@@ -104,6 +111,12 @@ mod plugins {
             let packed =
                 unsafe { host_filter(hook.as_ptr(), hook.len(), value.as_ptr(), value.len()) };
             read_reply(packed)
+        }
+
+        fn publish(&self, topic: &str, payload: &[u8]) -> bool {
+            unsafe {
+                host_publish(topic.as_ptr(), topic.len(), payload.as_ptr(), payload.len()) == 1
+            }
         }
     }
 

@@ -189,6 +189,12 @@ pub trait ServiceBridge {
     fn call(&self, plugin: Option<&str>, service: &str, request: &[u8]) -> Result<Vec<u8>, String>;
     /// Runs the filters of `hook` on an encoded value; the result is the encoded value after them.
     fn filter(&self, hook: &str, value: &[u8]) -> Result<Vec<u8>, String>;
+    /// Delivers an event to the plugins now, as the native host does; `false` when the page
+    /// cannot, and the event goes to the page with the command's reply instead.
+    fn publish(&self, topic: &str, payload: &[u8]) -> bool {
+        let _ = (topic, payload);
+        false
+    }
 }
 
 thread_local! {
@@ -360,6 +366,15 @@ impl PluginHost {
     }
 
     pub fn publish_raw(&mut self, topic: &str, payload: Vec<u8>) {
+        // At once where the page can deliver it: a command then reads what the plugins made of it
+        // (the game counts an answer before the journey's end card is written).
+        if self
+            .bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.publish(topic, &payload))
+        {
+            return;
+        }
         self.events.push(HostEvent::Published {
             plugin: "host".to_owned(),
             topic: topic.to_owned(),
