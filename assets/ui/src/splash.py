@@ -6,8 +6,15 @@ Usage: SPLINELY_CLI=splinely-cli python3 assets/ui/src/splash.py [OUTPUT_DIR]
 Four scenes, one of them is picked at random each time the app starts. They bounce
 and hop like the method of loci: loci that jump along a route, a firefly that
 bobs, a palace arch with hopping loci, a ball that bounces with squash and stretch.
+Every moving thing is a `Body` (assets/tutorial/src/tutorial.py): its cel shadow,
+shine and halo move with it, and the ball's ground shadow shrinks and fades as it rises.
 No text: the tips are in the app's own language (apps/app/ui/index.html).
 Style: assets/STIL.md (no outlines, cel shading, light from the top left).
+
+Afterwards export the SVGs and inline them into the page:
+  for n in route firefly arch ball; do
+    splinely-cli export assets/ui/splash/splash-$n.sply --output apps/app/ui/splash/splash-$n.svg; done
+  python3 assets/ui/src/splash_html.py
 """
 import os, sys
 
@@ -22,32 +29,18 @@ CREAM, LIME, AMBER, GREEN = t.CREAM, t.LIME, t.AMBER, t.GREEN
 SIZE = 320
 
 
-def hop(s, clip, target, delay, height=44, duration=2.4):
-    """One bounce per loop: up at `delay`, back down 0.36 s later, eased both ways."""
-    s.steps += [
-        f"clip add --id {clip} --duration {duration:g}",
-        f"keyframe --clip {clip} --target {target} --property y --time {delay:g} --by -{height} --easing ease-out",
-        f"keyframe --clip {clip} --target {target} --property y --time {delay + 0.36:g} --value 0 --easing ease-in",
-        f"keyframe --clip {clip} --target {target} --property y --time {duration - 0.01:g} --value 0",
-        f'on --event click --target {target} --play {clip}',
-    ]
-
-
-def loop_autoplay(s, clip):
-    s.steps.append(f"clip update --id {clip} --autoplay --loop")
-
-
 def route():
     s = Scene("splash-route", SIZE, SIZE, "Route")
     spots = [(70, 210), (160, 150), (250, 210)]
     for i, (x, y) in enumerate(spots):
         s.glow(f"g{i}", x, y, 38)
         s.add("circle", f"o{i}", x=x, y=y, radius=21, pivot="center", fill=INDIGO)
-        s.crescent(f"o{i}", -4, -4, INDIGO_SH)
+        shade = s.crescent(f"o{i}", -4, -4, INDIGO_SH)
         s.light(f"l{i}", x, y, 6)
-    for i in range(3):
-        hop(s, f"route{i}", f"o{i}", delay=0.2 + i * 0.22)
-        s.steps.append(f"clip update --id route{i} --autoplay --loop")
+        # Halo, locus, its cel shadow and its light hop as one.
+        locus = s.body(f"Locus {i + 1}", [f"g{i}", f"o{i}", shade, f"l{i}"], (x, y))
+        locus.hop(f"route{i}", peak=0.2 + i * 0.22, height=44, duration=2.4)
+        s.steps += [f"on --event click --target o{i} --play route{i}", f'a11y --node o{i} --label "Locus {i + 1}"']
     s.finish("Drei Loci hüpfen nacheinander die Route entlang.")
 
 
@@ -55,18 +48,11 @@ def firefly():
     s = Scene("splash-firefly", SIZE, SIZE, "Glühwürmchen")
     s.glow("halo", 160, 150, 70, strength=0.7)
     body = s.add("circle", "body", x=160, y=150, radius=24, pivot="center", fill=INDIGO)
-    s.crescent(body, -5, -5, INDIGO_SH)
+    shade = s.crescent(body, -5, -5, INDIGO_SH)
     s.light("core", 160, 150, 9)
-    s.steps += [
-        "clip add --id bob --duration 2.6",
-        "keyframe --clip bob --target body --property y --time 1.3 --by -26 --easing ease-in-out",
-        "keyframe --clip bob --target body --property y --time 2.6 --value 0 --easing ease-in-out",
-        "keyframe --clip bob --target halo --property y --time 1.3 --by -26 --easing ease-in-out",
-        "keyframe --clip bob --target halo --property y --time 2.6 --value 0 --easing ease-in-out",
-        "keyframe --clip bob --target core --property y --time 1.3 --by -26 --easing ease-in-out",
-        "keyframe --clip bob --target core --property y --time 2.6 --value 0 --easing ease-in-out",
-        "clip update --id bob --autoplay --loop",
-    ]
+    fly = s.body("Glühwürmchen", ["halo", body, shade, "core"], (160, 150))
+    fly.animate("bob", [(0, "ease-in-out", {"lift": 0}), (1.3, "ease-in-out", {"lift": 26}),
+                        (2.6, "linear", {"lift": 0})])
     groups = []
     for i, x in enumerate((90, 160, 230)):
         s.glow(f"d{i}", x, 260, 16)
@@ -87,28 +73,33 @@ def arch():
     for i, (x, y) in enumerate(spots):
         s.glow(f"g{i}", x, y, 26)
         s.add("circle", f"o{i}", x=x, y=y, radius=11, pivot="center", fill=LIME)
-        hop(s, f"arch{i}", f"o{i}", delay=0.15 + i * 0.25, height=30)
-        s.steps.append(f"clip update --id arch{i} --autoplay --loop")
+        locus = s.body(f"Locus {i + 1}", [f"g{i}", f"o{i}"], (x, y))
+        locus.hop(f"arch{i}", peak=0.15 + i * 0.25, height=30, duration=2.4)
+        s.steps += [f"on --event click --target o{i} --play arch{i}", f'a11y --node o{i} --label "Locus {i + 1}"']
     s.finish("Ein Palast mit drei Loci, die im Eingang hüpfen.")
 
 
 def ball():
     s = Scene("splash-ball", SIZE, SIZE, "Ball")
     s.add("path", "shadow", d=rounded(112, 18, 9), tx=104, ty=253, fill=t.INDIGO_DEEP, opacity=0.35)
-    s.glow("halo", 160, 170, 56, strength=0.5)
-    ball = s.add("circle", "ball", x=160, y=170, radius=34, pivot="center", fill=AMBER)
-    s.crescent(ball, -7, -7, t.AMBER_SH if hasattr(t, "AMBER_SH") else "#B98A3A")
-    s.light("shine", 150, 158, 7)
-    s.steps += [
-        "clip add --id bounce --duration 1.6",
-        "keyframe --clip bounce --target ball --property y --time 0.5 --by -120 --easing ease-out",
-        "keyframe --clip bounce --target ball --property y --time 0.8 --value 0 --easing ease-in",
-        "keyframe --clip bounce --target ball --property scaleY --time 0.8 --value 0.8 --easing ease-out",
-        "keyframe --clip bounce --target ball --property scaleY --time 0.95 --value 1 --easing ease-in-out",
-        "keyframe --clip bounce --target ball --property scaleY --time 1.6 --value 1",
-        "keyframe --clip bounce --target ball --property y --time 1.59 --value 0",
-        "clip update --id bounce --autoplay --loop",
-    ]
+    # The ball rests on its shadow (bottom at y 262) and squashes around that contact point.
+    x, y, r = 160, 228, 34
+    s.glow("halo", x, y, 56, strength=0.5)
+    ball = s.add("circle", "ball", x=x, y=y, radius=r, pivot="center", fill=AMBER)
+    shade = s.crescent(ball, -7, -7, "#B98A3A")
+    s.light("shine", x - 10, y - 12, 7)
+    rubber = s.body("Ball", ["halo", ball, shade, "shine"], (x, y + r))
+    rubber.ground("shadow", opacity=0.35, highest=120)
+    # Stretched while it falls, right down to the contact; it squashes only once it is down.
+    rubber.animate("bounce", [
+        (0, "ease-out", {"lift": 0, "sx": 1, "sy": 1}),             # take-off
+        (0.5, "ease-in", {"lift": 120, "sx": 1, "sy": 1}),          # top, round
+        (0.72, "linear", {"sx": 0.94, "sy": 1.08}),                 # falling fast: stretched
+        (0.79, "ease-out", {"lift": 0, "sx": 0.94, "sy": 1.08}),    # contact, still stretched
+        (0.84, "ease-in-out", {"lift": 0, "sx": 1.12, "sy": 0.8}),  # on the ground: squashed
+        (0.97, "ease-in-out", {"lift": 0, "sx": 1, "sy": 1}),
+        (1.6, "linear", {"lift": 0, "sx": 1, "sy": 1}),
+    ])
     s.finish("Ein Ball hüpft mit Quetschen und Strecken, wie ein Gummiball.")
 
 

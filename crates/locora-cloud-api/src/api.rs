@@ -20,6 +20,22 @@ pub struct Register {
 pub struct Login {
     pub email: String,
     pub password: String,
+    /// The kind of session to start; older clients never send it and get an app session. Older
+    /// servers ignore it and start an app session for every sign-in.
+    #[serde(default)]
+    pub session: SessionKind,
+}
+
+/// How long a session lasts.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionKind {
+    /// The apps and the CLI: 90 days.
+    #[default]
+    App,
+    /// The account site in a browser: at most 12 hours, and it ends after 30 minutes without a
+    /// request (both adjustable on the server).
+    Web,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,11 +85,27 @@ pub struct FriendRequest {
     pub email: String,
 }
 
+/// One entry of `GET /v1/friends`, or the answer of `POST /v1/friends`.
+///
+/// The list holds accepted friends (with their names), requests to this account (with the
+/// sender's name, no `email`), and requests this account sent, among them requests to an address
+/// without a confirmed account (invites): those without a name (`display_name` is empty until the
+/// other side accepts) and with the address that was asked (`email`). So a request not accepted
+/// that has an `email` is one this account sent, one without is one it received. Older servers
+/// send neither `id` nor `email`, and the names of both sides of a request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Friend {
     pub display_name: String,
     /// `true` once both sides accepted.
     pub accepted: bool,
+    /// Opaque and stable for the friendship, request or invite: `DELETE /v1/friends/{id}`
+    /// removes a friend (for both sides), withdraws a request or declines one. Not in the answer
+    /// to a request that is still waiting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// The address asked, for a request this account sent that is still waiting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,7 +272,123 @@ pub struct Usage {
 
 pub use locora_crypto::KeyBundle;
 
+/// `POST /v1/keys` and `PUT /v1/keys`: the bundle's fields, and next to them the key proof
+/// (`Dek::key_proof`, base64 like the bundle). The server keeps only the proof's SHA-256 and
+/// refuses a replacement of the bundle without it once it has one (403); it never returns it.
+/// Older servers ignore the field. `GET /v1/keys` answers a plain [`KeyBundle`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyUpload {
+    #[serde(flatten)]
+    pub bundle: KeyBundle,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_proof: Option<String>,
+}
+
+impl KeyUpload {
+    /// The bundle with the proof of the key it wraps.
+    pub fn new(bundle: KeyBundle, dek: &locora_crypto::Dek) -> Self {
+        use base64::Engine;
+        Self {
+            bundle,
+            key_proof: Some(
+                base64::engine::general_purpose::STANDARD.encode(dek.key_proof().as_ref()),
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorBody {
     pub error: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn a_sign_in_without_a_kind_is_one_of_an_app() {
+        let older: Login =
+            serde_json::from_value(json!({"email": "a@example.com", "password": "pw"})).unwrap();
+        assert_eq!(older.session, SessionKind::App);
+        let web: Login = serde_json::from_value(
+            json!({"email": "a@example.com", "password": "pw", "session": "web"}),
+        )
+        .unwrap();
+        assert_eq!(web.session, SessionKind::Web);
+        assert_eq!(serde_json::to_value(&web).unwrap()["session"], json!("web"));
+        assert!(
+            serde_json::from_value::<Login>(
+                json!({"email": "a@example.com", "password": "pw", "session": "tv"})
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn friends_of_older_servers_and_of_newer_ones_read_alike() {
+        let older: Friend =
+            serde_json::from_value(json!({"display_name": "Ada", "accepted": true})).unwrap();
+        assert_eq!((older.id, older.email), (None, None));
+        let waiting = Friend {
+            display_name: String::new(),
+            accepted: false,
+            id: Some("fr_1".into()),
+            email: Some("ada@example.com".into()),
+        };
+        let value = serde_json::to_value(&waiting).unwrap();
+        assert_eq!(
+            value,
+            json!({"display_name": "", "accepted": false, "id": "fr_1", "email": "ada@example.com"})
+        );
+        assert_eq!(serde_json::from_value::<Friend>(value).unwrap(), waiting);
+        // What a 0.1.5 client reads: unknown fields are ignored.
+        #[derive(Deserialize)]
+        struct OlderFriend {
+            display_name: String,
+            accepted: bool,
+        }
+        let read: OlderFriend = serde_json::to_value(&waiting)
+            .and_then(serde_json::from_value)
+            .unwrap();
+        assert_eq!((read.display_name.as_str(), read.accepted), ("", false));
+        let answer = Friend {
+            display_name: String::new(),
+            accepted: false,
+            id: None,
+            email: Some("ada@example.com".into()),
+        };
+        assert!(serde_json::to_value(&answer).unwrap().get("id").is_none());
+    }
+
+    #[test]
+    fn the_key_proof_travels_next_to_the_bundle_fields() {
+        let account = locora_crypto::create("ein langes geheimes passwort").unwrap();
+        let upload = KeyUpload::new(account.bundle.clone(), &account.dek);
+        let value = serde_json::to_value(&upload).unwrap();
+        for field in ["v", "salt", "wrapped_dek", "recovery_wrapped", "key_proof"] {
+            assert!(value.get(field).is_some(), "{field}");
+        }
+        use base64::Engine;
+        let proof = base64::engine::general_purpose::STANDARD
+            .decode(value["key_proof"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(proof, account.dek.key_proof().as_ref());
+        // An older server reads the body as a plain bundle and ignores the proof.
+        let plain: KeyBundle = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(plain, account.bundle);
+        assert_eq!(serde_json::from_value::<KeyUpload>(value).unwrap(), upload);
+        // An older client sends the bundle alone.
+        let older: KeyUpload =
+            serde_json::from_value(serde_json::to_value(&account.bundle).unwrap()).unwrap();
+        assert_eq!(older.bundle, account.bundle);
+        assert_eq!(older.key_proof, None);
+        assert!(
+            serde_json::to_value(&older)
+                .unwrap()
+                .get("key_proof")
+                .is_none()
+        );
+    }
 }

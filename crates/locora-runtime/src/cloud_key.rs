@@ -131,6 +131,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
         };
         cloud::save(data, &state).unwrap();
     }
