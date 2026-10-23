@@ -60,7 +60,6 @@ pub enum CloudCommand {
     },
     /// Freunde und offene Anfragen anzeigen, jemanden anfragen (E-Mail-Adresse), Freunde entfernen
     /// und Anfragen zurückziehen oder ablehnen
-    #[command(args_conflicts_with_subcommands = true)]
     Friend {
         /// E-Mail-Adresse der Person; ohne Angabe werden Freunde und offene Anfragen gezeigt
         email: Option<String>,
@@ -360,8 +359,18 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             }
             Ok(())
         }
+        // `--data` may stand before the command, so clap lets an address and a command come
+        // together; one of them is meant.
         CloudCommand::Friend {
-            email: Some(email), ..
+            email: Some(email),
+            action: Some(_),
+        } => bail!(
+            "Entweder eine E-Mail-Adresse anfragen oder remove, withdraw oder decline mit einer Kennung, nicht beides ({})",
+            shown::address(&email)
+        ),
+        CloudCommand::Friend {
+            email: Some(email),
+            action: None,
         } => {
             let state = signed_in(&data)?;
             let friend = cloud::request_friend(&state, &email)?;
@@ -725,7 +734,9 @@ fn date(unix: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Entry, Friend, date, entry, friend_lines, other_kind};
+    use super::{
+        CloudCommand, Entry, Friend, FriendCommand, date, entry, friend_lines, other_kind,
+    };
 
     fn friend(name: &str, accepted: bool, id: Option<&str>, email: Option<&str>) -> Friend {
         Friend {
@@ -812,6 +823,86 @@ mod tests {
         assert_eq!(
             other_kind(Entry::Outgoing, "fr_3"),
             "fr_3 ist deine eigene Anfrage. Zurückziehen: locora cloud friend withdraw fr_3"
+        );
+    }
+
+    /// `locora cloud friend …` as the shell passes it, or clap's refusal.
+    fn friend_command(args: &[&str]) -> Result<CloudCommand, clap::Error> {
+        use clap::Parser;
+        let args = ["locora", "cloud", "friend"].iter().chain(args);
+        match crate::Cli::try_parse_from(args)?.command {
+            crate::Command::Cloud(command) => Ok(command),
+            _ => panic!("not a cloud command"),
+        }
+    }
+
+    #[test]
+    fn the_friend_commands_take_the_data_folder_before_and_after_them() {
+        for args in [
+            &["--data", "dir", "remove", "fr_x"][..],
+            &["remove", "fr_x", "--data", "dir"],
+            &["remove", "fr_x"],
+        ] {
+            assert!(
+                matches!(
+                    friend_command(args),
+                    Ok(CloudCommand::Friend {
+                        email: None,
+                        action: Some(FriendCommand::Remove { ref id }),
+                    }) if id == "fr_x"
+                ),
+                "{args:?}"
+            );
+        }
+        for (args, wanted) in [
+            (&["--data", "dir", "withdraw", "fr_y"][..], "withdraw"),
+            (&["--data", "dir", "decline", "fr_y"], "decline"),
+        ] {
+            let action = match friend_command(args) {
+                Ok(CloudCommand::Friend {
+                    email: None,
+                    action: Some(FriendCommand::Withdraw { id }),
+                }) => ("withdraw", id),
+                Ok(CloudCommand::Friend {
+                    email: None,
+                    action: Some(FriendCommand::Decline { id }),
+                }) => ("decline", id),
+                _ => panic!("{args:?} is no {wanted}"),
+            };
+            assert_eq!(action, (wanted, "fr_y".to_owned()));
+        }
+        // An address asks, with the data folder anywhere; none lists.
+        for args in [
+            &["--data", "dir", "ada@example.org"][..],
+            &["ada@example.org", "--data", "dir"],
+        ] {
+            assert!(
+                matches!(
+                    friend_command(args),
+                    Ok(CloudCommand::Friend { email: Some(ref email), action: None })
+                        if email == "ada@example.org"
+                ),
+                "{args:?}"
+            );
+        }
+        assert!(matches!(
+            friend_command(&["--data", "dir"]),
+            Ok(CloudCommand::Friend {
+                email: None,
+                action: None
+            })
+        ));
+        // A command without its id is refused rather than taken for an address.
+        assert!(friend_command(&["--data", "dir", "remove"]).is_err());
+        assert!(friend_command(&["remove"]).is_err());
+        // An address and a command together: refused before anything is sent.
+        let both = friend_command(&["ada@example.org", "remove", "fr_x"]).unwrap();
+        let refused = super::run(both, Some(std::path::Path::new("unused")))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            refused.starts_with("Entweder eine E-Mail-Adresse"),
+            "{refused}"
         );
     }
 
