@@ -10,17 +10,26 @@ and the version stamps say X.Y.Z. Run again, nothing changes.
 
 Then the four animations are inlined as <template>s, so the page has them before
 the wasm starts: no download, nothing to wait for. The page script clones one of them
-at random (the web app mounts the .svg next to the page instead).
+at random (the web app mounts the .svg next to the page instead). The SVG stays as it
+is, CDATA included: an <svg> in an HTML page is foreign content, where the parser
+reads <![CDATA[ ... ]]> as plain text, so the runtime's `<` and `&` stay code. Without
+the wrapper every `<` in it would start a tag and break the script apart.
 
-Only the templates and the list of scene names are replaced; the rest of the page
-(styles, tips, the page script) is edited in index.html itself.
+The apps' content security policy (apps/app/src-tauri/tauri.conf.json) lets these
+scripts run: Tauri adds the hashes of the page's inline scripts at build time, but not
+of scripts inside a <template>, so the sha256 sources of its `script-src` are the
+splash scripts' and are written here.
+
+Only the templates, the list of scene names and those hashes are replaced; the rest of
+the page (styles, tips, the page script) is edited in index.html itself.
 """
-import glob, os, re
+import base64, glob, hashlib, json, os, re
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 UI = os.path.join(ROOT, "apps", "app", "ui")
 SPLASH = os.path.join(UI, "splash")
 PAGE = os.path.join(UI, "index.html")
+TAURI = os.path.join(ROOT, "apps", "app", "src-tauri", "tauri.conf.json")
 VENDOR = os.path.join(ROOT, "crates", "locora-app-core", "vendor")
 
 
@@ -51,13 +60,37 @@ def use_runtime(svg, version, code):
 
 
 def inline_svg(path):
+    """(the <svg> element of `path`, the code of its script)."""
     text = open(path, encoding="utf-8").read()
     svg = text[text.index("<svg"): text.rindex("</svg>") + len("</svg>")]
-    # The CDATA wrapper is XML; inside an HTML script it would be a syntax error.
-    svg = svg.replace("<![CDATA[", "", 1)
-    svg = re.sub(r"\]\]>(\s*</script>)", r"\1", svg, count=1)
-    assert "CDATA" not in svg and "</template" not in svg
-    return svg
+    # One script, all of its code inside one CDATA section (see the top of this file).
+    tag = re.compile(r"<script[^>]*>").search(svg)
+    close = svg.find("]]></script>")
+    if (not tag or not svg.startswith("<![CDATA[", tag.end()) or svg.count("]]>") != 1 or close < 0
+            or "<script" in svg[:tag.start()] + svg[close:]):
+        raise SystemExit(f"{path}: expected one script with all of its code in CDATA")
+    assert "</template" not in svg
+    return svg, svg[tag.end() + len("<![CDATA["):close]
+
+
+def csp_hash(code):
+    """The CSP source that allows the inline script `code` (the browser hashes the script's
+    text, with its line breaks as the HTML parser leaves them)."""
+    code = code.replace("\r\n", "\n").replace("\r", "\n")
+    return "'sha256-" + base64.b64encode(hashlib.sha256(code.encode("utf-8")).digest()).decode() + "'"
+
+
+def allow_scripts(hashes):
+    """The sha256 sources of `script-src` in tauri.conf.json become `hashes`."""
+    conf = open(TAURI, encoding="utf-8").read()
+    line = re.compile(r'("script-src": ")([^"]*)(")')
+    if len(line.findall(conf)) != 1:
+        raise SystemExit(f"{TAURI}: expected one \"script-src\"")
+    keep = lambda sources: [s for s in sources.split() if not s.startswith("'sha256-")]  # noqa: E731
+    conf = line.sub(lambda m: m.group(1) + " ".join(keep(m.group(2)) + hashes) + m.group(3), conf)
+    sources = json.loads(conf)["app"]["security"]["csp"]["script-src"].split()
+    assert sources[-len(hashes):] == hashes
+    open(TAURI, "w", encoding="utf-8").write(conf)
 
 
 def main():
@@ -70,9 +103,9 @@ def main():
             open(path, "w", encoding="utf-8").write(swapped)
             print("runtime", version, "in", os.path.relpath(path, ROOT))
     names = [os.path.splitext(os.path.basename(f))[0] for f in files]
+    inlined = [inline_svg(path) for path in files]
     templates = "\n".join(
-        f'  <template id="{name}">\n{inline_svg(path)}\n  </template>'
-        for name, path in zip(names, files)
+        f'  <template id="{name}">\n{svg}\n  </template>' for name, (svg, _) in zip(names, inlined)
     )
     page = open(PAGE, encoding="utf-8").read()
     # From the first splash template to the end of the last one.
@@ -84,6 +117,10 @@ def main():
     page = scenes.sub(lambda _: f"var scenes = {names!r};", page)
     open(PAGE, "w", encoding="utf-8").write(page)
     print("wrote", os.path.relpath(PAGE, ROOT), "with", len(names), "splash animations")
+    # The scenes share one script (the runtime), so this is usually one hash.
+    hashes = sorted({csp_hash(code) for _, code in inlined})
+    allow_scripts(hashes)
+    print("allowed", " ".join(hashes), "in", os.path.relpath(TAURI, ROOT))
 
 
 if __name__ == "__main__":
