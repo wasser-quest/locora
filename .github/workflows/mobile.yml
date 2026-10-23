@@ -29,12 +29,12 @@ jobs:
       run:
         working-directory: apps/app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         with:
           # The default also installs `tools`, which the SDK no longer offers.
           packages: platform-tools
@@ -58,7 +58,7 @@ jobs:
       # Generated projects are disposable: the script uses the pinned CLI templates.
       - name: Build debug APK (includes Trunk frontend)
         run: ./scripts/build-android.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: locora-android-arm64-debug
           path: apps/app/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
@@ -75,7 +75,7 @@ jobs:
       run:
         working-directory: apps/app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check Xcode and simulator SDK
         run: |
           xcodebuild -version
@@ -120,7 +120,7 @@ jobs:
           app="src-tauri/gen/apple/build/$IOS_ARCH/Locora.app"
           test -d "$app"
           ditto -c -k --sequesterRsrc --keepParent "$app" locora-ios-simulator.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: locora-ios-simulator
           path: apps/app/locora-ios-simulator.zip
