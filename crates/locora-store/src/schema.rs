@@ -105,6 +105,12 @@ const MIGRATIONS: &[&str] = &[
         quarantined INTEGER NOT NULL DEFAULT 0 CHECK(quarantined IN (0, 1)));",
     // 14: an optional sound clip per locus, played with the answer
     "ALTER TABLE loci ADD COLUMN audio TEXT REFERENCES media(hash);",
+    // 15: a revision per plugin key, so a plugin can read only what changed (`storage.list@1`),
+    // also by a sync. Existing keys are numbered once in their insertion order.
+    "ALTER TABLE kv ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
+     UPDATE kv SET rev = rowid;
+     INSERT INTO meta(key, value) SELECT 'kv.rev', CAST(COALESCE(MAX(rev), 0) AS TEXT) FROM kv;
+     CREATE INDEX kv_rev ON kv(plugin, rev);",
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -188,5 +194,15 @@ mod tests {
             .query_row("SELECT audio FROM loci", [], |r| r.get(0))
             .unwrap();
         assert_eq!(audio, None, "existing loci have no sound clip");
+        let rev: i64 = conn
+            .query_row("SELECT rev FROM kv WHERE plugin='review'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rev, 1, "existing plugin keys get a revision");
+        let counter: String = conn
+            .query_row("SELECT value FROM meta WHERE key='kv.rev'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(counter, "1");
     }
 }

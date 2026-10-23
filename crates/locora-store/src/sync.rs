@@ -478,10 +478,11 @@ fn kv_set(conn: &Connection, op: &RemoteOp) -> Result<Outcome> {
         return Ok(Outcome::Stale);
     }
     let value = unhex(text_field(op, "value")?)?;
+    let rev = crate::next_kv_rev(conn)?;
     conn.execute(
-        "INSERT INTO kv(plugin, key, value) VALUES (?1, ?2, ?3)
-         ON CONFLICT(plugin, key) DO UPDATE SET value = excluded.value",
-        params![plugin, key, value],
+        "INSERT INTO kv(plugin, key, value, rev) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(plugin, key) DO UPDATE SET value = excluded.value, rev = excluded.rev",
+        params![plugin, key, value, rev],
     )?;
     stamp(conn, "kv", &op.entity_id, "value", &op.hlc)?;
     Ok(Outcome::Applied)

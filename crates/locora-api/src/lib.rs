@@ -13,7 +13,7 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// Plugin API version implemented by this crate.
-pub const API_VERSION: &str = "0.6";
+pub const API_VERSION: &str = "0.7";
 
 /// A typed event with a stable topic name.
 pub trait Event: Serialize + DeserializeOwned {
@@ -40,6 +40,7 @@ pub trait Hook {
 
 pub mod journey;
 pub mod palaces;
+pub mod storage;
 
 /// Encode an event payload.
 pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, postcard::Error> {
@@ -262,6 +263,45 @@ pub mod core {
         const TOPIC: &'static str = "core.journey.learning_day_answer";
     }
 
+    /// Whether an answered locus was due for review when it was answered.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Timing {
+        /// Its review was due (or no review plugin schedules it).
+        Due,
+        /// Never answered before: a new locus.
+        New,
+        /// Answered before its review was due (practice).
+        Early,
+    }
+
+    /// An answer with what the runtime knows about it: the review state before the answer,
+    /// the local learning day and who answered (this device, the current game epoch).
+    /// Published before [`LocusAnswered`], so the card state is the one before this answer.
+    /// A new type and topic, so the layouts of the older answer events stay intact.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct ReviewedAnswer {
+        pub palace_id: String,
+        pub locus_id: String,
+        pub kind: crate::journey::AnswerKind,
+        pub grade: Grade,
+        pub correct: bool,
+        pub timing: Timing,
+        /// Seconds since the Unix epoch.
+        pub answered_at: u64,
+        /// Start of the learning day, seconds since the Unix epoch.
+        pub day_start: u64,
+        /// The local date of the learning day, `YYYY-MM-DD`.
+        pub day: String,
+        /// The game epoch (changes when the game progress is deleted), `0` before any reset.
+        pub epoch: String,
+        /// This device's id in the operation log.
+        pub device: String,
+    }
+
+    impl Event for ReviewedAnswer {
+        const TOPIC: &'static str = "core.journey.reviewed";
+    }
+
     /// A journey was finished.
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     pub struct JourneyCompleted {
@@ -344,6 +384,200 @@ pub mod gamification {
         const NAME: &'static str = "gamification.status@1";
         type Request = StatusRequest;
         type Response = StatusResponse;
+    }
+
+    impl Trophy {
+        /// The stable id of a trophy (also used by `status@2`).
+        pub fn id(self) -> &'static str {
+            match self {
+                Trophy::FirstJourney => "first-journey",
+                Trophy::PerfectJourney => "perfect-journey",
+                Trophy::HundredXp => "hundred-xp",
+                Trophy::SevenDayStreak => "seven-day-streak",
+            }
+        }
+    }
+
+    /// Strength of one palace from its review cards: how many of its loci hold for at least
+    /// 7, 30 and 180 days (FSRS stability). Computed by the runtime.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct PalaceStrength {
+        pub palace_id: String,
+        pub loci: u32,
+        pub hold_7: u32,
+        pub hold_30: u32,
+        pub hold_180: u32,
+    }
+
+    /// Progress derived from the synced facts of every device (`gamification.status@2`).
+    pub struct StatusV2;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct StatusV2Request {
+        /// The local date of the learning day, `YYYY-MM-DD`.
+        pub day: String,
+        pub day_start: u64,
+        /// The game epoch (see `ReviewedAnswer`) and this device's id.
+        pub epoch: String,
+        pub device: String,
+        /// Reviews due now that were not reviewed yet today, over all palaces.
+        pub due_open: u32,
+        /// Whether any locus has a review schedule (a day with nothing due counts only then).
+        pub has_cards: bool,
+        /// Strength per palace; `None` when the caller does not need palace medals.
+        pub palaces: Option<Vec<PalaceStrength>>,
+    }
+
+    /// Today's goal: the due reviews.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Goal {
+        /// Due reviews are open.
+        Open,
+        /// Every due review is done.
+        AllDone,
+        /// Nothing was due: a free day.
+        Free,
+        /// A long backlog: enough for today (see [`ENOUGH`]).
+        Enough,
+    }
+
+    /// Due reviews after which a backlog counts as enough for one day.
+    pub const ENOUGH: u32 = 50;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Today {
+        pub due_done: u32,
+        pub due_open: u32,
+        pub new_done: u32,
+        pub goal: Goal,
+    }
+
+    /// The weekly rhythm: learning days this ISO week against the chosen goal.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Week {
+        pub days: u32,
+        pub goal: u8,
+        /// Weeks in a row that reached their goal (the current week counts once reached, and
+        /// does not break the run before it ends).
+        pub streak: u32,
+        pub best: u32,
+        /// The previous week did not reach its goal (and some week did before).
+        pub missed_last: bool,
+    }
+
+    /// An earned trophy and the learning day it was earned on (`None` for trophies from
+    /// before the sync, whose day is not known).
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Earned {
+        pub id: String,
+        pub day: Option<String>,
+    }
+
+    /// One medal level of one palace: `level` is 7, 30 or 180 days.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct PalaceMedal {
+        pub palace_id: String,
+        pub level: u16,
+        pub loci: u32,
+        /// Loci that hold for `level` days or more now.
+        pub hold: u32,
+        /// The learning day it was first earned on any device.
+        pub unlocked: Option<String>,
+    }
+
+    /// This journey on this device (kept in memory only).
+    #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct SessionView {
+        pub xp: u64,
+        pub due: u32,
+        pub new: u32,
+        pub early: u32,
+        /// Right Quiz and Guess answers in a row.
+        pub combo: u32,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct StatusV2Response {
+        pub xp: u64,
+        pub today: Today,
+        pub week: Week,
+        pub learning_days: u32,
+        pub trophies: Vec<Earned>,
+        /// Trophies that can still be earned.
+        pub locked: Vec<String>,
+        pub palace_medals: Vec<PalaceMedal>,
+        pub session: Option<SessionView>,
+        /// The one-time explanation was dismissed (on any device).
+        pub intro_seen: bool,
+    }
+
+    impl Service for StatusV2 {
+        const NAME: &'static str = "gamification.status@2";
+        type Request = StatusV2Request;
+        type Response = StatusV2Response;
+    }
+
+    /// A one-time hint was dismissed (`gamification.seen@1`).
+    pub struct Seen;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct SeenRequest {
+        pub hint: String,
+    }
+
+    impl Service for Seen {
+        const NAME: &'static str = "gamification.seen@1";
+        type Request = SeenRequest;
+        type Response = bool;
+    }
+
+    /// Takes over this device's progress from before the sync, once (`gamification.migrate@1`).
+    /// `days` are the local dates of the learning days in the review log. Answers whether
+    /// anything was written.
+    pub struct Migrate;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct MigrateRequest {
+        pub device: String,
+        pub days: Vec<String>,
+    }
+
+    impl Service for Migrate {
+        const NAME: &'static str = "gamification.migrate@1";
+        type Request = MigrateRequest;
+        type Response = bool;
+    }
+
+    /// The game progress was deleted: `epoch` is the new epoch (`gamification.reset@1`).
+    /// Answers how many stored facts were emptied.
+    pub struct Reset;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct ResetRequest {
+        pub epoch: String,
+        pub device: String,
+    }
+
+    impl Service for Reset {
+        const NAME: &'static str = "gamification.reset@1";
+        type Request = ResetRequest;
+        type Response = u32;
+    }
+
+    /// Learning days per week the learner aims for, from `week` (ISO `YYYY-Www`) on
+    /// (`gamification.week_goal@1`).
+    pub struct WeekGoal;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct WeekGoalRequest {
+        pub days: u8,
+        pub week: String,
+    }
+
+    impl Service for WeekGoal {
+        const NAME: &'static str = "gamification.week_goal@1";
+        type Request = WeekGoalRequest;
+        type Response = u8;
     }
 }
 

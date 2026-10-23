@@ -338,3 +338,71 @@ fn a_deleted_room_is_deleted_on_the_other_device() {
         "loci of the room go with it: {tur}"
     );
 }
+
+#[test]
+fn plugin_keys_get_a_revision_for_every_local_and_applied_write() {
+    let (_a_dir, a) = device();
+    let (_b_dir, b) = device();
+    let (_c_dir, c) = device();
+    a.kv_set("game", "fact/a", b"1").unwrap();
+    let first = a.kv_list("game", "", 0, 100).unwrap();
+    assert_eq!(first.entries, vec![("fact/a".to_owned(), b"1".to_vec())]);
+    assert!(!first.more);
+    // The same bytes again are no change; new bytes are.
+    a.kv_set("game", "fact/a", b"1").unwrap();
+    assert!(
+        a.kv_list("game", "", first.rev, 100)
+            .unwrap()
+            .entries
+            .is_empty()
+    );
+    a.kv_set("game", "fact/a", b"2").unwrap();
+    let second = a.kv_list("game", "", first.rev, 100).unwrap();
+    assert_eq!(second.entries, vec![("fact/a".to_owned(), b"2".to_vec())]);
+    assert!(second.rev > first.rev);
+
+    // An older operation that arrives after a newer one still counts as a change here.
+    b.kv_set("game", "fact/b", b"b").unwrap();
+    c.apply_remote(&ship(&b, 0)).unwrap();
+    let seen = c.kv_list("game", "", 0, 100).unwrap();
+    assert_eq!(seen.entries, vec![("fact/b".to_owned(), b"b".to_vec())]);
+    c.apply_remote(&ship(&a, 0)).unwrap();
+    let late = c.kv_list("game", "", seen.rev, 100).unwrap();
+    assert_eq!(late.entries, vec![("fact/a".to_owned(), b"2".to_vec())]);
+    // Replayed operations change nothing and are not listed again.
+    c.apply_remote(&ship(&a, 0)).unwrap();
+    assert!(
+        c.kv_list("game", "", late.rev, 100)
+            .unwrap()
+            .entries
+            .is_empty()
+    );
+}
+
+#[test]
+fn listing_keeps_to_one_plugin_and_prefix_includes_blanked_keys_and_pages() {
+    let (_dir, store) = device();
+    store.kv_set("game", "g/0/day/x", b"1").unwrap();
+    store.kv_set("other", "g/0/day/y", b"1").unwrap();
+    store.kv_set("game", "seen/intro", b"1").unwrap();
+    store.kv_set("game", "g/0/day/x", b"").unwrap();
+    let listed = store.kv_list("game", "g/", 0, 100).unwrap();
+    assert_eq!(listed.entries, vec![("g/0/day/x".to_owned(), Vec::new())]);
+    for n in 0..5 {
+        store
+            .kv_set("game", &format!("g/1/{n}"), &[n as u8 + 1])
+            .unwrap();
+    }
+    let page = store.kv_list("game", "g/1/", 0, 3).unwrap();
+    assert!(page.more);
+    assert_eq!(page.entries.len(), 3);
+    let rest = store.kv_list("game", "g/1/", page.rev, 3).unwrap();
+    assert!(!rest.more);
+    let keys: Vec<&str> = page
+        .entries
+        .iter()
+        .chain(&rest.entries)
+        .map(|(key, _)| key.as_str())
+        .collect();
+    assert_eq!(keys, ["g/1/0", "g/1/1", "g/1/2", "g/1/3", "g/1/4"]);
+}
