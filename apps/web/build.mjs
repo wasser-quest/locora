@@ -139,12 +139,14 @@ html = html.replace(
     // app has these files; the desktop and Android apps use the splash templates and frames instead.
     `\n    <script src="shell/splinely.js"></script>\n    <script src="shell/splinely-mount.js"></script>\n    <script src="shell/sply-bridge.js"></script>`,
 );
-// 4. Installable as an app: the manifest, the icons, and the links that browsers look for.
+// 4. Installable as an app: the manifest, the icons, and the links that browsers look for. The tab
+// shows the website's favicon, an SVG without scripts (img-src 'self' allows it, and as a file in
+// shell/icons the service worker stores it); browsers without SVG favicons take the PNG.
 copyFileSync(join(shell, 'manifest.webmanifest'), join(out, 'manifest.webmanifest'));
 cpSync(join(shell, 'icons'), join(out, 'shell', 'icons'), { recursive: true });
 html = html.replace(
   '<head>',
-  `<head>\n    <link rel="manifest" href="manifest.webmanifest" />\n    <meta name="theme-color" content="#16173a" />\n    <link rel="icon" type="image/png" sizes="192x192" href="shell/icons/icon-192.png" />\n    <link rel="apple-touch-icon" href="shell/icons/apple-touch-icon.png" />`,
+  `<head>\n    <link rel="manifest" href="manifest.webmanifest" />\n    <meta name="theme-color" content="#16173a" />\n    <link rel="icon" type="image/png" sizes="192x192" href="shell/icons/icon-192.png" />\n    <link rel="icon" type="image/svg+xml" href="shell/icons/favicon.svg" />\n    <link rel="apple-touch-icon" href="shell/icons/apple-touch-icon.png" />`,
 );
 
 // The files are copied with the modes of their sources (some are 0600): the server must read them.
