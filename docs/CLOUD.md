@@ -15,6 +15,28 @@ Konflikte löst jedes Feld für sich: die spätere Änderung gewinnt (HLC, Last-
 Gelöschtes bleibt als Grabstein (Tombstone) gelöscht, auch wenn ein anderes Gerät später noch
 eine ältere Änderung schickt.
 
+Der Spielfortschritt verliert dabei nichts: jedes Gerät schreibt eigene Fakten unter eigenen
+Schlüsseln und ergänzt sie nur, die Summen leitet jedes Gerät daraus ab (siehe
+[`PLAN.md`](PLAN.md), 4.7). Im Browser liegt er dafür im Profil des Kerns, nicht in IndexedDB.
+
+## Spielfortschritt löschen
+
+- „Spielfortschritt löschen“ in den Einstellungen (CLI: `locora game reset`) schreibt eine neue
+  **Epoche** (`host/game-epoch`, ein Schlüssel, die letzte Löschung gewinnt). Nur Fakten der
+  aktuellen Epoche zählen. Jedes Gerät leert ältere, sobald es die neue sieht; was ein Gerät
+  offline unter der alten Epoche gesammelt hat, zählt auch dann nicht, wenn es erst später ankommt.
+  Löschen zwei Geräte gleichzeitig, gilt das spätere.
+- Ist das Gerät angemeldet, bittet es den Server, die Spielpunkte des Kontos für die Ranglisten
+  zu löschen: `DELETE /v1/game/data` mit der Sitzung (204: erledigt, auch wenn nichts da war).
+  Ein älterer Server kennt das nicht (404/405): die Ranglisteneinträge bleiben, bis er
+  aktualisiert ist, und die App sagt das. Ohne Antwort (Netz, 5xx) oder bei 401 merkt sich das
+  Gerät die Bitte (`game_delete_pending` in `cloud.json`, nur lokal) und stellt sie am Anfang
+  jedes Syncs erneut; Abmelden und Konto löschen vergessen sie. Nur das Gerät, das gelöscht hat,
+  fragt, damit spätere Punkte nicht von einem nachzüglerischen Gerät gelöscht werden.
+- Die älteren verschlüsselten Änderungen bleiben im Protokoll des Servers, bis du „Daten in der
+  Cloud löschen“ wählst; lesen kann sie dort niemand. Danach sendet das Gerät seinen Stand neu,
+  mit der neuen Epoche: ein neues Gerät beginnt bei 0.
+
 ## Drei Geheimnisse
 
 | | Wofür | Wer kennt es |
@@ -91,6 +113,8 @@ aufgeschlossenen Schlüssel auf dem Gerät:
   synchronisierten Änderungen und Medien auf dem Server; die Daten auf den Geräten bleiben, und
   angemeldete Geräte laden ihren Stand beim nächsten Sync wieder hoch.
 - „Konto endgültig löschen“ entfernt das Konto mit allen Daten vom Server und meldet das Gerät ab.
+- Ranglisteneinträge gehören nicht zu den synchronisierten Daten: „Daten in der Cloud löschen“
+  lässt sie stehen; „Spielfortschritt löschen“ (oben) entfernt sie.
 
 ## Grenzen
 
@@ -124,8 +148,9 @@ Das Bezahlen selbst (Paddle) ist noch nicht gebaut, siehe [`OFFEN.md`](OFFEN.md)
 ## Wo es im Code steht
 
 - `crates/locora-runtime`: `cloud.rs` (Sitzung, Freischaltung, Server-Adresse
-  `https://api.locora.cloud`), `sync_flow.rs` und `cloud_sync.rs` (der Sync), `cloud_key.rs`
-  (der behaltene Schlüssel), `cloud_http.rs` (HTTP und Meldungen)
+  `https://api.locora.cloud`, `erase_game_call`), `sync_flow.rs` und `cloud_sync.rs` (der Sync,
+  auch die erneute Löschbitte), `cloud_key.rs` (der behaltene Schlüssel), `cloud_http.rs` (HTTP
+  und Meldungen), `game.rs` (Epoche, Übernahme des alten Stands, Löschen)
 - `crates/locora-store/src/outbox.rs`: Ausgang, Zusammenfassen und Übersicht nach Palast
 - `crates/locora-crypto`: Verschlüsselung; `crates/locora-cloud-api`: Typen der API
 - App: `apps/app/ui/src/cloud_settings.rs`, `cloud_sync_form.rs`, `auto_sync.rs`;

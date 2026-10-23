@@ -14,6 +14,8 @@ All graphics are made with [Splinely](https://splinely.com) via `splinely-cli` a
 | `tutorial/locora-lernen.locora.toml` | The tutorial palace itself; every place shows a `.sply` (Simo and the firefly come from `mascot/`). Built into the CLI: `locora tutorial`. |
 | `marker/locus.sply` | Default locus marker: a glowing point with the states `neu`, `faellig`, `gewusst` (state machine `status`). The app places it at every locus; backdrops never contain loci. Built by `marker/src/marker.py`. |
 | `ui/erfolg-lernen-*.sply`, `ui/erfolg-tour*.sply`, `ui/erfolg-palast*.sply` | Medals of „Mnemotechnik lernen“ (one per lesson, in the colour of the character who teaches it, with a topic symbol, plus „all lessons“), of the finished app tour and of the first own palace; grey `-gesperrt` versions while locked (the lessons share one). Built by `ui/src/medaillen.py`. |
+| `ui/erfolg-spiel-*.sply` | Journey trophies of the gamification plugin, nine-pointed: first journey (Simo, steps), 100 XP (Cami, bolt), 7 learning days (Mina, clock), every due review done (Hafiza, flag), weekly goal 4 times (Bruno, cycle), flawless journey from earlier versions (amber, crown); one grey `erfolg-spiel-gesperrt` while locked. Built by `ui/src/medaillen.py`. |
+| `ui/erfolg-gefestigt-*.sply` | Palace medals from the review schedule, in Bruno's green with more points for longer: Anchored (7 days, anchor, 7 points), Consolidated (30 days, castle, 8), Lasting (180 days, temple, 10); grey `erfolg-gefestigt-gesperrt` while locked. Built by `ui/src/medaillen.py`. |
 | `brand/icon.sply` | App icon: a palace arch with a route of glowing loci and the firefly's light. |
 
 Style guide: [`STIL.md`](STIL.md) (German).

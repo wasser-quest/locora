@@ -2,12 +2,38 @@
 
 Plugins are WASI components (`wasm32-wasip2`). `#[locora_plugin]` generates the
 manifest and component exports. Import `locora_sdk::prelude::*` for the typed API.
-The host and plugins currently speak API/WIT **0.6**; rebuild older components.
+The host and plugins currently speak API **0.7** (WIT 0.6); 0.6 components keep loading, older
+ones must be rebuilt.
 0.3 introduced filter/call imports and the filter export; 0.4 adds answer fields
 to palace DTOs, changing their Postcard layout. 0.5 adds `Answer.accept`
 (further Guess answers) and `note` to palace loci – again a new layout. 0.6 adds the locus
 picture (`image`, a media hash, and `image_size`) and `zoom` to `Locus`,
 `NewLocus` and `LocusPatch`. JSON defaults do not make that binary layout compatible. Neither 0.2–0.5 components can simply be relabelled.
+0.7 only adds: the host service `storage.list@1`, the event `core.journey.reviewed` and the
+services of the synced game (`gamification.status@2` and its siblings).
+
+## Storage: what changed since last time
+
+Plugin storage is a key-value namespace of its own, kept in the profile and synced with Locora
+Cloud key by key (the later write wins). `ctx.store().list(prefix, after_rev)` (host service
+`storage.list@1`, needs `storage`) returns this plugin's keys that start with `prefix` and changed
+after the revision `after_rev`, in the order they changed, with their bytes – also changes a sync
+applied, and keys blanked with empty bytes. Pass the returned `rev` next time; while `more` is set,
+another call returns the rest (5000 per page, prefix at most 200 bytes). A plugin can keep a mirror
+of its namespace this way and only read what is new. No plugin can provide this service.
+
+```rust
+let mut rev = 0;
+loop {
+    let page = ctx.store().list("facts/", rev)?;
+    for entry in page.entries { /* entry.key, entry.value (empty: blanked) */ }
+    rev = page.rev;
+    if !page.more { break; }
+}
+```
+
+Data that several devices change at once should be facts under keys of each device that only
+grow (see `plugins/gamification`), not one counter that every device overwrites.
 
 ## Host-driven filter chains
 

@@ -122,6 +122,7 @@ Stand: 22.10.2026
 - [x] Combo, Herzen und Trophäen als `.sply`-Grafiken in der Journey darstellen
 - [x] Lernserie mit eigener `.sply`-Grafik in der Journey darstellen
 - [x] Lernserie auch in der Gamification-Kachel auf der Startseite darstellen
+- [x] Neue Spielregeln (Plugin 0.2.0, PLAN 4.7): XP für fällige Wiederholungen (10) und neue Orte (6) pro Ort und Lerntag, egal wie bewertet; früheres Üben bringt nichts; keine Herzen; Combo nur bei Quiz und Guess; Tagesziel = das Fällige (ab 50 bei Rückstand erreicht); selbst gewähltes Wochenziel statt Tagesserie; Trophäen mit Datum; Palastmedaillen aus der FSRS-Stabilität mit eigenen `.sply`-Medaillen; Abschlusskarte mit XP und nächster Wiederholung; einmalige Erklärung in der Journey; „Fortschritt“-Seite in allen Sprachen; keine Benachrichtigungen aus der Gamification
 - [x] Privates Repo `locora-cloud` (axum + Postgres, `wasser-quest/locora-cloud`): Konten, Sitzungen, Ranglisten, Freunde, Challenges, Sync, Medien; Tests gegen PostgreSQL
 - [ ] Bezahlen über Paddle (Merchant of Record), **nur im Web**: 5 €/Monat oder 48 €/Jahr; nur bestätigte Adressen kaufen, die Konto-ID geht durch den Checkout. Kein In-App-Kauf: die nativen Apps zeigen nie Preise, Kaufknöpfe oder Links zu einer Kasse (Store-Regeln gegen Steering); `apps/app/ui/src/store_rules.rs` prüft das in den Tests. Der Webhook des Servers ist anbieterneutral; Konto und Vertrag bei Paddle fehlen
 - [x] Ed25519-Entitlements mit 14 Tagen Offline-Kulanz: der Server stellt sie aus, `locora cloud status` prüft sie ohne Netz
@@ -136,7 +137,11 @@ Stand: 22.10.2026
   - Offen: Wiederherstellen mit dem Wiederherstellungsschlüssel gibt es nur in der CLI (`locora cloud encrypt recover`), nicht in der App
   - Offen: Android hält den Auto-Sync-Schlüssel über den Android Keystore verschlüsselt in den privaten Einstellungen der App (`android-native-keyring-store`); auf einem echten Gerät prüfen, auch nach Neuinstallation und Sicherung
   - Erledigt für neu gebaute Paläste: Tutorial und Formel-Guide erhalten geräteübergreifend feste Kennungen für Palast, Räume und Loci. Bereits vorhandene Profile brauchen einen bewusst ausgelösten Neuaufbau; dieser setzt ihren bisherigen Wiederholungsstand zurück.
-  - Offen: Gamification-Fortschritt wird noch als Ganzwert per LWW repliziert. Verlustfreies Zusammenführen braucht eindeutige Fortschrittsereignisse und eine Migration; alte Clients müssten für Sync aktualisiert werden.
+  - Erledigt: Gamification-Fortschritt wird verlustfrei zusammengeführt: Fakten pro Gerät unter eigenen Schlüsseln, aus denen XP, Lerntage, Wochen und Trophäen abgeleitet werden (`storage.list@1`, `core.journey.reviewed`); der alte Stand wird einmal pro Gerät übernommen (größter Wert, nie die Summe); im Browser liegt der Spielstand jetzt im Profil des Kerns und wird mitsynchronisiert (vorher nur in IndexedDB). Ältere App-Versionen zeigen bis zum Update ihre alten Zahlen.
+  - Erledigt: „Spielfortschritt löschen“ (Einstellungen, `locora game reset`): neue Epoche, die gegen später eintreffende alte Fakten gewinnt; auf allen Geräten geleert; Ranglistenpunkte werden auf dem Server gelöscht (`DELETE /v1/game/data`, bei fehlender Antwort beim nächsten Sync erneut)
+  - Offen: Der Wiederholungsplan im Browser liegt weiter nur in IndexedDB und wird nicht synchronisiert (wie zuvor); dafür müsste auch `review` seinen Speicher im Kern führen
+  - Offen: Karten und Antwortlog von `review` sind je Palast ein LWW-Wert (`cards/<palast>`, `log/<palast>/<n>`); lernen zwei Geräte offline im selben Palast, gewinnt ein Stand. Braucht dasselbe Faktenmodell wie die Gamification
+  - Offen: eine Wiederholungsrunde für heute falsch Beantwortetes („relearn“) und ein Coach für immer wieder vergessene Orte („leech“)
 - [ ] Plugin-Verzeichnis, WASM-Plugins von Dritten mit deklarativer UI, Store-Prüfung für iOS/Android
 
 ## Locora Cloud: als Nächstes
