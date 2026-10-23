@@ -432,6 +432,9 @@ def regal():
         # The eye closes around its centre, pupil and shine with it; pupil and shine look the same way.
         eye = s.body(f"Auge {side}", [f"eye_{side}", f"pupil_{side}", f"shine_{side}"], (x, 180))
         shut += eye.states("scaleY", 0.1)
+        # `follow` still offsets pupil and shine while the lid is shut: they fade out, so they
+        # never sit on the cover above or below the closed eye.
+        shut += [f"--state {n}_{side}.opacity=0" for n in ("pupil", "shine")]
         s.steps += [f"follow --target {n}_{side} --max 6 --strength 0.15 --smoothing 0.1 --origin {x},180"
                     for n in ("pupil", "shine")]
     s.add("path", "mouth", d="M-26 0 Q 0 26 26 0 L22 6 Q 0 30 -22 6 Z", tx=192, ty=240, fill="#1E0B02")

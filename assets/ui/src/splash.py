@@ -90,12 +90,14 @@ def ball():
     s.light("shine", x - 10, y - 12, 7)
     rubber = s.body("Ball", ["halo", ball, shade, "shine"], (x, y + r))
     rubber.ground("shadow", opacity=0.35, highest=120)
+    # Stretched while it falls, right down to the contact; it squashes only once it is down.
     rubber.animate("bounce", [
-        (0, "ease-out", {"lift": 0, "sx": 1, "sy": 1}),          # take-off
-        (0.5, "ease-in", {"lift": 120, "sx": 1, "sy": 1}),       # top, round
-        (0.74, "linear", {"sx": 0.94, "sy": 1.08}),              # falling fast: stretched
-        (0.8, "ease-out", {"lift": 0, "sx": 1.12, "sy": 0.8}),   # landing: squashed
-        (0.95, "ease-in-out", {"lift": 0, "sx": 1, "sy": 1}),
+        (0, "ease-out", {"lift": 0, "sx": 1, "sy": 1}),             # take-off
+        (0.5, "ease-in", {"lift": 120, "sx": 1, "sy": 1}),          # top, round
+        (0.72, "linear", {"sx": 0.94, "sy": 1.08}),                 # falling fast: stretched
+        (0.79, "ease-out", {"lift": 0, "sx": 0.94, "sy": 1.08}),    # contact, still stretched
+        (0.84, "ease-in-out", {"lift": 0, "sx": 1.12, "sy": 0.8}),  # on the ground: squashed
+        (0.97, "ease-in-out", {"lift": 0, "sx": 1, "sy": 1}),
         (1.6, "linear", {"lift": 0, "sx": 1, "sy": 1}),
     ])
     s.finish("Ein Ball hüpft mit Quetschen und Strecken, wie ein Gummiball.")

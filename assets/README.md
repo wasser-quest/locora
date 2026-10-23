@@ -28,6 +28,6 @@ SPLINELY_CLI=splinely-cli python3 tutorial/src/tutorial.py                      
 SPLINELY_CLI=splinely-cli python3 ui/src/ui.py && SPLINELY_CLI=splinely-cli python3 ui/src/medaillen.py   # UI graphics and medals
 SPLINELY_CLI=splinely-cli python3 ui/src/splash.py   # start splash; then export and inline it:
 for n in route firefly arch ball; do splinely-cli export ui/splash/splash-$n.sply --output ../apps/app/ui/splash/splash-$n.svg; done
-python3 ui/src/splash_html.py   # writes the splash templates into apps/app/ui/index.html
+python3 ui/src/splash_html.py   # swaps in the app's runtime (crates/locora-app-core/vendor/splinely-X.Y.Z.js), writes the templates into apps/app/ui/index.html
 splinely-cli render brand/icon.sply --time 0 --output brand/icon.png
 ```
