@@ -57,6 +57,13 @@ def walk(node, depth=0):
         return
 
 
+# The usual wait for the app to react; waits for a freshly launched app have their own, longer one.
+STEP_TIMEOUT = 12
+# Launching the debug app under Xvfb/WebKitGTK until its first screen is usable takes long on a busy
+# CI runner (12.9 s measured): the waits for the app and its first screen allow this much.
+STARTUP_TIMEOUT = 45
+
+
 class Scenario:
     def __init__(self, binary, artifacts, sply_video=None, only_sply=False, only_tour=False, only_core=False, only_video_marker=False):
         self.binary = binary
@@ -80,8 +87,8 @@ class Scenario:
         self.process = subprocess.Popen([str(binary)], env=self.environment, stdout=self.log, stderr=self.log)
         self.steps = []
         self.clicks = 0
-        self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
-        self.until(lambda: self.find("App-Tour starten", "button"))
+        self.app = self.launched()
+        self.until(lambda: self.find("App-Tour starten", "button"), timeout=STARTUP_TIMEOUT)
         # Upper bound: includes AT-SPI discovery and polling of the whole tree.
         self.startup_ms = round((time.monotonic() - started) * 1000)
         windows = subprocess.check_output(["xdotool", "search", "--all", "--onlyvisible", "--pid", str(self.process.pid), "--name", "^Locora$"]).decode().split()
@@ -93,7 +100,11 @@ class Scenario:
         self.window = windows[0]
         self.x("windowfocus", "--sync", self.window)
 
-    def until(self, predicate, timeout=12):
+    def launched(self):
+        """The accessible application of the launched process, once it shows up."""
+        return self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None), timeout=STARTUP_TIMEOUT)
+
+    def until(self, predicate, timeout=STEP_TIMEOUT):
         end = time.monotonic() + timeout
         while time.monotonic() < end:
             if self.process.poll() is not None:
@@ -364,8 +375,8 @@ class Scenario:
         self.process.terminate()
         self.process.wait(timeout=8)
         self.process = subprocess.Popen([str(self.binary)], env=self.environment, stdout=self.log, stderr=self.log)
-        self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
-        self.until(lambda: self.find("Core", "heading"))
+        self.app = self.launched()
+        self.until(lambda: self.find("Core", "heading"), timeout=STARTUP_TIMEOUT)
         self.record("core-start-persists-after-restart")
         self.click("Startseite")
         self.open_tutorial()
@@ -376,8 +387,8 @@ class Scenario:
         self.process.terminate()
         self.process.wait(timeout=8)
         self.process = subprocess.Popen([str(self.binary)], env=self.environment, stdout=self.log, stderr=self.log)
-        self.app = self.until(lambda: next((n for n in walk(Atspi.get_desktop(0)) if n.get_role_name() == "application" and n.get_process_id() == self.process.pid), None))
-        self.until(lambda: self.find("Bibliothek ↻", "button"))
+        self.app = self.launched()
+        self.until(lambda: self.find("Bibliothek ↻", "button"), timeout=STARTUP_TIMEOUT)
         self.record("palace-room-preview-persists-after-restart")
 
     def run(self):
