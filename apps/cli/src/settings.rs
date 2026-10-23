@@ -128,7 +128,7 @@ pub fn optimize_command(app: &mut App, dry_run: bool, reset: bool) -> Result<()>
 pub fn stats(app: &mut App) -> Result<()> {
     review_required(app)?;
     let stats = app.stats()?.unwrap_or_default();
-    let game = app.gamification_status()?;
+    let game = app.gamification_status(false)?;
     app.report();
     println!("Antworten insgesamt:   {}", stats.answers);
     println!(
@@ -145,26 +145,40 @@ pub fn stats(app: &mut App) -> Result<()> {
             stats.recent
         );
     }
-    println!(
-        "Serie:                 {} {}",
-        stats.streak,
-        if stats.streak == 1 { "Tag" } else { "Tage" }
-    );
+    // With the game, learning days on every device; otherwise the review log's run of days.
+    match &game {
+        Some(game) => {
+            println!("Lerntage:              {}", game.learning_days);
+            println!(
+                "Wochenziel in Folge:   {} {}",
+                game.week.streak,
+                if game.week.streak == 1 {
+                    "Woche"
+                } else {
+                    "Wochen"
+                }
+            );
+        }
+        None => println!(
+            "Serie:                 {} {}",
+            stats.streak,
+            if stats.streak == 1 { "Tag" } else { "Tage" }
+        ),
+    }
     println!(
         "Geplante Loci:         {} (davon {} fällig)",
         stats.scheduled, stats.due
     );
     if let Some(game) = game {
         println!(
-            "Erfolge:               {} XP, Combo {}, {} Herzen, {} Trophäen",
+            "Erfolge:               {} XP, {} Trophäen",
             game.xp,
-            game.combo,
-            game.hearts,
             game.trophies.len()
         );
+        println!("{}", crate::game::today_line(&game.today));
         println!(
-            "Tages-Challenge:       {}/{} richtige Antworten",
-            game.daily_correct, game.daily_goal
+            "Diese Woche:           {} von {} Lerntagen",
+            game.week.days, game.week.goal
         );
     }
     let (usable, worth) = app.optimize_hint()?;

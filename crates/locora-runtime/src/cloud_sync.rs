@@ -45,6 +45,20 @@ pub struct SyncReport {
     pub too_large: usize,
     /// What the operations from other devices changed here.
     pub received: ChangeSummary,
+    /// The answer when this sync asked again to delete the game scores on the server.
+    pub rankings: Option<cloud::RankingsDeletion>,
+}
+
+/// What a finished sync means for the next one: a new generation, when it ran, and whether the
+/// game scores still wait to be deleted on the server.
+pub fn keep(state: &mut CloudState, report: &SyncReport) {
+    if let Some(generation) = report.new_generation {
+        state.sync_generation = generation;
+    }
+    state.last_sync_at = Some(cloud::now_secs() as i64);
+    if let Some(rankings) = report.rankings {
+        state.game_delete_pending = rankings.pending();
+    }
 }
 
 /// How a sync may run.
@@ -126,10 +140,7 @@ pub fn sync_with(
     let report = crate::cloud_http::run(UnlockSync::start(state, store, unlock, options))?;
     // Read again: the session may have changed while the sync ran.
     if let Some(mut state) = cloud::load(data)? {
-        if let Some(generation) = report.new_generation {
-            state.sync_generation = generation;
-        }
-        state.last_sync_at = Some(cloud::now_secs() as i64);
+        keep(&mut state, &report);
         cloud::save(data, &state)?;
     }
     Ok(report)

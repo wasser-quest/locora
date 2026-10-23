@@ -6,7 +6,7 @@ use anyhow::Result;
 use locora_api::review::CardState;
 use locora_app_api::{
     Home, LocusView, Media, MediaKind, PalaceCard, PalaceView, PluginBlock, PluginPage, RoomView,
-    Status, TileView,
+    Status, Strength, TileView,
 };
 use locora_runtime::{Profile, count_due, now};
 use locora_store::{PalaceTree, SPLINELY, Store};
@@ -52,7 +52,13 @@ pub fn marker(store: &Store, tree: &PalaceTree, default: &str) -> Media {
 pub fn home(profile: &mut Profile) -> Result<Home> {
     let cards = profile.schedule(None)?;
     let budget = profile.new_budget()?;
-    let _game = profile.gamification_status()?;
+    // Brings the game's tile up to date; the home works without it.
+    if let Err(error) = profile.gamification_status(false) {
+        profile
+            .notes
+            .push(format!("Fortschritt nicht verfügbar: {error:#}"));
+    }
+    let has_review = profile.has_review();
     let now = now();
     // Tiles published while scheduling are stored before they are read.
     let reported = profile.report();
@@ -82,6 +88,7 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
         home.due += due as u32;
         fresh_total += fresh;
         home.palaces.push(PalaceCard {
+            strength: has_review.then(|| strength(&tree, &cards)),
             built_in: locora_runtime::built_in_kind(&summary.id).map(str::to_owned),
             id: summary.id,
             name: summary.name,
@@ -115,7 +122,18 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
 pub fn palace(profile: &mut Profile, id: &str, default_marker: &str) -> Result<PalaceView> {
     let tree = profile.store.palace(id)?;
     let cards = profile.schedule(Some(&tree.palace.id))?;
-    Ok(palace_view(&profile.store, &tree, &cards, default_marker))
+    let mut view = palace_view(&profile.store, &tree, &cards, default_marker);
+    view.strength = profile.has_review().then(|| strength(&tree, &cards));
+    Ok(view)
+}
+
+/// How many loci of a palace are consolidated: they hold for 30 days or more.
+pub fn strength(tree: &PalaceTree, cards: &HashMap<String, CardState>) -> Strength {
+    let strength = locora_runtime::game::strength(tree, cards);
+    Strength {
+        loci: strength.loci,
+        solid: strength.hold_30,
+    }
 }
 
 /// Projection is infallible, including immediately after an editor mutation.
@@ -172,6 +190,7 @@ pub fn palace_view(
         name: tree.palace.name.clone(),
         marker: marker(store, tree, default_marker),
         rooms,
+        strength: None,
     }
 }
 

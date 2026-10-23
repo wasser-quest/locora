@@ -49,6 +49,33 @@ pub struct CloudState {
     /// (or the browser's), never in this file.
     #[serde(default)]
     pub auto_sync: bool,
+    /// The game progress was deleted here, and the server has not confirmed yet that the
+    /// account's game scores (rankings) are gone: retried at the start of each sync.
+    #[serde(default)]
+    pub game_delete_pending: bool,
+}
+
+/// What became of the account's game scores on the server (the rankings) when the game progress
+/// was deleted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RankingsDeletion {
+    /// No account on this device: nothing on the server was touched.
+    NotSignedIn,
+    Deleted,
+    /// The server does not know the request yet: the entries stay until it is updated.
+    ServerTooOld,
+    /// No answer: asked again at the next sync.
+    Pending,
+    /// The session ended: asked again after signing in.
+    SignInAgain,
+}
+
+impl RankingsDeletion {
+    /// Whether the server still has to be asked.
+    pub fn pending(self) -> bool {
+        matches!(self, Self::Pending | Self::SignInAgain)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -191,6 +218,7 @@ fn state_from_session(server: String, session: Session) -> CloudState {
         entitlement: None,
         last_sync_at: None,
         auto_sync: false,
+        game_delete_pending: false,
     }
 }
 
@@ -281,6 +309,28 @@ pub fn erase_call(state: &CloudState) -> Result<Call> {
         Some(&state.token),
         None,
     )
+}
+
+/// Deletes the account's game scores on the server (what the rankings count).
+pub fn erase_game_call(state: &CloudState) -> Result<Call> {
+    call(
+        Method::Delete,
+        &state.server,
+        "/v1/game/data",
+        Some(&state.token),
+        None,
+    )
+}
+
+/// The answer to `erase_game_call`. Never an error: the local deletion does not depend on it.
+pub fn erase_game_reply(reply: Reply) -> Result<RankingsDeletion> {
+    Ok(match reply.status {
+        200..=299 => RankingsDeletion::Deleted,
+        // A server from before this request.
+        404 | 405 => RankingsDeletion::ServerTooOld,
+        401 => RankingsDeletion::SignInAgain,
+        _ => RankingsDeletion::Pending,
+    })
 }
 
 /// Deletes the account with all its data on the server, once its password is confirmed.
@@ -674,6 +724,28 @@ mod blocking {
         run(Exchange::new(erase_call(state)?, json::<RetentionStatus>))
     }
 
+    /// Asks the server to delete the account's game scores; a network failure is `Pending`.
+    pub fn erase_game(state: &CloudState) -> RankingsDeletion {
+        let call = match erase_game_call(state) {
+            Ok(call) => call,
+            Err(_) => return RankingsDeletion::Pending,
+        };
+        run(Exchange::new(call, erase_game_reply)).unwrap_or(RankingsDeletion::Pending)
+    }
+
+    /// After the game progress was deleted on this device: asks the server to delete the
+    /// rankings too when an account is signed in, and keeps the request for the next sync
+    /// when the server could not be asked.
+    pub fn delete_rankings(data: &Path) -> Result<RankingsDeletion> {
+        let Some(mut state) = load(data)? else {
+            return Ok(RankingsDeletion::NotSignedIn);
+        };
+        let outcome = erase_game(&state);
+        state.game_delete_pending = outcome.pending();
+        save(data, &state)?;
+        Ok(outcome)
+    }
+
     /// Deletes the account on the server; the caller then removes the local session.
     pub fn delete_account(state: &CloudState, password: &str) -> Result<()> {
         run(Exchange::new(
@@ -857,6 +929,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            game_delete_pending: false,
             account: Account {
                 id: "local".into(),
                 email: "test@example.invalid".into(),
@@ -897,6 +970,62 @@ mod tests {
         let error = get::<serde_json::Value>(&state.server, "/original", &state.token).unwrap_err();
         assert!(error.to_string().contains("302"), "{error:#}");
         assert!(worker.join().unwrap().starts_with("GET /original "));
+    }
+
+    fn status(code: u16, reason: &str) -> String {
+        format!("HTTP/1.1 {code} {reason}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+    }
+
+    #[test]
+    fn deleting_the_game_scores_asks_the_server_with_the_session() {
+        let (state, worker) = fixture(status(204, "No Content"));
+        assert_eq!(erase_game(&state), RankingsDeletion::Deleted);
+        assert_eq!(worker.join().unwrap(), "DELETE /v1/game/data HTTP/1.1\r\n");
+        let call = erase_game_call(&state).unwrap();
+        assert_eq!(call.method, Method::Delete);
+        assert_eq!(call.token.as_deref(), Some("synthetic-test-token"));
+        for (code, reason, outcome) in [
+            (404, "Not Found", RankingsDeletion::ServerTooOld),
+            (405, "Method Not Allowed", RankingsDeletion::ServerTooOld),
+            (401, "Unauthorized", RankingsDeletion::SignInAgain),
+            (500, "Internal Server Error", RankingsDeletion::Pending),
+        ] {
+            let (state, worker) = fixture(status(code, reason));
+            assert_eq!(erase_game(&state), outcome, "{code}");
+            worker.join().unwrap();
+        }
+        // Nobody listens: asked again later.
+        let mut state = state;
+        state.server = "http://127.0.0.1:9".into();
+        assert_eq!(erase_game(&state), RankingsDeletion::Pending);
+        assert!(RankingsDeletion::Pending.pending() && RankingsDeletion::SignInAgain.pending());
+        assert!(!RankingsDeletion::ServerTooOld.pending());
+    }
+
+    #[test]
+    fn the_rankings_request_is_kept_only_while_it_is_pending() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            delete_rankings(dir.path()).unwrap(),
+            RankingsDeletion::NotSignedIn
+        );
+        let (state, worker) = fixture(status(503, "Service Unavailable"));
+        save(dir.path(), &state).unwrap();
+        assert_eq!(
+            delete_rankings(dir.path()).unwrap(),
+            RankingsDeletion::Pending
+        );
+        worker.join().unwrap();
+        assert!(load(dir.path()).unwrap().unwrap().game_delete_pending);
+        let (mut state, worker) = fixture(status(204, "No Content"));
+        state.game_delete_pending = true;
+        save(dir.path(), &state).unwrap();
+        assert_eq!(
+            delete_rankings(dir.path()).unwrap(),
+            RankingsDeletion::Deleted
+        );
+        worker.join().unwrap();
+        assert!(!load(dir.path()).unwrap().unwrap().game_delete_pending);
     }
 
     #[test]
@@ -958,6 +1087,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            game_delete_pending: false,
             account: account.clone(),
         };
         assert!(can_sync(&state, 1_000));
@@ -1044,6 +1174,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            game_delete_pending: false,
             account: Account {
                 id: "a".into(),
                 email: "e@x.invalid".into(),

@@ -9,12 +9,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 
 use anyhow::{Context, Result, bail, ensure};
+use locora_api::Event as _;
 use locora_api::Service as _;
-use locora_api::core::{Grade, JourneyScore, LearningDayAnswer, LocusAnswered, Score};
-use locora_api::gamification::{
-    Status as GamificationStatus, StatusRequest as GamificationStatusRequest,
-    StatusResponse as GamificationStatusResponse,
+use locora_api::core::{
+    Grade, JourneyCompleted, JourneyScore, JourneyStarted, LearningDayAnswer, LocusAnswered,
+    ReviewedAnswer, Score,
 };
+use locora_api::gamification::Status as GamificationStatus;
 use locora_api::journey::{Evaluate, EvaluateRequest, Scored, Submission};
 use locora_api::notify::{Due, DueRequest, Message};
 use locora_api::tutorial::{Tour, TourAction};
@@ -43,6 +44,7 @@ pub mod cloud_http;
 pub mod cloud_key;
 pub mod cloud_sync;
 pub mod formula_guide;
+pub mod game;
 pub mod journey;
 mod palace_i18n;
 pub mod publishers;
@@ -68,6 +70,36 @@ impl KvStore for StoreKv {
     fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String> {
         self.0.kv_set(plugin, key, value).map_err(|e| e.to_string())
     }
+
+    fn list(
+        &self,
+        plugin: &str,
+        prefix: &str,
+        after_rev: u64,
+    ) -> Result<locora_api::storage::ListResponse, String> {
+        list_plugin_keys(&self.0, plugin, prefix, after_rev)
+    }
+}
+
+/// A page of a plugin's changed keys from the store (`storage.list@1`).
+pub fn list_plugin_keys(
+    store: &Store,
+    plugin: &str,
+    prefix: &str,
+    after_rev: u64,
+) -> Result<locora_api::storage::ListResponse, String> {
+    let changes = store
+        .kv_list(plugin, prefix, after_rev, locora_api::storage::PAGE)
+        .map_err(|e| e.to_string())?;
+    Ok(locora_api::storage::ListResponse {
+        entries: changes
+            .entries
+            .into_iter()
+            .map(|(key, value)| locora_api::storage::ListEntry { key, value })
+            .collect(),
+        rev: changes.rev,
+        more: changes.more,
+    })
 }
 
 /// Profile directory: explicit, `$LOCORA_DATA` or the platform data dir.
@@ -147,9 +179,23 @@ pub struct Profile {
     pub notes: Vec<String>,
     /// Latest tour highlight, consumed by the app command.
     pub highlight: Option<HighlightRequest>,
+    /// Review cards per palace as the running journey found them (see `answer_timing`).
+    review_cache: HashMap<String, HashMap<String, CardState>>,
 }
 
 impl Profile {
+    /// A profile from a store and a plugin host that are already set up (tests, tools).
+    pub fn from_parts(store: Arc<Store>, data_dir: PathBuf, host: PluginHost) -> Self {
+        Self {
+            store,
+            data_dir,
+            host,
+            notes: Vec::new(),
+            highlight: None,
+            review_cache: HashMap::new(),
+        }
+    }
+
     /// Open the profile in `data` (see [`data_dir`]) with all built-in plugins
     /// and every installed plugin that has a matching approval.
     pub fn open(data: Option<&Path>) -> Result<Self> {
@@ -195,14 +241,16 @@ impl Profile {
             }
         }
         let mut profile = Self {
-            store,
-            data_dir,
-            host,
             notes,
-            highlight: None,
+            ..Self::from_parts(store, data_dir, host)
         };
         let reported = profile.report();
         profile.notes.extend(reported);
+        if let Err(error) = profile.ensure_game_migrated() {
+            profile
+                .notes
+                .push(format!("Spielfortschritt nicht übernommen: {error:#}"));
+        }
         Ok(profile)
     }
 
@@ -288,6 +336,10 @@ impl Profile {
 
     /// Publish an event; returns plugin problems it caused.
     pub fn publish<E: locora_api::Event>(&mut self, event: &E) -> Result<Vec<String>> {
+        // A journey reads the review cards as they were when it reached each palace.
+        if [JourneyStarted::TOPIC, JourneyCompleted::TOPIC].contains(&E::TOPIC) {
+            self.review_cache.clear();
+        }
         self.host.publish(event)?;
         Ok(self.report())
     }
@@ -494,6 +546,14 @@ impl Profile {
         })?;
         notes.extend(self.report());
         let answered_at = now();
+        // Before `LocusAnswered`: the review plugin moves the card on that one.
+        let target = (request.palace_id, request.locus_id, request.answer.kind);
+        match self.reviewed(target, &evaluation, answered_at) {
+            Ok(reviewed) => notes.extend(self.publish(&reviewed)?),
+            Err(error) => notes.push(format!(
+                "Antwort nicht für den Fortschritt gezählt: {error:#}"
+            )),
+        }
         notes.extend(self.publish(&LocusAnswered {
             palace_id: request.palace_id.to_owned(),
             locus_id: request.locus_id.to_owned(),
@@ -528,25 +588,29 @@ impl Profile {
         })
     }
 
-    /// Local game progress, using the same learning-day boundary as review.
-    pub fn gamification_status(&mut self) -> Result<Option<GamificationStatusResponse>> {
-        if !self
-            .host
-            .plugin_provides("gamification", GamificationStatus::NAME)
-        {
-            return Ok(None);
-        }
-        let day_start = self.day_clock()?.day_start(now());
-        let streak = self
-            .stats()?
-            .map_or(0, |stats| stats.streak.min(u32::MAX as usize) as u32);
-        let status = self.host.call_plugin::<GamificationStatus>(
-            "gamification",
-            &GamificationStatusRequest { day_start, streak },
-        )?;
-        let reported = self.report();
-        self.notes.extend(reported);
-        Ok(Some(status))
+    /// The answer with what the runtime knows about it (see `ReviewedAnswer`).
+    fn reviewed(
+        &mut self,
+        (palace_id, locus_id, kind): (&str, &str, locora_api::journey::AnswerKind),
+        evaluation: &locora_api::journey::Evaluation,
+        answered_at: u64,
+    ) -> Result<ReviewedAnswer> {
+        let clock = self.day_clock()?;
+        let day_start = clock.day_start(answered_at);
+        let epoch = self.game_epoch()?;
+        Ok(ReviewedAnswer {
+            palace_id: palace_id.to_owned(),
+            locus_id: locus_id.to_owned(),
+            kind,
+            grade: evaluation.grade,
+            correct: evaluation.correct,
+            timing: self.answer_timing(palace_id, locus_id, answered_at),
+            answered_at,
+            day_start,
+            day: clock.date(day_start),
+            epoch: epoch.id,
+            device: self.store.node_id().to_owned(),
+        })
     }
 }
 

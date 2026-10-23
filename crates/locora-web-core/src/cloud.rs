@@ -8,7 +8,8 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 
 use anyhow::{Result, anyhow, bail};
-use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus};
+use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, GameResetReport};
+use locora_app_core::cloud_view;
 use locora_cloud_api::api::KeyBundle;
 use locora_runtime::cloud::{self, CloudState, Connect, Refresh, RetentionStatus};
 use locora_runtime::cloud_http::{
@@ -120,6 +121,33 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             drive(Box::new(KeysSetup::new(state, request.passphrase)), None)
         }
         "cloud_sync" => crate::cloud_auto::sync(args, data),
+        // Deleted here first; the rankings on the server are asked for when an account is
+        // signed in, and kept for the next sync when the server cannot be reached.
+        "game_reset" => {
+            crate::with_backend(|backend| backend.profile.reset_game().map(drop))?;
+            let report = |outcome| {
+                json!(GameResetReport {
+                    rankings: cloud_view::rankings(outcome),
+                })
+            };
+            let Some(state) = cloud::load(&data)? else {
+                return Ok(json!({ "done": report(cloud::RankingsDeletion::NotSignedIn) }));
+            };
+            let call = cloud::erase_game_call(&state)?;
+            drive(
+                Box::new(Map::new(
+                    Exchange::new(call, cloud::erase_game_reply),
+                    move |outcome: cloud::RankingsDeletion| {
+                        if let Some(mut state) = cloud::load(&data)? {
+                            state.game_delete_pending = outcome.pending();
+                            cloud::save(&data, &state)?;
+                        }
+                        Ok(report(outcome))
+                    },
+                )),
+                None,
+            )
+        }
         "cloud_erase" => {
             let state = saved(&data)?;
             let call = cloud::erase_call(&state)?;

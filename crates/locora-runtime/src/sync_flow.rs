@@ -54,6 +54,8 @@ struct PullPage {
 
 /// One unit of work of the sync.
 enum Job {
+    /// Asks the server again to delete the account's game scores (see `game_delete_pending`).
+    DeleteGame,
     /// The next batch of local operations, or on to the pull when there are none.
     Push,
     /// The next page of remote operations after this cursor.
@@ -114,6 +116,7 @@ impl Batch {
 
 /// What the replies to the last calls are for.
 enum Awaiting {
+    GameDeleted,
     Missing(Vec<String>),
     Heads(Vec<String>),
     Uploaded(Vec<String>),
@@ -163,6 +166,9 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
 
     fn unchecked(state: CloudState, store: S, dek: K) -> Self {
         let mut jobs = VecDeque::new();
+        if state.game_delete_pending {
+            jobs.push_back(Job::DeleteGame);
+        }
         jobs.push_back(Job::Push);
         Self {
             store,
@@ -225,6 +231,10 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
     /// Starts a job: local work is done here (None); calls are returned with what their replies mean.
     fn start(&mut self, job: Job) -> Result<Option<(Vec<Call>, Awaiting)>> {
         match job {
+            Job::DeleteGame => {
+                let call = cloud::erase_game_call(&self.state)?;
+                Ok(Some((vec![call], Awaiting::GameDeleted)))
+            }
             Job::Push => self.push_next().map(|()| None),
             Job::Pull { after } => {
                 let path = format!(
@@ -506,6 +516,10 @@ impl<S: Deref<Target = Store>, K: Deref<Target = Dek>> SyncFlow<S, K> {
     fn answer(&mut self, awaiting: Awaiting, replies: Vec<Reply>) -> Result<()> {
         let one = |replies: Vec<Reply>| expect(replies, 1).map(|mut replies| replies.remove(0));
         match awaiting {
+            // Whatever the answer, the sync goes on; the caller keeps what is still pending.
+            Awaiting::GameDeleted => {
+                self.report.rankings = Some(cloud::erase_game_reply(one(replies)?)?);
+            }
             Awaiting::Missing(hashes) => {
                 let reply = one(replies)?;
                 if cloud_http::unsupported(&reply) {

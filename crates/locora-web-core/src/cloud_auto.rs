@@ -171,10 +171,7 @@ fn drive(mut flow: Box<dyn Flow<Output = Value>>) -> Result<Value> {
 /// Keeps what a finished sync means for the next one: a new generation, and when it ran.
 fn finished(data: &Path, report: &SyncReport) -> Result<()> {
     let mut state = saved(data)?;
-    if let Some(generation) = report.new_generation {
-        state.sync_generation = generation;
-    }
-    state.last_sync_at = Some(cloud::now_secs() as i64);
+    locora_runtime::cloud_sync::keep(&mut state, report);
     cloud::save(data, &state)
 }
 

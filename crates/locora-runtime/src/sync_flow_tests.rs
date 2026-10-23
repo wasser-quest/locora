@@ -198,6 +198,7 @@ fn cloud(knows_missing: bool) -> (CloudState, Arc<Mutex<Cloud>>) {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            game_delete_pending: false,
         },
         state,
     )

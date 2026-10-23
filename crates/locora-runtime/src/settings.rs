@@ -124,6 +124,14 @@ impl DayClock {
         latest
     }
 
+    /// The local date (`YYYY-MM-DD`) of the learning day starting at `day_start`: the date of
+    /// its start hour, at the offset that applied then.
+    pub fn date(&self, day_start: u64) -> String {
+        let local = day_start as i64 + i64::from(self.offset_at(day_start)) * 60;
+        let (year, month, day) = civil_date(local.div_euclid(DAY as i64));
+        format!("{year:04}-{month:02}-{day:02}")
+    }
+
     /// Start of the learning day before the one starting at `day_start`.
     pub fn previous_day(&self, day_start: u64) -> u64 {
         self.day_start(day_start.saturating_sub(1))
@@ -141,6 +149,19 @@ impl DayClock {
         };
         format!("{}:00 ({offset})", self.start_hour)
     }
+}
+
+/// (year, month, day) of a count of days since 1970-01-01 (Howard Hinnant's algorithm).
+pub fn civil_date(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (yoe + era * 400 + i64::from(month <= 2), month, day)
 }
 
 /// An offset from UTC as people type it: `+2`, `-3`, `+5:30`, `0`.
@@ -894,6 +915,22 @@ mod tests {
         assert_eq!(stats(&entries, &[], now, &clock).streak, 4);
         assert_eq!(clock.utc_offset_minutes(), 60);
         assert_eq!(clock.offset_at(switch - 1), 120);
+    }
+
+    #[test]
+    fn a_learning_day_has_the_local_date_of_its_start() {
+        // 2026-10-20 03:30 UTC: in Berlin (UTC+2) 5:30, after the 4:00 start.
+        let t = 1_792_467_000;
+        let berlin = DayClock::fixed(120, 4);
+        assert_eq!(berlin.date(berlin.day_start(t)), "2026-10-20");
+        // In New York (UTC-4) it is 23:30 on the 19th.
+        let new_york = DayClock::fixed(-240, 4);
+        assert_eq!(new_york.date(new_york.day_start(t)), "2026-10-19");
+        // Just after midnight still counts for the day before.
+        let night = DayClock::fixed(0, 4);
+        assert_eq!(night.date(night.day_start(1_792_461_600)), "2026-10-19");
+        assert_eq!(civil_date(0), (1970, 1, 1));
+        assert_eq!(civil_date(-1), (1969, 12, 31));
     }
 
     #[test]

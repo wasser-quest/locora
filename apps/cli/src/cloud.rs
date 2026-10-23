@@ -48,7 +48,7 @@ pub enum CloudCommand {
     /// Verschlüsselung einrichten oder wiederherstellen
     #[command(subcommand)]
     Encrypt(EncryptCommand),
-    /// Den XP-Stand zeigen, den der Server berechnet hat
+    /// Die Ranglistenpunkte zeigen, die der Server berechnet hat
     Xp,
     /// Rangliste: alle Lernenden oder nur Freunde (Abo nötig)
     Ranking {
@@ -306,7 +306,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
         CloudCommand::Xp => {
             let state = signed_in(&data)?;
             let xp = cloud::xp(&state)?;
-            println!("XP auf dem Server: {}", xp.xp_total);
+            println!("Ranglistenpunkte auf dem Server: {}", xp.xp_total);
             println!(
                 "Abgeschlossene Journeys: {} · offen: {}",
                 xp.journeys_finished, xp.journeys_open
@@ -445,7 +445,7 @@ fn print_ranking(ranking: &locora_cloud_api::api::Ranking) {
     }
     for (place, entry) in ranking.entries.iter().enumerate() {
         println!(
-            "{:>3}. {:<24} {} XP",
+            "{:>3}. {:<24} {} Ranglistenpunkte",
             place + 1,
             entry.display_name,
             entry.xp

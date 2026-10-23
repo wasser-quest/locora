@@ -18,6 +18,9 @@ pub fn view(profile: &mut Profile) -> Result<SettingsView> {
     } else {
         None
     };
+    // Learning days and the weekly run come from every device; the review log's streak is
+    // the fallback without the game.
+    let game = profile.gamification_status(false).ok().flatten();
     let stats = profile.stats()?.map(|s| StatsView {
         answers: count(s.answers),
         answered_today: count(s.answered_today),
@@ -27,6 +30,8 @@ pub fn view(profile: &mut Profile) -> Result<SettingsView> {
         streak: count(s.streak),
         scheduled: count(s.scheduled),
         due: count(s.due),
+        learning_days: game.as_ref().map(|g| g.learning_days),
+        week_streak: game.as_ref().map(|g| g.week.streak),
     });
     let (usable, hint) = profile.optimize_hint()?;
     let clock = profile.day_clock()?;

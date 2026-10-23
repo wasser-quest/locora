@@ -79,7 +79,56 @@ pub fn unlockable_by_ui(id: &str) -> bool {
             .strip_prefix("learn-")
             .is_some_and(|lesson| LEARN_LESSONS.contains(&lesson))
 }
-pub use locora_api::gamification::{StatusResponse as GamificationStatus, Trophy};
+pub use locora_api::gamification::{
+    Earned, Goal, PalaceMedal, SessionView, StatusV2Response as GamificationStatus, Today, Week,
+};
+
+/// Arguments of `CMD_GAMIFICATION_STATUS`: `full` adds the palace medals (each palace's strength
+/// is worked out, so the journey bar leaves it out).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameStatusArgs {
+    #[serde(default)]
+    pub full: bool,
+}
+
+/// Deletes the game progress on this device and, through the sync, on all others (no
+/// arguments); returns a `GameResetReport`.
+pub const CMD_GAME_RESET: &str = "game_reset";
+/// Sets the weekly goal from this week on (`WeekGoalArgs`); returns the goal.
+pub const CMD_GAME_WEEK_GOAL: &str = "game_week_goal";
+/// A one-time hint was dismissed (`GameSeenArgs`), on every device.
+pub const CMD_GAME_SEEN: &str = "game_seen";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WeekGoalArgs {
+    pub days: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameSeenArgs {
+    pub hint: String,
+}
+
+/// What became of the account's game scores on the Locora Cloud server (the rankings).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RankingsDeletion {
+    /// This device is not signed in: nothing on the server was touched.
+    NotSignedIn,
+    Deleted,
+    /// The server does not know the request yet; the entries stay until it is updated.
+    ServerTooOld,
+    /// Not reachable: asked again at the next sync.
+    Pending,
+    /// The session ended: asked again after signing in.
+    SignInAgain,
+}
+
+/// The game progress was deleted; this is what happened on the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameResetReport {
+    pub rankings: RankingsDeletion,
+}
 pub const CMD_JOURNEY_REVEAL: &str = "journey_reveal";
 pub const CMD_JOURNEY_ANSWER: &str = "journey_answer";
 pub const CMD_JOURNEY_INPUTS: &str = "journey_inputs";
@@ -94,7 +143,6 @@ pub struct UiAssets {
     pub again: Media,
     pub done: Media,
     /// Journey progress symbols.
-    pub heart: Media,
     pub combo: Media,
     pub trophy: Media,
     pub streak: Media,
@@ -377,6 +425,12 @@ pub struct StatsView {
     pub streak: u32,
     pub scheduled: u32,
     pub due: u32,
+    /// Learning days and weeks in a row with the weekly goal reached (on every device);
+    /// `None` without the gamification plugin, where `streak` is shown instead.
+    #[serde(default)]
+    pub learning_days: Option<u32>,
+    #[serde(default)]
+    pub week_streak: Option<u32>,
 }
 
 /// A built-in achievement. It lives apart from the palaces, so it stays when they are removed.
@@ -384,6 +438,15 @@ pub struct StatsView {
 pub struct AchievementView {
     pub id: String,
     pub unlocked: bool,
+    /// The learning day it was earned (`YYYY-MM-DD`), when known.
+    #[serde(default)]
+    pub day: Option<String>,
+    /// A palace medal's palace (its name).
+    #[serde(default)]
+    pub palace: Option<String>,
+    /// A palace medal's progress: loci that hold long enough, of all loci.
+    #[serde(default)]
+    pub progress: Option<(u32, u32)>,
 }
 
 /// Answers on one learning day, for the activity overview. `day` is the start of that day in seconds.
@@ -517,6 +580,16 @@ pub struct PalaceCard {
     /// Rooms with a backdrop that can be selected as the card thumbnail.
     #[serde(default)]
     pub previews: Vec<RoomPreview>,
+    /// How many loci are consolidated; `None` without the review plugin.
+    #[serde(default)]
+    pub strength: Option<Strength>,
+}
+
+/// A palace's loci, and how many of them are consolidated (hold for 30 days or more).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Strength {
+    pub loci: u32,
+    pub solid: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -564,6 +637,9 @@ pub struct PalaceView {
     /// Locus marker (`.sply`, see assets/STIL.md 8b); the default when none.
     pub marker: Media,
     pub rooms: Vec<RoomView>,
+    /// How many loci are consolidated; `None` without the review plugin.
+    #[serde(default)]
+    pub strength: Option<Strength>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -907,18 +983,18 @@ pub struct Feedback {
     pub points: u64,
     pub revealed: Revealed,
     pub next: Step,
-    /// Combo and hearts after this answer; `None` without the gamification plugin.
+    /// The run of right answers after this answer; `None` without the gamification plugin.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game: Option<GameView>,
 }
 
 /// Progress inside the current journey, as the gamification plugin counts it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameView {
-    /// Correct answers in a row.
-    pub combo: u32,
-    /// Hearts left (a wrong answer costs one).
-    pub hearts: u8,
+    /// Right Quiz and Guess answers in a row; `None` after a recalled answer (recall grades
+    /// neither show nor break a run).
+    #[serde(default)]
+    pub combo: Option<u32>,
 }
 
 /// What follows an answer.
@@ -938,6 +1014,26 @@ pub struct Summary {
     pub points: u64,
     /// Messages from plugins (e.g. learning time).
     pub notes: Vec<String>,
+    /// XP this journey earned; `None` without the gamification plugin.
+    #[serde(default)]
+    pub xp_gained: Option<u64>,
+    /// Due reviews and new loci in this journey, and loci practised before they were due.
+    #[serde(default)]
+    pub due_done: u32,
+    #[serde(default)]
+    pub new_done: u32,
+    #[serde(default)]
+    pub early: u32,
+    /// Trophies and palace medals earned with this journey (achievement ids, see
+    /// `AchievementView`; a palace medal as `palace-<level>@<palace name>`).
+    #[serde(default)]
+    pub new_trophies: Vec<String>,
+    /// Due reviews still open today; `None` without the gamification plugin.
+    #[serde(default)]
+    pub due_left_today: Option<u32>,
+    /// The next learning day with reviews (`YYYY-MM-DD`) and how many are due then.
+    #[serde(default)]
+    pub next_due: Option<(String, u32)>,
 }
 
 #[cfg(test)]

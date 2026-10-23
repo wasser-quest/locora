@@ -872,7 +872,7 @@ async fn ui_assets(state: State<'_, Shared>) -> Result<locora_app_api::UiAssets,
 async fn achievements(
     state: State<'_, Shared>,
 ) -> Result<Vec<locora_app_api::AchievementView>, String> {
-    journey::achievements(&lock(&state)?.profile).map_err(err)
+    journey::achievements(&mut lock(&state)?.profile).map_err(err)
 }
 
 /// Unlock an achievement the UI earned (a lesson or the finished tour); whether it was new.
@@ -897,8 +897,46 @@ async fn activity(state: State<'_, Shared>) -> Result<Vec<locora_app_api::Activi
 #[tauri::command]
 async fn gamification_status(
     state: State<'_, Shared>,
+    full: Option<bool>,
 ) -> Result<Option<locora_app_api::GamificationStatus>, String> {
-    lock(&state)?.profile.gamification_status().map_err(err)
+    lock(&state)?
+        .profile
+        .gamification_status(full.unwrap_or(false))
+        .map_err(err)
+}
+
+/// Learning days per week from this week on; returns the goal.
+#[tauri::command]
+async fn game_week_goal(state: State<'_, Shared>, days: u8) -> Result<u8, String> {
+    lock(&state)?.profile.set_week_goal(days).map_err(err)
+}
+
+/// A one-time hint was dismissed, on every device.
+#[tauri::command]
+async fn game_seen(state: State<'_, Shared>, hint: String) -> Result<(), String> {
+    lock(&state)?.profile.game_seen(&hint).map_err(err)
+}
+
+/// Deletes the game progress here and, through the sync, on every device; then asks the server to
+/// delete the rankings when an account is signed in (off the UI thread). The local deletion never
+/// waits for or fails because of the server.
+#[tauri::command]
+async fn game_reset(app: tauri::AppHandle) -> Result<locora_app_api::GameResetReport, String> {
+    let state = app.state::<Shared>();
+    let data = {
+        let mut backend = lock(&state)?;
+        backend.profile.reset_game().map_err(err)?;
+        backend.data.clone()
+    };
+    let outcome = tauri::async_runtime::spawn_blocking(move || {
+        locora_runtime::cloud::delete_rankings(&data)
+            .unwrap_or(locora_runtime::cloud::RankingsDeletion::Pending)
+    })
+    .await
+    .unwrap_or(locora_runtime::cloud::RankingsDeletion::Pending);
+    Ok(locora_app_api::GameResetReport {
+        rankings: locora_app_core::cloud_view::rankings(outcome),
+    })
 }
 
 #[tauri::command]
@@ -1325,6 +1363,9 @@ pub fn run() {
             cloud_auto::cloud_email_resend,
             ui_assets,
             gamification_status,
+            game_week_goal,
+            game_seen,
+            game_reset,
             activity,
             achievements,
             achievement_unlock,

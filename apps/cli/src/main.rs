@@ -2,6 +2,7 @@
 
 mod app;
 mod cloud;
+mod game;
 mod notify;
 mod palace;
 mod plugin;
@@ -184,8 +185,13 @@ enum Command {
         #[arg(long)]
         reset: bool,
     },
-    /// Lernstatistik: Antworten, Trefferquote, Serie
+    /// Lernstatistik: Antworten, Trefferquote, Lerntage
     Stats,
+    /// Spielfortschritt: anzeigen, Wochenziel setzen, auf allen Geräten löschen
+    Game {
+        #[command(subcommand)]
+        command: game::GameCommand,
+    },
     /// Anleitung: welcher Befehl wann passt (auch für LLMs gedacht; Text aus llm.txt)
     Guide,
     /// Marker der Orte eines Palasts zeigen oder ändern (eigene .sply-Animation)
@@ -478,6 +484,7 @@ fn main() -> Result<()> {
             settings::optimize_command(&mut app::App::open(data)?, dry_run, reset)
         }
         Command::Stats => settings::stats(&mut app::App::open(data)?),
+        Command::Game { command } => game::run(&mut app::App::open(data)?, data, command),
         // Printed without opening the profile, so a guide works before any setup.
         Command::Guide => {
             print!("{GUIDE}");
