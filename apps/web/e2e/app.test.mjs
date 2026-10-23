@@ -252,7 +252,7 @@ test('the app reloads and opens offline: the service worker keeps the app and th
 });
 
 test('the app can be installed: manifest, icons and the offline worker are in place', async () => {
-  const { context, page } = await openApp();
+  const { context, page, problems } = await openApp();
   try {
     const manifest = await page.evaluate(async () => (await fetch('manifest.webmanifest')).json());
     assert.equal(manifest.name, 'Locora');
@@ -263,7 +263,19 @@ test('the app can be installed: manifest, icons and the offline worker are in pl
       assert.equal(await page.evaluate(async (src) => (await fetch(src)).ok, icon.src), true, icon.src);
     }
     assert.equal(await page.locator('link[rel="manifest"]').getAttribute('href'), 'manifest.webmanifest');
+    // The tab icon is the website's favicon (SVG), with a PNG for browsers without SVG favicons.
+    const favicons = await page.locator('link[rel="icon"]').evaluateAll((links) => links.map((link) => `${link.type} ${link.getAttribute('href')}`));
+    assert.deepEqual(favicons, ['image/png shell/icons/icon-192.png', 'image/svg+xml shell/icons/favicon.svg']);
+    const svg = await page.evaluate(async () => {
+      const response = await fetch('shell/icons/favicon.svg');
+      return { type: response.headers.get('content-type'), text: await response.text() };
+    });
+    assert.match(svg.type, /^image\/svg\+xml/);
+    assert.match(svg.text, /^<svg [^>]*viewBox="0 0 32 32"/);
+    assert.ok(!/<script/i.test(svg.text), 'the favicon has no script');
+    assert.ok((await page.evaluate(async () => (await fetch('sw.js')).text())).includes('"shell/icons/favicon.svg"'), 'stored for offline use');
     await page.waitForFunction(() => navigator.serviceWorker.getRegistration().then((r) => !!r), null, { timeout: 20000 });
+    assert.deepEqual(problems, []);
   } finally {
     await context.close();
   }
