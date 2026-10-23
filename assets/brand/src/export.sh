@@ -2,7 +2,9 @@
 # Exports of the Locora logo, assets/brand/icon.sply (the website's favicon.svg at 512 x 512),
 # for places without the Splinely runtime:
 #   brand/icon.svg              interactive SVG (the glow pulses)
-#   brand/icon.png              512 px at time 0: the source of the desktop, Android and iOS icons
+#   brand/icon.png              1024 px at time 0 (Tauri's recommended source size, so the 1024 px
+#                               App Store and icns icons are not upscaled): the source of the desktop,
+#                               iOS and legacy Android launcher icons
 #   brand/icon-foreground.png   Android adaptive-icon foreground: the art alone, inside the safe zone
 #   apps/web/shell/icons/*.png  the web app's icons (any, maskable, apple-touch)
 # The platform icons are made from these by apps/app/scripts/generate-mobile-icons.sh.
@@ -22,7 +24,7 @@ png() { magick "${@:1:$#-1}" -strip "${@: -1}"; }
 
 cli check "$brand/icon.sply"
 cli export "$brand/icon.sply" --output "$brand/icon.svg"
-cli render "$brand/icon.sply" --time 0 --output "$brand/icon.png"
+cli render "$brand/icon.sply" --time 0 --width 1024 --output "$brand/icon.png"
 
 # The art alone (no background), and the logo without rounded corners (iOS and the
 # launchers cut their own shape).
