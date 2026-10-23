@@ -4,7 +4,7 @@ members = ["crates/*", "apps/cli"]
 exclude = ["plugins"]
 
 [workspace.package]
-version = "0.1.4"
+version = "0.1.6"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/wasser-quest/locora"

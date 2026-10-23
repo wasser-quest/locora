@@ -3,7 +3,8 @@
 //! Every operation and every media file is sealed with the account key before it
 //! leaves the device (see `locora-crypto`). The server stores ciphertext under keyed
 //! ids and cannot read any of it. The sync itself is `sync_flow::SyncFlow`; this file
-//! unlocks the account key, checks the server's state first, and seals and opens operations.
+//! unlocks the account key, sends the stored key bundle back with the key proof once a day,
+//! checks the server's state first, and seals and opens operations.
 
 use std::ops::Deref;
 #[cfg(feature = "cloud")]
@@ -12,7 +13,7 @@ use std::path::Path;
 use anyhow::{Context, Result, anyhow, bail};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use locora_cloud_api::api::{EncryptedOp, PulledOp};
+use locora_cloud_api::api::{EncryptedOp, KeyBundle, PulledOp};
 use locora_crypto::Dek;
 use locora_store::{ApplyReport, ChangeSummary, Op, PalaceChange, RemoteOp, Store};
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,11 @@ pub use crate::sync_flow::SyncFlow;
 
 /// Operations per request; also the page size when pulling.
 pub const BATCH: usize = crate::sync_flow::PUSH_OPS;
+/// How often a sync sends the stored key bundle back with the proof of the account key. A server
+/// that has no proof for the bundle (one stored by an older app) keeps the one sent; one that has a
+/// proof, or an older server, changes nothing. Once a day rather than once, so a device that met an
+/// older server sends it again after the server's update.
+const KEY_PROOF_EVERY_SECS: i64 = 86_400;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SyncReport {
@@ -45,6 +51,21 @@ pub struct SyncReport {
     pub too_large: usize,
     /// What the operations from other devices changed here.
     pub received: ChangeSummary,
+    /// Set when this sync sent the stored key bundle back with the key proof: the caller notes it
+    /// in the cloud state (`note_finished`), so the next one waits a day.
+    pub key_proof_sent: bool,
+}
+
+/// Notes a finished sync in the cloud state: the server's new generation, when the sync ran, and
+/// when it sent the key proof.
+pub fn note_finished(state: &mut CloudState, report: &SyncReport, now: i64) {
+    if let Some(generation) = report.new_generation {
+        state.sync_generation = generation;
+    }
+    state.last_sync_at = Some(now);
+    if report.key_proof_sent {
+        state.key_proof_sent_at = Some(now);
+    }
 }
 
 /// How a sync may run.
@@ -126,10 +147,7 @@ pub fn sync_with(
     let report = crate::cloud_http::run(UnlockSync::start(state, store, unlock, options))?;
     // Read again: the session may have changed while the sync ran.
     if let Some(mut state) = cloud::load(data)? {
-        if let Some(generation) = report.new_generation {
-            state.sync_generation = generation;
-        }
-        state.last_sync_at = Some(cloud::now_secs() as i64);
+        note_finished(&mut state, &report, cloud::now_secs() as i64);
         cloud::save(data, &state)?;
     }
     Ok(report)
@@ -150,6 +168,9 @@ pub enum Unlock {
 
 /// Unlocks the account key (with the passphrase, after fetching the wrapped keys), then syncs.
 /// `S` is the store, borrowed on the desktop and shared in the browser.
+/// Once a day the stored bundle goes back to the server with the proof of the unlocked key
+/// (`KEY_PROOF_EVERY_SECS`): a bundle stored by an older app has none, and whoever sends the first
+/// one guards it. Its answer does not matter to the sync.
 /// Before the sync, the server's generation is checked: after the cloud data was deleted (or had
 /// expired, which is restored from this device), the device starts over and sends all its data.
 pub struct UnlockSync<S> {
@@ -158,12 +179,17 @@ pub struct UnlockSync<S> {
     options: SyncOptions,
     stage: Stage,
     new_generation: Option<i64>,
+    key_proof_sent: bool,
     syncing: Option<SyncFlow<S, Box<Dek>>>,
 }
 
 enum Stage {
     Start(Unlock),
     Keys(Zeroizing<String>),
+    /// The stored bundle, fetched to go back with the proof of the kept key.
+    KeysToProve(Box<Dek>),
+    /// The bundle went back with the proof.
+    Proved(Box<Dek>),
     Retention(Box<Dek>),
     Rebuild(Box<Dek>),
     Started,
@@ -186,8 +212,33 @@ impl<S: Clone + Deref<Target = Store>> UnlockSync<S> {
             options,
             stage: Stage::Start(unlock),
             new_generation: None,
+            key_proof_sent: false,
             syncing: None,
         }
+    }
+
+    /// Whether this sync sends the bundle back with the key proof (a day after the last time).
+    fn key_proof_due(&self) -> bool {
+        self.state
+            .key_proof_sent_at
+            .is_none_or(|at| cloud::now_secs() as i64 - at >= KEY_PROOF_EVERY_SECS)
+    }
+
+    /// Sends the stored bundle back with the proof of `dek` when that is due; otherwise asks for the
+    /// server's state.
+    fn prove(&mut self, dek: Box<Dek>, bundle: &KeyBundle) -> Result<Step<SyncReport>> {
+        if !self.key_proof_due() {
+            return self.retention(dek);
+        }
+        let call = cloud::replace_keys_call(&self.state, bundle, &dek)?;
+        self.stage = Stage::Proved(dek);
+        Ok(Step::Call(call))
+    }
+
+    fn retention(&mut self, dek: Box<Dek>) -> Result<Step<SyncReport>> {
+        let call = cloud::retention_call(&self.state)?;
+        self.stage = Stage::Retention(dek);
+        Ok(Step::Call(call))
     }
 
     /// Adopts the server's generation when it differs, then runs the sync itself.
@@ -206,6 +257,7 @@ impl<S: Clone + Deref<Target = Store>> UnlockSync<S> {
         match step {
             Step::Done(mut report) => {
                 report.new_generation = self.new_generation;
+                report.key_proof_sent = self.key_proof_sent;
                 Step::Done(report)
             }
             call => call,
@@ -241,10 +293,11 @@ impl<S: Clone + Deref<Target = Store>> Flow for UnlockSync<S> {
                         self.stage = Stage::Keys(passphrase);
                         Ok(Step::Call(cloud::keys_call(&self.state)?))
                     }
-                    Unlock::Key(dek) => {
-                        self.stage = Stage::Retention(dek);
-                        Ok(Step::Call(cloud::retention_call(&self.state)?))
+                    Unlock::Key(dek) if self.key_proof_due() => {
+                        self.stage = Stage::KeysToProve(dek);
+                        Ok(Step::Call(cloud::keys_call(&self.state)?))
                     }
+                    Unlock::Key(dek) => self.retention(dek),
                 }
             }
             (Stage::Keys(passphrase), Some(reply)) => {
@@ -252,8 +305,22 @@ impl<S: Clone + Deref<Target = Store>> Flow for UnlockSync<S> {
                     bail!("Verschlüsselung fehlt. In den Einstellungen einrichten");
                 };
                 let dek = Box::new(locora_crypto::unlock(&bundle, &passphrase)?);
-                self.stage = Stage::Retention(dek);
-                Ok(Step::Call(cloud::retention_call(&self.state)?))
+                self.prove(dek, &bundle)
+            }
+            // The kept key cannot tell whether it opens this bundle (that takes the passphrase).
+            // Sent back unchanged right after it came, the bundle replaces nothing (unless another
+            // device of the account replaced it in that moment); it only gets this key's proof if
+            // it has none, so a session alone cannot replace it any more. Without a bundle, or an
+            // answer, the sync goes on as before.
+            (Stage::KeysToProve(dek), Some(reply)) => match cloud::keys_reply(reply) {
+                Ok(Some(bundle)) => self.prove(dek, &bundle),
+                _ => self.retention(dek),
+            },
+            // Whatever the answer: an older server, or one that has a proof, changes nothing, and
+            // a failure is tried again with the next sync.
+            (Stage::Proved(dek), Some(reply)) => {
+                self.key_proof_sent = reply.is_success();
+                self.retention(dek)
             }
             (Stage::Retention(dek), Some(reply)) => {
                 let status: RetentionStatus = json(reply)?;

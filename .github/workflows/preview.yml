@@ -2,7 +2,7 @@ name: Web preview
 
 # Every push to `testing` builds the web app, runs its browser tests and, when they pass, deploys it
 # as a preview on Netlify under the fixed alias `testing`:
-# https://testing--<netlify site name>.netlify.app. The live app (app.locora.cloud) only changes with
+# https://testing--locora-app.netlify.app (linked from the README). The live app (app.locora.cloud) only changes with
 # a release tag (release.yml).
 #
 # The Netlify token lives in the `preview` environment (Settings → Environments → preview, deployment
@@ -81,6 +81,8 @@ jobs:
             echo "::notice::No Netlify token in the preview environment: the preview is built and tested, not deployed."
             exit 0
           fi
+          # A preview is not for search engines.
+          printf '\n/*\n  X-Robots-Tag: noindex, nofollow\n' >> apps/web/dist/_headers
           npx --yes netlify-cli@27.13.0 deploy --no-build --dir apps/web/dist --site "$NETLIFY_SITE_ID" \
             --alias testing --message "testing ${GITHUB_SHA::7}" --json > deploy.json
           url=$(node -e 'const d = require("./deploy.json"); console.log(d.deploy_url)')

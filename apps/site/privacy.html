@@ -7,13 +7,14 @@
     <meta name="referrer" content="no-referrer" />
     <meta name="robots" content="index, follow" />
     <title>Datenschutzerklärung – Locora</title>
-    <meta name="description" content="Datenschutzerklärung für locora.cloud, die Locora-App, das Forum bb.locora.cloud und die Locora Cloud." />
+    <meta name="description" content="Datenschutzerklärung für locora.cloud, die Locora-App, das Forum bb.locora.cloud, die Locora Cloud und die Kontoseite web.locora.cloud." />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <a class="skip" href="#content">Zum Inhalt springen</a>
     <header class="top">
-      <a class="brand" href="index.html" aria-label="Locora Startseite"><span class="mark" aria-hidden="true">L</span> Locora</a>
+      <a class="brand" href="index.html" aria-label="Locora Startseite"><img class="mark" src="favicon.svg" alt="" width="32" height="32"> Locora</a>
       <nav aria-label="Rechtliches">
         <a href="index.html">Start</a>
         <a href="impressum.html">Impressum</a>
@@ -24,12 +25,12 @@
       <section class="hero">
         <h1>Datenschutzerklärung</h1>
         <p class="lede">Hier steht, welche Daten bei der Nutzung von Locora anfallen, wo sie liegen und welche Rechte du hast.</p>
-        <p class="note">Stand: 20.10.2026</p>
+        <p class="note">Stand: 22.10.2026</p>
       </section>
 
       <section id="verantwortlicher">
         <h2>1. Wer ist verantwortlich</h2>
-        <p>Verantwortlich für die Datenverarbeitung auf locora.cloud, app.locora.cloud, bb.locora.cloud und api.locora.cloud ist:</p>
+        <p>Verantwortlich für die Datenverarbeitung auf locora.cloud, app.locora.cloud, bb.locora.cloud, api.locora.cloud und web.locora.cloud ist:</p>
         <p>Marvin Olomu, Kesselhalde 14, 72461 Albstadt-Tailfingen, Deutschland<br />E-Mail: marvinolomu@gmail.com</p>
         <p>Datenschutzanfragen richte bitte an die E-Mail-Adresse oben.</p>
       </section>
@@ -41,14 +42,15 @@
           <li><strong>app.locora.cloud</strong> – die Lernapp im Browser. Sie arbeitet auf deinem Gerät und kann offline genutzt werden.</li>
           <li><strong>bb.locora.cloud</strong> – das Forum (Software: rustbb).</li>
           <li><strong>api.locora.cloud</strong> – die Locora Cloud: optionales Konto für die verschlüsselte Synchronisation zwischen deinen Geräten.</li>
+          <li><strong>web.locora.cloud</strong> – die Kontoseite der Locora Cloud: anmelden, Passwort ändern oder zurücksetzen, E-Mail-Adresse bestätigen, Speicher ansehen, Cloud-Daten oder das Konto löschen.</li>
         </ul>
       </section>
 
       <section id="hosting">
         <h2>3. Hosting und Dienstleister</h2>
         <p><strong>Auslieferung der Seiten (locora.cloud und app.locora.cloud):</strong> Netlify, Inc., USA. Beim Aufruf einer Seite verarbeitet Netlify technisch notwendige Daten: deine IP-Adresse, den Zeitpunkt, die aufgerufene Adresse und den Browsertyp. Netlify erhält diese Daten als Auftragsverarbeiter und kann sie in den USA verarbeiten. Die Übermittlung stützt sich auf die EU-Standardvertragsklauseln (Durchführungsbeschluss (EU) 2021/914), die Teil des Auftragsverarbeitungsvertrags mit Netlify sind.</p>
-        <p><strong>Server (bb.locora.cloud, api.locora.cloud, Datenbanken und Dateispeicher):</strong> IONOS SE, Deutschland, als Auftragsverarbeiter. Die Server stehen in der Europäischen Union, in Spanien. Die Dateispeicher (Bilder und verschlüsselte Medien) liegen ebenfalls in der EU, in Deutschland.</p>
-        <p><strong>E-Mail-Versand</strong> (Bestätigung, Passwort zurücksetzen, Hinweis vor dem Löschen eines Cloud-Kontos): IONOS SE, Deutschland, als Auftragsverarbeiter. Der Anbieter erhält die Adresse des Empfängers und den Inhalt der Mail.</p>
+        <p><strong>Server (bb.locora.cloud, api.locora.cloud, web.locora.cloud, Datenbanken und Dateispeicher):</strong> IONOS SE, Deutschland, als Auftragsverarbeiter. Die Server stehen in der Europäischen Union, in Spanien. Die Dateispeicher (Bilder und verschlüsselte Medien) liegen ebenfalls in der EU, in Deutschland.</p>
+        <p><strong>E-Mail-Versand</strong> (Bestätigung der E-Mail-Adresse, Passwort zurücksetzen, Hinweis vor dem Löschen eines Cloud-Kontos): über den SMTP-Server unseres E-Mail-Anbieters IONOS SE, Deutschland, als Auftragsverarbeiter, mit dem Absender noreply@locora.cloud. Der Anbieter erhält die Adresse des Empfängers und den Inhalt der Mail. Die Mails sind kurzer Text ohne Bilder, Zählpixel oder Verfolgung von Klicks.</p>
         <p>Werbung, Tracking und Analysedienste setzen wir nicht ein.</p>
       </section>
 
@@ -84,14 +86,19 @@
         <ul>
           <li><strong>Konto:</strong> E-Mail-Adresse, Anzeigename, Passwort-Hash (Argon2id).</li>
           <li><strong>Schutz vor Missbrauch:</strong> Damit niemand massenhaft Konten anlegt, zählen wir Registrierungen je IP-Adresse im Arbeitsspeicher des Servers, höchstens einen Tag lang. Die Adresse wird nicht in der Datenbank gespeichert.</li>
-          <li><strong>Sitzungen:</strong> Hash des Anmeldetokens und Ablaufdatum. Das Token selbst zeigt der Server nur einmal an.</li>
+          <li><strong>Sitzungen:</strong> Hash des Anmeldetokens und Ablaufdatum (90 Tage). Das Token selbst zeigt der Server nur einmal an.</li>
+          <li><strong>Anmeldeversuche:</strong> Falsche Passwörter zählen wir je E-Mail-Adresse in der Datenbank, in einem Zeitfenster von 15 Minuten; der Zähler wird nach einer erfolgreichen Anmeldung oder spätestens nach einem Tag gelöscht. Je IP-Adresse zählen wir nur im Arbeitsspeicher des Servers.</li>
+          <li><strong>E-Mail-Bestätigung und Passwort zurücksetzen:</strong> Nach der Registrierung schicken wir dir eine Mail mit einem Link, mit dem du deine E-Mail-Adresse bestätigst; gespeichert wird, ob und wann sie bestätigt ist. Mit „Passwort vergessen?“ bekommst du einen Link zum Zurücksetzen. Ein Bestätigungslink gilt 48 Stunden, ein Link zum Zurücksetzen eine Stunde, und jeder funktioniert nur einmal. Von dem zufälligen Schlüssel im Link speichern wir nur einen Hash (SHA-256). Der Schlüssel steht im Link hinter dem Zeichen „#“ und gelangt deshalb nicht in Protokolle eines Servers. Abgelaufene Links löschen wir täglich.</li>
           <li><strong>Synchronisation und Medien:</strong> Deine Daten werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Wir speichern nur Chiffrat und den verschlüsselten Schlüssel. Wir können den Inhalt nicht lesen.</li>
-          <li><strong>Gastkonto:</strong> Neue Konten sind Gastkonten, bis ein Abo besteht. Die Daten bleiben sechs Monate, wenn das Konto nicht synchronisiert wird; danach werden sie gelöscht. Vorher schicken wir eine Warnung.</li>
+          <li><strong>Speicher:</strong> Damit wir Speichergrenzen einhalten, zählen wir, wie viele Bytes an Medien und synchronisierten Änderungen ein Konto belegt. Ohne Abo gelten derzeit höchstens 512 MiB für Medien und 256 MiB für Änderungen. Wie viel belegt ist, siehst du auf der Kontoseite.</li>
+          <li><strong>Gastkonto und Testzeitraum:</strong> Neue Konten sind Gastkonten, bis ein Abo besteht, und können sechs Monate lang kostenlos synchronisieren. Jede abgeschlossene Synchronisation verlängert die Aufbewahrung. Synchronisiert ein Gastkonto sechs Monate lang nicht, löschen wir es automatisch mit allen Daten und Medien. Einen Monat vorher schicken wir eine Warnung per E-Mail.</li>
           <li><strong>Abo und Zahlung:</strong> Derzeit gibt es keine Abos und keine Zahlungen.</li>
         </ul>
-        <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertrag über die Synchronisation).</p>
+        <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertrag über die Synchronisation); für die Begrenzung von Anmeldeversuchen und Anfragen Art. 6 Abs. 1 lit. f DSGVO (Schutz vor Missbrauch).</p>
+        <h3 id="kontoseite">Die Kontoseite web.locora.cloud</h3>
+        <p>Die Kontoseite ist eine kleine Seite, die mit api.locora.cloud spricht und sonst nichts von anderen Seiten lädt. Sie setzt keine Cookies. Nach der Anmeldung liegt das Anmeldetoken nur im Sitzungsspeicher dieses Browser-Tabs (sessionStorage); es verschwindet, wenn du den Tab schließt oder dich abmeldest. Wählst du eine Sprache, merkt sich die Seite diese Wahl im Speicher deines Browsers (localStorage). Konten werden in der App angelegt, nicht dort.</p>
         <h3>Cloud-Daten oder Konto löschen</h3>
-        <p>In der App unter „Einstellungen → Locora Cloud → Daten in der Cloud löschen“ kannst du jederzeit alle synchronisierten Änderungen und Medien vom Server löschen; dein Konto bleibt bestehen. Dort kannst du auch dein Konto löschen: Nach Eingabe deines Passworts löschen wir das Konto mit allen Daten, Sitzungen und Medien sofort. Die Daten auf deinen Geräten bleiben in beiden Fällen erhalten. Kopien in den Sicherungen verschwinden spätestens nach einem Monat. Ohne die App geht es per E-Mail, siehe <a href="konto-loeschen.html">Konto löschen</a>.</p>
+        <p>In der App unter „Einstellungen → Locora Cloud → Daten in der Cloud löschen“ kannst du jederzeit alle synchronisierten Änderungen und Medien vom Server löschen; dein Konto bleibt bestehen. Dort kannst du auch dein Konto löschen: Nach Eingabe deines Passworts löschen wir das Konto mit allen Daten, Sitzungen und Medien sofort. Die Daten auf deinen Geräten bleiben in beiden Fällen erhalten. Kopien in den Sicherungen verschwinden spätestens nach einem Monat. Dasselbe geht nach der Anmeldung auf der Kontoseite <a href="https://web.locora.cloud/">web.locora.cloud</a>. Ohne App und Kontoseite geht es per E-Mail, siehe <a href="konto-loeschen.html">Konto löschen</a>.</p>
       </section>
 
       <section id="speicherdauer">
@@ -100,7 +107,9 @@
           <li>Konto und Inhalte: solange das Konto besteht.</li>
           <li>Nicht bestätigte Forum-Konten: 3 Tage, dann gelöscht.</li>
           <li>Forum-Sitzungen: 30 Tage.</li>
-          <li>Passwort-Reset-Links: 1 Stunde. Bestätigungslinks: 24 Stunden.</li>
+          <li>Forum: Passwort-Reset-Links 1 Stunde, Bestätigungslinks 24 Stunden.</li>
+          <li>Locora Cloud: Passwort-Reset-Links 1 Stunde, Bestätigungslinks 48 Stunden; Sitzungen 90 Tage.</li>
+          <li>Gastkonten der Locora Cloud: sechs Monate nach der letzten abgeschlossenen Synchronisation, dann automatisch gelöscht.</li>
           <li>Zähler für Anfragen: nur im Arbeitsspeicher, bis zum Neustart oder Ablauf des Zeitfensters.</li>
           <li>Zugriffsprotokolle des Webservers: 1 Monat.</li>
           <li>Sicherungskopien (Backups): 1 Monat, danach gelöscht.</li>

@@ -35,16 +35,16 @@ for s in "lr":
     at = fig.arm(s, 92, SUN, SUN_SH, cuff=CORAL, width=40)
 # pencil (bone-local: origin = right hand), centred on the hand so it can twirl
 pencil = [
-    fig.add("circle", "pencil_glow", x=0, y=-64, radius=20,
+    fig.add("circle", "pencil_glow", x=0, y=-100, radius=28,
             gradient="radial rgba(230,255,120,0.85)@0 rgba(230,255,120,0)@1", pivot="center"),
-    fig.add("path", "pencil_body", d="M-9 -38 L9 -38 L9 50 L-9 50 Z", fill=CORAL),
+    fig.add("path", "pencil_body", d="M-14 -60 L14 -60 L14 78 L-14 78 Z", fill=CORAL),
 ]
-pencil.append(fig.crescent("pencil_body", -6, 0, CORAL_SH))
+pencil.append(fig.crescent("pencil_body", -9, 0, CORAL_SH))
 pencil += [
-    fig.add("path", "pencil_wood", d="M-9 -38 L9 -38 L0 -58 Z", fill="#F1D3A2"),
-    fig.add("path", "pencil_lead", d="M-3.5 -50 L3.5 -50 L0 -59 Z", fill="#C9E85A"),
-    fig.add("path", "pencil_band", d="M-9 50 L9 50 L9 56 L-9 56 Z", fill="#C9C9D6"),
-    fig.add("path", "pencil_rubber", d="M-9 56 L9 56 L9 62 C 9 68 -9 68 -9 62 Z", fill="#F49AA0"),
+    fig.add("path", "pencil_wood", d="M-14 -60 L14 -60 L0 -92 Z", fill="#F1D3A2"),
+    fig.add("path", "pencil_lead", d="M-5.5 -79 L5.5 -79 L0 -93 Z", fill="#C9E85A"),
+    fig.add("path", "pencil_band", d="M-14 78 L14 78 L14 88 L-14 88 Z", fill="#C9C9D6"),
+    fig.add("path", "pencil_rubber", d="M-14 88 L14 88 L14 97 C 14 106 -14 106 -14 97 Z", fill="#F49AA0"),
 ]
 for s in "lr":
     fig.hand(s, at)
@@ -85,14 +85,14 @@ fig.to_front([hair, hair_sh, hair_hi, part])
 
 # ---------------------------------------------------------------- rig
 fig.rig({"l": (166, y(400), 11), "r": (346, y(400), -11)},
-        extra=[("pencil", "arm_r", -1, at, 11, pencil)])
+        extra=[("pencil", "arm_r", -1, at, 24, pencil)])
 
 # ---------------------------------------------------------------- animation
 steps = [
     # twirl: one full turn of the pencil every 6 s, with a small swing of the arm
-    "keyframe --clip twirl --target pencil --property rotation --time 4.8 --value 11 --autoplay --loop",
-    "keyframe --clip twirl --target pencil --property rotation --time 5.7 --value 371 --easing ease-in-out",
-    "keyframe --clip twirl --target pencil --property rotation --time 6 --value 371",
+    "keyframe --clip twirl --target pencil --property rotation --time 4.8 --value 24 --autoplay --loop",
+    "keyframe --clip twirl --target pencil --property rotation --time 5.7 --value 384 --easing ease-in-out",
+    "keyframe --clip twirl --target pencil --property rotation --time 6 --value 384",
     "keyframe --clip twirl --target arm_r --property rotation --time 4.6 --value -11",
     "keyframe --clip twirl --target arm_r --property rotation --time 5.0 --value -24 --easing ease-out",
     "keyframe --clip twirl --target arm_r --property rotation --time 5.8 --value -11 --easing ease-in-out",

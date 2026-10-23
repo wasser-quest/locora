@@ -6,68 +6,154 @@
     <!-- The same policy as _headers: nothing may run, load or embed anything from elsewhere. -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'" />
     <meta name="referrer" content="no-referrer" />
-    <title>Locora – learn with the method of loci</title>
-    <meta name="description" content="Locora is a memory palace app. Place what you want to remember at places you know well, and walk the route in your mind. Works offline, with no tracking." />
-    <meta property="og:title" content="Locora – learn with the method of loci" />
-    <meta property="og:description" content="Place what you want to remember at places you know well, and walk the route in your mind. Works offline, with no tracking." />
+    <title>Locora – memory palaces from your own places</title>
+    <meta name="description" content="Locora is a free, open-source memory palace app. Turn photos and videos of places you know into palaces, place loci in a few clicks, and review with spaced repetition. Offline-first, no ads, no tracking." />
+    <meta property="og:title" content="Locora – memory palaces from your own places" />
+    <meta property="og:description" content="Turn photos and videos of places you know into memory palaces, learn the method of loci with Simo and his friends, and review just before you would forget. Offline-first, no ads, no tracking." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://locora.cloud/" />
     <meta name="theme-color" content="#3a3d92" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <a class="skip" href="#content">Skip to content</a>
     <header class="top">
       <a class="brand" href="index.html" aria-label="Locora home">
-        <span class="mark" aria-hidden="true">L</span> Locora
+        <img class="mark" src="favicon.svg" alt="" width="32" height="32"> Locora
       </a>
       <nav aria-label="Main">
-        <a href="#how">How it works</a>
-        <a href="#services">Services</a>
+        <a href="#features">Features</a>
+        <a href="#learn">Learn</a>
+        <a href="#download">Download</a>
+        <a href="#cloud">Cloud</a>
         <a href="#privacy">Privacy</a>
         <a href="https://github.com/wasser-quest/locora">Source</a>
       </nav>
     </header>
 
     <main id="content">
-      <section class="hero">
-        <p class="eyebrow">The method of loci, made simple</p>
-        <h1>Remember what you want to keep.</h1>
-        <p class="lede">Place what you want to learn at spots in a picture you know well. Later, walk the route in your mind and recall each one. Locora then reminds you just before you would forget.</p>
-        <div class="actions">
-          <a class="button" href="https://app.locora.cloud/">Open the app</a>
-          <a class="button ghost" href="#how">See how it works</a>
+      <section class="hero hero-split">
+        <div>
+          <p class="eyebrow">The method of loci, made simple</p>
+          <h1>Remember what you want to keep.</h1>
+          <p class="lede">Turn a photo or video of a place you know into a memory palace. Put what you want to learn at its spots, walk the route in your mind, and Locora brings each item back just before you would forget it.</p>
+          <div class="actions">
+            <a class="button" href="https://app.locora.cloud/">Open the web app</a>
+            <a class="button ghost" href="#download">Download</a>
+          </div>
+          <p class="note">Free and open source (MIT). Works offline, no account needed. No ads, no tracking.</p>
         </div>
-        <p class="note">Works offline in your browser. No account needed to start.</p>
+        <img class="hero-figure" src="img/simo.png" width="300" height="451" alt="Simo, the Locora mascot: a man with light brown skin and an afro, holding a glowing lantern, with three lights on his jacket" />
       </section>
 
-      <section id="how" class="steps" aria-labelledby="how-title">
+      <section id="how" aria-labelledby="how-title">
         <h2 id="how-title">How it works</h2>
         <ol class="cards">
-          <li class="card"><span class="num">1</span><h3>Choose a room</h3><p>A picture or a video of a place you know well: your home, your street, a station.</p></li>
-          <li class="card"><span class="num">2</span><h3>Place the loci</h3><p>Put each thing you want to remember at a spot in the room, and add a short hint.</p></li>
-          <li class="card"><span class="num">3</span><h3>Walk the route</h3><p>Go through the room in your mind and recall what each spot holds. Then check yourself.</p></li>
-          <li class="card"><span class="num">4</span><h3>Review when it is due</h3><p>Spaced repetition brings each item back just before you would forget it.</p></li>
+          <li class="card"><span class="num">1</span><h3>Pick a place you know</h3><p>A photo of your flat or a video of your way to work becomes a palace. Add more rooms whenever you like.</p></li>
+          <li class="card"><span class="num">2</span><h3>Place the loci</h3><p>Tap a spot, type what belongs there and a short memory aid. A few clicks per locus.</p></li>
+          <li class="card"><span class="num">3</span><h3>Walk the route</h3><p>Start a journey with one click. Recall what each spot holds, reveal it, and grade yourself.</p></li>
+          <li class="card"><span class="num">4</span><h3>Review when it is due</h3><p>Spaced repetition (FSRS) schedules every locus, in the order of your route.</p></li>
         </ol>
       </section>
 
+      <section id="features" aria-labelledby="features-title">
+        <h2 id="features-title">What Locora does</h2>
+        <ul class="cards">
+          <li class="card"><h3>Palaces from your own pictures</h3><p>Photos and videos of your own places, with several rooms per palace. In a video palace the film stops at each locus and goes on once you have recalled it.</p></li>
+          <li class="card"><h3>Sound at every locus</h3><p>Give a locus its own audio clip. It plays when you reveal the answer.</p></li>
+          <li class="card"><h3>Phone recordings as they are</h3><p>Videos and sound keep the codec they were recorded in, so adding them is fast and loses no quality. Location and other metadata are removed.</p></li>
+          <li class="card"><h3>Journeys with FSRS</h3><p>Walk a palace, grade each answer, and let the FSRS scheduler bring back what is due.</p></li>
+          <li class="card"><h3>A guided start</h3><p>In the app tour Simo builds an example palace in front of you and walks its route with you. An ⓘ next to fields and settings explains what each one is for.</p></li>
+          <li class="card"><h3>Achievements</h3><p>For each lesson, the finished app tour and your first own palace, next to XP and trophies. All of it works offline.</p></li>
+          <li class="card"><h3>Five languages</h3><p>English, Deutsch, Français, 日本語 and 中文, chosen on the first start.</p></li>
+          <li class="card"><h3>Offline-first and open</h3><p>Your palaces live on your device. No account, no ads, no tracking. The whole app is open source under the MIT license.</p></li>
+        </ul>
+      </section>
+
+      <section id="learn" class="callout" aria-labelledby="learn-title">
+        <h2 id="learn-title">Learn mnemonics with Simo and his friends</h2>
+        <p class="lede">New in the app: 17 short lessons, from building vivid pictures to walking a route and repeating at the right time, plus history, research and memory sports. Every lesson ends with a small exercise and a quick check, and gives an achievement.</p>
+        <ul class="cast">
+          <li>
+            <img src="img/simo.png" width="300" height="451" alt="Simo with his glowing lantern" />
+            <h3>Simo</h3>
+            <p>The method of loci, walking a route, and its history. Named after Simonides of Ceos.</p>
+          </li>
+          <li>
+            <img src="img/mina.png" width="300" height="451" alt="Mina: an older woman with a silver bun, round glasses and a teal dress, holding a book with a glowing bookmark" />
+            <h3>Mina</h3>
+            <p>Common mistakes and what research says. Named after Mnemosyne, the goddess of memory.</p>
+          </li>
+          <li>
+            <img src="img/cami.png" width="300" height="451" alt="Cami: a girl with dark brown skin, two braids with glowing bobbles and a yellow dress, holding a big pencil" />
+            <h3>Cami</h3>
+            <p>How to picture things: vivid, absurd, moving, with all senses. Named after Giulio Camillo.</p>
+          </li>
+          <li>
+            <img src="img/bruno.png" width="300" height="451" alt="Bruno: a tall man with a full ginger beard, a flat cap and a green jacket, holding a map" />
+            <h3>Bruno</h3>
+            <p>Palaces, places and routes, and how to reuse them. Named after Giordano Bruno.</p>
+          </li>
+          <li>
+            <img src="img/hafiza.png" width="300" height="451" alt="Hafiza: a young woman with warm brown skin in a raspberry headscarf and a long coat, holding a stopwatch" />
+            <h3>Hafiza</h3>
+            <p>Numbers, repetition and memory sports. Her name means “memory” in Turkish.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="download" aria-labelledby="download-title">
+        <h2 id="download-title">Get Locora</h2>
+        <ul class="cards">
+          <li class="card"><h3>Web</h3><p>No install: open it in your browser, add it as an app, use it offline.</p><a href="https://app.locora.cloud/">app.locora.cloud</a></li>
+          <li class="card"><h3>Windows</h3><p>Installer as <code>.exe</code> or <code>.msi</code>.</p></li>
+          <li class="card"><h3>macOS</h3><p>A <code>.dmg</code> for Apple silicon and one for Intel.</p></li>
+          <li class="card"><h3>Linux</h3><p><code>.AppImage</code>, <code>.deb</code> or <code>.rpm</code>.</p></li>
+          <li class="card"><h3>Android</h3><p>An APK to install directly. Google Play is coming.</p></li>
+          <li class="card"><h3>iPhone and iPad</h3><p>An unsigned <code>.ipa</code>: install it with AltStore or Sideloadly, which sign it with your Apple ID.</p></li>
+          <li class="card"><h3>Command line</h3><p>The <code>locora</code> command: build palaces from text files and practise in the terminal.</p></li>
+        </ul>
+        <div class="actions">
+          <a class="button" href="https://github.com/wasser-quest/locora/releases/latest">All downloads (latest release)</a>
+          <a class="button ghost" href="https://app.locora.cloud/">Open the web app</a>
+        </div>
+        <p class="note">The desktop installers are not code-signed yet: on macOS open the app with right-click → Open, on Windows choose More info → Run anyway. Every release lists the SHA-256 checksums of its files.</p>
+      </section>
+
+      <section id="cloud" aria-labelledby="cloud-title">
+        <h2 id="cloud-title">Locora Cloud: sync between your devices</h2>
+        <div class="split">
+          <div>
+            <p>Locora works without an account. If you use it on several devices, the optional Locora Cloud keeps desktop, phone, browser and CLI in step.</p>
+            <ul class="ticks">
+              <li><strong>End-to-end encrypted.</strong> Palaces, pictures, videos and sound are encrypted on your device with your own password before they are sent. The server cannot read them.</li>
+              <li><strong>Automatic.</strong> Enter the encryption password once and Locora syncs on its own. A sync by hand first shows which palaces change.</li>
+              <li><strong>Free for six months.</strong> Every new account can sync for six months at no cost. A subscription will follow later, on the web.</li>
+              <li><strong>Your account in the browser.</strong> On web.locora.cloud you reset your password, see your storage, and delete your cloud data or your whole account.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Account</h3>
+            <p>Create the account in the app under Settings → Locora Cloud, and manage it on the account page.</p>
+            <p><a href="https://web.locora.cloud/">web.locora.cloud</a></p>
+            <p><a href="privacy.html#cloud">How the cloud handles your data</a><br /><a href="konto-loeschen.html">Delete your account</a></p>
+          </div>
+        </div>
+      </section>
+
       <section id="services" aria-labelledby="services-title">
-        <h2 id="services-title">Services</h2>
+        <h2 id="services-title">Community</h2>
         <div class="cards">
-          <article class="card">
-            <h3>Locora app</h3>
-            <p>The learning app, in your browser. Your palaces stay on your device, and the app works offline.</p>
-            <a href="https://app.locora.cloud/">app.locora.cloud</a>
-          </article>
           <article class="card">
             <h3>Forum</h3>
             <p>Boards and threads for learners: questions, palaces to share, polls and reactions. Pages run no scripts.</p>
             <a href="https://bb.locora.cloud/">bb.locora.cloud</a>
           </article>
           <article class="card">
-            <h3>Locora Cloud</h3>
-            <p>An optional account to sync your palaces between devices. Your data is encrypted on your device before it is sent.</p>
-            <a href="privacy.html#account">How the account works</a>
+            <h3>Source code</h3>
+            <p>Written in Rust: core, plugins, CLI and app. Issues, ideas and contributions are welcome.</p>
+            <a href="https://github.com/wasser-quest/locora">github.com/wasser-quest/locora</a>
           </article>
         </div>
       </section>
@@ -75,17 +161,24 @@
       <section id="privacy" class="callout" aria-labelledby="privacy-title">
         <h2 id="privacy-title">Privacy</h2>
         <ul>
-          <li>No advertising, no tracking, no analytics on this site.</li>
+          <li>No advertising, no tracking, no analytics, in the app and on this site.</li>
           <li>This page runs no script, loads nothing from other sites, and sets no cookies.</li>
-          <li>The app keeps your data on your device. The cloud only sees what is encrypted on your device.</li>
+          <li>The app keeps your data on your device. The cloud only stores what was encrypted on your device.</li>
         </ul>
         <p><a href="privacy.html">Read the privacy policy</a> · <a href="impressum.html">Legal notice</a></p>
+      </section>
+
+      <section id="deutsch" class="callout" lang="de" aria-labelledby="de-title">
+        <h2 id="de-title">Kurz auf Deutsch</h2>
+        <p>Locora ist eine kostenlose, quelloffene App für die Loci-Methode. Aus Fotos und Videos deiner eigenen Orte werden Gedächtnispaläste; die Orte setzt du mit wenigen Klicks, und die Wiederholung (FSRS) holt jedes Element zurück, kurz bevor du es vergessen würdest. In „Mnemotechnik lernen“ erklären Simo und seine Freunde Mina, Cami, Bruno und Hafiza die Technik in 17 kurzen Lektionen mit Übungen.</p>
+        <p>Für Windows, macOS, Linux, Android, iPhone/iPad, im Browser und als CLI. Offline, ohne Werbung, ohne Tracking. Die optionale Locora Cloud synchronisiert Ende-zu-Ende-verschlüsselt; neue Konten sind sechs Monate kostenlos.</p>
+        <p><a href="privacy.html">Datenschutzerklärung</a> · <a href="impressum.html">Impressum</a> · <a href="konto-loeschen.html">Konto löschen</a></p>
       </section>
     </main>
 
     <footer>
-      <p>Locora is open source. <a href="https://github.com/wasser-quest/locora">Source on GitHub</a></p>
-      <p><a href="privacy.html">Privacy</a> · <a href="impressum.html">Legal notice</a></p>
+      <p>Locora is open source under the MIT license. <a href="https://github.com/wasser-quest/locora">Source on GitHub</a></p>
+      <p><a href="privacy.html">Privacy</a> · <a href="impressum.html">Legal notice</a> · <a href="konto-loeschen.html">Delete account</a></p>
     </footer>
   </body>
 </html>

@@ -1,141 +1,126 @@
 #!/usr/bin/env python3
-"""Writes the start splash into apps/app/ui/index.html.
+"""Writes the start splash animations into apps/app/ui/index.html.
 
 Usage: python3 assets/ui/src/splash_html.py
 
-The four Splinely animations (apps/app/ui/splash/*.svg, exported by
-assets/ui/src/splash.py) are inlined as <template>s, so the page has them
-before the wasm starts: no download, nothing to wait for. The embedded runtime
-keeps its code; only the CDATA wrapper is removed, because script contents in
-HTML are plain text. The page script clones one of them at random.
+First the exported SVGs (apps/app/ui/splash/*.svg, exported from the .sply files of
+assets/ui/src/splash.py) get the runtime the app ships: `splinely-cli export` embeds
+its own runtime, which is swapped for crates/locora-app-core/vendor/splinely-X.Y.Z.js,
+and the version stamps say X.Y.Z. Run again, nothing changes.
+
+Then the four animations are inlined as <template>s, so the page has them before
+the wasm starts: no download, nothing to wait for. The page script clones one of them
+at random (the web app mounts the .svg next to the page instead). The SVG stays as it
+is, CDATA included: an <svg> in an HTML page is foreign content, where the parser
+reads <![CDATA[ ... ]]> as plain text, so the runtime's `<` and `&` stay code. Without
+the wrapper every `<` in it would start a tag and break the script apart.
+
+The apps' content security policy (apps/app/src-tauri/tauri.conf.json) lets these
+scripts run: Tauri adds the hashes of the page's inline scripts at build time, but not
+of scripts inside a <template>, so the sha256 sources of its `script-src` are the
+splash scripts' and are written here.
+
+Only the templates, the list of scene names and those hashes are replaced; the rest of
+the page (styles, tips, the page script) is edited in index.html itself.
 """
-import glob, os, re
+import base64, glob, hashlib, json, os, re
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 UI = os.path.join(ROOT, "apps", "app", "ui")
 SPLASH = os.path.join(UI, "splash")
+PAGE = os.path.join(UI, "index.html")
+TAURI = os.path.join(ROOT, "apps", "app", "src-tauri", "tauri.conf.json")
+VENDOR = os.path.join(ROOT, "crates", "locora-app-core", "vendor")
+
+
+def vendored_runtime():
+    """(version, code) of the Splinely runtime in crates/locora-app-core/vendor."""
+    found = [(m.group(1), path) for path in glob.glob(os.path.join(VENDOR, "splinely-*.js"))
+             if (m := re.fullmatch(r"splinely-(\d+\.\d+\.\d+)\.js", os.path.basename(path)))]
+    if len(found) != 1:
+        raise SystemExit(f"{VENDOR}: expected one splinely-X.Y.Z.js, found {len(found)}")
+    version, path = found[0]
+    return version, open(path, encoding="utf-8").read()
+
+
+def use_runtime(svg, version, code):
+    """The exported SVG with the runtime `code` in place of the one splinely-cli embedded
+    (the host lines after it stay) and stamped with `version`."""
+    start = svg.index("<![CDATA[", svg.index("<script")) + len("<![CDATA[")
+    last = code.rstrip("\n").rsplit("\n", 1)[-1] + "\n"   # the runtime's closing line
+    end = svg.index(last, start) + len(last)
+    if not svg.startswith(code.split("\n", 1)[0], start):
+        raise SystemExit("the exported SVG does not start its script with the Splinely runtime")
+    svg = svg[:start] + code + svg[end:]
+    svg, stamps = re.subn(r"<!-- Created with Splinely [\d.]+ -->", f"<!-- Created with Splinely {version} -->", svg, count=1)
+    svg, generators = re.subn(r'(<splinely:generator [^>]*name="Splinely" version=")[\d.]+"', rf'\g<1>{version}"', svg, count=1)
+    if stamps != 1 or generators != 1:
+        raise SystemExit("the exported SVG has no Splinely version stamp")
+    return svg
 
 
 def inline_svg(path):
+    """(the <svg> element of `path`, the code of its script)."""
     text = open(path, encoding="utf-8").read()
     svg = text[text.index("<svg"): text.rindex("</svg>") + len("</svg>")]
-    # The CDATA wrapper is XML; inside an HTML script it would be a syntax error.
-    svg = svg.replace("<![CDATA[", "", 1)
-    svg = re.sub(r"\]\]>(\s*</script>)", r"\1", svg, count=1)
-    assert "CDATA" not in svg and "</template" not in svg
-    return svg
+    # One script, all of its code inside one CDATA section (see the top of this file).
+    tag = re.compile(r"<script[^>]*>").search(svg)
+    close = svg.find("]]></script>")
+    if (not tag or not svg.startswith("<![CDATA[", tag.end()) or svg.count("]]>") != 1 or close < 0
+            or "<script" in svg[:tag.start()] + svg[close:]):
+        raise SystemExit(f"{path}: expected one script with all of its code in CDATA")
+    assert "</template" not in svg
+    return svg, svg[tag.end() + len("<![CDATA["):close]
+
+
+def csp_hash(code):
+    """The CSP source that allows the inline script `code` (the browser hashes the script's
+    text, with its line breaks as the HTML parser leaves them)."""
+    code = code.replace("\r\n", "\n").replace("\r", "\n")
+    return "'sha256-" + base64.b64encode(hashlib.sha256(code.encode("utf-8")).digest()).decode() + "'"
+
+
+def allow_scripts(hashes):
+    """The sha256 sources of `script-src` in tauri.conf.json become `hashes`."""
+    conf = open(TAURI, encoding="utf-8").read()
+    line = re.compile(r'("script-src": ")([^"]*)(")')
+    if len(line.findall(conf)) != 1:
+        raise SystemExit(f"{TAURI}: expected one \"script-src\"")
+    keep = lambda sources: [s for s in sources.split() if not s.startswith("'sha256-")]  # noqa: E731
+    conf = line.sub(lambda m: m.group(1) + " ".join(keep(m.group(2)) + hashes) + m.group(3), conf)
+    sources = json.loads(conf)["app"]["security"]["csp"]["script-src"].split()
+    assert sources[-len(hashes):] == hashes
+    open(TAURI, "w", encoding="utf-8").write(conf)
 
 
 def main():
     files = sorted(glob.glob(os.path.join(SPLASH, "splash-*.svg")))
+    version, code = vendored_runtime()
+    for path in files:
+        svg = open(path, encoding="utf-8").read()
+        swapped = use_runtime(svg, version, code)
+        if swapped != svg:
+            open(path, "w", encoding="utf-8").write(swapped)
+            print("runtime", version, "in", os.path.relpath(path, ROOT))
     names = [os.path.splitext(os.path.basename(f))[0] for f in files]
+    inlined = [inline_svg(path) for path in files]
     templates = "\n".join(
-        f'  <template id="{name}">\n{inline_svg(path)}\n  </template>'
-        for name, path in zip(names, files)
+        f'  <template id="{name}">\n{svg}\n  </template>' for name, (svg, _) in zip(names, inlined)
     )
-    page = f"""<!doctype html>
-<html lang="de">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Locora</title>
-    <link data-trunk rel="css" href="style.css" />
-    <!-- Rust enables these wasm32 features by default; wasm-opt must accept them. -->
-    <link data-trunk rel="rust" data-wasm-opt="z"
-      data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types --enable-multivalue --enable-mutable-globals" />
-    <!-- Painted before the wasm loads: a random animation and a random tip in the saved language.
-         The animations are inlined (assets/ui/src/splash_html.py), so nothing is fetched.
-         The app asks for the hide (window.hideSplash) once it is mounted. -->
-    <style>
-      html, body {{ margin: 0; background: #f3eee3; }}
-      #splash {{ position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.25rem; padding: 1rem; color: #22234f; font: 500 1.05rem system-ui, sans-serif; text-align: center; }}
-      #splash-art {{ width: min(70vw, 300px); height: min(70vw, 300px); }}
-      #splash-art svg {{ width: 100%; height: 100%; }}
-      #splash-tip {{ max-width: 22rem; margin: 0; line-height: 1.4; }}
-      @media (prefers-color-scheme: dark) {{
-        html, body {{ background: #16173a; }}
-        #splash {{ color: #ece8dc; }}
-      }}
-    </style>
-  </head>
-  <body>
-    <div id="splash">
-      <div id="splash-art"></div>
-      <p id="splash-tip"></p>
-    </div>
-{templates}
-    <script>
-      (function () {{
-        var scenes = {names!r};
-        var tips = {{
-          en: [
-            "Put what you want to remember at places you know well.",
-            "The route is the order: walk it in your mind to recall it.",
-            "Make the picture strange: the stranger, the better it sticks.",
-            "Review just before you forget: that is when it sticks best.",
-            "Next goes to the next place – quick next moves on after your own grade."
-          ],
-          de: [
-            "Lege, was du behalten willst, an Orte, die du gut kennst.",
-            "Die Route ist die Reihenfolge: geh sie im Kopf ab, um dich zu erinnern.",
-            "Mach das Bild seltsam: je seltsamer, desto besser bleibt es.",
-            "Wiederhole kurz bevor du vergisst – dann bleibt es am besten.",
-            "„Weiter“ führt zum nächsten Ort – mit Schnell weiter geht es nach deiner Bewertung."
-          ],
-          fr: [
-            "Place ce que tu veux retenir dans des lieux que tu connais bien.",
-            "Le parcours est l’ordre : parcours-le dans ta tête pour te souvenir.",
-            "Rends l’image étrange : plus elle l’est, mieux elle reste.",
-            "Révise juste avant d’oublier : c’est là que ça reste le mieux.",
-            "« Suivant » passe au lieu suivant – après ta propre évaluation."
-          ],
-          ja: [
-            "覚えたいものは、よく知っている場所に置きましょう。",
-            "ルートは順番そのもの。頭の中でたどると思い出せます。",
-            "イメージは奇妙に: 奇妙なほど記憶に残ります。",
-            "忘れる直前に復習すると、いちばん定着します。",
-            "「次へ」で次の場所へ。自分で評価した後に進みます。"
-          ],
-          zh: [
-            "把想记住的内容放在你熟悉的位置上。",
-            "路线就是顺序：在脑中走一遍就能回想起来。",
-            "让画面奇怪一点：越奇怪，越容易记住。",
-            "在快要忘记时复习，记得最牢。",
-            "“下一个”会进入下一个位置——你评价之后才继续。"
-          ]
-        }};
-        var pick = function (items) {{ return items[Math.floor(Math.random() * items.length)]; }};
-        var lang = "en";
-        try {{ lang = localStorage.getItem("locora-language-v1") || "en"; }} catch (_) {{}}
-        var started = Date.now();
-        var art = document.getElementById("splash-art");
-        var template = document.getElementById(pick(scenes));
-        // The animation is already in the page: it is inserted at once.
-        if (template) art.appendChild(document.importNode(template.content, true));
-        document.getElementById("splash-tip").textContent = pick(tips[lang] || tips.en);
-        var hideRequested = false, removed = false;
-        // The splash stays for a short time, so the animation can be seen; the app asks for the hide once mounted.
-        var minShown = 1800, maxWait = 3000;
-        var finish = function () {{
-          if (removed) return;
-          removed = true;
-          var splash = document.getElementById("splash");
-          if (splash) splash.remove();
-        }};
-        var check = function () {{
-          if (!hideRequested || removed) return;
-          var waited = Date.now() - started;
-          if (waited >= minShown || waited >= maxWait) finish();
-          else setTimeout(check, 100);
-        }};
-        window.hideSplash = function () {{ hideRequested = true; check(); }};
-      }})();
-    </script>
-  </body>
-</html>
-"""
-    open(os.path.join(UI, "index.html"), "w", encoding="utf-8").write(page)
-    print("wrote index.html with", len(names), "splash animations")
+    page = open(PAGE, encoding="utf-8").read()
+    # From the first splash template to the end of the last one.
+    block = re.compile(r'  <template id="splash-.*\n  </template>', re.S)
+    scenes = re.compile(r"var scenes = \[[^\]]*\];")
+    if len(block.findall(page)) != 1 or len(scenes.findall(page)) != 1:
+        raise SystemExit(f"{PAGE}: expected the splash templates and one `var scenes = [...]`")
+    page = block.sub(lambda _: templates, page)
+    page = scenes.sub(lambda _: f"var scenes = {names!r};", page)
+    open(PAGE, "w", encoding="utf-8").write(page)
+    print("wrote", os.path.relpath(PAGE, ROOT), "with", len(names), "splash animations")
+    # The scenes share one script (the runtime), so this is usually one hash.
+    hashes = sorted({csp_hash(code) for _, code in inlined})
+    allow_scripts(hashes)
+    print("allowed", " ".join(hashes), "in", os.path.relpath(TAURI, ROOT))
 
 
 if __name__ == "__main__":
