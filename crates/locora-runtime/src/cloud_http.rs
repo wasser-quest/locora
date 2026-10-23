@@ -3,6 +3,7 @@
 //! (ureq), and the browser runs the same flow with `fetch`, one call at a time, so nothing blocks.
 
 use anyhow::{Context, Result, bail};
+use locora_cloud_api::api::{ErrorBody, REASON_CONFIRM_EMAIL};
 use serde::de::DeserializeOwned;
 
 /// Largest response body accepted from the server (one media file or one page of operations).
@@ -134,21 +135,21 @@ pub fn json<T: DeserializeOwned>(reply: Reply) -> Result<T> {
     serde_json::from_slice(&reply.body).context("Antwort von Locora Cloud ist ungültig")
 }
 
-/// The body of the server's error replies.
-#[derive(serde::Deserialize)]
-struct ErrorBody {
-    error: String,
-}
-
 /// The server's error message for a failed reply.
 pub fn failure(reply: &Reply) -> anyhow::Error {
     // Status 0 is a reply that never came: the page could not reach the server.
     // Full storage, too many requests and a busy server get the app's own words, which it
-    // translates. They stay neutral: the apps never send anyone to a shop.
+    // translates. They stay neutral: the apps never send anyone to a shop. Full storage of an
+    // account whose address is not confirmed yet (a 507 with that reason) says what helps.
     let message = match reply.status {
         0 => "Locora Cloud nicht erreichbar".to_owned(),
         429 => "Gerade zu viele Anfragen an Locora Cloud. Bitte später erneut versuchen".to_owned(),
         503 => "Locora Cloud ist gerade ausgelastet. Bitte später erneut versuchen".to_owned(),
+        507 if serde_json::from_slice::<ErrorBody>(&reply.body)
+            .is_ok_and(|body| body.reason.as_deref() == Some(REASON_CONFIRM_EMAIL)) =>
+        {
+            "Der Speicher in Locora Cloud ist voll. Bestätige deine E-Mail-Adresse, dann gibt es mehr Platz".to_owned()
+        }
         507 => "Der Speicher in Locora Cloud ist voll. Lösche nicht mehr benötigte Bilder oder Videos oder versuche es später erneut".to_owned(),
         _ => match serde_json::from_slice::<ErrorBody>(&reply.body) {
             Ok(body) => body.error,
@@ -329,6 +330,32 @@ mod tests {
             assert!(error.to_string().starts_with(start), "{status}: {error}");
             assert_eq!(status_of(&error), Some(status));
         }
+        // An account whose address is not confirmed has used its smaller storage: the app's own
+        // words say that confirming the address helps, whatever the server's message is.
+        let unconfirmed = failure(&Reply {
+            status: 507,
+            body: br#"{"error":"the server's own words","reason":"confirm_email"}"#.to_vec(),
+        });
+        assert_eq!(
+            unconfirmed.to_string(),
+            "Der Speicher in Locora Cloud ist voll. Bestätige deine E-Mail-Adresse, dann gibt es mehr Platz"
+        );
+        assert_eq!(status_of(&unconfirmed), Some(507));
+        // Any other reason, or one on another status, changes nothing.
+        let other = failure(&Reply {
+            status: 507,
+            body: br#"{"error":"voll","reason":"something_else"}"#.to_vec(),
+        });
+        assert!(
+            other
+                .to_string()
+                .starts_with("Der Speicher in Locora Cloud ist voll. Lösche")
+        );
+        let not_full = failure(&Reply {
+            status: 409,
+            body: br#"{"error":"schon da","reason":"confirm_email"}"#.to_vec(),
+        });
+        assert_eq!(not_full.to_string(), "schon da");
     }
 
     #[test]

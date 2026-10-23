@@ -396,10 +396,20 @@ impl KeyUpload {
     }
 }
 
+/// The body of every error reply: the server's German message, and on some replies a
+/// machine-readable `reason`, so a client can show its own (translated) words instead of the
+/// server's. Older servers send no reason; older clients ignore it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorBody {
     pub error: String,
+    /// One of the `REASON_*` constants, where the server names one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
+
+/// The `reason` of a 507 for an account whose address is not confirmed yet and that has used up
+/// the smaller storage of such an account: confirming the address gives it the full storage.
+pub const REASON_CONFIRM_EMAIL: &str = "confirm_email";
 
 #[cfg(test)]
 mod tests {
@@ -423,6 +433,30 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn an_error_names_its_reason_only_where_there_is_one() {
+        let plain = ErrorBody {
+            error: "Nicht gefunden".into(),
+            reason: None,
+        };
+        assert_eq!(
+            serde_json::to_value(&plain).unwrap(),
+            json!({"error": "Nicht gefunden"})
+        );
+        // What an older server sends reads as no reason.
+        let older: ErrorBody = serde_json::from_value(json!({"error": "voll"})).unwrap();
+        assert_eq!(
+            older,
+            ErrorBody {
+                error: "voll".into(),
+                reason: None
+            }
+        );
+        let confirm: ErrorBody =
+            serde_json::from_value(json!({"error": "voll", "reason": "confirm_email"})).unwrap();
+        assert_eq!(confirm.reason.as_deref(), Some(REASON_CONFIRM_EMAIL));
     }
 
     #[test]
