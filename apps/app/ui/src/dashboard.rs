@@ -203,6 +203,10 @@ pub fn resolve(saved: &[Entry], known: &[(String, Placement)], start: bool) -> V
 pub fn page_label(page: &Page) -> String {
     if page.id == START {
         t("Start").to_owned()
+    } else if page.name == "Stats" || page.name == "Fortschritt" {
+        // The progress page of the first layout, in the app's language (older layouts named it
+        // „Stats“).
+        t("Fortschritt").to_owned()
     } else {
         page.name.clone()
     }

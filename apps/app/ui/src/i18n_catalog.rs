@@ -105,16 +105,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
     ),
     ("100 XP", ["100 XP", "100 XP", "100 XP", "100 XP", "100 XP"]),
     (
-        "7 Tage gelernt",
-        [
-            "7 days learned",
-            "7 Tage gelernt",
-            "7 jours d'apprentissage",
-            "7日間学習",
-            "已学习 7 天",
-        ],
-    ),
-    (
         "Lernfortschritt",
         [
             "Learning progress",
@@ -132,16 +122,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "Points d'expérience",
             "経験値",
             "经验值",
-        ],
-    ),
-    (
-        "Richtige Antworten in Folge",
-        [
-            "Correct answers in a row",
-            "Richtige Antworten in Folge",
-            "Bonnes réponses d'affilée",
-            "連続正解",
-            "连续答对",
         ],
     ),
     (
@@ -2542,26 +2522,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "{0} Combo",
-        [
-            "{0} combo",
-            "{0} Combo",
-            "Combo {0}",
-            "コンボ {0}",
-            "连击 {0}",
-        ],
-    ),
-    (
-        "Tagesziel: {0} von {1} richtig · {2} Tage in Folge",
-        [
-            "Daily goal: {0} of {1} correct · {2} days in a row",
-            "Tagesziel: {0} von {1} richtig · {2} Tage in Folge",
-            "Objectif du jour : {0} sur {1} justes · {2} jours d'affilée",
-            "今日の目標：{1} 問中 {0} 問正解 · {2} 日連続",
-            "今日目标：答对 {0}/{1} · 连续 {2} 天",
-        ],
-    ),
-    (
         "Richtig: {0}",
         [
             "Correct: {0}",
@@ -2569,16 +2529,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "Juste : {0}",
             "正解：{0}",
             "正确：{0}",
-        ],
-    ),
-    (
-        "Combo {0} · Herzen {1}",
-        [
-            "Combo {0} · Hearts {1}",
-            "Combo {0} · Herzen {1}",
-            "Combo {0} · Cœurs {1}",
-            "コンボ {0} · ハート {1}",
-            "连击 {0} · 心 {1}",
         ],
     ),
     (
@@ -2619,26 +2569,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "État des révisions pour {0} lieux repris",
             "{0} 個の場所の復習の進みを引き継ぎました",
             "已接收 {0} 个位置的复习进度",
-        ],
-    ),
-    (
-        "{0} Tage in Folge",
-        [
-            "{0} days in a row",
-            "{0} Tage in Folge",
-            "{0} jours d'affilée",
-            "{0} 日連続",
-            "连续 {0} 天",
-        ],
-    ),
-    (
-        "Erfahrungspunkte, Combo und Herzen in der Journey anzeigen",
-        [
-            "Show XP, combo and hearts in journeys",
-            "Erfahrungspunkte, Combo und Herzen in der Journey anzeigen",
-            "Afficher XP, combo et cœurs dans les parcours",
-            "ジャーニーで経験値・コンボ・ハートを表示",
-            "在旅程中显示经验值、连击和心",
         ],
     ),
     (
@@ -3332,16 +3262,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "{0} von 5 Herzen",
-        [
-            "{0} of 5 hearts",
-            "{0} von 5 Herzen",
-            "{0} sur 5 cœurs",
-            "ハート {0}/5",
-            "{0}/5 颗心",
-        ],
-    ),
-    (
         "{0} Orte eingefügt",
         [
             "{0} places added",
@@ -3671,16 +3591,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "« Système » suit le réglage de ton appareil. « Contraste élevé » aide si tu vois mal.",
             "「システム」は端末の設定に合わせます。「ハイコントラスト」は見えにくいときに役立ちます。",
             "“跟随系统”使用设备的设置。“高对比度”适合视力不好的人。",
-        ],
-    ),
-    (
-        "Zeigt beim Lernen eine Leiste mit Punkten, Treffern in Folge und Herzen. Ausschalten blendet sie nur aus.",
-        [
-            "Shows a bar with points, correct answers in a row and hearts while learning. Turning it off only hides it.",
-            "Zeigt beim Lernen eine Leiste mit Punkten, Treffern in Folge und Herzen. Ausschalten blendet sie nur aus.",
-            "Affiche pendant l'apprentissage une barre avec les points, les bonnes réponses d'affilée et les cœurs. La désactiver la masque seulement.",
-            "学習中にポイント、連続正解、ハートのバーを表示します。オフにしても隠れるだけです。",
-            "学习时显示一条包含积分、连续答对次数和心的栏。关闭只是把它隐藏。",
         ],
     ),
     (
@@ -8895,6 +8805,813 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "D’abord apprendre la mnémotechnique",
             "先に記憶術を学ぶ",
             "先学习记忆术",
+        ],
+    ),
+    (
+        "Spielfortschritt & Erfolge",
+        [
+            "Game progress & achievements",
+            "Spielfortschritt & Erfolge",
+            "Progression du jeu et succès",
+            "ゲームの進み具合と実績",
+            "游戏进度与成就",
+        ],
+    ),
+    (
+        "{0} XP · {1} Medaillen · {2} Lerntage",
+        [
+            "{0} XP · {1} medals · {2} learning days",
+            "{0} XP · {1} Medaillen · {2} Lerntage",
+            "{0} XP · {1} médailles · {2} jours d’apprentissage",
+            "{0} XP · メダル {1} 個 · 学習日 {2} 日",
+            "{0} XP · {1} 枚奖章 · {2} 个学习日",
+        ],
+    ),
+    (
+        "Wird über Locora Cloud mit deinen Geräten abgeglichen.",
+        [
+            "Synced with your devices through Locora Cloud.",
+            "Wird über Locora Cloud mit deinen Geräten abgeglichen.",
+            "Synchronisé avec tes appareils via Locora Cloud.",
+            "Locora Cloud を通じてあなたのデバイス間で同期されます。",
+            "通过 Locora Cloud 在你的设备之间同步。",
+        ],
+    ),
+    (
+        "Nur auf diesem Gerät gespeichert.",
+        [
+            "Stored on this device only.",
+            "Nur auf diesem Gerät gespeichert.",
+            "Enregistré uniquement sur cet appareil.",
+            "このデバイスにだけ保存されています。",
+            "仅保存在此设备上。",
+        ],
+    ),
+    (
+        "Spielfortschritt löschen …",
+        [
+            "Delete game progress…",
+            "Spielfortschritt löschen …",
+            "Supprimer la progression du jeu…",
+            "ゲームの進み具合を削除…",
+            "删除游戏进度…",
+        ],
+    ),
+    (
+        "Spielfortschritt löschen?",
+        [
+            "Delete game progress?",
+            "Spielfortschritt löschen?",
+            "Supprimer la progression du jeu ?",
+            "ゲームの進み具合を削除しますか？",
+            "删除游戏进度？",
+        ],
+    ),
+    (
+        "Gelöscht werden: XP, Trophäen und Medaillen (die Schritte von „Dein Weg in Locora“ sind wieder offen), Lerntage und Wochenserien, das Tagesziel und der Fortschritt in Challenges.",
+        [
+            "This deletes: XP, trophies and medals (the steps of “Your way into Locora” show as open again), learning days and weekly streaks, today’s goal and challenge progress.",
+            "Gelöscht werden: XP, Trophäen und Medaillen (die Schritte von „Dein Weg in Locora“ sind wieder offen), Lerntage und Wochenserien, das Tagesziel und der Fortschritt in Challenges.",
+            "Sont supprimés : les XP, les trophées et les médailles (les étapes de « Ton chemin dans Locora » redeviennent ouvertes), les jours d’apprentissage et les séries hebdomadaires, l’objectif du jour et la progression des défis.",
+            "削除されるもの：XP、トロフィーとメダル（「Locora へのステップ」の各ステップは未完了に戻ります）、学習日と週の連続記録、今日の目標とチャレンジの進み具合。",
+            "将被删除：XP、奖杯和奖章（“你的 Locora 之路”中的步骤会重新显示为未完成）、学习日和每周连续记录、今日目标以及挑战进度。",
+        ],
+    ),
+    (
+        "Erhalten bleiben: deine Paläste, Orte und Medien, der Wiederholungsplan und -verlauf (wann ein Ort fällig ist, ändert sich nicht), die Statistik, deine Einstellungen samt Wochenziel und dein Cloud-Konto.",
+        [
+            "This stays: your palaces, loci and media, the review schedule and history (when each locus is due does not change), statistics, your settings including the weekly goal, and your cloud account.",
+            "Erhalten bleiben: deine Paläste, Orte und Medien, der Wiederholungsplan und -verlauf (wann ein Ort fällig ist, ändert sich nicht), die Statistik, deine Einstellungen samt Wochenziel und dein Cloud-Konto.",
+            "Sont conservés : tes palais, lieux et médias, le plan et l’historique des révisions (la date à laquelle chaque lieu est dû ne change pas), les statistiques, tes réglages y compris l’objectif hebdomadaire, et ton compte cloud.",
+            "残るもの：宮殿、場所、メディア、復習の予定と履歴（各場所の期日は変わりません）、統計、週の目標を含む設定、クラウドアカウント。",
+            "将保留：你的记忆宫殿、地点和媒体、复习计划和历史（每个地点何时到期不会改变）、统计数据、包括每周目标在内的设置，以及你的云账户。",
+        ],
+    ),
+    (
+        "Palastmedaillen kommen von selbst zurück, wo deine Paläste sie noch erfüllen, denn der Wiederholungsplan bleibt.",
+        [
+            "Palace medals come back by themselves where your palaces still qualify, because the review schedule stays.",
+            "Palastmedaillen kommen von selbst zurück, wo deine Paläste sie noch erfüllen, denn der Wiederholungsplan bleibt.",
+            "Les médailles de palais reviennent d’elles-mêmes là où tes palais les méritent encore, car le plan de révision est conservé.",
+            "宮殿メダルは、条件を満たしている宮殿では自動的に戻ります。復習の予定は残るためです。",
+            "只要你的记忆宫殿仍然符合条件，宫殿奖章会自动回来，因为复习计划会保留。",
+        ],
+    ),
+    (
+        "Auf deinen anderen Geräten wird der Spielfortschritt beim nächsten Sync gelöscht. Was ein Gerät bis dahin offline sammelt, verfällt. Geräte mit einer älteren Locora-Version zeigen ihre alten Zahlen, bis sie aktualisiert sind.",
+        [
+            "On your other devices the game progress is deleted at their next sync. Progress a device makes offline before that sync is discarded. Devices with an older Locora version show their old numbers until they are updated.",
+            "Auf deinen anderen Geräten wird der Spielfortschritt beim nächsten Sync gelöscht. Was ein Gerät bis dahin offline sammelt, verfällt. Geräte mit einer älteren Locora-Version zeigen ihre alten Zahlen, bis sie aktualisiert sind.",
+            "Sur tes autres appareils, la progression est supprimée à leur prochaine synchronisation. Ce qu’un appareil gagne hors ligne d’ici là est perdu pour le jeu. Les appareils avec une ancienne version de Locora affichent leurs anciens chiffres jusqu’à leur mise à jour.",
+            "ほかのデバイスでは、次の同期のときにゲームの進み具合が削除されます。それまでにオフラインで進めた分は破棄されます。古いバージョンの Locora を使っているデバイスでは、更新されるまで以前の数字が表示されます。",
+            "在你的其他设备上，游戏进度会在下次同步时删除。设备在此之前离线获得的进度会被舍弃。使用旧版 Locora 的设备在更新前会继续显示旧的数字。",
+        ],
+    ),
+    (
+        "Frühere verschlüsselte Kopien bleiben im Änderungsprotokoll des Servers, bis du „Cloud-Daten löschen“ verwendest; dort kann sie niemand lesen.",
+        [
+            "Earlier encrypted copies stay in the server’s change log until you use “Delete cloud data”; nobody can read them there.",
+            "Frühere verschlüsselte Kopien bleiben im Änderungsprotokoll des Servers, bis du „Cloud-Daten löschen“ verwendest; dort kann sie niemand lesen.",
+            "Les copies chiffrées antérieures restent dans le journal des modifications du serveur jusqu’à ce que tu utilises « Supprimer les données cloud » ; personne ne peut les y lire.",
+            "以前の暗号化されたコピーは、「クラウドのデータを削除」を使うまでサーバーの変更履歴に残ります。そこでは誰も読むことができません。",
+            "较早的加密副本会保留在服务器的变更记录中，直到你使用“删除云端数据”；在那里没有人能读取它们。",
+        ],
+    ),
+    (
+        "Deine Ranglisteneinträge werden auch vom Locora-Cloud-Server gelöscht.",
+        [
+            "Your ranking entries are also deleted from the Locora Cloud server.",
+            "Deine Ranglisteneinträge werden auch vom Locora-Cloud-Server gelöscht.",
+            "Tes entrées de classement sont aussi supprimées du serveur Locora Cloud.",
+            "ランキングの記録も Locora Cloud のサーバーから削除されます。",
+            "你的排行榜记录也会从 Locora Cloud 服务器上删除。",
+        ],
+    ),
+    (
+        "Dieses Gerät ist nicht bei Locora Cloud angemeldet; Ranglisteneinträge auf dem Server bleiben unberührt.",
+        [
+            "This device is not signed in to Locora Cloud, so ranking entries on the server are not touched.",
+            "Dieses Gerät ist nicht bei Locora Cloud angemeldet; Ranglisteneinträge auf dem Server bleiben unberührt.",
+            "Cet appareil n’est pas connecté à Locora Cloud ; les entrées de classement sur le serveur ne sont pas touchées.",
+            "このデバイスは Locora Cloud にサインインしていないため、サーバー上のランキングの記録には触れません。",
+            "此设备未登录 Locora Cloud，因此服务器上的排行榜记录不受影响。",
+        ],
+    ),
+    (
+        "Ja, Spielfortschritt auf allen Geräten löschen",
+        [
+            "Yes, delete game progress on all devices",
+            "Ja, Spielfortschritt auf allen Geräten löschen",
+            "Oui, supprimer la progression du jeu sur tous les appareils",
+            "はい、すべてのデバイスでゲームの進み具合を削除します",
+            "是的，在所有设备上删除游戏进度",
+        ],
+    ),
+    (
+        "Spielfortschritt gelöscht.",
+        [
+            "Game progress deleted.",
+            "Spielfortschritt gelöscht.",
+            "Progression du jeu supprimée.",
+            "ゲームの進み具合を削除しました。",
+            "游戏进度已删除。",
+        ],
+    ),
+    (
+        "Ranglisteneinträge vom Server gelöscht.",
+        [
+            "Ranking entries deleted from the server.",
+            "Ranglisteneinträge vom Server gelöscht.",
+            "Entrées de classement supprimées du serveur.",
+            "ランキングの記録をサーバーから削除しました。",
+            "排行榜记录已从服务器删除。",
+        ],
+    ),
+    (
+        "Der Server kann Ranglisteneinträge noch nicht löschen; sie bleiben, bis er aktualisiert ist. Dein Spielfortschritt ist trotzdem gelöscht.",
+        [
+            "The server cannot delete ranking entries yet; they stay until it is updated. Your game progress is deleted anyway.",
+            "Der Server kann Ranglisteneinträge noch nicht löschen; sie bleiben, bis er aktualisiert ist. Dein Spielfortschritt ist trotzdem gelöscht.",
+            "Le serveur ne peut pas encore supprimer les entrées de classement ; elles restent jusqu’à sa mise à jour. Ta progression du jeu est supprimée quand même.",
+            "サーバーはまだランキングの記録を削除できません。サーバーが更新されるまで残ります。ゲームの進み具合は削除されました。",
+            "服务器暂时还不能删除排行榜记录；在服务器更新之前它们会保留。你的游戏进度仍然已删除。",
+        ],
+    ),
+    (
+        "Der Server war nicht erreichbar. Die Ranglisteneinträge werden beim nächsten Sync gelöscht.",
+        [
+            "The server could not be reached. Ranking entries will be deleted at the next sync.",
+            "Der Server war nicht erreichbar. Die Ranglisteneinträge werden beim nächsten Sync gelöscht.",
+            "Le serveur n’a pas pu être joint. Les entrées de classement seront supprimées à la prochaine synchronisation.",
+            "サーバーに接続できませんでした。ランキングの記録は次の同期で削除されます。",
+            "无法连接服务器。排行榜记录将在下次同步时删除。",
+        ],
+    ),
+    (
+        "Melde dich wieder bei Locora Cloud an, um deine Ranglisteneinträge zu löschen.",
+        [
+            "Sign in to Locora Cloud again to delete your ranking entries.",
+            "Melde dich wieder bei Locora Cloud an, um deine Ranglisteneinträge zu löschen.",
+            "Reconnecte-toi à Locora Cloud pour supprimer tes entrées de classement.",
+            "ランキングの記録を削除するには、もう一度 Locora Cloud にサインインしてください。",
+            "请重新登录 Locora Cloud 以删除你的排行榜记录。",
+        ],
+    ),
+    (
+        "Spielfortschritt konnte nicht gelöscht werden: {0}",
+        [
+            "Game progress could not be deleted: {0}",
+            "Spielfortschritt konnte nicht gelöscht werden: {0}",
+            "La progression du jeu n’a pas pu être supprimée : {0}",
+            "ゲームの進み具合を削除できませんでした：{0}",
+            "无法删除游戏进度：{0}",
+        ],
+    ),
+    (
+        "Ranglisteneinträge gehören nicht zu den synchronisierten Daten; lösche sie mit „Spielfortschritt löschen“.",
+        [
+            "Ranking entries are not part of the synced data; delete them with “Delete game progress”.",
+            "Ranglisteneinträge gehören nicht zu den synchronisierten Daten; lösche sie mit „Spielfortschritt löschen“.",
+            "Les entrées de classement ne font pas partie des données synchronisées ; supprime-les avec « Supprimer la progression du jeu ».",
+            "ランキングの記録は同期データに含まれません。「ゲームの進み具合を削除」で削除してください。",
+            "排行榜记录不属于同步数据；请用“删除游戏进度”删除它们。",
+        ],
+    ),
+    ("{0} XP", ["{0} XP", "{0} XP", "{0} XP", "{0} XP", "{0} XP"]),
+    (
+        "Heute fällig: {0} von {1} erledigt",
+        [
+            "Due today: {0} of {1} done",
+            "Heute fällig: {0} von {1} erledigt",
+            "Dû aujourd’hui : {0} sur {1} faits",
+            "今日の復習：{1} 件中 {0} 件完了",
+            "今日到期：已完成 {0}/{1}",
+        ],
+    ),
+    (
+        "Alle fälligen Wiederholungen erledigt",
+        [
+            "All due reviews done",
+            "Alle fälligen Wiederholungen erledigt",
+            "Toutes les révisions dues sont faites",
+            "期日の復習はすべて完了",
+            "所有到期复习已完成",
+        ],
+    ),
+    (
+        "Heute ist nichts fällig – ein freier Tag",
+        [
+            "Nothing due today – a free day",
+            "Heute ist nichts fällig – ein freier Tag",
+            "Rien n’est dû aujourd’hui – un jour libre",
+            "今日は復習なし – 自由な日です",
+            "今天没有到期的复习 – 自由的一天",
+        ],
+    ),
+    (
+        "{0} fällige Wiederholungen erledigt – der Rest kann warten",
+        [
+            "{0} due reviews done – the rest can wait",
+            "{0} fällige Wiederholungen erledigt – der Rest kann warten",
+            "{0} révisions dues faites – le reste peut attendre",
+            "期日の復習を {0} 件完了 – 残りは後でも大丈夫",
+            "已完成 {0} 个到期复习 – 其余的可以等等",
+        ],
+    ),
+    (
+        "{0} in Folge",
+        [
+            "{0} in a row",
+            "{0} in Folge",
+            "{0} d’affilée",
+            "{0} 連続",
+            "连续 {0} 个",
+        ],
+    ),
+    (
+        "Kommt bald wieder – so bleibt es hängen.",
+        [
+            "Comes back soon – that is how it sticks.",
+            "Kommt bald wieder – so bleibt es hängen.",
+            "Ça reviendra bientôt – c’est comme ça que ça reste.",
+            "すぐにまた出てきます – そうやって覚えていきます。",
+            "很快会再出现 – 这样就能记住。",
+        ],
+    ),
+    (
+        "So funktionieren XP jetzt",
+        [
+            "How XP works now",
+            "So funktionieren XP jetzt",
+            "Comment fonctionnent les XP maintenant",
+            "XP のしくみが変わりました",
+            "XP 现在的计算方式",
+        ],
+    ),
+    (
+        "XP: 10 für jede fällige Wiederholung, 6 für jeden neuen Ort – egal, wie du bewertest.",
+        [
+            "XP: 10 for each due review, 6 for each new locus – whatever you grade.",
+            "XP: 10 für jede fällige Wiederholung, 6 für jeden neuen Ort – egal, wie du bewertest.",
+            "XP : 10 pour chaque révision due, 6 pour chaque nouveau lieu – quelle que soit ta note.",
+            "XP：期日の復習ごとに 10、新しい場所ごとに 6 – 自己評価に関係なく。",
+            "XP：每个到期复习 10 点，每个新地点 6 点 – 与你的评分无关。",
+        ],
+    ),
+    (
+        "Früheres Üben bringt keine XP; dein Wiederholungsplan entscheidet, was fällig ist.",
+        [
+            "Practising early earns no XP; your review schedule decides what is due.",
+            "Früheres Üben bringt keine XP; dein Wiederholungsplan entscheidet, was fällig ist.",
+            "S’entraîner en avance ne rapporte pas d’XP ; ton plan de révision décide de ce qui est dû.",
+            "期日前の練習では XP はもらえません。何が期日かは復習の予定が決めます。",
+            "提前练习不获得 XP；你的复习计划决定什么到期。",
+        ],
+    ),
+    (
+        "Wochenziel: an {0} Tagen pro Woche lernen. Ein verpasster Tag kostet nichts.",
+        [
+            "Weekly goal: learn on {0} days a week. A missed day costs nothing.",
+            "Wochenziel: an {0} Tagen pro Woche lernen. Ein verpasster Tag kostet nichts.",
+            "Objectif hebdomadaire : apprendre {0} jours par semaine. Un jour manqué ne coûte rien.",
+            "週の目標：週に {0} 日学習する。休んだ日があっても何も失いません。",
+            "每周目标：每周学习 {0} 天。错过一天没有任何损失。",
+        ],
+    ),
+    (
+        "Verstanden",
+        ["Got it", "Verstanden", "Compris", "わかりました", "知道了"],
+    ),
+    (
+        "Leiste ausblenden",
+        [
+            "Hide the bar",
+            "Leiste ausblenden",
+            "Masquer la barre",
+            "バーを非表示にする",
+            "隐藏进度栏",
+        ],
+    ),
+    (
+        "Fortschrittsleiste in der Journey anzeigen",
+        [
+            "Show the progress bar during journeys",
+            "Fortschrittsleiste in der Journey anzeigen",
+            "Afficher la barre de progression pendant les parcours",
+            "ジャーニー中に進み具合のバーを表示する",
+            "在旅程中显示进度栏",
+        ],
+    ),
+    (
+        "Zeigt beim Lernen XP, das heutige Fälligkeitsziel und deine Woche. Ausschalten blendet sie nur aus.",
+        [
+            "Shows XP, today’s due goal and your week while you learn. Turning it off only hides it.",
+            "Zeigt beim Lernen XP, das heutige Fälligkeitsziel und deine Woche. Ausschalten blendet sie nur aus.",
+            "Affiche les XP, l’objectif du jour et ta semaine pendant que tu apprends. La désactiver la masque seulement.",
+            "学習中に XP、今日の復習目標、今週の状況を表示します。オフにしても非表示になるだけです。",
+            "学习时显示 XP、今日到期目标和你的这一周。关闭后只是隐藏。",
+        ],
+    ),
+    (
+        "Wochenziel",
+        [
+            "Weekly goal",
+            "Wochenziel",
+            "Objectif hebdomadaire",
+            "週の目標",
+            "每周目标",
+        ],
+    ),
+    (
+        "An {0} Tagen pro Woche lernen",
+        [
+            "Learn on {0} days a week",
+            "An {0} Tagen pro Woche lernen",
+            "Apprendre {0} jours par semaine",
+            "週に {0} 日学習する",
+            "每周学习 {0} 天",
+        ],
+    ),
+    (
+        "Ein Lerntag zählt, wenn du auf einem deiner Geräte etwas wiederholst oder neu lernst, oder wenn nichts fällig ist. Ein verpasster Tag kostet nichts.",
+        [
+            "A learning day counts when you review or learn something on any of your devices, or when nothing is due. A missed day costs nothing.",
+            "Ein Lerntag zählt, wenn du auf einem deiner Geräte etwas wiederholst oder neu lernst, oder wenn nichts fällig ist. Ein verpasster Tag kostet nichts.",
+            "Un jour d’apprentissage compte quand tu révises ou apprends quelque chose sur l’un de tes appareils, ou quand rien n’est dû. Un jour manqué ne coûte rien.",
+            "いずれかのデバイスで復習または新しく学習した日、または何も期日がない日が学習日になります。休んだ日があっても何も失いません。",
+            "当你在任一设备上复习或学习新内容，或者没有到期内容时，这一天就算作学习日。错过一天没有任何损失。",
+        ],
+    ),
+    (
+        "Wochenziel gespeichert.",
+        [
+            "Weekly goal saved.",
+            "Wochenziel gespeichert.",
+            "Objectif hebdomadaire enregistré.",
+            "週の目標を保存しました。",
+            "每周目标已保存。",
+        ],
+    ),
+    (
+        "Diese Woche: {0} von {1} Lerntagen",
+        [
+            "This week: {0} of {1} learning days",
+            "Diese Woche: {0} von {1} Lerntagen",
+            "Cette semaine : {0} jours d’apprentissage sur {1}",
+            "今週：学習日 {1} 日中 {0} 日",
+            "本周：{0}/{1} 个学习日",
+        ],
+    ),
+    (
+        "{0} Lerntage",
+        [
+            "{0} learning days",
+            "{0} Lerntage",
+            "{0} jours d’apprentissage",
+            "学習日 {0} 日",
+            "{0} 个学习日",
+        ],
+    ),
+    (
+        "1 Lerntag",
+        [
+            "1 learning day",
+            "1 Lerntag",
+            "1 jour d’apprentissage",
+            "学習日 1 日",
+            "1 个学习日",
+        ],
+    ),
+    (
+        "Wochenziel {0} Wochen in Folge erreicht",
+        [
+            "Weekly goal reached {0} weeks in a row",
+            "Wochenziel {0} Wochen in Folge erreicht",
+            "Objectif hebdomadaire atteint {0} semaines d’affilée",
+            "週の目標を {0} 週連続で達成",
+            "已连续 {0} 周达成每周目标",
+        ],
+    ),
+    (
+        "Wochenziel erreicht",
+        [
+            "Weekly goal reached",
+            "Wochenziel erreicht",
+            "Objectif hebdomadaire atteint",
+            "週の目標を達成",
+            "已达成每周目标",
+        ],
+    ),
+    (
+        "Neue Woche, neues Ziel. Dein Bestwert: {0} Wochen in Folge.",
+        [
+            "New week, new goal. Your best: {0} weeks in a row.",
+            "Neue Woche, neues Ziel. Dein Bestwert: {0} Wochen in Folge.",
+            "Nouvelle semaine, nouvel objectif. Ton record : {0} semaines d’affilée.",
+            "新しい週、新しい目標。これまでの最高：{0} 週連続。",
+            "新的一周，新的目标。你的最佳纪录：连续 {0} 周。",
+        ],
+    ),
+    (
+        "Lerntage",
+        [
+            "Learning days",
+            "Lerntage",
+            "Jours d’apprentissage",
+            "学習日",
+            "学习日",
+        ],
+    ),
+    (
+        "Wochenziel in Folge",
+        [
+            "Weekly goal in a row",
+            "Wochenziel in Folge",
+            "Objectif hebdomadaire d’affilée",
+            "週の目標の連続達成",
+            "连续达成每周目标",
+        ],
+    ),
+    (
+        "{0} Wochen",
+        [
+            "{0} weeks",
+            "{0} Wochen",
+            "{0} semaines",
+            "{0} 週",
+            "{0} 周",
+        ],
+    ),
+    (
+        "1 Woche",
+        ["1 week", "1 Woche", "1 semaine", "1 週", "1 周"],
+    ),
+    (
+        "7 Lerntage",
+        [
+            "7 learning days",
+            "7 Lerntage",
+            "7 jours d’apprentissage",
+            "学習日 7 日",
+            "7 个学习日",
+        ],
+    ),
+    (
+        "Lerne an 7 Tagen – sie müssen nicht aufeinanderfolgen.",
+        [
+            "Learn on 7 days – they do not have to be in a row.",
+            "Lerne an 7 Tagen – sie müssen nicht aufeinanderfolgen.",
+            "Apprends pendant 7 jours – ils n’ont pas besoin de se suivre.",
+            "7 日間学習しましょう – 連続していなくてもかまいません。",
+            "学习 7 天 – 不必是连续的。",
+        ],
+    ),
+    (
+        "Wochenziel 4-mal",
+        [
+            "Weekly goal 4 times",
+            "Wochenziel 4-mal",
+            "Objectif hebdomadaire 4 fois",
+            "週の目標を 4 回",
+            "每周目标达成 4 次",
+        ],
+    ),
+    (
+        "Erreiche dein Wochenziel in 4 Wochen – sie müssen nicht aufeinanderfolgen.",
+        [
+            "Reach your weekly goal in 4 weeks – they do not have to be in a row.",
+            "Erreiche dein Wochenziel in 4 Wochen – sie müssen nicht aufeinanderfolgen.",
+            "Atteins ton objectif hebdomadaire pendant 4 semaines – elles n’ont pas besoin de se suivre.",
+            "4 週で週の目標を達成しましょう – 連続していなくてもかまいません。",
+            "在 4 周里达成每周目标 – 不必是连续的。",
+        ],
+    ),
+    (
+        "{0} von {1} gewusst · +{2} XP",
+        [
+            "{0} of {1} recalled · +{2} XP",
+            "{0} von {1} gewusst · +{2} XP",
+            "{0} sur {1} retrouvés · +{2} XP",
+            "{1} 件中 {0} 件思い出せた · +{2} XP",
+            "想起 {0}/{1} 个 · +{2} XP",
+        ],
+    ),
+    (
+        "{0} fällige Wiederholungen · {1} neue Orte",
+        [
+            "{0} due reviews · {1} new loci",
+            "{0} fällige Wiederholungen · {1} neue Orte",
+            "{0} révisions dues · {1} nouveaux lieux",
+            "期日の復習 {0} 件 · 新しい場所 {1} 件",
+            "{0} 个到期复习 · {1} 个新地点",
+        ],
+    ),
+    (
+        "{0} Orte waren noch nicht fällig und brachten deshalb keine XP. Ihre nächste Wiederholung: {1}.",
+        [
+            "{0} loci were not due yet, so they earned no XP. Their next review: {1}.",
+            "{0} Orte waren noch nicht fällig und brachten deshalb keine XP. Ihre nächste Wiederholung: {1}.",
+            "{0} lieux n’étaient pas encore dus et n’ont donc rapporté aucun XP. Leur prochaine révision : {1}.",
+            "{0} 件の場所はまだ期日前だったため XP はありませんでした。次の復習：{1}。",
+            "{0} 个地点尚未到期，因此没有获得 XP。它们的下次复习：{1}。",
+        ],
+    ),
+    (
+        "1 Ort war noch nicht fällig und brachte deshalb keine XP. Seine nächste Wiederholung: {0}.",
+        [
+            "1 locus was not due yet, so it earned no XP. Its next review: {0}.",
+            "1 Ort war noch nicht fällig und brachte deshalb keine XP. Seine nächste Wiederholung: {0}.",
+            "1 lieu n’était pas encore dû et n’a donc rapporté aucun XP. Sa prochaine révision : {0}.",
+            "1 件の場所はまだ期日前だったため XP はありませんでした。次の復習：{0}。",
+            "1 个地点尚未到期，因此没有获得 XP。它的下次复习：{0}。",
+        ],
+    ),
+    (
+        "Alle fälligen Wiederholungen für heute erledigt",
+        [
+            "All due reviews for today done",
+            "Alle fälligen Wiederholungen für heute erledigt",
+            "Toutes les révisions dues d’aujourd’hui sont faites",
+            "今日の期日の復習はすべて完了",
+            "今天所有到期复习已完成",
+        ],
+    ),
+    (
+        "Heute noch fällig: {0} Orte",
+        [
+            "Still due today: {0} loci",
+            "Heute noch fällig: {0} Orte",
+            "Encore dus aujourd’hui : {0} lieux",
+            "今日まだ期日の場所：{0} 件",
+            "今天仍需复习：{0} 个地点",
+        ],
+    ),
+    (
+        "Heute noch fällig: 1 Ort",
+        [
+            "Still due today: 1 locus",
+            "Heute noch fällig: 1 Ort",
+            "Encore dû aujourd’hui : 1 lieu",
+            "今日まだ期日の場所：1 件",
+            "今天仍需复习：1 个地点",
+        ],
+    ),
+    (
+        "Nächste Wiederholung: {0} · {1} Orte",
+        [
+            "Next review: {0} · {1} loci",
+            "Nächste Wiederholung: {0} · {1} Orte",
+            "Prochaine révision : {0} · {1} lieux",
+            "次の復習：{0} · {1} 件",
+            "下次复习：{0} · {1} 个地点",
+        ],
+    ),
+    (
+        "Nächste Wiederholung: {0} · 1 Ort",
+        [
+            "Next review: {0} · 1 locus",
+            "Nächste Wiederholung: {0} · 1 Ort",
+            "Prochaine révision : {0} · 1 lieu",
+            "次の復習：{0} · 1 件",
+            "下次复习：{0} · 1 个地点",
+        ],
+    ),
+    ("heute", ["today", "heute", "aujourd’hui", "今日", "今天"]),
+    ("morgen", ["tomorrow", "morgen", "demain", "明日", "明天"]),
+    (
+        "Neue Medaille: {0}",
+        [
+            "New medal: {0}",
+            "Neue Medaille: {0}",
+            "Nouvelle médaille : {0}",
+            "新しいメダル：{0}",
+            "新奖章：{0}",
+        ],
+    ),
+    (
+        "Punkte: {0}",
+        [
+            "Points: {0}",
+            "Punkte: {0}",
+            "Points : {0}",
+            "ポイント：{0}",
+            "积分：{0}",
+        ],
+    ),
+    (
+        "Gefestigt: {0} von {1} Orten",
+        [
+            "Consolidated: {0} of {1} loci",
+            "Gefestigt: {0} von {1} Orten",
+            "Consolidés : {0} lieux sur {1}",
+            "定着：{1} 件中 {0} 件",
+            "已巩固：{0}/{1} 个地点",
+        ],
+    ),
+    (
+        "Ein Ort gilt als gefestigt, wenn er mindestens 30 Tage hält. Dahin bringen ihn nur Wiederholungen, die über mehrere Tage verteilt sind.",
+        [
+            "A locus counts as consolidated once it holds for at least 30 days. Only reviews spread over several days get it there.",
+            "Ein Ort gilt als gefestigt, wenn er mindestens 30 Tage hält. Dahin bringen ihn nur Wiederholungen, die über mehrere Tage verteilt sind.",
+            "Un lieu est consolidé dès qu’il tient au moins 30 jours. Seules des révisions réparties sur plusieurs jours l’y amènent.",
+            "30 日以上記憶が保たれる場所は「定着」とみなされます。そこまで届くのは、何日かに分けた復習だけです。",
+            "一个地点能保持至少 30 天时就算已巩固。只有分散在多天进行的复习才能做到。",
+        ],
+    ),
+    (
+        "Palastmedaillen",
+        [
+            "Palace medals",
+            "Palastmedaillen",
+            "Médailles de palais",
+            "宮殿メダル",
+            "宫殿奖章",
+        ],
+    ),
+    (
+        "Verankert",
+        ["Anchored", "Verankert", "Ancré", "固定", "已扎根"],
+    ),
+    (
+        "Gefestigt",
+        ["Consolidated", "Gefestigt", "Consolidé", "定着", "已巩固"],
+    ),
+    (
+        "Dauerhaft",
+        ["Lasting", "Dauerhaft", "Durable", "長期記憶", "持久"],
+    ),
+    (
+        "Mindestens 9 von 10 Orten von „{0}“ halten {1} Tage oder länger.",
+        [
+            "At least 9 in 10 loci of “{0}” hold for {1} days or more.",
+            "Mindestens 9 von 10 Orten von „{0}“ halten {1} Tage oder länger.",
+            "Au moins 9 lieux sur 10 de « {0} » tiennent {1} jours ou plus.",
+            "「{0}」の場所の 10 件中 9 件以上が {1} 日以上保たれています。",
+            "“{0}”中至少十分之九的地点能保持 {1} 天或更久。",
+        ],
+    ),
+    (
+        "{0} von {1} Orten halten {2}+ Tage",
+        [
+            "{0} of {1} loci hold {2}+ days",
+            "{0} von {1} Orten halten {2}+ Tage",
+            "{0} lieux sur {1} tiennent {2} jours ou plus",
+            "{1} 件中 {0} 件が {2} 日以上保持",
+            "{0}/{1} 个地点保持 {2} 天以上",
+        ],
+    ),
+    (
+        "Paläste mit mindestens 5 Orten bekommen Medaillen.",
+        [
+            "Palaces with at least 5 loci earn medals.",
+            "Paläste mit mindestens 5 Orten bekommen Medaillen.",
+            "Les palais d’au moins 5 lieux gagnent des médailles.",
+            "場所が 5 件以上ある宮殿がメダルの対象です。",
+            "至少有 5 个地点的记忆宫殿才能获得奖章。",
+        ],
+    ),
+    (
+        "Ehrliche Bewertungen halten das echt: die Medaillen folgen deinem Wiederholungsplan.",
+        [
+            "Honest grades keep this real: the medals follow your review schedule.",
+            "Ehrliche Bewertungen halten das echt: die Medaillen folgen deinem Wiederholungsplan.",
+            "Des notes honnêtes gardent cela vrai : les médailles suivent ton plan de révision.",
+            "正直な自己評価が大切です：メダルは復習の予定に従います。",
+            "诚实的评分让这一切真实可信：奖章跟随你的复习计划。",
+        ],
+    ),
+    (
+        "Journey-Trophäen",
+        [
+            "Journey trophies",
+            "Journey-Trophäen",
+            "Trophées de parcours",
+            "ジャーニーのトロフィー",
+            "旅程奖杯",
+        ],
+    ),
+    (
+        "Seit {0}",
+        [
+            "Since {0}",
+            "Seit {0}",
+            "Depuis le {0}",
+            "{0} から",
+            "自 {0} 起",
+        ],
+    ),
+    (
+        "Schließe eine Journey ab.",
+        [
+            "Finish a journey.",
+            "Schließe eine Journey ab.",
+            "Termine un parcours.",
+            "ジャーニーを 1 回終える。",
+            "完成一次旅程。",
+        ],
+    ),
+    (
+        "Sammle 100 XP mit fälligen Wiederholungen und neuen Orten.",
+        [
+            "Collect 100 XP with due reviews and new loci.",
+            "Sammle 100 XP mit fälligen Wiederholungen und neuen Orten.",
+            "Gagne 100 XP avec des révisions dues et de nouveaux lieux.",
+            "期日の復習と新しい場所で 100 XP を集める。",
+            "通过到期复习和新地点获得 100 XP。",
+        ],
+    ),
+    (
+        "Alles Fällige erledigt",
+        [
+            "All due done",
+            "Alles Fällige erledigt",
+            "Tout ce qui est dû est fait",
+            "期日の復習をすべて完了",
+            "到期全部完成",
+        ],
+    ),
+    (
+        "Mach an einem Tag jede fällige Wiederholung.",
+        [
+            "Do every review that is due on one day.",
+            "Mach an einem Tag jede fällige Wiederholung.",
+            "Fais en un jour toutes les révisions dues.",
+            "1 日のうちに期日の復習をすべて行う。",
+            "在一天内完成所有到期复习。",
+        ],
+    ),
+    (
+        "Eine Journey ohne Fehler (aus früheren Versionen).",
+        [
+            "A journey without mistakes (from earlier versions).",
+            "Eine Journey ohne Fehler (aus früheren Versionen).",
+            "Un parcours sans erreur (des versions précédentes).",
+            "ミスのないジャーニー（以前のバージョンから）。",
+            "一次没有错误的旅程（来自早期版本）。",
+        ],
+    ),
+    (
+        "Fortschritt",
+        ["Progress", "Fortschritt", "Progression", "進み具合", "进度"],
+    ),
+    (
+        "{0} XP · diese Woche {1}/{2} Tage · {3} Medaillen",
+        [
+            "{0} XP · this week {1}/{2} days · {3} medals",
+            "{0} XP · diese Woche {1}/{2} Tage · {3} Medaillen",
+            "{0} XP · cette semaine {1}/{2} jours · {3} médailles",
+            "{0} XP · 今週 {1}/{2} 日 · メダル {3} 個",
+            "{0} XP · 本周 {1}/{2} 天 · {3} 枚奖章",
+        ],
+    ),
+    (
+        "Starte eine Journey, um XP zu sammeln.",
+        [
+            "Start a journey to collect XP.",
+            "Starte eine Journey, um XP zu sammeln.",
+            "Lance un parcours pour gagner des XP.",
+            "ジャーニーを始めて XP を集めましょう。",
+            "开始一次旅程来获得 XP。",
         ],
     ),
 ];

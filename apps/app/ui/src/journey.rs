@@ -7,10 +7,10 @@ use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
-    ActionDone, AnswerKind, CMD_GAMIFICATION_STATUS, CMD_JOURNEY_ACTION, CMD_JOURNEY_ANSWER,
-    CMD_JOURNEY_INPUTS, CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback, GameView,
-    GamificationStatus, InputField, InputValue, JourneyStart, Question, Reply, Revealed, Step,
-    Summary, Trophy, UiAssets,
+    ActionDone, AnswerKind, CMD_GAME_SEEN, CMD_GAMIFICATION_STATUS, CMD_JOURNEY_ACTION,
+    CMD_JOURNEY_ANSWER, CMD_JOURNEY_INPUTS, CMD_JOURNEY_REVEAL, CMD_JOURNEY_START, Feedback,
+    GameSeenArgs, GameStatusArgs, GameView, GamificationStatus, Goal, InputField, InputValue,
+    JourneyStart, Question, Reply, Revealed, Step, Summary, Today, UiAssets, Week,
 };
 use serde::Serialize;
 
@@ -71,14 +71,72 @@ struct VideoPosition(RwSignal<f64>);
 #[derive(Clone, Copy)]
 struct LastFrame(StoredValue<Option<String>>);
 
+/// Reads the game's numbers again. A trophy that is new since the last reading was earned with
+/// this device's answer or journey and is celebrated; the first reading celebrates nothing.
 fn refresh_game(status: RwSignal<Option<GamificationStatus>>) {
     spawn_local(async move {
-        if let Ok(value) =
-            call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, NoArgs {}).await
-        {
+        let args = GameStatusArgs { full: false };
+        if let Ok(value) = call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, args).await {
+            let before = status.with_untracked(|old| old.as_ref().map(trophy_ids));
+            if let (Some(before), Some(after)) = (before, value.as_ref().map(trophy_ids))
+                && let Some(new) = after.into_iter().find(|id| !before.contains(id))
+                && let Some(crate::achievements::Celebration(shown)) =
+                    use_context::<crate::achievements::Celebration>()
+            {
+                shown.set(Some(new));
+            }
             status.set(value);
         }
     });
+}
+
+/// The earned journey trophies as achievement ids (`game-<id>`).
+fn trophy_ids(status: &GamificationStatus) -> Vec<String> {
+    status
+        .trophies
+        .iter()
+        .map(|trophy| format!("game-{}", trophy.id))
+        .collect()
+}
+
+/// Today's due goal in words.
+pub fn today_text(today: &Today) -> String {
+    match today.goal {
+        Goal::Open => crate::i18n::tf(
+            "Heute fällig: {0} von {1} erledigt",
+            &[&today.due_done, &(today.due_done + today.due_open)],
+        ),
+        Goal::AllDone => t("Alle fälligen Wiederholungen erledigt").to_owned(),
+        Goal::Free => t("Heute ist nichts fällig – ein freier Tag").to_owned(),
+        Goal::Enough => crate::i18n::tf(
+            "{0} fällige Wiederholungen erledigt – der Rest kann warten",
+            &[&today.due_done],
+        ),
+    }
+}
+
+/// The weekly run, when there is something to say: never what was lost.
+pub fn week_run_text(week: &Week) -> Option<String> {
+    match (week.streak, week.missed_last) {
+        (0, true) => Some(crate::i18n::tf(
+            "Neue Woche, neues Ziel. Dein Bestwert: {0} Wochen in Folge.",
+            &[&week.best],
+        )),
+        (0, false) => None,
+        (1, _) => Some(t("Wochenziel erreicht").to_owned()),
+        (streak, _) => Some(crate::i18n::tf(
+            "Wochenziel {0} Wochen in Folge erreicht",
+            &[&streak],
+        )),
+    }
+}
+
+/// This week's learning days against the goal.
+pub fn week_text(week: &Week) -> String {
+    crate::i18n::tf(
+        "Diese Woche: {0} von {1} Lerntagen",
+        &[&week.days, &week.goal],
+    )
 }
 
 /// Where a reverse question was answered, as room fractions, and whether it was within the radius.
@@ -183,6 +241,18 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 
     // Quick mode: continue straight to the next question after reveal or answer.
     let prefs = crate::locus_display::signal();
+    // The end card; a medal this journey earned is celebrated (trophies of single answers are
+    // celebrated when the bar reads the numbers again).
+    let celebration = use_context::<crate::achievements::Celebration>();
+    let finished = move |s: Summary| {
+        if let (Some(crate::achievements::Celebration(shown)), Some(medal)) = (
+            celebration,
+            s.new_trophies.iter().find(|id| id.starts_with("palace-")),
+        ) {
+            shown.set(Some(medal.clone()));
+        }
+        summary.set(Some(s));
+    };
     let next = move || {
         // Not while an action on the answered question is still running.
         if busy.get_untracked() {
@@ -196,7 +266,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 question.set(Some(q));
                 phase.set(Phase::Asking);
             }
-            Step::Done(s) => summary.set(Some(s)),
+            Step::Done(s) => finished(s),
         }
     };
     let reply = move |reply: Reply| {
@@ -321,7 +391,13 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let keys = window_event_listener(ev::keydown, move |e| {
         if e.target()
             .and_then(|target| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(target).ok())
-            .is_some_and(|element| element.closest(".tour-panel").ok().flatten().is_some())
+            .is_some_and(|element| {
+                element
+                    .closest(".tour-panel, .game-intro")
+                    .ok()
+                    .flatten()
+                    .is_some()
+            })
         {
             return;
         }
@@ -474,74 +550,77 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     }
 }
 
-fn trophy_name(trophy: Trophy) -> &'static str {
-    match trophy {
-        Trophy::FirstJourney => t("Erste Journey"),
-        Trophy::PerfectJourney => t("Fehlerfreie Journey"),
-        Trophy::HundredXp => t("100 XP"),
-        Trophy::SevenDayStreak => t("7 Tage gelernt"),
-    }
-}
-
 #[component]
 fn GameStatus(
     status: RwSignal<Option<GamificationStatus>>,
     art: RwSignal<Option<UiAssets>>,
 ) -> impl IntoView {
+    let display = crate::locus_display::signal();
     // Answers only change the numbers: the icons are built once per artwork, not once per answer,
     // so the animated frames (and the video next to them) are not rebuilt.
-    let trophies = Memo::new(move |_| {
-        status.with(|game| {
-            game.as_ref()
-                .map(|game| game.trophies.clone())
-                .unwrap_or_default()
-        })
-    });
+    let read = move |f: fn(&GamificationStatus) -> String| {
+        move || status.with(|game| game.as_ref().map(f).unwrap_or_default())
+    };
+    let dismiss = move |hide: bool| {
+        if hide {
+            display.update(|p| p.gamification = false);
+            crate::locus_display::save(display.get_untracked());
+        }
+        status.update(|game| {
+            if let Some(game) = game {
+                game.intro_seen = true;
+            }
+        });
+        spawn_local(async move {
+            let args = GameSeenArgs {
+                hint: "game-intro".into(),
+            };
+            let _ = call::<()>(CMD_GAME_SEEN, args).await;
+        });
+    };
     view! {
-        <Show when=move || status.with(Option::is_some) && crate::locus_display::signal().get().gamification>
+        <Show when=move || status.with(Option::is_some) && display.get().gamification>
             <aside class="game-status card" aria-label=t("Lernfortschritt")>
                 <div class="game-numbers">
-                    <span class="game-stat" title=t("Erfahrungspunkte")>
-                        {move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}
-                        <strong>{move || status.with(|game| game.as_ref().map(|game| format!("{} XP", game.xp)).unwrap_or_default())}</strong>
+                    <span class="game-stat game-xp" title=t("Erfahrungspunkte") aria-label=read(|game| crate::i18n::tf("{0} XP", &[&game.xp]))>
+                        {move || art.get().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.trophy still=true /></span> })}
+                        <strong>{read(|game| crate::i18n::tf("{0} XP", &[&game.xp]))}</strong>
                     </span>
-                    <span class="game-stat" title=t("Richtige Antworten in Folge")>
-                        {move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.combo still=true /></span> })}
-                        <strong>{move || status.with(|game| game.as_ref().map(|game| crate::i18n::tf("{0} Combo", &[&game.combo])).unwrap_or_default())}</strong>
-                    </span>
-                    <span class="game-hearts" aria-label=move || status.with(|game| crate::i18n::tf("{0} von 5 Herzen", &[&game.as_ref().map_or(0, |game| game.hearts.min(5))]))>
-                        {(0..5u8)
-                            .map(|index| {
-                                view! {
-                                    <span class:spent=move || status.with(|game| game.as_ref().is_some_and(|game| index >= game.hearts)) class="game-icon" aria-hidden="true">
-                                        {move || art.get().map(|a| view! { <Sply media=a.heart still=true /> })}
-                                    </span>
-                                }
-                            })
-                            .collect_view()}
+                    <span class="game-stat game-week">
+                        {move || art.get().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.streak still=true /></span> })}
+                        {read(|game| week_text(&game.week))}
                     </span>
                 </div>
                 <div class="game-daily">
-                    <div class="game-daily-label">
-                        {move || art.get().map(|a| view! { <span class="game-icon" aria-hidden="true"><Sply media=a.streak still=true /></span> })}
-                        <label for="game-daily-progress">{move || status.with(|game| game.as_ref().map(|game| crate::i18n::tf("Tagesziel: {0} von {1} richtig · {2} Tage in Folge", &[&game.daily_correct, &game.daily_goal, &game.streak])).unwrap_or_default())}</label>
-                    </div>
+                    <label for="game-daily-progress">{read(|game| today_text(&game.today))}</label>
                     <progress
                         id="game-daily-progress"
-                        max=move || status.with(|game| game.as_ref().map_or(1, |game| game.daily_goal.max(1)))
-                        value=move || status.with(|game| game.as_ref().map_or(0, |game| game.daily_correct.min(game.daily_goal.max(1))))
+                        max=move || status.with(|game| game.as_ref().map_or(1, |game| (game.today.due_done + game.today.due_open).max(1)))
+                        value=move || status.with(|game| game.as_ref().map_or(0, |game| match game.today.goal {
+                            Goal::AllDone | Goal::Free => (game.today.due_done + game.today.due_open).max(1),
+                            _ => game.today.due_done,
+                        }))
                     ></progress>
                 </div>
-                {move || {
-                    (!trophies.get().is_empty()).then(|| view! {
-                        <div class="game-trophies" aria-label=t("Erfolge")>
-                            {trophies.get().into_iter().map(|trophy| view! {
-                                <span class="game-trophy">{move || art.get().map(|a| view! { <span class="game-icon"><Sply media=a.trophy still=true /></span> })}{trophy_name(trophy)}</span>
-                            }).collect_view()}
-                        </div>
-                    })
-                }}
+                {move || status.with(|game| game.as_ref().and_then(|game| week_run_text(&game.week))).map(|text| view! {
+                    <p class="game-run">{text}</p>
+                })}
             </aside>
+            {move || status.with(|game| game.as_ref().is_some_and(|game| !game.intro_seen)).then(|| view! {
+                <aside class="game-intro card" role="note" aria-labelledby="game-intro-title">
+                    <h2 id="game-intro-title">{t("So funktionieren XP jetzt")}</h2>
+                    <p>{t("XP: 10 für jede fällige Wiederholung, 6 für jeden neuen Ort – egal, wie du bewertest.")}</p>
+                    <p>{t("Früheres Üben bringt keine XP; dein Wiederholungsplan entscheidet, was fällig ist.")}</p>
+                    <p>{move || crate::i18n::tf(
+                        "Wochenziel: an {0} Tagen pro Woche lernen. Ein verpasster Tag kostet nichts.",
+                        &[&status.with(|game| game.as_ref().map_or(4, |game| game.week.goal))],
+                    )}</p>
+                    <div class="actions">
+                        <button class="primary" on:click=move |_| dismiss(false)>{t("Verstanden")}</button>
+                        <button on:click=move |_| dismiss(true)>{t("Leiste ausblenden")}</button>
+                    </div>
+                </aside>
+            })}
         </Show>
     }
 }
@@ -1105,7 +1184,9 @@ fn Judged(
     busy: RwSignal<bool>,
     art: RwSignal<Option<UiAssets>>,
 ) -> impl IntoView {
-    let game = feedback.game;
+    let game = feedback
+        .game
+        .and_then(|game| game_line(game, feedback.correct));
     let r = feedback.revealed;
     let automatic = question.kind != AnswerKind::Recall;
     let right: Vec<String> = r
@@ -1130,7 +1211,7 @@ fn Judged(
             })}
         // A recalled answer was already shown (and played) when it was revealed.
         <Answer solution=r.solution note=r.note picture=r.picture audio=r.audio autoplay=automatic />
-        {game.map(|game| view! { <p class="progress game-status">{game_status(game)}</p> })}
+        {game.map(|line| view! { <p class="progress game-line">{line}</p> })}
         {(!right.is_empty())
             .then(|| {
                 view! { <div class="progress">{crate::i18n::tf("Richtig: {0}", &[&right.join(", ")])}</div> }
@@ -1141,17 +1222,79 @@ fn Judged(
     }
 }
 
-/// Combo and hearts as one line, e.g. "Combo 3 · Herzen ♥♥♥♡♡".
-fn game_status(game: GameView) -> String {
-    const HEARTS: usize = 5;
-    let held = usize::from(game.hearts).min(HEARTS);
-    crate::i18n::tf(
-        "Combo {0} · Herzen {1}",
-        &[
-            &game.combo,
-            &format!("{}{}", "♥".repeat(held), "♡".repeat(HEARTS - held)),
-        ],
-    )
+/// The line under an answer: the run of right Quiz and Guess answers, or after a miss a calm
+/// word that it comes back. Nothing is lost; recall grades neither show nor break a run.
+fn game_line(game: GameView, correct: bool) -> Option<String> {
+    if !correct {
+        return Some(t("Kommt bald wieder – so bleibt es hängen.").to_owned());
+    }
+    game.combo
+        .filter(|combo| *combo > 0)
+        .map(|combo| crate::i18n::tf("{0} in Folge", &[&combo]))
+}
+
+/// When the next review is: today, tomorrow or the date.
+fn next_day(date: &str, days: Option<u32>) -> String {
+    match days {
+        Some(0) => t("heute").to_owned(),
+        Some(1) => t("morgen").to_owned(),
+        _ => date.to_owned(),
+    }
+}
+
+/// What the journey earned and what comes next, one line each.
+fn summary_lines(summary: &Summary) -> Vec<String> {
+    let mut lines = Vec::new();
+    if summary.xp_gained.is_none() {
+        return lines;
+    }
+    if summary.points != u64::from(summary.correct) {
+        lines.push(crate::i18n::tf("Punkte: {0}", &[&summary.points]));
+    }
+    lines.push(crate::i18n::tf(
+        "{0} fällige Wiederholungen · {1} neue Orte",
+        &[&summary.due_done, &summary.new_done],
+    ));
+    let next = summary
+        .next_due
+        .as_ref()
+        .map(|(date, count)| (next_day(date, summary.next_due_in), *count));
+    if summary.early > 0 {
+        let when = next
+            .as_ref()
+            .map(|(day, _)| day.clone())
+            .unwrap_or_default();
+        lines.push(if summary.early == 1 {
+            crate::i18n::tf(
+                "1 Ort war noch nicht fällig und brachte deshalb keine XP. Seine nächste Wiederholung: {0}.",
+                &[&when],
+            )
+        } else {
+            crate::i18n::tf(
+                "{0} Orte waren noch nicht fällig und brachten deshalb keine XP. Ihre nächste Wiederholung: {1}.",
+                &[&summary.early, &when],
+            )
+        });
+    }
+    match summary.due_left_today {
+        Some(0) => lines.push(t("Alle fälligen Wiederholungen für heute erledigt").to_owned()),
+        Some(1) => lines.push(t("Heute noch fällig: 1 Ort").to_owned()),
+        Some(left) => lines.push(crate::i18n::tf("Heute noch fällig: {0} Orte", &[&left])),
+        None => {}
+    }
+    for id in &summary.new_trophies {
+        if let Some((title, _)) = crate::achievements::describe(id) {
+            lines.push(crate::i18n::tf("Neue Medaille: {0}", &[&title]));
+        }
+    }
+    if let Some((day, count)) = next {
+        lines.push(if count == 1 {
+            crate::i18n::tf("Nächste Wiederholung: {0} · 1 Ort", &[&day])
+        } else {
+            crate::i18n::tf("Nächste Wiederholung: {0} · {1} Orte", &[&day, &count])
+        });
+    }
+    lines
 }
 
 #[component]
@@ -1161,8 +1304,9 @@ fn Done(
     art: RwSignal<Option<UiAssets>>,
 ) -> impl IntoView {
     let asked = summary.asked;
+    let lines = summary_lines(&summary);
     view! {
-        <section class="card panel">
+        <section class="card panel journey-done" role="status">
             {move || {
                 art.get()
                     .filter(|_| asked > 0)
@@ -1173,21 +1317,29 @@ fn Done(
             } else {
                 view! {
                     <div class="prompt">
-                        {if summary.points == 1 {
-                            crate::i18n::tf(
+                        {match summary.xp_gained {
+                            Some(xp) => crate::i18n::tf(
+                                "{0} von {1} gewusst · +{2} XP",
+                                &[&summary.correct, &summary.asked, &xp],
+                            ),
+                            None if summary.points == 1 => crate::i18n::tf(
                                 "{0} von {1} gewusst · 1 Punkt",
                                 &[&summary.correct, &summary.asked],
-                            )
-                        } else {
-                            crate::i18n::tf(
+                            ),
+                            None => crate::i18n::tf(
                                 "{0} von {1} gewusst · {2} Punkte",
                                 &[&summary.correct, &summary.asked, &summary.points],
-                            )
+                            ),
                         }}
                     </div>
                 }
                     .into_any()
             }}
+            {(!lines.is_empty()).then(|| view! {
+                <ul class="done-lines">
+                    {lines.into_iter().map(|line| view! { <li>{line}</li> }).collect_view()}
+                </ul>
+            })}
             {summary
                 .notes
                 .into_iter()
@@ -1206,22 +1358,104 @@ mod tests {
     use locora_app_api::{Media, MediaKind};
 
     #[test]
-    fn game_status_shows_combo_and_hearts() {
+    fn the_answer_line_has_no_hearts_and_recall_shows_no_run() {
         // The texts are checked in German; the app starts in English.
         crate::i18n::set_current(crate::i18n::Lang::De);
         assert_eq!(
-            game_status(GameView {
-                combo: 3,
-                hearts: 3
-            }),
-            "Combo 3 · Herzen ♥♥♥♡♡"
+            game_line(GameView { combo: Some(3) }, true).as_deref(),
+            Some("3 in Folge")
+        );
+        assert_eq!(game_line(GameView { combo: None }, true), None, "recall");
+        assert_eq!(game_line(GameView { combo: Some(0) }, true), None);
+        let missed = game_line(GameView { combo: None }, false).unwrap();
+        assert_eq!(missed, "Kommt bald wieder – so bleibt es hängen.");
+        assert!(!missed.contains('♥') && !missed.contains("Herz"));
+    }
+
+    #[test]
+    fn the_week_never_speaks_of_loss() {
+        crate::i18n::set_current(crate::i18n::Lang::De);
+        let week = |streak, best, missed_last| Week {
+            days: 2,
+            goal: 4,
+            streak,
+            best,
+            missed_last,
+        };
+        assert_eq!(week_run_text(&week(0, 0, false)), None);
+        assert_eq!(
+            week_run_text(&week(1, 1, false)).unwrap(),
+            "Wochenziel erreicht"
         );
         assert_eq!(
-            game_status(GameView {
-                combo: 0,
-                hearts: 9
-            }),
-            "Combo 0 · Herzen ♥♥♥♥♥"
+            week_run_text(&week(3, 3, true)).unwrap(),
+            "Wochenziel 3 Wochen in Folge erreicht"
+        );
+        let after = week_run_text(&week(0, 5, true)).unwrap();
+        assert_eq!(
+            after,
+            "Neue Woche, neues Ziel. Dein Bestwert: 5 Wochen in Folge."
+        );
+        for lang in crate::i18n::Lang::ALL {
+            crate::i18n::set_current(lang);
+            let texts = [
+                week_run_text(&week(0, 5, true)).unwrap(),
+                week_text(&week(0, 5, true)),
+                today_text(&Today {
+                    due_done: 0,
+                    due_open: 0,
+                    new_done: 0,
+                    goal: Goal::Free,
+                }),
+            ];
+            for text in texts {
+                let lower = text.to_lowercase();
+                for word in ["verlor", "lost", "perdu", "失", "streak"] {
+                    assert!(!lower.contains(word), "{text}");
+                }
+            }
+        }
+        crate::i18n::set_current(crate::i18n::Lang::De);
+    }
+
+    #[test]
+    fn the_end_card_shows_points_only_when_a_plugin_changed_them() {
+        crate::i18n::set_current(crate::i18n::Lang::De);
+        let summary = Summary {
+            asked: 3,
+            correct: 2,
+            points: 2,
+            xp_gained: Some(26),
+            due_done: 2,
+            new_done: 1,
+            due_left_today: Some(0),
+            next_due: Some(("2026-10-21".into(), 6)),
+            next_due_in: Some(1),
+            new_trophies: vec!["game-first-journey".into()],
+            ..Summary::default()
+        };
+        let lines = summary_lines(&summary);
+        assert!(
+            !lines.iter().any(|line| line.starts_with("Punkte")),
+            "{lines:?}"
+        );
+        assert_eq!(
+            lines,
+            [
+                "2 fällige Wiederholungen · 1 neue Orte",
+                "Alle fälligen Wiederholungen für heute erledigt",
+                "Neue Medaille: Erste Journey",
+                "Nächste Wiederholung: morgen · 6 Orte",
+            ]
+        );
+        let scored = Summary {
+            points: 5,
+            ..summary.clone()
+        };
+        assert_eq!(summary_lines(&scored)[0], "Punkte: 5");
+        assert!(
+            summary_lines(&Summary::default()).is_empty(),
+            "no plugin, no lines"
         );
     }
 

@@ -283,6 +283,7 @@ fn DeleteCloud(
                 }
             >
                 <p role="alert">{t("Alle synchronisierten Änderungen und Medien werden vom Server gelöscht. Andere angemeldete Geräte laden ihre Daten beim nächsten Sync wieder hoch.")}</p>
+                <p class="notes">{t("Ranglisteneinträge gehören nicht zu den synchronisierten Daten; lösche sie mit „Spielfortschritt löschen“.")}</p>
                 <button type="button" class="danger" disabled=move || busy.get() on:click=move |_| erase()>
                     {t("Ja, Cloud-Daten löschen")}
                 </button>

@@ -35,6 +35,7 @@ mod tour_gate;
 mod video_frames;
 
 use crate::i18n::{t, tf};
+use crate::info::Info;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -1248,13 +1249,16 @@ fn HomeView(
 /// Plugin tiles (`ui.tile`), on the welcome screen as well as the overview.
 #[component]
 fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
-    let streak = RwSignal::new(None::<u32>);
+    // The game's tile names XP, the week and the medals; the weekly run goes below, when there
+    // is one (never what was lost).
+    let run = RwSignal::new(None::<String>);
     if tiles.iter().any(|tile| tile.plugin == "gamification") {
         spawn_local(async move {
+            let args = locora_app_api::GameStatusArgs { full: false };
             if let Ok(Some(status)) =
-                call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, tauri::NoArgs {}).await
+                call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, args).await
             {
-                streak.set(Some(status.streak));
+                run.set(journey::week_run_text(&status.week));
             }
         });
     }
@@ -1273,10 +1277,12 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
                                     <span class="meta">{crate::i18n::plugin_text(&t.title)}</span>
                                     <span class="count">{crate::i18n::plugin_text(&t.text)}</span>
                                     {gamification.then(|| view! {
-                                        <span class="tile-streak">
-                                            {move || art.get().map(|assets| view! { <span class="game-icon" aria-hidden="true"><Sply media=assets.streak /></span> })}
-                                            {move || streak.get().map(|days| crate::i18n::tf("{0} Tage in Folge", &[&days]))}
-                                        </span>
+                                        <Show when=move || run.with(Option::is_some)>
+                                            <span class="tile-streak">
+                                                {move || art.get().map(|assets| view! { <span class="game-icon" aria-hidden="true"><Sply media=assets.streak /></span> })}
+                                                {move || run.get()}
+                                            </span>
+                                        </Show>
                                     })}
                                 </div>
                             </article>
@@ -1366,6 +1372,15 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                 }
             })}
             <button class="name palace-title" disabled=move || busy.get()>{palace.name.clone()}</button>
+            {palace.strength.filter(|s| s.loci > 0).map(|s| {
+                let text = crate::i18n::tf("Gefestigt: {0} von {1} Orten", &[&s.solid, &s.loci]);
+                view! {
+                    <div class="strength">
+                        <span class="meta">{text.clone()}<Info text="Ein Ort gilt als gefestigt, wenn er mindestens 30 Tage hält. Dahin bringen ihn nur Wiederholungen, die über mehrere Tage verteilt sind." /></span>
+                        <meter min="0" max=s.loci.to_string() value=s.solid.to_string() aria-label=text></meter>
+                    </div>
+                }
+            })}
             <div class="row">
                 <span class="meta">{format!("{} · {}", loci_text(palace.loci), status)}</span>
                 {built_in.then(|| {

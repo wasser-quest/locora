@@ -1034,6 +1034,9 @@ pub struct Summary {
     /// The next learning day with reviews (`YYYY-MM-DD`) and how many are due then.
     #[serde(default)]
     pub next_due: Option<(String, u32)>,
+    /// Learning days from today to `next_due` (0 today, 1 tomorrow).
+    #[serde(default)]
+    pub next_due_in: Option<u32>,
 }
 
 #[cfg(test)]

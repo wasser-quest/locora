@@ -14,6 +14,7 @@ use locora_app_api::{
 use locora_formula::workbook::{ActionOutcome, Run};
 use locora_runtime::game::{app_medal, unlock_app_medal};
 use locora_runtime::journey::{PlanOptions, Stop, plan, resolve_text};
+use locora_runtime::settings::DAY;
 use locora_runtime::{AnswerRequest, Profile, now};
 use locora_store::JourneyAnswer;
 use locora_store::{Locus, PalaceTree};
@@ -795,6 +796,9 @@ impl Journey {
                 .filter(|c| c.due > now && clock.day_start(c.due) == day)
                 .count() as u32;
             summary.next_due = Some((clock.date(day), count));
+            let today = clock.day_start(now);
+            let days = (day.saturating_sub(today) + DAY / 2) / DAY;
+            summary.next_due_in = Some(u32::try_from(days).unwrap_or(u32::MAX));
         }
         Ok(())
     }
@@ -1340,6 +1344,10 @@ mod tests {
         let (date, count) = summary.next_due.clone().expect("the loci come back");
         assert_eq!(count, 3, "all three are due on the same learning day");
         assert!(date.len() == 10, "{date}");
+        assert!(
+            summary.next_due_in.is_some_and(|days| days <= 1),
+            "{summary:?}"
+        );
         // Walking the same palace again the same day: practice, no XP, no new trophy.
         let again = walk(&mut profile, &palace, 3);
         assert_eq!(again.xp_gained, Some(0));

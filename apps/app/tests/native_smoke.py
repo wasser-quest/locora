@@ -160,11 +160,10 @@ class Scenario:
     def x(self, *args):
         subprocess.run(["xdotool", *args], check=True)
 
-    def goal(self):
-        """Right answers today, from the daily goal bar („Tagesziel: N von 10 richtig …“)."""
-        bar = self.find("Tagesziel:", "progress bar", True)
-        found = bar and re.search(r"(\d+) von", bar.get_name())
-        return int(found.group(1)) if found else None
+    def xp(self):
+        """XP from the journey bar, whose figure is named „N XP“."""
+        node = next((n for n in walk(self.app) if role_is(n, "panel") and re.fullmatch(r"\d+ XP", n.get_name() or "")), None)
+        return int(node.get_name().split()[0]) if node else None
 
     def grade_right(self):
         """Key 3 grades a revealed recall „Gut“; quick mode (the default) then moves on by itself."""
@@ -421,9 +420,10 @@ class Scenario:
         self.x("key", "--clearmodifiers", "space")
         self.until(lambda: self.find("Leicht", "button", True) or self.find("Gut", "button", True))
         self.grade_right()
-        # One correct answer: all five hearts still there.
-        assert self.find("5 von 5 Herzen", "panel"), "hearts"
-        self.record("recall-keyboard-reveal-and-grade", clicks=0, hearts=5)
+        # A new locus earns 6 XP, whatever the grade; there are no hearts to lose.
+        self.until(lambda: self.xp() == 6)
+        assert not self.find("5 von 5 Herzen", "panel"), "hearts"
+        self.record("recall-keyboard-reveal-and-grade", clicks=0, xp=6)
         # Loci 2–6 are recall, 7 is the tutorial's quiz (multiple choice).
         for _ in range(5):
             self.until(lambda: self.find("Aufdecken", "button", True))
@@ -433,13 +433,12 @@ class Scenario:
         clicks = self.clicks
         quiz = lambda: [n for n in walk(self.app) if n.get_role_name() == "check box" and n.get_name() != "Bearbeiten"]
         options = self.until(lambda: quiz() or None)
-        right, hearts = self.goal(), self.find("5 von 5 Herzen", "panel")
+        xp = self.xp()
         self.x("key", "--clearmodifiers", "1")
         self.until(lambda: options[0].get_state_set().contains(Atspi.StateType.CHECKED))
         self.x("key", "--clearmodifiers", "Return")
-        # Right or wrong, the answer counts: the goal grows or a heart is lost.
-        self.until(lambda: self.goal() != right or not self.find("5 von 5 Herzen", "panel"))
-        assert hearts
+        # Right or wrong, the new locus counts: its XP is added.
+        self.until(lambda: (self.xp() or 0) > (xp or 0))
         assert self.clicks == clicks
         self.record("quiz-keys-1-9-and-enter", clicks=0, options=len(options))
         self.click("←")
