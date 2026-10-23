@@ -14,7 +14,8 @@ All graphics are made with [Splinely](https://splinely.com) via `splinely-cli` a
 | `tutorial/locora-lernen.locora.toml` | The tutorial palace itself; every place shows a `.sply` (Simo and the firefly come from `mascot/`). Built into the CLI: `locora tutorial`. |
 | `marker/locus.sply` | Default locus marker: a glowing point with the states `neu`, `faellig`, `gewusst` (state machine `status`). The app places it at every locus; backdrops never contain loci. Built by `marker/src/marker.py`. |
 | `ui/erfolg-lernen-*.sply`, `ui/erfolg-tour*.sply`, `ui/erfolg-palast*.sply` | Medals of „Mnemotechnik lernen“ (one per lesson, in the colour of the character who teaches it, with a topic symbol, plus „all lessons“), of the finished app tour and of the first own palace; grey `-gesperrt` versions while locked (the lessons share one). Built by `ui/src/medaillen.py`. |
-| `brand/icon.sply` | App icon: a palace arch with a route of glowing loci and the firefly's light. |
+| `brand/icon.sply` | The Locora logo and app icon, the website's mark at 512 × 512: a bold palace arch on a floor line, one glowing locus inside and the firefly's big light, whose glow pulses (clip `pulse`). The app shows it while loading. Its exports (`brand/src/export.sh`): `icon.svg`, `icon.png` (1024 px, the source of the desktop, iOS and legacy Android launcher icons), `icon-foreground.png` (the art alone inside the safe zone, the Android adaptive-icon foreground) and the web app's icons in `apps/web/shell/icons`. |
+| `brand/favicon.svg` | The same mark drawn by hand for 32 × 32: the website's favicon and header logo (`apps/site/favicon.svg`) and the web app's tab icon (`apps/web/shell/icons/favicon.svg`). Change it together with `brand/icon.sply`. |
 
 Style guide: [`STIL.md`](STIL.md) (German).
 
@@ -25,5 +26,6 @@ splinely-cli render mascot/simo.sply --output mascot/simo.gif --duration 3.6   #
 SPLINELY_CLI=splinely-cli python3 mascot/src/gluehwuermchen.py mascot/gluehwuermchen.sply   # rebuild the firefly
 for n in mina cami bruno hafiza; do SPLINELY_CLI=splinely-cli python3 mascot/src/$n.py mascot/$n.sply; done   # Simo's friends (shared parts: mascot/src/figur.py)
 SPLINELY_CLI=splinely-cli python3 tutorial/src/tutorial.py                                     # rebuild the tutorial graphics
-splinely-cli render brand/icon.sply --time 0 --output brand/icon.png
+brand/src/export.sh                              # the logo's exports: icon.svg, icon.png, icon-foreground.png, web app icons
+../apps/app/scripts/generate-mobile-icons.sh    # then the desktop, Android and iOS icons (Tauri CLI, see apps/app/README.md)
 ```
