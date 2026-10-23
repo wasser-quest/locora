@@ -734,13 +734,17 @@ function tourStep(page, n) {
 }
 
 test('on a phone the tour brings each highlighted control to the upper third, clear of its panel and of the keyboard', async () => {
-  // A usual phone, and a small one in German (the longest texts, so the tallest panel).
-  for (const { language, viewport, last } of [
+  // A usual phone, a small one in German (the longest texts, so the tallest panel), and that one with
+  // larger, taller text in the panel, as other fonts or a larger text size make it: there the
+  // controls do not fit beside the whole panel, so the panel gives way and scrolls inside.
+  for (const { language, viewport, last, css } of [
     { language: 'en', viewport: { width: 390, height: 760 }, last: 13 },
     { language: 'de', viewport: { width: 360, height: 640 }, last: 8 },
+    { language: 'de', viewport: { width: 360, height: 640 }, last: 8, css: '.tour-copy { font-size: 1.3rem; line-height: 1.7; }' },
   ]) {
     const { context, page, problems } = await openApp({ phone: true, viewport, language });
     try {
+      if (css) await page.addStyleTag({ content: css });
       const panel = page.locator('.tour-panel');
       await startTour(page, null, language === 'de');
       let placed = 0;
@@ -748,7 +752,7 @@ test('on a phone the tour brings each highlighted control to the upper third, cl
         if (n > 1) await panel.locator('button.primary').click();
         await tourStep(page, n);
         const place = await settledTourPlace(page);
-        const shown = `${language} ${viewport.width}x${viewport.height} step ${n} ${JSON.stringify(place)}`;
+        const shown = `${language} ${viewport.width}x${viewport.height}${css ? ` ${css}` : ''} step ${n} ${JSON.stringify(place)}`;
         // Every step of the tour has a control to show.
         assert.ok(place, `${shown}: a highlighted control`);
         assert.ok(place.top >= 0 && place.bottom <= place.view, `${shown}: in view`);

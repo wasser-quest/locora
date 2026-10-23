@@ -267,11 +267,28 @@ fn tour_panel_up((top, height): (f64, f64), at: f64, size: f64) -> bool {
     at + size / 2.0 > top + height / 2.0
 }
 
+/// The space around a highlighted control and its panel in the tour's area: 16 px above the
+/// control's place (or 12 below it), 12 px between the control and the panel, and the panel's own
+/// distance from the area's edge (at most 1rem; the safe-area inset is reckoned in CSS).
+const TOUR_PANEL_MARGINS: f64 = 44.0;
+
+/// The least height of the tour's panel where it gives way to the highlighted control or to an
+/// on-screen keyboard; its text scrolls inside.
+const TOUR_PANEL_LEAST: f64 = 120.0;
+
+/// Whether the tour's panel and `rect` (a highlighted control) share a column of the window, so
+/// that the panel is above or below the control and not beside it (as in a wide window).
+fn tour_panel_shares(panel: &web_sys::Element, rect: &web_sys::DomRect) -> bool {
+    let side = panel.get_bounding_client_rect();
+    side.left() < rect.right() && rect.left() < side.right()
+}
+
 /// Scrolls `framed` (a highlighted control with its label) to its tour place in `tour_area`,
 /// clear of the panel above or below it (a panel beside it, in a wide window, leaves it alone): a
 /// control too tall for that place above the panel moves up until it fits, and with the panel at
-/// the top it goes below the panel. The page scrolls by the distance measured from what the person
-/// sees, so it lands the same in every browser, with or without a keyboard or zoom.
+/// the top it goes below the panel. (The panel gives way to a control that would not fit beside it
+/// at all: see `room` in `TourOverlay`.) The page scrolls by the distance measured from what the
+/// person sees, so it lands the same in every browser, with or without a keyboard or zoom.
 fn scroll_to_tour_place(framed: &web_sys::Element, assumed: bool) {
     let (Some(window), Some((top, height))) = (web_sys::window(), tour_area(assumed)) else {
         return;
@@ -286,7 +303,7 @@ fn scroll_to_tour_place(framed: &web_sys::Element, assumed: bool) {
         .and_then(|document| document.query_selector(".tour-panel").ok().flatten())
     {
         let side = panel.get_bounding_client_rect();
-        if side.left() < rect.right() && rect.left() < side.right() {
+        if tour_panel_shares(&panel, &rect) {
             if panel.class_list().contains("top") {
                 free_top = free_top.max(side.bottom() + 12.0);
             } else {
@@ -527,6 +544,11 @@ fn TourOverlay(
     // The panel takes the half of the visible area the highlighted control is not in. With a text
     // field focused and no keyboard reported it goes to the top: a keyboard may cover the bottom.
     let panel_up = RwSignal::new(false);
+    // The most the panel may take of the tour's area (before the safe-area inset) so that the
+    // highlighted control fits above or below it: the area less the control and the margins around
+    // both. A taller panel (long texts, large fonts) scrolls inside. None without a control, or
+    // where the panel is beside it.
+    let room = RwSignal::new(None::<f64>);
     let focused = StoredValue::new(None::<(u8, String)>);
     // What the control's place was found for: the keyboard's height (None without one), the
     // window's height and whether the control's own field had the focus. A keyboard that opens or
@@ -561,6 +583,9 @@ fn TourOverlay(
             focused.set_value(None);
             gliding.set_value(None);
             spot.set(None);
+            if room.get_untracked().is_some() {
+                room.set(None);
+            }
             target_ready.set(false);
             if let Some(element) = before.get_value() {
                 let _ = element.focus();
@@ -629,6 +654,9 @@ fn TourOverlay(
                 if panel_up.get_untracked() != forced {
                     panel_up.set(forced);
                 }
+                if room.get_untracked().is_some() {
+                    room.set(None);
+                }
             }
             target_ready.set(route_ready.get_untracked());
             return;
@@ -648,6 +676,23 @@ fn TourOverlay(
             || (was_keyboard.unwrap_or(0.0) - layout.0.unwrap_or(0.0)).abs() > 120.0
             || (was_full - full).abs() > 120.0
             || (in_field && !was_in_field);
+        // The panel leaves the control room above or below it, whatever its text's fonts: the
+        // height they share (what a keyboard leaves of the window, or its upper half where one is
+        // assumed; a pinch zoom changes nothing) less the control and the margins around both.
+        // Set before the place is reached (a frame later), so that the place reckons with it.
+        // Before the panel is shown it counts as sharing the control's column.
+        let next = document
+            .query_selector(".tour-panel")
+            .ok()
+            .flatten()
+            .is_none_or(|panel| tour_panel_shares(&panel, &rect))
+            .then(|| {
+                let shared = keyboard.map(|(_, height, _)| height).or(guess);
+                shared.unwrap_or(full) - size - TOUR_PANEL_MARGINS
+            });
+        if room.get_untracked() != next {
+            room.set(next);
+        }
         let up = if fresh || moved {
             placed_for.set_value(layout);
             gliding.set_value(Some(now));
@@ -659,8 +704,8 @@ fn TourOverlay(
                 .map_or(0.0, |root| f64::from(root.scroll_height()) - full)
                 .max(0.0);
             let at = now - ((y + now - tour_place(area, size)).clamp(0.0, end) - y);
-            // The scroll waits a frame, until the panel is on that side: then the space it leaves
-            // is known.
+            // The scroll waits a frame, until the panel is on that side and of its height: then
+            // the space it leaves is known.
             let assumed = guess.is_some();
             let framed = framed.clone();
             request_animation_frame(move || scroll_to_tour_place(&framed, assumed));
@@ -700,6 +745,22 @@ fn TourOverlay(
             .map(|(_, height, _)| height)
             .or_else(|| assumed.get())
     };
+    // The panel's height: at most half of what a keyboard leaves, and no more than leaves the
+    // highlighted control room beside it (less the safe-area inset on the panel's side), but at
+    // least `TOUR_PANEL_LEAST`. None (as tall as its text) without either.
+    let most = move || {
+        let keyboard = shared().map(|height| format!("{}px", height / 2.0 - 16.0));
+        let beside = room.get().map(|room| {
+            let edge = if panel_up.get() { "top" } else { "bottom" };
+            format!("calc({room}px - env(safe-area-inset-{edge}))")
+        });
+        let most = match (keyboard, beside) {
+            (Some(keyboard), Some(beside)) => format!("min({keyboard}, {beside})"),
+            (Some(most), None) | (None, Some(most)) => most,
+            (None, None) => return None,
+        };
+        Some(format!("max({TOUR_PANEL_LEAST}px, {most})"))
+    };
     highlight();
     let timer = set_interval_with_handle(highlight, std::time::Duration::from_millis(150)).ok();
     on_cleanup(move || {
@@ -727,11 +788,12 @@ fn TourOverlay(
                 <aside class="tour-panel card" role="region" aria-label=t("App-Tour") aria-live="polite"
                     class:top=move || panel_up.get()
                     // With a keyboard open the panel sits in the visible part, above the keyboard
-                    // or at the top, and scrolls inside when that part is small.
+                    // or at the top. It scrolls inside when that part is small, or when the
+                    // highlighted control would not fit beside all of it.
                     style:bottom=move || visible.get().filter(|_| !panel_up.get()).map(|(_, _, covered)| format!("{}px", covered + 8.0))
                     style:top=move || visible.get().filter(|_| panel_up.get()).map(|(top, _, _)| format!("calc({}px + env(safe-area-inset-top))", top + 8.0))
-                    style:max-height=move || shared().map(|height| format!("{}px", (height / 2.0 - 16.0).max(120.0)))
-                    style:overflow-y=move || shared().map(|_| "auto")>
+                    style:max-height=most
+                    style:overflow-y=move || most().map(|_| "auto")>
                     <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
                     <div class="tour-copy">
                         <small>{move || active.get().map(|step| crate::i18n::tf("Schritt {0} von {1}", &[&step.step, &step.total])).unwrap_or_default()}</small>

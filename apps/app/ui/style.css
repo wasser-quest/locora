@@ -312,7 +312,8 @@ dl.stats dd { margin: 0; font-weight: 600; }
     background: var(--indigo); color: #fff; font-weight: 600; box-shadow: 0 -4px 18px #17183a55; }
   .palette-mobile-trigger:focus-visible { outline: 3px solid var(--lime); outline-offset: -3px; }
   .toast { bottom: calc(68px + env(safe-area-inset-bottom)); }
-  .tour-panel { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  /* The tour hides the bar (see palette.rs), so its panel takes the bar's place at the bottom. */
+  .tour-panel { bottom: calc(.5rem + env(safe-area-inset-bottom)); }
   /* The progress card is a single compact strip on a phone, so the question and grades fit on screen. */
   .game-status { gap: .3rem; margin-bottom: .6rem; padding: .4rem .6rem; }
   .game-numbers { gap: .3rem .7rem; }
