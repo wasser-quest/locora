@@ -384,6 +384,64 @@ mod tests {
     }
 
     #[test]
+    fn strength_counts_the_loci_of_the_palace_by_how_long_they_hold() {
+        let store = Store::in_memory().unwrap();
+        let palace = store.create_palace("Küche").unwrap();
+        let room = store
+            .add_room(&palace.id, "R", locora_store::RoomKind::Blank, None)
+            .unwrap();
+        let mut ids = Vec::new();
+        for n in 0..4 {
+            let locus = locora_store::NewLocus {
+                audio: None,
+                place: format!("Ort {n}"),
+                item: "Milch".into(),
+                x: 0.5,
+                y: 0.5,
+                time: None,
+                answer: Default::default(),
+                image: None,
+                note: String::new(),
+                image_size: 0.25,
+                zoom: 1.0,
+            };
+            ids.push(store.add_locus(&room.id, locus).unwrap().id);
+        }
+        let card = |stability| CardState {
+            stability,
+            difficulty: 5.0,
+            last_review: 0,
+            due: 0,
+            reps: 3,
+            lapses: 0,
+        };
+        let mut cards = HashMap::new();
+        cards.insert(ids[0].clone(), card(2.0));
+        cards.insert(ids[1].clone(), card(7.0));
+        cards.insert(ids[2].clone(), card(45.0));
+        // A card of a locus that is gone counts nowhere.
+        cards.insert("deleted".into(), card(500.0));
+        let strength = strength(&store.palace(&palace.id).unwrap(), &cards);
+        assert_eq!(
+            (
+                strength.loci,
+                strength.hold_7,
+                strength.hold_30,
+                strength.hold_180
+            ),
+            (4, 2, 1, 0)
+        );
+    }
+
+    #[test]
+    fn the_plan_promises_no_reminders_that_frame_a_loss() {
+        let plan = include_str!("../../../docs/PLAN.md");
+        for loss in ["Streak in Gefahr", "Streak endet heute"] {
+            assert!(!plan.contains(loss), "docs/PLAN.md: {loss}");
+        }
+    }
+
+    #[test]
     fn app_medals_count_only_in_their_epoch() {
         let store = Store::in_memory().unwrap();
         store.kv_set(APP_MEDALS, "tour-done", b"1").unwrap();

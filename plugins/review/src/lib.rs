@@ -289,13 +289,14 @@ mod tests {
         assert_eq!(day_month(1_792_195_200), "17.10.");
         assert_eq!(day_month(951_782_400), "29.2.");
         assert_eq!(tile_text([]), "Noch keine Loci im Plan");
+        // Templates the app fills in its language: the text, then the arguments after U+001F.
         assert_eq!(
             tile_text([card(1_792_195_200)]),
-            "1 Locus · fällig ab 17.10."
+            "@@{0} Locus · fällig ab {1}\u{1f}1\u{1f}17.10."
         );
         assert_eq!(
             tile_text([card(1_792_281_600), card(1_792_195_200)]),
-            "2 Loci · fällig ab 17.10."
+            "@@{0} Loci · fällig ab {1}\u{1f}2\u{1f}17.10."
         );
     }
 }

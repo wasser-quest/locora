@@ -45,8 +45,10 @@ async function openApp(options = {}) {
   });
   page.on('console', (message) => {
     const text = message.text();
-    // A missing favicon is the browser asking for one, not an app error.
-    if (message.type() === 'error' && !/status of 404/.test(text)) problems.push(`console: ${text.slice(0, 200)}`);
+    // A missing favicon is the browser asking for one, not an app error. A test context is a
+    // private window, whose small in-memory cache can refuse the core's module: the app then
+    // fetches it again without the cache (boot.mjs), so the refusal is no app error either.
+    if (message.type() === 'error' && !/status of 404|ERR_CACHE_WRITE_FAILURE/.test(text)) problems.push(`console: ${text.slice(0, 200)}`);
     if (/Content Security Policy/.test(text)) problems.push(`policy: ${text.slice(0, 200)}`);
   });
   page.on('request', (request) => requests.push(request.url()));
@@ -956,6 +958,345 @@ test('the first own palace: a photo, 5 places with a shopping list, one walk, an
     // says when the first review comes.
     await page.locator('.celebration', { hasText: 'First own palace' }).waitFor({ timeout: 20000 });
     await page.getByText('Your first review is due tomorrow.', { exact: false }).waitFor({ timeout: 20000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+// ---------------------------------------------------------------- the game (gamification plugin)
+
+/** Answers the question on screen: `grade` (1–4) for a recall, the first option for a quiz, a word for a guess. */
+async function answerQuestion(page, grade) {
+  const kind = await page.evaluate(() => {
+    if (document.querySelector('.panel input[type=text]')) return 'guess';
+    if (document.querySelector('.options input[type=checkbox]')) return 'quiz';
+    return 'recall';
+  });
+  if (kind === 'guess') {
+    const input = page.locator('.panel input[type=text]');
+    await input.fill('something');
+    await input.press('Enter');
+  } else if (kind === 'quiz') {
+    await page.keyboard.press('1');
+    await page.keyboard.press('Enter');
+  } else {
+    await page.keyboard.press('Space');
+    await page.locator('.grades').waitFor({ timeout: 15000 });
+    await page.keyboard.press(grade);
+  }
+  return kind;
+}
+
+/** Walks the tutorial palace (9 loci) from its card; returns the end card. With `pause`, waits at each answer. */
+async function walkTutorial(page, grade = '3', pause = null) {
+  await page.getByRole('button', { name: /Walk the route/ }).first().click();
+  for (let n = 1; n <= 9; n += 1) {
+    await page.waitForFunction((n) => document.body.innerText.includes(`${n}/9`), n, { timeout: 20000 });
+    const kind = await answerQuestion(page, grade);
+    const next = page.getByRole('button', { name: 'Next (Space)' });
+    if (await next.isVisible().catch(() => false) || pause) {
+      await next.waitFor({ timeout: 15000 });
+      if (pause) await pause(n, kind);
+      await next.click();
+    }
+  }
+  const done = page.locator('.journey-done');
+  await done.waitFor({ timeout: 20000 });
+  return done;
+}
+
+test('a journey earns XP for new loci whatever the grade, a mistake costs nothing, and the same walk again earns no more', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    // Quick mode off: the line under each answer stays until „Next“.
+    await page.evaluate(() => localStorage.setItem('locora-locus-display-v1', JSON.stringify({ quick_next: false })));
+    await page.reload({ waitUntil: 'load' });
+    await openTutorial(page);
+    const lines = [];
+    const done = await walkTutorial(page, '1', async (n) => {
+      if (n === 1) {
+        const bar = page.getByRole('complementary', { name: 'Learning progress' });
+        await bar.waitFor({ timeout: 15000 });
+        assert.doesNotMatch(await page.locator('body').innerText(), /♥|hearts?\b/i, 'no hearts');
+        assert.equal(await page.locator('.game-hearts').count(), 0);
+        lines.push(await page.locator('.game-line').innerText());
+        // The one-time explanation sits under the bar; its buttons keep Space and Enter to themselves.
+        await page.getByRole('note').getByText('How XP works now').waitFor({ timeout: 5000 });
+      }
+    });
+    assert.equal(lines[0], 'Comes back soon – that is how it sticks.');
+    const card = await done.innerText();
+    assert.match(card, /of 9 recalled · \+54 XP/, card);
+    assert.match(card, /0 due reviews · 9 new loci/, card);
+    assert.match(card, /Next review: (today|tomorrow|\d{4}-\d\d-\d\d) · \d+ loc/, card);
+    assert.equal(await done.getAttribute('role'), 'status');
+    // The first finished journey is celebrated as a trophy.
+    const celebration = page.locator('.celebration', { hasText: 'First journey' });
+    await celebration.waitFor({ timeout: 20000 });
+    assert.equal(await celebration.getAttribute('role'), 'status');
+    await page.getByRole('button', { name: 'Back to overview' }).click();
+
+    // The palace card says how much is consolidated (nothing yet: that takes reviews over days).
+    await page.getByText('Consolidated: 0 of 9 loci').first().waitFor({ timeout: 15000 });
+    // The same walk again today: practice before the loci are due earns nothing.
+    await page.getByRole('button', { name: /^Learn Locora/ }).first().click();
+    const again = await walkTutorial(page, '3');
+    const second = await again.innerText();
+    assert.match(second, /\+0 XP/, second);
+    assert.match(second, /9 loci were not due yet, so they earned no XP\./, second);
+    await page.getByRole('button', { name: 'Back to overview' }).click();
+
+    // „Progress“: the tile and the trophy with the day it was earned.
+    await page.locator('nav.pages button', { hasText: 'Progress' }).click();
+    await page.locator('.tile', { hasText: '54 XP · this week 1/4 days' }).waitFor({ timeout: 15000 });
+    const trophy = page.locator('.medal[data-achievement="game-first-journey"]');
+    await trophy.waitFor({ timeout: 15000 });
+    assert.match(await trophy.innerText(), /First journey\s+Since \d{4}-\d\d-\d\d/);
+    assert.ok(await page.locator('.medal.locked[data-achievement="game-hundred-xp"]').count() === 1, 'locked with its hint');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('with reduced motion a new medal is still; without, it moves', async () => {
+  for (const reducedMotion of ['reduce', 'no-preference']) {
+    const { context, page, problems } = await openApp();
+    try {
+      await page.emulateMedia({ reducedMotion });
+      await openTutorial(page);
+      await walkTutorial(page, '3');
+      await page.getByRole('button', { name: 'Back to overview' }).click();
+      await page.locator('nav.pages button', { hasText: 'Progress' }).click();
+      const art = page.locator('.medal[data-achievement="game-first-journey"] svg').first();
+      await art.waitFor({ timeout: 15000 });
+      await page.waitForTimeout(500);
+      const before = await art.evaluate((svg) => svg.innerHTML);
+      await page.waitForTimeout(900);
+      const after = await art.evaluate((svg) => svg.innerHTML);
+      if (reducedMotion === 'reduce') assert.equal(after, before, 'still');
+      else assert.notEqual(after, before, 'it breathes');
+      assert.deepEqual(problems, []);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+test('an install from before the sync keeps its progress: the old IndexedDB blob is taken over', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    // The plugin storage of an older version: { xp: 340, trophies: [FirstJourney], … } as postcard.
+    await page.evaluate(async () => {
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('locora-plugins', 1);
+        request.onupgradeneeded = () => request.result.createObjectStore('plugin-storage');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('plugin-storage', 'readwrite');
+        tx.objectStore('plugin-storage').put(new Uint8Array([0xd4, 0x02, 0, 1, 0, 0, 0, 0, 0]), 'gamification\u0000progress');
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+      localStorage.removeItem('locora-synced-storage-gamification-v1');
+    });
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
+    const status = await page.evaluate(() => window.__TAURI__.core.invoke('gamification_status', { full: true }));
+    assert.equal(status.xp, 340);
+    assert.deepEqual(status.trophies.map((t) => t.id), ['first-journey', 'hundred-xp']);
+    // Taken over once: a reload changes nothing.
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
+    const again = await page.evaluate(() => window.__TAURI__.core.invoke('gamification_status', { full: false }));
+    assert.equal(again.xp, 340);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+/** A Locora Cloud for several devices of one account: what one pushes, the others pull. */
+function sharedCloud() {
+  return { keys: null, ops: [], seq: 0, media: new Map(), log: [], gameDeletes: [], gameDeleteStatus: 204 };
+}
+
+async function serveCloud(page, cloud) {
+  const account = {
+    id: 'account-1', email: 'learner@example.org', display_name: 'Learner',
+    subscription: 'active', plan: 'trial', period_end: 4102444800, email_verified: true,
+  };
+  const retention = { state: 'active', last_successful_sync_at: 0, expires_at: 4102444800, generation: 0 };
+  await page.route('https://api.locora.cloud/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: body === undefined ? '' : JSON.stringify(body) });
+    const key = `${request.method()} ${url.pathname}`;
+    cloud.log.push(key);
+    if (key === 'POST /v1/accounts' || key === 'POST /v1/sessions') return json(200, { token: 'session', account });
+    if (key === 'GET /v1/me') return json(200, account);
+    if (key === 'GET /v1/keys') return cloud.keys ? json(200, cloud.keys) : json(404, { error: 'none' });
+    if (key === 'POST /v1/keys') {
+      cloud.keys = request.postDataJSON();
+      return json(200, {});
+    }
+    if (key === 'GET /v1/sync/retention' || key === 'POST /v1/sync/complete') return json(200, retention);
+    if (key === 'GET /v1/sync/pending') return json(200, { count: 0 });
+    if (key === 'POST /v1/media/missing') {
+      return json(200, { missing: request.postDataJSON().ids.filter((id) => !cloud.media.has(id)) });
+    }
+    if (url.pathname.startsWith('/v1/media/')) {
+      const id = url.pathname.split('/').pop();
+      if (request.method() === 'PUT') {
+        cloud.media.set(id, request.postDataBuffer());
+        return json(200, {});
+      }
+      if (!cloud.media.has(id)) return json(404, { error: 'missing' });
+      return route.fulfill({ status: 200, contentType: 'application/octet-stream', body: cloud.media.get(id) });
+    }
+    if (key === 'POST /v1/sync/ops') {
+      const push = request.postDataJSON();
+      let stored = 0;
+      for (const op of push.ops) {
+        if (cloud.ops.some((known) => known.op_id === op.op_id)) continue;
+        cloud.seq += 1;
+        cloud.ops.push({ seq: cloud.seq, device: push.device, ...op });
+        stored += 1;
+      }
+      return json(200, { stored });
+    }
+    if (key === 'GET /v1/sync/ops') {
+      const after = Number(url.searchParams.get('after'));
+      const ops = cloud.ops.filter((op) => op.seq > after).slice(0, 1000);
+      return json(200, { ops, cursor: ops.length ? ops[ops.length - 1].seq : after });
+    }
+    if (key === 'DELETE /v1/game/data') {
+      cloud.gameDeletes.push(request.headers().authorization ?? '');
+      if (cloud.gameDeleteStatus === 204) return route.fulfill({ status: 204 });
+      return json(cloud.gameDeleteStatus, { error: 'not on this server' });
+    }
+    if (key === 'DELETE /v1/sessions') return route.fulfill({ status: 204 });
+    return json(404, { error: `not in the test cloud: ${key}` });
+  });
+}
+
+const CLOUD_PASSWORD = 'a long cloud password';
+const PASSPHRASE = 'a long encryption passphrase';
+
+/** Signs this device in (or up, the first one) and sets up the encryption when it is new. */
+async function joinCloud(page, register) {
+  await page.getByRole('button', { name: 'Settings & statistics' }).click();
+  const panel = page.getByRole('region', { name: 'Locora Cloud' });
+  await panel.getByLabel('Email').fill('learner@example.org');
+  if (register) await panel.getByRole('checkbox', { name: /^Create a new account/ }).check();
+  if (register) await panel.getByLabel(/^Display name/).fill('Learner');
+  await panel.getByLabel(/^Cloud password/).fill(CLOUD_PASSWORD);
+  if (register) await panel.getByLabel(/^Repeat cloud password/).fill(CLOUD_PASSWORD);
+  await panel.getByRole('button', { name: register ? 'Create account' : 'Sign in' }).click();
+  if (register) {
+    await panel.getByLabel(/^New encryption password/).fill(PASSPHRASE);
+    await panel.getByLabel(/^Repeat encryption password/).fill(PASSPHRASE);
+    await panel.getByRole('button', { name: 'Set up encryption' }).click();
+    await panel.getByRole('button', { name: 'I have saved the key' }).click({ timeout: 30000 });
+  }
+  return panel;
+}
+
+async function syncNow(panel) {
+  await panel.getByLabel(/^Encryption password/).fill(PASSPHRASE);
+  await panel.getByRole('button', { name: 'Sync now' }).click();
+  await panel.getByText('Sync finished.').waitFor({ timeout: 60000 });
+}
+
+/** The game's line in the settings: „N XP · N medals · N learning days“. */
+async function gameLine(page) {
+  const line = page.getByRole('region', { name: 'Game progress & achievements' }).locator('p.progress');
+  await line.waitFor({ timeout: 15000 });
+  return line.innerText();
+}
+
+test('game progress is the same on two devices, and deleting it reaches both and the rankings', async () => {
+  const cloud = sharedCloud();
+  const a = await openApp();
+  const b = await openApp();
+  try {
+    await serveCloud(a.page, cloud);
+    await serveCloud(b.page, cloud);
+    // Device A learns, then syncs.
+    await openTutorial(a.page);
+    await walkTutorial(a.page, '3');
+    await a.page.getByRole('button', { name: 'Back to overview' }).click();
+    const panelA = await joinCloud(a.page, true);
+    await syncNow(panelA);
+    const learned = await gameLine(a.page);
+    assert.match(learned, /^54 XP · 1 medal · 1 learning day$/, learned);
+    // Device B signs in to the same account and syncs: the same numbers.
+    const panelB = await joinCloud(b.page, false);
+    await syncNow(panelB);
+    await b.page.getByRole('button', { name: '←' }).first().click();
+    await b.page.getByRole('button', { name: 'Settings & statistics' }).click();
+    assert.equal(await gameLine(b.page), learned);
+    // What arrived by sync appears quietly: no celebration on B.
+    assert.equal(await b.page.locator('.celebration').count(), 0);
+
+    // A deletes the game progress. The confirmation says what goes and what stays.
+    const game = a.page.getByRole('region', { name: 'Game progress & achievements' });
+    await game.getByRole('button', { name: 'Delete game progress…' }).click();
+    const warning = game.getByRole('alert');
+    await warning.waitFor({ timeout: 5000 });
+    assert.equal(await a.page.evaluate(() => document.activeElement?.getAttribute('role')), 'alert', 'the warning has the focus');
+    assert.match(await game.innerText(), /Your ranking entries are also deleted from the Locora Cloud server\./);
+    await a.page.keyboard.press('Escape');
+    await game.getByRole('button', { name: 'Delete game progress…' }).waitFor({ timeout: 5000 });
+    assert.equal(cloud.gameDeletes.length, 0, 'Escape deleted nothing');
+    await game.getByRole('button', { name: 'Delete game progress…' }).click();
+    await game.getByRole('button', { name: 'Yes, delete game progress on all devices' }).click();
+    await game.getByText('Game progress deleted. Ranking entries deleted from the server.').waitFor({ timeout: 15000 });
+    assert.deepEqual(cloud.gameDeletes, ['Bearer session']);
+    assert.match(await gameLine(a.page), /^0 XP · 0 medals · /);
+    await syncNow(panelA);
+    // B gets the deletion with its next sync, and later facts of the old progress never count.
+    await syncNow(panelB);
+    await b.page.getByRole('button', { name: '←' }).first().click();
+    await b.page.getByRole('button', { name: 'Settings & statistics' }).click();
+    assert.match(await gameLine(b.page), /^0 XP · 0 medals · /);
+
+    // An older server does not know the request: the progress is deleted anyway, and it says so.
+    cloud.gameDeleteStatus = 404;
+    await game.getByRole('button', { name: 'Delete game progress…' }).click();
+    await game.getByRole('button', { name: 'Yes, delete game progress on all devices' }).click();
+    await game.getByText(/The server cannot delete ranking entries yet; they stay until it is updated\./).waitFor({ timeout: 15000 });
+    assert.deepEqual(a.problems, []);
+    assert.deepEqual(b.problems, []);
+  } finally {
+    await a.context.close();
+    await b.context.close();
+  }
+});
+
+test('without an account, deleting the game progress stays on this device and says so', async () => {
+  const { context, page, problems, requests } = await openApp();
+  try {
+    await openTutorial(page);
+    await walkTutorial(page, '3');
+    await page.getByRole('button', { name: 'Back to overview' }).click();
+    await page.getByRole('button', { name: 'Settings & statistics' }).click();
+    const game = page.getByRole('region', { name: 'Game progress & achievements' });
+    assert.match(await gameLine(page), /^54 XP/);
+    assert.match(await game.innerText(), /Stored on this device only\./);
+    await game.getByRole('button', { name: 'Delete game progress…' }).click();
+    assert.match(await game.innerText(), /This device is not signed in to Locora Cloud, so ranking entries on the server are not touched\./);
+    await game.getByRole('button', { name: 'Yes, delete game progress on all devices' }).click();
+    await game.getByText('Game progress deleted.', { exact: true }).waitFor({ timeout: 15000 });
+    assert.match(await gameLine(page), /^0 XP · 0 medals · /);
+    // The review schedule stays: the palace still has its cards (nothing is new again).
+    const home = await page.evaluate(() => window.__TAURI__.core.invoke('home'));
+    assert.equal(home.palaces.find((p) => p.name === 'Learn Locora').fresh, 0);
+    assert.deepEqual(requests.filter((url) => url.includes('api.locora.cloud')), []);
     assert.deepEqual(problems, []);
   } finally {
     await context.close();
