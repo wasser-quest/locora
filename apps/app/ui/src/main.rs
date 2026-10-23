@@ -175,22 +175,69 @@ const TOUR_TARGETS: [&str; 15] = [
     "tour-journey-grade",
 ];
 
-/// The visible part of the window while an on-screen keyboard covers some of it: its top, its
-/// height and how much of the window's bottom is covered, all in CSS pixels. None without a
-/// keyboard, or where the browser has no `visualViewport`.
-fn visible_area() -> Option<(f64, f64, f64)> {
+/// The window's height and the part of it the person sees, in CSS pixels: the top and height of
+/// the visual viewport (which a pinch zoom or an on-screen keyboard makes smaller) in the window's
+/// coordinates, and its zoom. The whole window where the browser has no `visualViewport`.
+fn seen_area() -> Option<(f64, f64, f64, f64)> {
     let window = web_sys::window()?;
     let full = window.inner_height().ok()?.as_f64()?;
-    let viewport = js_sys::Reflect::get(&window, &"visualViewport".into()).ok()?;
+    let viewport = js_sys::Reflect::get(&window, &"visualViewport".into()).ok();
     let number = |name: &str| {
-        js_sys::Reflect::get(&viewport, &name.into())
-            .ok()
+        viewport
+            .as_ref()
+            .and_then(|viewport| js_sys::Reflect::get(viewport, &name.into()).ok())
             .and_then(|value| value.as_f64())
     };
-    let (top, height) = (number("offsetTop")?, number("height")?);
-    let covered = full - top - height;
-    // Pinch zoom also shrinks the visual viewport; a keyboard takes at least this much.
-    (covered > 120.0).then_some((top, height, covered))
+    Some(match (number("offsetTop"), number("height")) {
+        (Some(top), Some(height)) => (full, top, height, number("scale").unwrap_or(1.0)),
+        _ => (full, 0.0, full, 1.0),
+    })
+}
+
+/// The visible part of the window while an on-screen keyboard covers some of it: its top, its
+/// height and how much of the window's bottom is covered, all in CSS pixels. None without a
+/// keyboard, while the page is pinch-zoomed (which shrinks the visual viewport too), or where the
+/// browser has no `visualViewport`.
+fn visible_area() -> Option<(f64, f64, f64)> {
+    let (full, top, height, zoom) = seen_area()?;
+    // A keyboard takes at least this much. Scrolling with it open moves the visible part (its
+    // top), not its height.
+    ((zoom - 1.0).abs() < 0.01 && full - height > 120.0).then_some((
+        top,
+        height,
+        (full - top - height).max(0.0),
+    ))
+}
+
+/// Whether the screen is touched rather than pointed at: there a focused text field brings up an
+/// on-screen keyboard.
+fn touch_screen() -> bool {
+    web_sys::window()
+        .and_then(|window| window.match_media("(pointer: coarse)").ok().flatten())
+        .is_some_and(|query| query.matches())
+}
+
+/// Smooth, unless the system asks for reduced motion.
+fn tour_scroll_behavior(window: &web_sys::Window) -> web_sys::ScrollBehavior {
+    let reduced = window
+        .match_media("(prefers-reduced-motion: reduce)")
+        .ok()
+        .flatten()
+        .is_some_and(|query| query.matches());
+    if reduced {
+        web_sys::ScrollBehavior::Instant
+    } else {
+        web_sys::ScrollBehavior::Smooth
+    }
+}
+
+/// Scrolls the page by `by` CSS pixels (down for a positive value), smoothly unless the system
+/// asks for reduced motion. From the current position, so it also redirects a scroll still running.
+fn scroll_page_by(window: &web_sys::Window, by: f64) {
+    let options = web_sys::ScrollToOptions::new();
+    options.set_top(window.scroll_y().unwrap_or(0.0) + by);
+    options.set_behavior(tour_scroll_behavior(window));
+    window.scroll_to_with_scroll_to_options(&options);
 }
 
 /// How far down the visible area the tour puts the top of a highlighted control: about where the
@@ -198,64 +245,104 @@ fn visible_area() -> Option<(f64, f64, f64)> {
 /// the thumbs, and an on-screen keyboard, which comes up from the bottom, leaves the control in view.
 const TOUR_TARGET_AT: f64 = 0.3;
 
-/// Scrolls `framed` (a highlighted control with its label) to its tour place: its top
-/// `TOUR_TARGET_AT` down the part of the window a keyboard leaves visible. A control too tall to
-/// fit there above the panel (or above the keyboard) moves up until it fits, and with the panel at
-/// the top it goes below the panel. Smooth, unless the system asks for reduced motion.
-fn scroll_to_tour_place(framed: &web_sys::Element) {
-    let Some(window) = web_sys::window() else {
+/// The part of the window the tour lays out the control and its panel in (top and height in the
+/// window's coordinates): what the person sees, or its upper half while `assumed` (a text field
+/// has the focus on a touch screen and no keyboard is reported, so one may cover the lower half).
+fn tour_area(assumed: bool) -> Option<(f64, f64)> {
+    let (_, top, height, _) = seen_area()?;
+    Some((top, if assumed { height / 2.0 } else { height }))
+}
+
+/// The top of a control `size` tall at its tour place in `area`, leaving out the panel:
+/// `TOUR_TARGET_AT` down, or higher where the control would reach below the area.
+fn tour_place((top, height): (f64, f64), size: f64) -> f64 {
+    (top + height * TOUR_TARGET_AT)
+        .min(top + height - 12.0 - size)
+        .max(top + 16.0)
+}
+
+/// Whether the panel goes to the top for a control `size` tall whose top is at `at` (in the
+/// window's coordinates): the panel takes the half of `area` the control is not in.
+fn tour_panel_up((top, height): (f64, f64), at: f64, size: f64) -> bool {
+    at + size / 2.0 > top + height / 2.0
+}
+
+/// Scrolls `framed` (a highlighted control with its label) to its tour place in `tour_area`,
+/// clear of the panel above or below it (a panel beside it, in a wide window, leaves it alone): a
+/// control too tall for that place above the panel moves up until it fits, and with the panel at
+/// the top it goes below the panel. The page scrolls by the distance measured from what the person
+/// sees, so it lands the same in every browser, with or without a keyboard or zoom.
+fn scroll_to_tour_place(framed: &web_sys::Element, assumed: bool) {
+    let (Some(window), Some((top, height))) = (web_sys::window(), tour_area(assumed)) else {
         return;
     };
-    let Some(element) = wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(framed) else {
-        return;
-    };
-    let (top, height) = match visible_area() {
-        Some((top, height, _)) => (top, height),
-        None => (
-            0.0,
-            window
-                .inner_height()
-                .ok()
-                .and_then(|h| h.as_f64())
-                .unwrap_or(800.0),
-        ),
-    };
-    let size = framed.get_bounding_client_rect().height();
-    // The free part of the visible area: from its top (or below a panel at the top) to its bottom
-    // (or above a panel at the bottom).
+    let rect = framed.get_bounding_client_rect();
+    let size = rect.height();
+    // The free part of the area: from its top (or below a panel at the top) to its bottom (or
+    // above a panel at the bottom).
     let (mut free_top, mut free_bottom) = (top + 16.0, top + height - 12.0);
     if let Some(panel) = window
         .document()
         .and_then(|document| document.query_selector(".tour-panel").ok().flatten())
     {
-        let rect = panel.get_bounding_client_rect();
-        if panel.class_list().contains("top") {
-            free_top = free_top.max(rect.bottom() + 12.0);
-        } else {
-            free_bottom = free_bottom.min(rect.top() - 12.0);
+        let side = panel.get_bounding_client_rect();
+        if side.left() < rect.right() && rect.left() < side.right() {
+            if panel.class_list().contains("top") {
+                free_top = free_top.max(side.bottom() + 12.0);
+            } else {
+                free_bottom = free_bottom.min(side.top() - 12.0);
+            }
         }
     }
     let place = (top + height * TOUR_TARGET_AT)
         .min(free_bottom - size)
         .max(free_top);
-    // `scroll-margin-top` makes the browser stop that far below the top, in whatever scrolls.
-    let _ = element
-        .style()
-        .set_property("scroll-margin-top", &format!("{place}px"));
-    let reduced = window
-        .match_media("(prefers-reduced-motion: reduce)")
+    scroll_page_by(&window, rect.top() - place);
+}
+
+/// Takes the room below the page (the `tour-room` class) away once the tour has ended: at once
+/// where the page is above it, else after the page has glided back to its own end, so the page
+/// does not jump. `leaving` counts the ticks since; after 1.5 s the room goes anyway.
+fn release_tour_room(
+    window: &web_sys::Window,
+    document: &web_sys::Document,
+    leaving: StoredValue<u8>,
+) {
+    let (Some(body), Some(root)) = (document.body(), document.document_element()) else {
+        return;
+    };
+    if !body.class_list().contains("tour-room") {
+        return;
+    }
+    let room = document
+        .query_selector("main")
         .ok()
         .flatten()
-        .is_some_and(|query| query.matches());
-    let options = web_sys::ScrollIntoViewOptions::new();
-    options.set_block(web_sys::ScrollLogicalPosition::Start);
-    options.set_inline(web_sys::ScrollLogicalPosition::Nearest);
-    options.set_behavior(if reduced {
-        web_sys::ScrollBehavior::Instant
+        .and_then(|main| {
+            window
+                .get_computed_style_with_pseudo_elt(&main, "::after")
+                .ok()
+                .flatten()
+        })
+        .and_then(|style| style.get_property_value("height").ok())
+        .and_then(|height| height.trim_end_matches("px").parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let full = window
+        .inner_height()
+        .ok()
+        .and_then(|h| h.as_f64())
+        .unwrap_or(0.0);
+    let end = (f64::from(root.scroll_height()) - room - full).max(0.0);
+    let y = window.scroll_y().unwrap_or(0.0);
+    if y <= end + 1.0 || leaving.get_value() >= 10 {
+        let _ = body.class_list().remove_1("tour-room");
+        leaving.set_value(0);
     } else {
-        web_sys::ScrollBehavior::Smooth
-    });
-    element.scroll_into_view_with_scroll_into_view_options(&options);
+        if leaving.get_value() == 0 {
+            scroll_page_by(window, end - y);
+        }
+        leaving.update_value(|ticks| *ticks += 1);
+    }
 }
 
 /// Whether the focused element takes typed text (and so opens an on-screen keyboard).
@@ -427,124 +514,191 @@ fn TourOverlay(
 ) -> impl IntoView {
     let busy = RwSignal::new(false);
     let target_ready = RwSignal::new(false);
-    // Where the highlighted control is on screen (with its label): the spotlight frames it, and
-    // the panel moves to the other half of the screen so it never covers it.
+    // The spotlight's frame around the highlighted control (with its label), in page coordinates:
+    // it scrolls with the page, so it stays on the control while the page moves.
     let spot = RwSignal::new(None::<(f64, f64, f64, f64)>);
     // The part of the window an on-screen keyboard leaves visible (top, height, covered at the
     // bottom). Fixed elements stay put while the keyboard covers them, so the panel follows this.
     let visible = RwSignal::new(None::<(f64, f64, f64)>);
-    // A text field has the focus: on a phone its keyboard covers the screen's lower half, also
-    // where the browser does not report it (an edge-to-edge app), so the panel goes to the top.
-    let typing = RwSignal::new(false);
+    // A text field has the focus on a touch screen and no keyboard is reported (it is not open yet,
+    // or the browser does not say): its keyboard would cover the lower half, so the panel and the
+    // control share the upper half, whose height this is.
+    let assumed = RwSignal::new(None::<f64>);
+    // The panel takes the half of the visible area the highlighted control is not in. With a text
+    // field focused and no keyboard reported it goes to the top: a keyboard may cover the bottom.
+    let panel_up = RwSignal::new(false);
     let focused = StoredValue::new(None::<(u8, String)>);
-    // How many more ticks bring the control to its place again: a keyboard that opens or closes,
-    // or the panel moving to the other half, changes where that place is (one tick for the panel
-    // to move).
-    let realign = StoredValue::new(0u8);
-    let panel_was_top = StoredValue::new(false);
+    // What the control's place was found for: the keyboard's height (None without one), the
+    // window's height and whether the control's own field had the focus. A keyboard that opens or
+    // closes, a window that a keyboard (or turning the phone) resizes, or the person going back to
+    // the field moves the place. Nothing else does: the person's own scrolling and zooming stay.
+    let placed_for = StoredValue::new((None::<f64>, 0.0, false));
+    // While the tour's own scroll runs: the control's top on the last tick. The panel keeps the
+    // side chosen with the place until the control stops (also where the person takes over).
+    let gliding = StoredValue::new(None::<f64>);
+    // The window's height while no text field has the focus, to tell a keyboard that shrinks it.
+    let calm = StoredValue::new(
+        web_sys::window()
+            .and_then(|window| window.inner_height().ok())
+            .and_then(|h| h.as_f64())
+            .unwrap_or(0.0),
+    );
+    let leaving = StoredValue::new(0u8);
     let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
     let highlight = move || {
-        let keyboard = visible_area();
-        if visible.get_untracked() != keyboard {
-            visible.set(keyboard);
-            realign.set_value(2);
-        }
-        let entering = text_entry_focused();
-        if typing.get_untracked() != entering {
-            typing.set(entering);
-            realign.set_value(2);
-        }
-        let current = active.get_untracked();
-        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        let Some(window) = web_sys::window() else {
             return;
         };
-        let panel_is_top = document
-            .query_selector(".tour-panel.top")
-            .ok()
-            .flatten()
-            .is_some();
-        if panel_was_top.get_value() != panel_is_top {
-            panel_was_top.set_value(panel_is_top);
-            realign.set_value(2);
-        }
+        let Some(document) = window.document() else {
+            return;
+        };
         for id in TOUR_TARGETS {
             if let Some(node) = document.get_element_by_id(id) {
                 let _ = node.remove_attribute("data-tour-active");
             }
         }
-        if let Some(step) = current {
-            if before.get_value().is_none() {
-                before.set_value(document.active_element().and_then(|element| {
-                    wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlElement>(element).ok()
-                }));
-            }
-            if !route_ready.get_untracked() {
-                focused.set_value(None);
-                target_ready.set(false);
-                return;
-            }
-            if let Some(node) = document.get_element_by_id(&step.target) {
-                let _ = node.set_attribute("data-tour-active", "true");
-                // A checkbox or field is shown with its label, so its text is in the light too.
-                let framed = node
-                    .closest("label")
-                    .ok()
-                    .flatten()
-                    .unwrap_or_else(|| node.clone());
-                let rect = framed.get_bounding_client_rect();
-                let next = Some((rect.left(), rect.top(), rect.width(), rect.height()));
-                if spot.get_untracked() != next {
-                    spot.set(next);
-                }
-                let key = (step.step, step.target);
-                if focused.get_value().as_ref() != Some(&key) {
-                    scroll_to_tour_place(&framed);
-                    if let Some(element) =
-                        wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(&node)
-                    {
-                        // The browser's own scroll to a focused field would undo the place.
-                        let options = web_sys::FocusOptions::new();
-                        options.set_prevent_scroll(true);
-                        let _ = element.focus_with_options(&options);
-                    }
-                    focused.set_value(Some(key));
-                } else if realign.get_value() > 0 {
-                    realign.update_value(|ticks| *ticks -= 1);
-                    scroll_to_tour_place(&framed);
-                }
-                target_ready.set(true);
-            } else {
-                focused.set_value(None);
-                spot.set(None);
-                target_ready.set(true);
-            }
-        } else {
+        let Some(step) = active.get_untracked() else {
             focused.set_value(None);
+            gliding.set_value(None);
             spot.set(None);
             target_ready.set(false);
             if let Some(element) = before.get_value() {
                 let _ = element.focus();
                 before.set_value(None);
             }
-        }
-    };
-    // The panel takes the half of the visible area the highlighted control is not in.
-    let panel_top = move || {
-        if typing.get() && visible.get().is_none() {
-            return true;
-        }
-        let (top, height) = match visible.get() {
-            Some((top, height, _)) => (top, height),
-            None => (
-                0.0,
-                web_sys::window()
-                    .and_then(|w| w.inner_height().ok())
-                    .and_then(|h| h.as_f64())
-                    .unwrap_or(800.0),
-            ),
+            release_tour_room(&window, &document, leaving);
+            return;
         };
-        spot.get()
-            .is_some_and(|(_, y, _, h)| y + h / 2.0 > top + height / 2.0)
+        if let Some(body) = document.body() {
+            let _ = body.class_list().add_1("tour-room");
+        }
+        leaving.set_value(0);
+        if before.get_value().is_none() {
+            before.set_value(document.active_element().and_then(|element| {
+                wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlElement>(element).ok()
+            }));
+        }
+        let target = route_ready
+            .get_untracked()
+            .then(|| document.get_element_by_id(&step.target))
+            .flatten();
+        let key = (step.step, step.target);
+        let fresh = target.is_some() && focused.get_value().as_ref() != Some(&key);
+        if let Some(node) = &target {
+            let _ = node.set_attribute("data-tour-active", "true");
+            if fresh {
+                if let Some(element) = wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(node) {
+                    // The browser's own scroll to a focused field would undo the place.
+                    let options = web_sys::FocusOptions::new();
+                    options.set_prevent_scroll(true);
+                    let _ = element.focus_with_options(&options);
+                }
+                focused.set_value(Some(key));
+            }
+        }
+        // The keyboard, after the step's own focus.
+        let typing = text_entry_focused();
+        let full = window
+            .inner_height()
+            .ok()
+            .and_then(|h| h.as_f64())
+            .unwrap_or(0.0);
+        if !typing {
+            calm.set_value(full);
+        }
+        let keyboard = visible_area().or_else(|| {
+            // A keyboard that shrinks the window (the Android app, Firefox): all of it is in view.
+            let (_, top, height, _) = seen_area()?;
+            (typing && calm.get_value() - full > 120.0).then_some((top, height, 0.0))
+        });
+        if visible.get_untracked() != keyboard {
+            visible.set(keyboard);
+        }
+        let guess = (typing && keyboard.is_none() && touch_screen())
+            .then(|| tour_area(true).map(|(_, height)| height))
+            .flatten();
+        if assumed.get_untracked() != guess {
+            assumed.set(guess);
+        }
+        let forced = typing && keyboard.is_none();
+        let Some(node) = target else {
+            focused.set_value(None);
+            gliding.set_value(None);
+            if route_ready.get_untracked() {
+                spot.set(None);
+                if panel_up.get_untracked() != forced {
+                    panel_up.set(forced);
+                }
+            }
+            target_ready.set(route_ready.get_untracked());
+            return;
+        };
+        // A checkbox or field is shown with its label, so its text is in the light too.
+        let framed = node.closest("label").ok().flatten().unwrap_or(node);
+        let rect = framed.get_bounding_client_rect();
+        let (now, size) = (rect.top(), rect.height());
+        let area = tour_area(guess.is_some()).unwrap_or((0.0, full));
+        let in_field = typing
+            && document
+                .active_element()
+                .is_some_and(|element| framed.contains(Some(&element)));
+        let layout = (keyboard.map(|(_, height, _)| height), full, in_field);
+        let (was_keyboard, was_full, was_in_field) = placed_for.get_value();
+        let moved = was_keyboard.is_some() != layout.0.is_some()
+            || (was_keyboard.unwrap_or(0.0) - layout.0.unwrap_or(0.0)).abs() > 120.0
+            || (was_full - full).abs() > 120.0
+            || (in_field && !was_in_field);
+        let up = if fresh || moved {
+            placed_for.set_value(layout);
+            gliding.set_value(Some(now));
+            // The panel's side comes with the place: the half the control will be in once there,
+            // or where the page cannot scroll that far.
+            let y = window.scroll_y().unwrap_or(0.0);
+            let end = document
+                .document_element()
+                .map_or(0.0, |root| f64::from(root.scroll_height()) - full)
+                .max(0.0);
+            let at = now - ((y + now - tour_place(area, size)).clamp(0.0, end) - y);
+            // The scroll waits a frame, until the panel is on that side: then the space it leaves
+            // is known.
+            let assumed = guess.is_some();
+            let framed = framed.clone();
+            request_animation_frame(move || scroll_to_tour_place(&framed, assumed));
+            forced || tour_panel_up(area, at, size)
+        } else if let Some(last) = gliding.get_value() {
+            gliding.set_value(((now - last).abs() >= 0.5).then_some(now));
+            forced || panel_up.get_untracked()
+        } else {
+            forced || tour_panel_up(area, now, size)
+        };
+        if panel_up.get_untracked() != up {
+            panel_up.set(up);
+        }
+        // The frame, in page coordinates and within the page's width.
+        let width = document
+            .document_element()
+            .map_or(f64::INFINITY, |root| f64::from(root.client_width()));
+        let (left, right) = (
+            (rect.left() - 8.0).max(0.0),
+            (rect.right() + 8.0).min(width),
+        );
+        let (x, y) = (
+            window.scroll_x().unwrap_or(0.0),
+            window.scroll_y().unwrap_or(0.0),
+        );
+        let next = Some((x + left, y + now - 8.0, right - left, size + 16.0));
+        if spot.get_untracked() != next {
+            spot.set(next);
+        }
+        target_ready.set(true);
+    };
+    // The part of the window the panel shares with the control while a keyboard is open or
+    // assumed: the panel takes at most half of it and scrolls inside.
+    let shared = move || {
+        visible
+            .get()
+            .map(|(_, height, _)| height)
+            .or_else(|| assumed.get())
     };
     highlight();
     let timer = set_interval_with_handle(highlight, std::time::Duration::from_millis(150)).ok();
@@ -552,26 +706,32 @@ fn TourOverlay(
         if let Some(timer) = timer {
             timer.clear();
         }
+        if let Some(body) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.body())
+        {
+            let _ = body.class_list().remove_1("tour-room");
+        }
     });
     view! {
         {move || active.get().is_some().then(|| match spot.get() {
             // A frame over everything with the target as its bright hole; the rest is only dimmed.
             Some((x, y, w, h)) => view! {
                 <div class="tour-spot" aria-hidden="true"
-                    style:left=format!("{}px", x - 8.0) style:top=format!("{}px", y - 8.0)
-                    style:width=format!("{}px", w + 16.0) style:height=format!("{}px", h + 16.0)></div>
+                    style:left=format!("{x}px") style:top=format!("{y}px")
+                    style:width=format!("{w}px") style:height=format!("{h}px")></div>
             }.into_any(),
             None => view! { <div class="tour-scrim" aria-hidden="true"></div> }.into_any(),
         })}
         <Show when=move || active.get().is_some()>
                 <aside class="tour-panel card" role="region" aria-label=t("App-Tour") aria-live="polite"
-                    class:top=panel_top
+                    class:top=move || panel_up.get()
                     // With a keyboard open the panel sits in the visible part, above the keyboard
                     // or at the top, and scrolls inside when that part is small.
-                    style:bottom=move || visible.get().filter(|_| !panel_top()).map(|(_, _, covered)| format!("{}px", covered + 8.0))
-                    style:top=move || visible.get().filter(|_| panel_top()).map(|(top, _, _)| format!("{}px", top + 8.0))
-                    style:max-height=move || visible.get().map(|(_, height, _)| format!("{}px", (height / 2.0 - 16.0).max(120.0)))
-                    style:overflow-y=move || visible.get().map(|_| "auto")>
+                    style:bottom=move || visible.get().filter(|_| !panel_up.get()).map(|(_, _, covered)| format!("{}px", covered + 8.0))
+                    style:top=move || visible.get().filter(|_| panel_up.get()).map(|(top, _, _)| format!("calc({}px + env(safe-area-inset-top))", top + 8.0))
+                    style:max-height=move || shared().map(|height| format!("{}px", (height / 2.0 - 16.0).max(120.0)))
+                    style:overflow-y=move || shared().map(|_| "auto")>
                     <div class="tour-simo">{move || art().get().map(|assets| view! { <Sply media=assets.simo /> })}</div>
                     <div class="tour-copy">
                         <small>{move || active.get().map(|step| crate::i18n::tf("Schritt {0} von {1}", &[&step.step, &step.total])).unwrap_or_default()}</small>
