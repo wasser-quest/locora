@@ -134,12 +134,14 @@ pub fn json<T: DeserializeOwned>(reply: Reply) -> Result<T> {
     serde_json::from_slice(&reply.body).context("Antwort von Locora Cloud ist ungültig")
 }
 
+/// The body of the server's error replies.
+#[derive(serde::Deserialize)]
+struct ErrorBody {
+    error: String,
+}
+
 /// The server's error message for a failed reply.
 pub fn failure(reply: &Reply) -> anyhow::Error {
-    #[derive(serde::Deserialize)]
-    struct ErrorBody {
-        error: String,
-    }
     // Status 0 is a reply that never came: the page could not reach the server.
     // Full storage, too many requests and a busy server get the app's own words, which it
     // translates. They stay neutral: the apps never send anyone to a shop.
@@ -163,6 +165,18 @@ pub fn failure(reply: &Reply) -> anyhow::Error {
 /// endpoint (404, or 405 where the path matches another route).
 pub fn unsupported(reply: &Reply) -> bool {
     matches!(reply.status, 404 | 405)
+}
+
+/// Whether a reply says the server has no such route, on a route whose newer server answers 404
+/// itself for something it does not find (and then names it): 405, or 404 with the server's
+/// general "Nicht gefunden" or with no error message at all (older servers still).
+pub fn no_route(reply: &Reply) -> bool {
+    match reply.status {
+        405 => true,
+        404 => serde_json::from_slice::<ErrorBody>(&reply.body)
+            .map_or(true, |body| body.error == "Nicht gefunden"),
+        _ => false,
+    }
 }
 
 /// A single request whose reply is read by `read`.
@@ -315,6 +329,29 @@ mod tests {
             assert!(error.to_string().starts_with(start), "{status}: {error}");
             assert_eq!(status_of(&error), Some(status));
         }
+    }
+
+    #[test]
+    fn a_missing_route_is_told_from_a_missing_thing() {
+        let reply = |status: u16, body: &str| Reply {
+            status,
+            body: body.as_bytes().to_vec(),
+        };
+        assert!(no_route(&reply(
+            405,
+            r#"{"error":"Diese Methode ist hier nicht erlaubt"}"#
+        )));
+        assert!(no_route(&reply(405, "")));
+        assert!(no_route(&reply(404, r#"{"error":"Nicht gefunden"}"#)));
+        assert!(no_route(&reply(404, "")));
+        assert!(no_route(&reply(404, "Not Found")));
+        // A newer server names what it did not find.
+        assert!(!no_route(&reply(
+            404,
+            r#"{"error":"Diese Einladung gibt es nicht"}"#
+        )));
+        assert!(!no_route(&reply(410, "")));
+        assert!(!no_route(&reply(204, "")));
     }
 
     struct Echo;

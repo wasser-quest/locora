@@ -5,7 +5,7 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 use clap::Subcommand;
-use locora_cloud_api::api::Friend;
+use locora_cloud_api::api::{Friend, FriendInvite, Ranking, parse_invite_code};
 use locora_runtime::cloud::{self, CloudState};
 use locora_runtime::{cloud_http, cloud_sync};
 
@@ -53,13 +53,24 @@ pub enum CloudCommand {
     Encrypt(EncryptCommand),
     /// Den XP-Stand zeigen, den der Server berechnet hat
     Xp,
-    /// Rangliste: alle Lernenden oder nur Freunde (Abo nötig)
+    /// Rangliste: alle Lernenden oder nur Freunde (Abo nötig); neben jedem Namen sein Verweis zum
+    /// Melden
     Ranking {
         #[arg(long)]
         friends: bool,
     },
-    /// Freunde und offene Anfragen anzeigen, jemanden anfragen (E-Mail-Adresse), Freunde entfernen
-    /// und Anfragen zurückziehen oder ablehnen
+    /// Einen anstößigen oder seltsamen Namen melden. Nach Meldungen mehrerer Konten mit bestätigter
+    /// Adresse sehen andere ihn als „Nutzer-…“, bis er geprüft ist
+    Report {
+        /// Verweis neben dem Namen in einer Rangliste (nr_…) oder Kennung aus `locora cloud friend`
+        #[arg(value_name = "VERWEIS")]
+        reference: String,
+        /// Grund in wenigen Worten (höchstens 300 Zeichen)
+        #[arg(long, value_name = "TEXT")]
+        reason: Option<String>,
+    },
+    /// Freunde und offene Anfragen anzeigen, jemanden anfragen (E-Mail-Adresse) oder per
+    /// Einladungslink einladen, Freunde entfernen und Anfragen zurückziehen oder ablehnen
     Friend {
         /// E-Mail-Adresse der Person; ohne Angabe werden Freunde und offene Anfragen gezeigt
         email: Option<String>,
@@ -106,6 +117,30 @@ pub enum FriendCommand {
     Decline {
         /// Kennung aus `locora cloud friend`
         id: String,
+    },
+    /// Einladungslink erstellen (Abo nötig): Wer ihn annimmt, ist mit dir befreundet. Er gilt
+    /// einmal, 14 Tage lang
+    Invite {
+        #[command(subcommand)]
+        action: Option<InviteCommand>,
+    },
+    /// Die Einladung einer anderen Person annehmen (Abo nötig); ihr seid dann befreundet
+    AcceptInvite {
+        /// Code (ABCD-EFGH-JKLM-NPQR) oder der ganze Link
+        #[arg(value_name = "CODE_ODER_LINK")]
+        code: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum InviteCommand {
+    /// Die offenen Einladungslinks zeigen
+    List,
+    /// Einen offenen Einladungslink zurückziehen; er funktioniert dann nicht mehr
+    Revoke {
+        /// Code (ABCD-EFGH-JKLM-NPQR) oder der ganze Link
+        #[arg(value_name = "CODE_ODER_LINK")]
+        code: String,
     },
 }
 
@@ -346,7 +381,20 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
         CloudCommand::Ranking { friends } => {
             let state = signed_in(&data)?;
             let ranking = cloud::ranking(&state, friends)?;
-            print_ranking(&ranking);
+            print_lines(&ranking_lines(&ranking));
+            Ok(())
+        }
+        CloudCommand::Report { reference, reason } => {
+            let mut state = signed_in(&data)?;
+            cloud::report_name(&state, &reference, reason.as_deref())?;
+            println!("✓ Gemeldet. Danke, gemeldete Namen werden geprüft.");
+            // Only reports of confirmed addresses count; the stored account may be older.
+            if state.account.email_verified == Some(false) && cloud::me(&mut state).is_ok() {
+                cloud::save(&data, &state)?;
+            }
+            if state.account.email_verified == Some(false) {
+                println!("  Deine Meldung zählt, sobald deine E-Mail-Adresse bestätigt ist.");
+            }
             Ok(())
         }
         CloudCommand::Friend {
@@ -354,9 +402,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             action: None,
         } => {
             let state = signed_in(&data)?;
-            for line in friend_lines(&cloud::friends(&state)?) {
-                println!("{line}");
-            }
+            print_lines(&friend_lines(&cloud::friends(&state)?));
             Ok(())
         }
         // `--data` may stand before the command, so clap lets an address and a command come
@@ -365,7 +411,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             email: Some(email),
             action: Some(_),
         } => bail!(
-            "Entweder eine E-Mail-Adresse anfragen oder remove, withdraw oder decline mit einer Kennung, nicht beides ({})",
+            "Entweder eine E-Mail-Adresse anfragen oder einen Befehl wie remove oder invite, nicht beides ({})",
             shown::address(&email)
         ),
         CloudCommand::Friend {
@@ -390,13 +436,16 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
                 println!(
                     "  Angenommen ist sie, sobald die Person dich auch anfragt. Offene Anfragen: locora cloud friend"
                 );
+                println!(
+                    "  Schneller geht es mit einem Einladungslink: locora cloud friend invite"
+                );
             }
             Ok(())
         }
         CloudCommand::Friend {
             email: None,
             action: Some(action),
-        } => answer_friend(&signed_in(&data)?, action),
+        } => friend_action(&signed_in(&data)?, action),
         CloudCommand::Challenge(command) => challenge(command, &data),
         CloudCommand::Journeys => {
             let app = crate::app::App::open(Some(&data))?;
@@ -486,7 +535,7 @@ fn challenge(command: ChallengeCommand, data: &Path) -> Result<()> {
             );
         }
         ChallengeCommand::Ranking { id } => {
-            print_ranking(&cloud::challenge_ranking(&state, &id)?);
+            print_lines(&ranking_lines(&cloud::challenge_ranking(&state, &id)?));
         }
     }
     Ok(())
@@ -533,7 +582,9 @@ fn who(friend: &Friend) -> String {
 /// the command that answers it. An older server lists names alone, as before.
 fn friend_lines(friends: &[Friend]) -> Vec<String> {
     if friends.is_empty() {
-        return vec!["Noch keine Freunde. Hinzufügen: locora cloud friend <E-Mail>".into()];
+        return vec![
+            "Noch keine Freunde. Hinzufügen: locora cloud friend <E-Mail> oder mit einem Einladungslink: locora cloud friend invite".into(),
+        ];
     }
     let with_ids = friends.iter().any(|friend| friend.id.is_some());
     let sections = [
@@ -574,19 +625,60 @@ fn friend_lines(friends: &[Friend]) -> Vec<String> {
             });
         }
     }
+    // The id of a friend or of a request to this account is the reference of the name shown.
+    let named = |friend: &&Friend| matches!(entry(friend), Entry::Friend | Entry::Incoming);
+    if friends
+        .iter()
+        .filter(named)
+        .any(|friend| friend.id.is_some())
+    {
+        lines.push(String::new());
+        lines.push("Einen Namen melden: locora cloud report <Kennung>".into());
+    }
     lines
+}
+
+/// The commands of `locora cloud friend`: the invite links, or an answer to an entry of the list.
+fn friend_action(state: &CloudState, action: FriendCommand) -> Result<()> {
+    let (id, wanted) = match &action {
+        FriendCommand::Remove { id } => (id.as_str(), Entry::Friend),
+        FriendCommand::Withdraw { id } => (id.as_str(), Entry::Outgoing),
+        FriendCommand::Decline { id } => (id.as_str(), Entry::Incoming),
+        FriendCommand::Invite { action: None } => {
+            print_lines(&created_lines(&cloud::create_invite(state)?));
+            return Ok(());
+        }
+        FriendCommand::Invite {
+            action: Some(InviteCommand::List),
+        } => {
+            print_lines(&invite_lines(&cloud::invites(state)?));
+            return Ok(());
+        }
+        FriendCommand::Invite {
+            action: Some(InviteCommand::Revoke { code }),
+        } => {
+            let code = invite_code(code)?;
+            cloud::revoke_invite(state, &code)?;
+            println!("✓ Einladung {code} zurückgezogen. Der Link funktioniert nicht mehr.");
+            return Ok(());
+        }
+        FriendCommand::AcceptInvite { code } => {
+            let friend = cloud::accept_invite(state, &invite_code(code)?)?;
+            println!(
+                "✓ Ihr seid jetzt befreundet: {}",
+                shown::name(&friend.display_name)
+            );
+            return Ok(());
+        }
+    };
+    answer_friend(state, id, wanted)
 }
 
 /// Ends a friendship, withdraws a request or declines one. The list says first what the id is,
 /// so a friend's id given to `decline` is refused instead of ending the friendship, and the answer
 /// can name the person. Without a subscription the list is refused (402) but saying no still
 /// works; the server alone decides then.
-fn answer_friend(state: &CloudState, action: FriendCommand) -> Result<()> {
-    let (id, wanted) = match &action {
-        FriendCommand::Remove { id } => (id.as_str(), Entry::Friend),
-        FriendCommand::Withdraw { id } => (id.as_str(), Entry::Outgoing),
-        FriendCommand::Decline { id } => (id.as_str(), Entry::Incoming),
-    };
+fn answer_friend(state: &CloudState, id: &str, wanted: Entry) -> Result<()> {
     let found = match cloud::friends(state) {
         Ok(friends) => friends
             .into_iter()
@@ -601,20 +693,76 @@ fn answer_friend(state: &CloudState, action: FriendCommand) -> Result<()> {
         }
     }
     cloud::remove_friend(state, id)?;
-    match (wanted, found.as_ref().map(who)) {
-        (Entry::Friend, Some(name)) => println!("✓ Freundschaft mit {name} beendet."),
-        (Entry::Friend, None) => println!("✓ Freundschaft beendet."),
-        (Entry::Incoming, Some(name)) => {
-            println!("✓ Anfrage von {name} abgelehnt.");
-            println!(
-                "  Neue Anfragen von dieser Person kommen erst wieder an, wenn du sie anfragst."
-            );
-        }
-        (Entry::Incoming, None) => println!("✓ Anfrage abgelehnt."),
-        (_, Some(address)) => println!("✓ Anfrage an {address} zurückgezogen."),
-        (_, None) => println!("✓ Anfrage zurückgezogen."),
-    }
+    print_lines(&answered(wanted, found.as_ref()));
     Ok(())
+}
+
+/// What `answer_friend` says when it is done; `found` is the entry of the list, if it was read.
+fn answered(wanted: Entry, found: Option<&Friend>) -> Vec<String> {
+    let name = found.map(|friend| shown::name(&friend.display_name));
+    match (wanted, name) {
+        (Entry::Friend, Some(name)) => vec![format!("✓ Freundschaft mit {name} beendet.")],
+        (Entry::Friend, None) => vec!["✓ Freundschaft beendet.".into()],
+        (Entry::Incoming, Some(name)) => vec![
+            format!("✓ Anfrage von {name} abgelehnt."),
+            "  Neue Anfragen von dieser Person kommen erst wieder an, wenn du sie anfragst.".into(),
+        ],
+        (Entry::Incoming, None) => vec!["✓ Anfrage abgelehnt.".into()],
+        // A request this account sent names nobody, only when it was sent.
+        _ => match found.and_then(|friend| friend.since) {
+            Some(since) => vec![format!("✓ Anfrage vom {} zurückgezogen.", date(since))],
+            None => vec!["✓ Anfrage zurückgezogen.".into()],
+        },
+    }
+}
+
+/// The code in a code or link the user gave, as the server reads it.
+fn invite_code(input: &str) -> Result<String> {
+    match parse_invite_code(input) {
+        Some(code) => Ok(code),
+        None => bail!(
+            "„{}“ ist kein Einladungscode (wie ABCD-EFGH-JKLM-NPQR) und kein Einladungslink",
+            shown::address(input)
+        ),
+    }
+}
+
+/// What `locora cloud friend invite` shows for a new link.
+fn created_lines(invite: &FriendInvite) -> Vec<String> {
+    let code = shown::address(&invite.code);
+    vec![
+        format!(
+            "✓ Einladungslink erstellt, einmal gültig bis {}:",
+            date(invite.expires_at)
+        ),
+        format!("  {}", shown::address(&invite.url)),
+        format!("  Code: {code}"),
+        "  Schick ihn der Person, die du einladen möchtest. Wer ihn annimmt, ist mit dir befreundet."
+            .into(),
+        format!("  In der CLI annehmen: locora cloud friend accept-invite {code}"),
+        format!("  Zurückziehen: locora cloud friend invite revoke {code}"),
+    ]
+}
+
+/// The open invite links, oldest first.
+fn invite_lines(invites: &[FriendInvite]) -> Vec<String> {
+    if invites.is_empty() {
+        return vec![
+            "Keine offenen Einladungslinks. Neuer Link: locora cloud friend invite".into(),
+        ];
+    }
+    let mut lines = vec![
+        "Offene Einladungslinks (zurückziehen: locora cloud friend invite revoke <Code>):".into(),
+    ];
+    for invite in invites {
+        lines.push(format!(
+            "  {}  bis {}  {}",
+            shown::address(&invite.code),
+            date(invite.expires_at),
+            shown::address(&invite.url)
+        ));
+    }
+    lines
 }
 
 /// The refusal for an id given to the command of another kind of entry, with the right command.
@@ -636,18 +784,43 @@ fn other_kind(kind: Entry, id: &str) -> String {
     }
 }
 
-fn print_ranking(ranking: &locora_cloud_api::api::Ranking) {
+fn print_lines(lines: &[String]) {
+    for line in lines {
+        println!("{line}");
+    }
+}
+
+/// A ranking, each name with its reference for `locora cloud report` (an older server sends none).
+fn ranking_lines(ranking: &Ranking) -> Vec<String> {
     if ranking.entries.is_empty() {
-        println!("Noch keine Einträge.");
+        return vec!["Noch keine Einträge.".into()];
     }
-    for (place, entry) in ranking.entries.iter().enumerate() {
-        println!(
-            "{:>3}. {:<24} {} XP",
-            place + 1,
-            shown::name(&entry.display_name),
-            entry.xp
-        );
+    let mut lines: Vec<String> = ranking
+        .entries
+        .iter()
+        .enumerate()
+        .map(|(place, entry)| {
+            let line = format!(
+                "{:>3}. {:<24} {:>7} XP",
+                place + 1,
+                shown::name(&entry.display_name),
+                entry.xp
+            );
+            match &entry.reference {
+                Some(reference) => format!("{line}  {}", shown::address(reference)),
+                None => line,
+            }
+        })
+        .collect();
+    if ranking
+        .entries
+        .iter()
+        .any(|entry| entry.reference.is_some())
+    {
+        lines.push(String::new());
+        lines.push("Einen Namen melden: locora cloud report <Verweis>".into());
     }
+    lines
 }
 
 fn server_or_default(server: Option<String>, data: &Path) -> Result<String> {
@@ -741,8 +914,11 @@ fn date(unix: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        CloudCommand, Entry, Friend, FriendCommand, date, entry, friend_lines, other_kind,
+        CloudCommand, Entry, Friend, FriendCommand, FriendInvite, InviteCommand, Ranking, answered,
+        created_lines, date, entry, friend_lines, invite_code, invite_lines, other_kind,
+        ranking_lines,
     };
+    use locora_cloud_api::api::RankingEntry;
 
     fn friend(name: &str, accepted: bool, id: Option<&str>, since: Option<u64>) -> Friend {
         Friend {
@@ -776,14 +952,159 @@ mod tests {
                 String::new(),
                 "Deine Anfragen, noch nicht angenommen (zurückziehen: locora cloud friend withdraw <Kennung>):".into(),
                 format!("  {:<32}  fr_3", "Anfrage gesendet 2023-11-14"),
+                String::new(),
+                "Einen Namen melden: locora cloud report <Kennung>".into(),
             ]
         );
         // A server of the 0.1.6 test builds sent no time, but no name either.
         let between = friend("", false, Some("fr_4"), None);
         assert_eq!(entry(&between), Entry::Outgoing);
         assert_eq!(
+            friend_lines(&[between]),
+            [
+                "Deine Anfragen, noch nicht angenommen (zurückziehen: locora cloud friend withdraw <Kennung>):".to_owned(),
+                format!("  {:<32}  fr_4", "Anfrage gesendet"),
+            ],
+            "nothing to report among requests sent alone"
+        );
+        assert_eq!(
             friend_lines(&[]),
-            ["Noch keine Freunde. Hinzufügen: locora cloud friend <E-Mail>"]
+            [
+                "Noch keine Freunde. Hinzufügen: locora cloud friend <E-Mail> oder mit einem Einladungslink: locora cloud friend invite"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_request_withdrawn_is_named_by_when_it_was_sent() {
+        let sent = friend("", false, Some("fr_3"), Some(1_700_000_000));
+        assert_eq!(
+            answered(Entry::Outgoing, Some(&sent)),
+            ["✓ Anfrage vom 2023-11-14 zurückgezogen."]
+        );
+        let between = friend("", false, Some("fr_4"), None);
+        assert_eq!(
+            answered(Entry::Outgoing, Some(&between)),
+            ["✓ Anfrage zurückgezogen."]
+        );
+        assert_eq!(
+            answered(Entry::Outgoing, None),
+            ["✓ Anfrage zurückgezogen."]
+        );
+        let ada = friend("Ada", true, Some("fr_1"), None);
+        assert_eq!(
+            answered(Entry::Friend, Some(&ada)),
+            ["✓ Freundschaft mit Ada beendet."]
+        );
+        let carol = friend("Carol\u{1b}[2J", false, Some("fr_2"), None);
+        assert_eq!(
+            answered(Entry::Incoming, Some(&carol))[0],
+            "✓ Anfrage von Carol\\u{1b}[2J abgelehnt."
+        );
+    }
+
+    fn ranked(name: &str, xp: u64, reference: Option<&str>) -> RankingEntry {
+        RankingEntry {
+            display_name: name.into(),
+            xp,
+            reference: reference.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn a_ranking_shows_the_reference_of_each_name_to_report_it() {
+        let ranking = Ranking {
+            entries: vec![
+                ranked("Ada", 1200, Some("nr_0a")),
+                ranked("Nutzer-3F2A", 80, Some("nr_1b\u{1b}[2J")),
+            ],
+        };
+        assert_eq!(
+            ranking_lines(&ranking),
+            [
+                format!("  1. {:<24} {:>7} XP  nr_0a", "Ada", 1200),
+                format!("  2. {:<24} {:>7} XP  nr_1b\\u{{1b}}[2J", "Nutzer-3F2A", 80),
+                String::new(),
+                "Einen Namen melden: locora cloud report <Verweis>".into(),
+            ]
+        );
+        // An older server sends no references: nothing to report with.
+        let older = Ranking {
+            entries: vec![ranked("Ada", 1200, None)],
+        };
+        assert_eq!(
+            ranking_lines(&older),
+            [format!("  1. {:<24} {:>7} XP", "Ada", 1200)]
+        );
+        assert_eq!(
+            ranking_lines(&Ranking { entries: vec![] }),
+            ["Noch keine Einträge."]
+        );
+    }
+
+    #[test]
+    fn an_invite_link_is_shown_with_its_code_and_when_it_ends() {
+        let invite = FriendInvite {
+            code: "ABCD-EFGH-JKLM-NPQR".into(),
+            url: "https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR".into(),
+            expires_at: 1_800_000_000,
+        };
+        let lines = created_lines(&invite);
+        assert_eq!(
+            lines[..3],
+            [
+                "✓ Einladungslink erstellt, einmal gültig bis 2027-01-15:",
+                "  https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR",
+                "  Code: ABCD-EFGH-JKLM-NPQR",
+            ]
+        );
+        assert!(lines.contains(
+            &"  In der CLI annehmen: locora cloud friend accept-invite ABCD-EFGH-JKLM-NPQR".into()
+        ));
+        assert_eq!(
+            invite_lines(std::slice::from_ref(&invite)),
+            [
+                "Offene Einladungslinks (zurückziehen: locora cloud friend invite revoke <Code>):",
+                "  ABCD-EFGH-JKLM-NPQR  bis 2027-01-15  https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR",
+            ]
+        );
+        assert_eq!(
+            invite_lines(&[]),
+            ["Keine offenen Einladungslinks. Neuer Link: locora cloud friend invite"]
+        );
+        // What the server sends is printed safely.
+        let odd = FriendInvite {
+            url: "https://x\u{1b}]52;c;aGk=\u{7}".into(),
+            ..invite
+        };
+        let lines = [created_lines(&odd), invite_lines(&[odd])]
+            .concat()
+            .join("\n");
+        assert!(
+            !lines.chars().any(|c| c.is_control() && c != '\n'),
+            "{lines:?}"
+        );
+    }
+
+    #[test]
+    fn an_invite_is_read_from_its_code_or_its_link() {
+        for input in [
+            "ABCD-EFGH-JKLM-NPQR",
+            "abcd efgh jklm npqr",
+            "https://web.locora.cloud/einladung#abcd-efgh-jklm-npqr",
+        ] {
+            assert_eq!(
+                invite_code(input).unwrap(),
+                "ABCD-EFGH-JKLM-NPQR",
+                "{input}"
+            );
+        }
+        let refused = invite_code("https://web.locora.cloud/einladung\u{1b}[2J")
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            refused,
+            "„https://web.locora.cloud/einladung\\u{1b}[2J“ ist kein Einladungscode (wie ABCD-EFGH-JKLM-NPQR) und kein Einladungslink"
         );
     }
 
@@ -913,6 +1234,74 @@ mod tests {
             refused.starts_with("Entweder eine E-Mail-Adresse"),
             "{refused}"
         );
+    }
+
+    /// `locora cloud …` as the shell passes it.
+    fn cloud_command(args: &[&str]) -> Result<CloudCommand, clap::Error> {
+        use clap::Parser;
+        let args = ["locora", "cloud"].iter().chain(args);
+        match crate::Cli::try_parse_from(args)?.command {
+            crate::Command::Cloud(command) => Ok(command),
+            _ => panic!("not a cloud command"),
+        }
+    }
+
+    #[test]
+    fn invites_and_reports_are_commands_of_their_own() {
+        for args in [
+            &["invite"][..],
+            &["--data", "dir", "invite"],
+            &["invite", "--data", "dir"],
+        ] {
+            assert!(
+                matches!(
+                    friend_command(args),
+                    Ok(CloudCommand::Friend {
+                        email: None,
+                        action: Some(FriendCommand::Invite { action: None }),
+                    })
+                ),
+                "{args:?}"
+            );
+        }
+        assert!(matches!(
+            friend_command(&["invite", "list", "--data", "dir"]),
+            Ok(CloudCommand::Friend {
+                email: None,
+                action: Some(FriendCommand::Invite {
+                    action: Some(InviteCommand::List)
+                }),
+            })
+        ));
+        assert!(matches!(
+            friend_command(&["--data", "dir", "invite", "revoke", "ABCD-EFGH-JKLM-NPQR"]),
+            Ok(CloudCommand::Friend {
+                email: None,
+                action: Some(FriendCommand::Invite {
+                    action: Some(InviteCommand::Revoke { ref code })
+                }),
+            }) if code == "ABCD-EFGH-JKLM-NPQR"
+        ));
+        let link = "https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR";
+        assert!(matches!(
+            friend_command(&["accept-invite", link, "--data", "dir"]),
+            Ok(CloudCommand::Friend {
+                email: None,
+                action: Some(FriendCommand::AcceptInvite { ref code }),
+            }) if code == link
+        ));
+        assert!(friend_command(&["accept-invite"]).is_err());
+        assert!(friend_command(&["invite", "revoke"]).is_err());
+        assert!(matches!(
+            cloud_command(&["report", "nr_0a", "--reason", "beleidigend", "--data", "dir"]),
+            Ok(CloudCommand::Report { ref reference, reason: Some(ref reason) })
+                if reference == "nr_0a" && reason == "beleidigend"
+        ));
+        assert!(matches!(
+            cloud_command(&["--data", "dir", "report", "fr_1"]),
+            Ok(CloudCommand::Report { ref reference, reason: None }) if reference == "fr_1"
+        ));
+        assert!(cloud_command(&["report"]).is_err());
     }
 
     #[test]
