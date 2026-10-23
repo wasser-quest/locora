@@ -53,11 +53,16 @@ The backend already has the mobile entry point and static/dynamic library target
 
 ### Mobile app icons
 
-The replaceable icon source is [`assets/brand/icon.png`](../../assets/brand/icon.png).
+The icon sources are exports of the logo, [`assets/brand/icon.sply`](../../assets/brand/icon.sply)
+(the website's favicon at 512 × 512), made by
+[`assets/brand/src/export.sh`](../../assets/brand/src/export.sh) with `splinely-cli`:
+[`assets/brand/icon.png`](../../assets/brand/icon.png) for the desktop, iOS and the legacy
+Android launcher icons, and [`assets/brand/icon-foreground.png`](../../assets/brand/icon-foreground.png),
+the art alone inside the 66 dp safe zone, for the Android adaptive icon.
 [`assets/brand/mobile-icon.json`](../../assets/brand/mobile-icon.json) sets the
-iOS background color and the Android adaptive-icon background. After replacing
-the square source image, regenerate the tracked Android and iOS icons with
-Tauri CLI and ImageMagick (`magick`):
+iOS background color and the Android adaptive-icon layers (that foreground on the
+logo's gradient, `mobile-icon-background.svg`). After replacing the source images,
+regenerate the tracked desktop, Android and iOS icons with Tauri CLI and ImageMagick (`magick`):
 
 ```sh
 ./apps/app/scripts/generate-mobile-icons.sh
