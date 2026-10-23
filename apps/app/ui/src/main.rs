@@ -193,6 +193,71 @@ fn visible_area() -> Option<(f64, f64, f64)> {
     (covered > 120.0).then_some((top, height, covered))
 }
 
+/// How far down the visible area the tour puts the top of a highlighted control: about where the
+/// eye looks first on a page (its upper third). The larger part below stays free for the panel and
+/// the thumbs, and an on-screen keyboard, which comes up from the bottom, leaves the control in view.
+const TOUR_TARGET_AT: f64 = 0.3;
+
+/// Scrolls `framed` (a highlighted control with its label) to its tour place: its top
+/// `TOUR_TARGET_AT` down the part of the window a keyboard leaves visible. A control too tall to
+/// fit there above the panel (or above the keyboard) moves up until it fits, and with the panel at
+/// the top it goes below the panel. Smooth, unless the system asks for reduced motion.
+fn scroll_to_tour_place(framed: &web_sys::Element) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let Some(element) = wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(framed) else {
+        return;
+    };
+    let (top, height) = match visible_area() {
+        Some((top, height, _)) => (top, height),
+        None => (
+            0.0,
+            window
+                .inner_height()
+                .ok()
+                .and_then(|h| h.as_f64())
+                .unwrap_or(800.0),
+        ),
+    };
+    let size = framed.get_bounding_client_rect().height();
+    // The free part of the visible area: from its top (or below a panel at the top) to its bottom
+    // (or above a panel at the bottom).
+    let (mut free_top, mut free_bottom) = (top + 16.0, top + height - 12.0);
+    if let Some(panel) = window
+        .document()
+        .and_then(|document| document.query_selector(".tour-panel").ok().flatten())
+    {
+        let rect = panel.get_bounding_client_rect();
+        if panel.class_list().contains("top") {
+            free_top = free_top.max(rect.bottom() + 12.0);
+        } else {
+            free_bottom = free_bottom.min(rect.top() - 12.0);
+        }
+    }
+    let place = (top + height * TOUR_TARGET_AT)
+        .min(free_bottom - size)
+        .max(free_top);
+    // `scroll-margin-top` makes the browser stop that far below the top, in whatever scrolls.
+    let _ = element
+        .style()
+        .set_property("scroll-margin-top", &format!("{place}px"));
+    let reduced = window
+        .match_media("(prefers-reduced-motion: reduce)")
+        .ok()
+        .flatten()
+        .is_some_and(|query| query.matches());
+    let options = web_sys::ScrollIntoViewOptions::new();
+    options.set_block(web_sys::ScrollLogicalPosition::Start);
+    options.set_inline(web_sys::ScrollLogicalPosition::Nearest);
+    options.set_behavior(if reduced {
+        web_sys::ScrollBehavior::Instant
+    } else {
+        web_sys::ScrollBehavior::Smooth
+    });
+    element.scroll_into_view_with_scroll_into_view_options(&options);
+}
+
 /// Whether the focused element takes typed text (and so opens an on-screen keyboard).
 fn text_entry_focused() -> bool {
     let Some(element) = web_sys::window()
@@ -372,20 +437,36 @@ fn TourOverlay(
     // where the browser does not report it (an edge-to-edge app), so the panel goes to the top.
     let typing = RwSignal::new(false);
     let focused = StoredValue::new(None::<(u8, String)>);
+    // How many more ticks bring the control to its place again: a keyboard that opens or closes,
+    // or the panel moving to the other half, changes where that place is (one tick for the panel
+    // to move).
+    let realign = StoredValue::new(0u8);
+    let panel_was_top = StoredValue::new(false);
     let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
     let highlight = move || {
         let keyboard = visible_area();
         if visible.get_untracked() != keyboard {
             visible.set(keyboard);
+            realign.set_value(2);
         }
         let entering = text_entry_focused();
         if typing.get_untracked() != entering {
             typing.set(entering);
+            realign.set_value(2);
         }
         let current = active.get_untracked();
         let Some(document) = web_sys::window().and_then(|window| window.document()) else {
             return;
         };
+        let panel_is_top = document
+            .query_selector(".tour-panel.top")
+            .ok()
+            .flatten()
+            .is_some();
+        if panel_was_top.get_value() != panel_is_top {
+            panel_was_top.set_value(panel_is_top);
+            realign.set_value(2);
+        }
         for id in TOUR_TARGETS {
             if let Some(node) = document.get_element_by_id(id) {
                 let _ = node.remove_attribute("data-tour-active");
@@ -417,13 +498,19 @@ fn TourOverlay(
                 }
                 let key = (step.step, step.target);
                 if focused.get_value().as_ref() != Some(&key) {
-                    node.scroll_into_view_with_bool(false);
+                    scroll_to_tour_place(&framed);
                     if let Some(element) =
                         wasm_bindgen::JsCast::dyn_ref::<web_sys::HtmlElement>(&node)
                     {
-                        let _ = element.focus();
+                        // The browser's own scroll to a focused field would undo the place.
+                        let options = web_sys::FocusOptions::new();
+                        options.set_prevent_scroll(true);
+                        let _ = element.focus_with_options(&options);
                     }
                     focused.set_value(Some(key));
+                } else if realign.get_value() > 0 {
+                    realign.update_value(|ticks| *ticks -= 1);
+                    scroll_to_tour_place(&framed);
                 }
                 target_ready.set(true);
             } else {

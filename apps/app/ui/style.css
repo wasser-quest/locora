@@ -90,6 +90,9 @@ header.bar { display: flex; align-items: center; gap: .75rem; margin-bottom: 1re
 @media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } }
 .tour-panel { position: fixed; z-index: 12; right: 1rem; bottom: 1rem; display: flex; gap: 1rem;
   width: min(460px, calc(100vw - 2rem)); box-shadow: 0 10px 32px #17183a66; font-size: 1.05rem; }
+/* Room below the page while the tour runs, so a control at its end can still come up to its place
+   (30 % down the screen, see TOUR_TARGET_AT) above the panel and an on-screen keyboard. */
+body:has(.tour-panel) main { padding-bottom: 70vh; }
 /* When the target is in the lower half, the panel goes to the top. */
 .tour-panel.top { bottom: auto; top: calc(1rem + env(safe-area-inset-top)); }
 .tour-simo { width: 72px; min-width: 72px; height: 100px; }

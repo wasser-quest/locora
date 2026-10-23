@@ -666,6 +666,74 @@ test('on a phone the tour hides the commands bar and moves up while a field is t
   }
 });
 
+/**
+ * Where the tour's highlighted control (with its label) and its panel are once scrolling has
+ * stopped: the same position three times in a row, 100 ms apart.
+ */
+async function settledTourPlace(page) {
+  let last = '';
+  let same = 0;
+  for (let i = 0; i < 60 && same < 3; i += 1) {
+    await page.waitForTimeout(100);
+    const place = await page.evaluate(() => {
+      const node = document.querySelector('[data-tour-active]');
+      const panel = document.querySelector('.tour-panel');
+      if (!node || !panel) return null;
+      const target = (node.closest('label') ?? node).getBoundingClientRect();
+      const box = panel.getBoundingClientRect();
+      return {
+        top: target.top, bottom: target.bottom, height: target.height,
+        panelTop: box.top, panelBottom: box.bottom, panelAtTop: panel.classList.contains('top'),
+        view: window.innerHeight, scrolled: window.scrollY > 0,
+      };
+    });
+    const key = JSON.stringify(place);
+    same = key === last ? same + 1 : 0;
+    last = key;
+  }
+  return JSON.parse(last);
+}
+
+test('on a phone the tour brings each highlighted control to the upper third, clear of its panel', async () => {
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 760 } });
+  try {
+    const panel = page.locator('.tour-panel');
+    const step = (n) => page.waitForFunction((n) => document.body.innerText.includes(`Step ${n} of 13`), n, { timeout: 15000 });
+    await startTour(page);
+    let placed = 0;
+    for (let n = 1; n <= 13; n += 1) {
+      if (n > 1) await panel.getByRole('button', { name: 'Next' }).click();
+      await step(n);
+      const place = await settledTourPlace(page);
+      if (!place) continue;
+      const shown = JSON.stringify(place);
+      assert.ok(place.top >= 0 && place.bottom <= place.view, `step ${n}: in view ${shown}`);
+      assert.ok(place.bottom <= place.panelTop || place.top >= place.panelBottom, `step ${n}: clear of the panel ${shown}`);
+      // Where the page had to scroll and the control fits there, its top is 30 % down the screen.
+      const third = 0.3 * place.view;
+      if (place.scrolled && !place.panelAtTop && third + place.height <= place.panelTop - 12) {
+        assert.ok(Math.abs(place.top - third) < 4, `step ${n}: top at 30 % ${shown}`);
+        placed += 1;
+      }
+      if (n === 7) {
+        // A focused field: its keyboard would cover the lower half, so the panel goes to the top and
+        // the field comes right below it, high enough to stay above the keyboard.
+        await page.locator('.editor-form textarea').first().focus();
+        const typing = await settledTourPlace(page);
+        const typed = JSON.stringify(typing);
+        assert.ok(typing.panelAtTop, `the panel is at the top while typing ${typed}`);
+        assert.ok(typing.top >= typing.panelBottom, `the field is below the panel ${typed}`);
+        assert.ok(typing.top < 0.55 * typing.view, `the field starts above the keyboard ${typed}`);
+      }
+    }
+    assert.ok(placed >= 3, `controls were brought to 30 % at least three times (${placed})`);
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
 test('the first start shows only the language choice, not a tour left from earlier', async () => {
   const { context, page, problems } = await openApp({ chooseLanguage: true });
   try {
