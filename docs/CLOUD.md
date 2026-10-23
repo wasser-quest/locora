@@ -35,8 +35,9 @@ eine ältere Änderung schickt.
 - Die Schlüsselsicherung auf dem Server (die eingepackten Kopien des Kontoschlüssels) kann nur
   ersetzen, wer den Kontoschlüssel hat: App und CLI senden mit jeder Sicherung einen daraus
   abgeleiteten Nachweis, der Server behält nur dessen Hash. Eine angemeldete Sitzung allein
-  reicht dafür nicht. Hat eine ältere App die Sicherung angelegt, gilt der erste Nachweis, der
-  mit einer Ersetzung kommt. Ältere Server ignorieren den Nachweis.
+  reicht dafür nicht. Hat eine ältere App die Sicherung angelegt, schickt die neue App sie bei
+  der ersten Synchronisation (danach einmal am Tag) unverändert mit dem Nachweis zurück; der erste
+  Nachweis, der so oder mit einer Ersetzung kommt, gilt dann. Ältere Server ignorieren den Nachweis.
 - Ein vergessenes **Cloud-Passwort** setzt man per E-Mail zurück: „Passwort vergessen?“ im
   Anmeldeformular öffnet `https://web.locora.cloud/forgot`. Der Link in der Mail gilt eine Stunde.
   Das Zurücksetzen meldet alle Geräte ab und ändert nichts an der Verschlüsselung.

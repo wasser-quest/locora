@@ -470,6 +470,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
         };
         let passphrase = "ein langes geheimes passwort";
         let mut flow = KeysSetup::new(state, passphrase.into());

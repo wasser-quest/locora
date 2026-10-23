@@ -51,6 +51,10 @@ pub struct CloudState {
     /// (or the browser's), never in this file.
     #[serde(default)]
     pub auto_sync: bool,
+    /// Unix seconds when a sync of this device last sent the stored key bundle back with the key
+    /// proof (`cloud_sync`), so a bundle stored by an older app gets its proof.
+    #[serde(default)]
+    pub key_proof_sent_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -193,6 +197,7 @@ fn state_from_session(server: String, session: Session) -> CloudState {
         entitlement: None,
         last_sync_at: None,
         auto_sync: false,
+        key_proof_sent_at: None,
     }
 }
 
@@ -916,6 +921,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
             account: Account {
                 id: "local".into(),
                 email: "test@example.invalid".into(),
@@ -1013,6 +1019,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
             account: Account {
                 id: "a".into(),
                 email: "e@x.invalid".into(),
@@ -1150,6 +1157,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
             account: account.clone(),
         };
         assert!(can_sync(&state, 1_000));
@@ -1236,6 +1244,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
             account: Account {
                 id: "a".into(),
                 email: "e@x.invalid".into(),
