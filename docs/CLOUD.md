@@ -54,6 +54,13 @@ eine ältere Änderung schickt.
   lang. Einen Monat vor dem Löschen kommt eine Warnung per Mail.
 - Nach der Registrierung bittet die App, die E-Mail-Adresse zu bestätigen („Link erneut senden“,
   „Ich habe bestätigt – prüfen“). Der Link gilt 48 Stunden.
+- Bis die Adresse bestätigt ist, ist es ein freies Konto mit weniger Speicher (siehe Grenzen), und
+  ein Sync verlängert nichts: Ein Gastkonto ohne bestätigte Adresse wird sechs Monate nach der
+  Registrierung mit allen Daten gelöscht, auch wenn es synchronisiert. Die Warnung einen Monat
+  vorher sagt das. Wer die Adresse bestätigt und danach synchronisiert, behält die Daten wie oben.
+- Zu einem Postfach gibt es höchstens drei Konten (Standard des Servers): Adressen, die sich nur in
+  Groß- und Kleinschreibung, durch „+…“ vor dem @ oder bei Gmail durch Punkte unterscheiden,
+  zählen als ein Postfach.
 - Bezahlen geht nur im Web, nicht in den Apps (siehe unten).
 
 ## Synchronisieren
@@ -101,11 +108,18 @@ aufgeschlossenen Schlüssel auf dem Gerät:
 ## Grenzen
 
 - Speicher pro Konto, als Standard des Servers (dort einstellbar): Medien 512 MiB für Gastkonten,
-  5 GiB mit Abo; synchronisierte Änderungen 256 MiB bzw. 2 GiB.
+  5 GiB mit Abo; synchronisierte Änderungen 256 MiB bzw. 2 GiB. Bis die E-Mail-Adresse bestätigt
+  ist, höchstens 64 MiB Medien und 32 MiB Änderungen; was darüber schon gespeichert ist, bleibt,
+  Neues kommt erst nach der Bestätigung dazu.
+- Konten ohne Abo teilen sich zusammen höchstens 80 % des Speichers des Servers (Standard), damit
+  für Konten mit Abo Platz bleibt.
 - Eine einzelne Änderung über 512 KiB bleibt auf dem Gerät.
 - Ist der Speicher voll (507), sagt die App, dass man nicht mehr benötigte Bilder oder Videos
-  löschen oder es später versuchen soll. Ist der Server ausgelastet (503) oder kommen zu viele
-  Anfragen (429), versucht sie es später noch einmal.
+  löschen oder es später versuchen soll. Liegt es an der noch nicht bestätigten Adresse (der
+  Server schickt dann `"reason": "confirm_email"`), sagt sie stattdessen „Der Speicher in Locora
+  Cloud ist voll. Bestätige deine E-Mail-Adresse, dann gibt es mehr Platz“; Version 0.1.5 zeigt
+  auch dann den allgemeinen Text. Ist der Server ausgelastet (503) oder kommen zu viele Anfragen
+  (429), versucht sie es später noch einmal.
 - Wie viel belegt ist, zeigt die Kontoseite.
 
 ## Kontoseite web.locora.cloud

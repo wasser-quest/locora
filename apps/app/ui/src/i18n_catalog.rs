@@ -6007,6 +6007,16 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
+        "Der Speicher in Locora Cloud ist voll. Bestätige deine E-Mail-Adresse, dann gibt es mehr Platz",
+        [
+            "Your Locora Cloud storage is full. Confirm your email address to get more space",
+            "Der Speicher in Locora Cloud ist voll. Bestätige deine E-Mail-Adresse, dann gibt es mehr Platz",
+            "Le stockage Locora Cloud est plein. Confirme ton adresse e-mail pour avoir plus d’espace",
+            "Locora Cloud の容量がいっぱいです。メールアドレスを確認すると容量が増えます",
+            "Locora Cloud 存储空间已满。确认你的电子邮件地址即可获得更多空间",
+        ],
+    ),
+    (
         "Locora Cloud ist gerade ausgelastet. Bitte später erneut versuchen",
         [
             "Locora Cloud is busy right now. Please try again later",
