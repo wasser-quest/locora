@@ -15,7 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use locora_cloud_api::api::{
-    Account, EntitlementReply, KeyBundle, Login, Register, Session, SubscriptionState,
+    Account, EntitlementReply, KeyBundle, Login, Register, Session, SessionKind, SubscriptionState,
 };
 use locora_cloud_api::entitlement::{Access, Claims, Plan, parse_public_key, verify};
 use serde::{Deserialize, Serialize};
@@ -455,6 +455,7 @@ impl Connect {
         let body = Login {
             email: email.to_owned(),
             password: password.to_owned(),
+            session: SessionKind::App,
         };
         Self::new(server, "/v1/sessions", &body)
     }
