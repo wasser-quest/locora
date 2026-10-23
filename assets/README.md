@@ -26,6 +26,10 @@ splinely-cli render mascot/simo.sply --output mascot/simo.gif --duration 3.6   #
 SPLINELY_CLI=splinely-cli python3 mascot/src/gluehwuermchen.py mascot/gluehwuermchen.sply   # rebuild the firefly
 for n in mina cami bruno hafiza; do SPLINELY_CLI=splinely-cli python3 mascot/src/$n.py mascot/$n.sply; done   # Simo's friends (shared parts: mascot/src/figur.py)
 SPLINELY_CLI=splinely-cli python3 tutorial/src/tutorial.py                                     # rebuild the tutorial graphics
+SPLINELY_CLI=splinely-cli python3 ui/src/ui.py && SPLINELY_CLI=splinely-cli python3 ui/src/medaillen.py   # UI graphics and medals
+SPLINELY_CLI=splinely-cli python3 ui/src/splash.py   # start splash; then export and inline it:
+for n in route firefly arch ball; do splinely-cli export ui/splash/splash-$n.sply --output ../apps/app/ui/splash/splash-$n.svg; done
+python3 ui/src/splash_html.py   # swaps in the app's runtime (crates/locora-app-core/vendor/splinely-X.Y.Z.js), writes the templates into apps/app/ui/index.html and their script's hash into apps/app/src-tauri/tauri.conf.json
 brand/src/export.sh                              # the logo's exports: icon.svg, icon.png, icon-foreground.png, web app icons
 ../apps/app/scripts/generate-mobile-icons.sh    # then the desktop, Android and iOS icons (Tauri CLI, see apps/app/README.md)
 ```

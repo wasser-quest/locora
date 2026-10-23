@@ -5,8 +5,9 @@ Usage: SPLINELY_CLI=splinely-cli python3 assets/ui/src/medaillen.py [OUTPUT_DIR]
 
 One parametric medal (96 x 96, transparent, same build as erfolg-* in ui.py): a star
 medal in the colour of the character who teaches the lesson, with a simple topic
-symbol on it. Unlocked medals glow, breathe and spin on click; the locked ones are
-grey and still. All lessons share one locked medal (erfolg-lernen-gesperrt).
+symbol on it. Unlocked medals glow, breathe and spin on click, with their cel
+shading, halo and symbol as one `Body` (assets/tutorial/src/tutorial.py); the locked
+ones are grey and still. All lessons share one locked medal (erfolg-lernen-gesperrt).
 """
 import os, sys
 
@@ -103,27 +104,23 @@ LESSONS = [
 def medal(name, title, tips, colours, symbol, description, unlocked=True):
     fill, shadow, light, fg = colours if unlocked else (GREY, GREY_SH, GREY_HI, GREY_HI)
     s = Scene(name, 96, 96, title)
-    if unlocked:
-        s.glow("halo", 48, 48, 46, strength=0.5)
+    parts = [s.glow("halo", 48, 48, 46, strength=0.5)] if unlocked else []
     m = s.add("star", "medal", x=48, y=48, radius=38, tips=tips, inner=0.78, fill=fill, pivot="center")
-    s.crescent(m, -4, -4, shadow)
-    s.crescent(m, 3, 3, light)
+    shade, edge = s.crescent(m, -4, -4, shadow), s.crescent(m, 3, 3, light)
+    parts += [m, shade, edge]
     if symbol:
         for i, (d, role) in enumerate(SYMBOLS[symbol]):
             colour = shadow if role == "sh" else fg
             dx = {"fg-l": -7, "fg-r": 7}.get(role, 0)
             dy = {"fg-l": 5, "fg-r": -6}.get(role, 0)
-            s.add("path", f"sym{i}", d=d, tx=48 + dx, ty=48 + dy, fill=colour, scale_x=0.8, scale_y=0.8)
+            parts.append(s.add("path", f"sym{i}", d=d, tx=48 + dx, ty=48 + dy, fill=colour, scale_x=0.8, scale_y=0.8))
     if unlocked:
-        for prop in ("scaleX", "scaleY"):
-            extra = " --autoplay --loop" if prop == "scaleX" else ""
-            s.steps += [
-                f"keyframe --clip breathe --target medal --property {prop} --time 1.2 --value 1.06 --easing ease-in-out{extra}",
-                f"keyframe --clip breathe --target medal --property {prop} --time 2.4 --value 1 --easing ease-in-out",
-            ]
+        # Halo, medal, its cel shadow and light edge and the symbol breathe and spin as one; while it
+        # spins, the light stays at the top left (the rims swap their tones half way round).
+        whole = s.body("Medaille", parts, (48, 48), rims={shade: (shadow, light), edge: (light, shadow)})
+        whole.breathe("breathe", 1.06, 2.4)
+        whole.spin("spin", 0.7)
         s.steps += [
-            "clip add --id spin --duration 0.7",
-            "keyframe --clip spin --target medal --property rotation --time 0.7 --value 360 --easing ease-in-out",
             "on --event click --target medal --play spin",
             f'a11y --node medal --label "{title}: klicken, dann dreht sich die Medaille"',
         ]

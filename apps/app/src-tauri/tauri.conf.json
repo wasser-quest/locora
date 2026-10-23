@@ -26,7 +26,7 @@
     "security": {
       "csp": {
         "default-src": "'self' ipc: http://ipc.localhost",
-        "script-src": "'self' 'wasm-unsafe-eval'",
+        "script-src": "'self' 'wasm-unsafe-eval' 'sha256-hj2A+ahwspaZ4MZkuGrYMh/6lvy5snghgvoqSJk0MC0='",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: locora: http://locora.localhost",
         "media-src": "'self' locora: http://locora.localhost blob:",

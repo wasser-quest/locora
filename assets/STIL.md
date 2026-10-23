@@ -127,6 +127,8 @@ Bewegungen sind **klein und ruhig**; nichts blinkt hektisch.
 
 **Rig:** ein Rumpf-Bone (Atmen), je ein Arm-Bone an der Schulter; Dinge in der Hand hängen an einem eigenen Bone, der die Armdrehung ausgleicht und beim Schwingen nachpendelt. Schattenflächen eines Teils hängen am selben Bone wie das Teil.
 
+**Ohne Rig** (Startbildschirm, Medaillen, Kacheln, Tutorial-Bilder) ist jedes bewegte Ding ein `Body` aus `assets/tutorial/src/tutorial.py`: Grundform, Schatten- und Lichtsichel, Glanzlicht und Hof teilen einen Drehpunkt und bekommen dieselbe Bewegung – nie nur die Grundform animieren. Dreht sich ein Ding, tauschen Schatten- und Lichtsichel auf halbem Weg ihre Töne, damit das Licht oben links bleibt. Ein Bodenschatten wird kleiner und heller, je höher das Ding ist, und breiter, wenn es beim Aufkommen gestaucht wird.
+
 ## 10. Arbeitsweise mit Splinely
 
 - Figuren werden **per Skript** gebaut: `assets/mascot/src/simo.py` (und `gluehwuermchen.py` für das Glühwürmchen allein) ruft `splinely-cli` auf, erzeugt Formen, Schatten (`crescent`, `cast`), Rig und Animationen.
