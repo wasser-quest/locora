@@ -1,0 +1,63 @@
+name: Tag a release
+
+# Makes the tag vX.Y.Z on the newest commit of `main` and starts the release (`release.yml`) on it,
+# for when the tag cannot be pushed by hand. A tag made with the workflow token starts no workflow
+# by itself, so this one starts the release explicitly. The version must be the app's
+# (`tauri.conf.json`), and a release without a suffix needs its notes (`docs/releases/vX.Y.Z.md`).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the v, e.g. 0.1.7 (with a suffix such as 0.2.0-beta.1 a pre-release)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag main and start the release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: The version is the app's on main, with notes, and not tagged yet
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] \
+            || { echo "::error::$VERSION is not a version like 0.1.7"; exit 1; }
+          app=$(python3 -c 'import json; print(json.load(open("apps/app/src-tauri/tauri.conf.json"))["version"])')
+          [ "$app" = "${VERSION%%-*}" ] \
+            || { echo "::error::main has the app version $app, not $VERSION"; exit 1; }
+          case "$VERSION" in
+            *-*) ;;
+            *) [ -f "docs/releases/v$VERSION.md" ] \
+                 || { echo "::error::docs/releases/v$VERSION.md is missing on main"; exit 1; } ;;
+          esac
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
+            echo "::error::v$VERSION exists already"; exit 1
+          fi
+      - name: Tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Locora $VERSION"
+          git push origin "v$VERSION"
+          echo "Tagged $(git rev-parse --short HEAD) as v$VERSION"
+      - name: Start the release on the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "v$VERSION"
