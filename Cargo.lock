@@ -1477,6 +1477,7 @@ dependencies = [
 name = "locora-api"
 version = "0.1.7"
 dependencies = [
+ "locora-competition",
  "postcard",
  "serde",
 ]
@@ -1587,6 +1588,7 @@ version = "0.1.7"
 dependencies = [
  "anyhow",
  "locora-api",
+ "locora-competition",
  "locora-fsrs",
  "locora-store",
  "serde",

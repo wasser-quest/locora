@@ -14,12 +14,12 @@ import { openFileStorage, loadFiles, saveChanges } from './file-storage.mjs';
 import { openStorage as openPluginStorage, loadPluginStorage, flushPluginStorage } from '../src/storage-idb.mjs';
 import { host } from '../src/host-core.mjs';
 
-const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification'];
+const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification', 'competition'];
 /**
  * Plugins whose storage is the core's own, so it is logged and synced with Locora Cloud like on the
  * desktop (crates/locora-web-core, SYNCED_PLUGINS). The others keep theirs in IndexedDB.
  */
-const SYNCED = ['gamification'];
+const SYNCED = ['gamification', 'competition'];
 const MEDIA_ACCEPT = 'image/*,video/*,.sply,.png,.jpg,.jpeg,.webp,.gif,.avif,.mp4,.m4v,.mov,.webm,.mkv,.3gp';
 const ARCHIVE_ACCEPT = '.locora,.toml';
 const AUDIO_ACCEPT = 'audio/*,.mp3,.m4a,.wav,.ogg,.oga,.opus,.weba,.webm,.flac,.aac,.3gp,.3ga,.amr,.caf';

@@ -38,6 +38,7 @@ pub trait Hook {
     type Value: Serialize + DeserializeOwned;
 }
 
+pub mod competition;
 pub mod journey;
 pub mod palaces;
 pub mod storage;

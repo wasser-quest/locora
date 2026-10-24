@@ -8,5 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+# The memory contest's rules: its services carry the crate's tasks and scores.
+locora-competition = { path = "../locora-competition" }
 postcard.workspace = true
 serde.workspace = true

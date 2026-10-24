@@ -7,7 +7,9 @@ import { instantiateCore } from '../src/core.mjs';
 import { host } from '../../plugin-host/src/host-core.mjs';
 import { coreWasm } from './core-wasm.mjs';
 
-const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification'];
+const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification', 'competition'];
+/** Plugins whose storage is the core's (crates/locora-web-core, SYNCED_PLUGINS). */
+const SYNCED = ['gamification', 'competition'];
 const unwrap = (result) => {
   if (result.tag === 'err') throw new Error(result.val);
   return result.val;
@@ -29,10 +31,11 @@ before(async () => {
   host.provideHostService('core.palaces@1', (_plugin, request) => unwrap(raw.palaceService(request)));
   host.provideHostService('ui.highlight@1', (plugin, request) => unwrap(raw.highlight(plugin, request)));
   host.onPublish = (plugin, topic, payload) => raw.publish(plugin, topic, payload);
-  // As the page does: the profile opens first; the game keeps its storage in it (synced).
+  // As the page does: the profile opens first; the game and the contest keep their storage in it
+  // (synced).
   assert.equal(core('open', '/locora').err, undefined);
   for (const id of PLUGINS) {
-    const synced = id === 'gamification' ? raw.syncedStorage(id) : null;
+    const synced = SYNCED.includes(id) ? raw.syncedStorage(id) : null;
     host.register(id, await import(`../../plugin-host/dist/${id}/${id}.js`), new Map(), synced);
     host.start(id);
   }

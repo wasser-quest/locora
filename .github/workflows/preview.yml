@@ -54,10 +54,10 @@ jobs:
       - name: Plugins as browser modules
         run: |
           cargo build --locked --release --target wasm32-wasip2 --manifest-path plugins/Cargo.toml \
-            -p core -p review -p notify -p tutorial -p gamification
+            -p core -p review -p notify -p tutorial -p gamification -p competition
           cd apps/web/plugin-host
           npm ci
-          node scripts/transpile.mjs ../../../plugins/target/wasm32-wasip2/release/{core,review,notify,tutorial,gamification}.wasm
+          node scripts/transpile.mjs ../../../plugins/target/wasm32-wasip2/release/{core,review,notify,tutorial,gamification,competition}.wasm
       - name: Build the web app
         run: |
           (cd apps/web && npm ci)

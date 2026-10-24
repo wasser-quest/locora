@@ -429,6 +429,55 @@ Wiederholungen sind mitgelöscht). Wiederholungsplan, Paläste, App-Erfolge und 
 angemeldet, bittet es Locora Cloud, die Ranglistenpunkte zu löschen (`DELETE /v1/game/data`, siehe `docs/CLOUD.md`);
 ohne Bestätigung fragt es bei Start, Anmeldung, Statusabfrage und Sync wieder, auch ohne Sync-Zugang.
 
+### 4.8 Plugin `competition`: Gedächtnis-Wettkampf
+
+Die Regeln stehen in `crates/locora-competition` und gelten gleich in App, CLI und Locora Cloud: Generator, Wertung,
+Challenge-Codes, Wochenplan und die Wortliste `groceries-v1`. Das Plugin speichert Runden und leitet alles andere
+daraus ab. Alles läuft offline, ohne Konto und kostenlos.
+
+- **Drei Disziplinen in drei festen Stufen:** Einkaufsliste (10, 20 oder 30 Dinge, in beliebiger Reihenfolge
+  abzurufen), Zahlen (20, 40 oder 80 Ziffern in Zehnerreihen: eine Reihe ohne Fehler bringt 10 Punkte, mit einem
+  Fehler 5, sonst 0) und Karten (13, 26 oder 52, ein Punkt je Karte am richtigen Platz). Jede Stufe hat feste Zeiten
+  zum Einprägen und Abrufen; bei gleichen Punkten entscheidet die kürzere Einprägezeit, nie die Abrufzeit.
+- **Arten von Runden:** Übung (ein neuer Seed oder die Aufgabe eines der letzten sieben Tage), die Tages-Challenge
+  (Wochenplan: Montag und Donnerstag Einkaufsliste, Dienstag und Freitag Zahlen, Mittwoch und Samstag Karten, Sonntag
+  ein „langer Tag“ im Wechsel; alle drei Stufen, je Stufe ein Versuch pro Lerntag) und Challenge-Codes (Disziplin,
+  Stufe und Seed, z. B. `C2-28T5-CY4T-QKFF-K`: wer denselben Code spielt, bekommt dieselbe Aufgabe). Übung ohne
+  Zeitlimit zählt weder für Rekorde noch für Trophäen.
+- **Abendabfrage:** Jede Tagesrunde lässt sich ab sechs Stunden nach der Abgabe bis einen Tag danach noch einmal
+  abrufen, ohne zweiten Blick. Sie ist persönlich und kommt in keine Rangliste.
+- **Rekorde** je Disziplin und Stufe zählen nur das erste Spiel einer Aufgabe (auf irgendeinem Gerät) mit Zeitlimit.
+  Acht Trophäen (`compete-*`), jede mit dem Lerntag, an dem sie zuerst verdient wurde. Gezählt werden Tage mit
+  Tages-Challenge insgesamt, nie als Serie.
+- **XP fürs Mitmachen, nicht für Punkte:** 10, 15 oder 20 je Stufe der Tages-Challenge, 5 für die Abendabfrage, für
+  Übung und Codes nichts, und nur für eine Abgabe mit mindestens einer Antwort (`locora_competition::xp`). Die
+  Laufzeit meldet sie an `gamification` (`gamification.contest@1`, noch offen); ein Lerntag entsteht dadurch
+  nicht.
+
+**Daten: Fakten statt Zähler,** wie bei `gamification`, aber als JSON mit Version `v` (eine ältere Version liest die
+Fakten einer neueren und überliest unbekannte Felder), unter der Spiel-Epoche der Laufzeit:
+`g/<epoche>/r/<runde>` (die abgegebene Runde: Seed, Antworten, Punkte, Zeiten, Lerndatum, Sprache, Route),
+`g/<epoche>/s/<datum>/<disziplin>/<stufe>/<runde>` (die Startmarke einer Tagesrunde, beim Start geschrieben) und
+`g/<epoche>/e/<runde>/<abendabfrage>`. Runden-Ids sind UUID v7 (32 Hex-Zeichen), Seeds 60 Bit aus dem Zufall des
+Systems. Jeder Schlüssel wird einmal geschrieben, der Sync vereinigt die Geräte. Haben zwei Geräte dieselbe
+Tages-Challenge offline gespielt, ist die Runde mit der frühesten Startmarke der Versuch des Tages, die andere zählt
+als Übung, auf beiden Geräten gleich. Eine begonnene und nie abgegebene Tagesrunde bleibt „begonnen, nicht beendet“:
+Dieselbe Aufgabe ein zweites Mal zu sehen, wäre kein Versuch mehr. Das Plugin hält die Fakten in einem Speicherabbild,
+das es über `storage.list@1` nachführt, und berechnet daraus den Stand von heute, Rekorde, Trophäen und den Verlauf
+(`plugins/competition/src/facts.rs`). Die laufende Runde liegt nur im App-Kern; nichts Halbfertiges wird
+synchronisiert.
+
+**Epoche und Löschen:** Jede Anfrage bringt Epoche, Lerndatum und Uhrzeit der Laufzeit mit. Das Plugin hat keine Uhr
+und übernimmt eine Epoche nur aus diesen Anfragen. „Spielfortschritt löschen“ ruft auch `competition.reset@1` auf:
+Runden, Rekorde und Trophäen älterer Epochen sind leer, auch was ein Gerät später noch nachliefert. Ein eigenes
+„Verlauf löschen“ gibt es nicht.
+
+**Dienste** (`locora-api::competition`, mit den Typen der Regel-Crate): `competition.today@1`, `begin@1`,
+`finish@1`, `evening@1`, `evening_finish@1`, `records@1`, `history@1` und `reset@1`. Ereignisse gibt es keine:
+XP aus einem Ereignis ließe sich fälschen, denn jedes Plugin kann jedes Thema senden. Die Kachel „Gedächtnis-Wettkampf“
+zeigt den Stand von heute. Im Browser liegt der Speicher im Profil des Kerns und wird synchronisiert wie auf dem
+Desktop (`SYNCED_PLUGINS`).
+
 ---
 
 ## 5. Datenmodell und Offline first

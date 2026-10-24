@@ -46,7 +46,7 @@ const hasClang = process.env.LOCORA_ZIGBUILD !== '1' && (() => {
   }
 })();
 run('cargo', [hasClang ? 'build' : 'zigbuild', '--release', '--target', 'wasm32-wasip1', '-p', 'locora-web-core'], repo);
-for (const id of ['core', 'notify', 'review', 'tutorial', 'gamification']) {
+for (const id of ['core', 'notify', 'review', 'tutorial', 'gamification', 'competition']) {
   if (!existsSync(join(pluginDist, id))) {
     throw new Error(`plugin ${id} is not transpiled: run npm run transpile in apps/web/plugin-host`);
   }

@@ -24,6 +24,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "competition"
+version = "0.1.0"
+dependencies = [
+ "locora-competition",
+ "locora-sdk",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "core"
 version = "0.1.0"
 dependencies = [
@@ -139,7 +149,15 @@ dependencies = [
 name = "locora-api"
 version = "0.1.7"
 dependencies = [
+ "locora-competition",
  "postcard",
+ "serde",
+]
+
+[[package]]
+name = "locora-competition"
+version = "0.1.7"
+dependencies = [
  "serde",
 ]
 

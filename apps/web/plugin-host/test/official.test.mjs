@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { host } from '../src/host-core.mjs';
 
 // Every official plugin must load, identify itself and activate in the browser host.
-for (const id of ['core', 'notify', 'review', 'tutorial', 'gamification']) {
+for (const id of ['core', 'notify', 'review', 'tutorial', 'gamification', 'competition']) {
   test(`${id} activates in the browser host`, async () => {
     const module = await import(`../dist/${id}/${id}.js`);
     host.register(id, module);

@@ -305,7 +305,7 @@ pub unsafe extern "C" fn plugin_publish(
 
 /// Plugins whose storage is the profile's own, so it is logged and synced like everything else
 /// (on the desktop every plugin's storage is). The others keep theirs in the browser.
-pub const SYNCED_PLUGINS: [&str; 1] = ["gamification"];
+pub const SYNCED_PLUGINS: [&str; 2] = ["gamification", "competition"];
 
 /// The store, for a plugin of `SYNCED_PLUGINS`.
 #[cfg_attr(not(any(target_arch = "wasm32", test)), allow(dead_code))]

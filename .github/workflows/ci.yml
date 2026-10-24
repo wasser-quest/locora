@@ -47,7 +47,7 @@ jobs:
       - name: Test (plugins)
         if: runner.os == 'Linux'
         working-directory: plugins
-        run: cargo test --target x86_64-unknown-linux-gnu -p core -p review -p notify -p gamification
+        run: cargo test --target x86_64-unknown-linux-gnu -p core -p review -p notify -p gamification -p competition
       # The contest rules also run in plugins and the browser core, so their tests run on
       # wasm32-wasip2 as well, under a pinned wasmtime.
       - name: Test (contest rules on wasm32-wasip2)
@@ -147,10 +147,10 @@ jobs:
       - name: Plugins as browser modules
         run: |
           cargo build --locked --release --target wasm32-wasip2 --manifest-path plugins/Cargo.toml \
-            -p core -p review -p notify -p tutorial -p gamification
+            -p core -p review -p notify -p tutorial -p gamification -p competition
           cd apps/web/plugin-host
           npm ci
-          node scripts/transpile.mjs ../../../plugins/target/wasm32-wasip2/release/{core,review,notify,tutorial,gamification}.wasm
+          node scripts/transpile.mjs ../../../plugins/target/wasm32-wasip2/release/{core,review,notify,tutorial,gamification,competition}.wasm
       - name: Build the web app
         run: |
           (cd apps/web && npm ci)
