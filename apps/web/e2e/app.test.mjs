@@ -2496,6 +2496,9 @@ test('the share dialog fits a phone: its buttons stay in reach and nothing scrol
     await page.reload({ waitUntil: 'load' });
     await openTutorial(page);
     const done = await walkTutorial(page, '3');
+    // The ways there are finger-sized too.
+    await page.locator('.celebration').first().waitFor({ timeout: 20000 });
+    assert.deepEqual(await smallTargets(page, '.done-actions button, .celebration button'), []);
     await done.getByRole('button', { name: 'Share…' }).click();
     const dialog = page.getByRole('dialog', { name: 'Share' });
     await dialog.locator('.share-preview img').waitFor({ timeout: 20000 });

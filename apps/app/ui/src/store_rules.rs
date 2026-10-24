@@ -39,7 +39,9 @@ const WORDS: &[&str] = &["buy", "price", "prices", "preis", "preise", "prix"];
 /// Hosts the apps may link to, each with the paths allowed there (empty: any path).
 const HOSTS: &[(&str, &[&str])] = &[
     ("api.locora.cloud", &[]),
-    ("web.locora.cloud", &["/forgot"]),
+    // The password reset, and the invite page an invite link points to (it shows who invites and
+    // accepts; it sells nothing).
+    ("web.locora.cloud", &["/forgot", "/einladung"]),
     ("github.com", &["/wasser-quest/locora/issues/new"]),
     ("example.com", &[]),
     ("localhost", &[]),
@@ -171,6 +173,7 @@ fn the_check_finds_selling_and_leaves_neutral_texts_alone() {
         ["https://buy.paddle.com/x"]
     );
     assert!(foreign_links(r#"const URL: &str = "https://web.locora.cloud/forgot";"#).is_empty());
+    assert!(foreign_links("https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR").is_empty());
     assert!(foreign_links("https://api.locora.cloud/v1/sync").is_empty());
     assert!(foreign_links(r#"starts_with("https://") || format!("http://{}", host)"#).is_empty());
 }
