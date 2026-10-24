@@ -646,7 +646,10 @@ button.big { font-size: 1.15rem; padding: .8rem 1.4rem; }
    the tour's panel. */
 .celebration { position: fixed; z-index: 25; left: 50%; top: calc(.75rem + env(safe-area-inset-top)); transform: translateX(-50%);
   display: flex; align-items: center; gap: .8rem; width: min(420px, calc(100vw - 2rem)); border: 2px solid var(--lime);
-  box-shadow: 0 10px 32px #17183a66; }
+  box-shadow: 0 10px 32px #17183a66; pointer-events: none; }
+/* Taps go through the card to what it covers (the header's back button, the video's time slider);
+   only its own button closes it. */
+.celebration button { pointer-events: auto; }
 .celebration-medal { width: 64px; min-width: 64px; height: 64px; }
 .celebration .text { flex: 1; display: grid; }
 .celebration-title { font-size: 1.05rem; }
