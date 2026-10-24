@@ -15,8 +15,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use locora_cloud_api::api::{
-    Account, EntitlementReply, Friend, FriendInvite, KeyBundle, KeyUpload, Login, NameReport,
-    Register, Session, SessionKind, SubscriptionState,
+    Account, EntitlementReply, Friend, FriendInvite, FriendRequest, InvitePreview, KeyBundle,
+    KeyUpload, Login, NameReport, Ranking, Register, Session, SessionKind, SubscriptionState,
 };
 use locora_cloud_api::entitlement::{Access, Claims, Plan, parse_public_key, verify};
 use locora_crypto::Dek;
@@ -285,7 +285,8 @@ pub(crate) fn entitlement_call(state: &CloudState) -> Result<Call> {
     )
 }
 
-pub(crate) fn me_call(state: &CloudState) -> Result<Call> {
+/// The account as the server has it now (`Account`).
+pub fn me_call(state: &CloudState) -> Result<Call> {
     call(
         Method::Get,
         &state.server,
@@ -501,6 +502,56 @@ pub fn friend_kind(friend: &Friend) -> FriendKind {
     }
 }
 
+/// The friend list: friends, requests to this account and requests it sent (see `Friend`).
+pub fn friends_call(state: &CloudState) -> Result<Call> {
+    call(
+        Method::Get,
+        &state.server,
+        "/v1/friends",
+        Some(&state.token),
+        None,
+    )
+}
+
+pub fn friends_reply(reply: Reply) -> Result<Vec<Friend>> {
+    json(reply)
+}
+
+/// Asks the account behind `email` to be friends; asking someone who asked first accepts. The
+/// answer is the same for every address while nobody accepted (see `Friend`).
+pub fn request_friend_call(state: &CloudState, email: &str) -> Result<Call> {
+    let body = FriendRequest {
+        email: email.trim().to_owned(),
+    };
+    call(
+        Method::Post,
+        &state.server,
+        "/v1/friends",
+        Some(&state.token),
+        Some(json_body(&body)?),
+    )
+}
+
+pub fn request_friend_reply(reply: Reply) -> Result<Friend> {
+    json(reply)
+}
+
+/// The ranking of this account's friends (with itself), or of everyone with a checked score.
+pub fn ranking_call(state: &CloudState, friends: bool) -> Result<Call> {
+    let scope = if friends { "friends" } else { "global" };
+    call(
+        Method::Get,
+        &state.server,
+        &format!("/v1/ranking?scope={scope}"),
+        Some(&state.token),
+        None,
+    )
+}
+
+pub fn ranking_reply(reply: Reply) -> Result<Ranking> {
+    json(reply)
+}
+
 /// Removes a friend (for both sides), withdraws a request or an invite this account sent, or
 /// declines a request to it: `id` is the one `GET /v1/friends` lists with the entry.
 pub fn remove_friend_call(state: &CloudState, id: &str) -> Result<Call> {
@@ -602,6 +653,21 @@ pub fn invites_reply(reply: Reply) -> Result<Vec<FriendInvite>> {
 fn invite_path(code: &str, rest: &str) -> String {
     let code = percent_encoding::utf8_percent_encode(code, percent_encoding::NON_ALPHANUMERIC);
     format!("/v1/friends/invites/{code}{rest}")
+}
+
+/// Who invites with `code` (as `parse_invite_code` returns it). Needs no session, so it is sent
+/// without one.
+pub fn invite_preview_call(server: &str, code: &str) -> Result<Call> {
+    call(Method::Get, server, &invite_path(code, ""), None, None)
+}
+
+/// The inviter. A code that does not work gets the server's 404 with its message; an older server
+/// answers its general 404, or 405.
+pub fn invite_preview_reply(reply: Reply) -> Result<InvitePreview> {
+    if cloud_http::no_route(&reply) {
+        bail!(NO_INVITES);
+    }
+    json(reply)
 }
 
 /// Accepts another account's invite: both are friends then, and the code is used up.
@@ -827,8 +893,8 @@ mod blocking {
     use super::*;
     use crate::cloud_http::{Exchange, expect_success, run};
     use locora_cloud_api::api::{
-        Challenge, CreateChallenge, FinishReply, FriendRequest, GameAnswer, GameState,
-        JourneyStarted, PasswordChange, Ranking, StartJourney, XpState,
+        Challenge, CreateChallenge, FinishReply, GameAnswer, GameState, JourneyStarted,
+        PasswordChange, StartJourney, XpState,
     };
 
     pub(crate) fn get<T: serde::de::DeserializeOwned>(
@@ -1001,23 +1067,18 @@ mod blocking {
 
     /// All-time ranking of this account's world, or of its friends.
     pub fn ranking(state: &CloudState, friends: bool) -> Result<Ranking> {
-        let scope = if friends { "friends" } else { "global" };
-        get(
-            &state.server,
-            &format!("/v1/ranking?scope={scope}"),
-            &state.token,
-        )
+        run(Exchange::new(ranking_call(state, friends)?, ranking_reply))
     }
 
     pub fn friends(state: &CloudState) -> Result<Vec<Friend>> {
-        get(&state.server, "/v1/friends", &state.token)
+        run(Exchange::new(friends_call(state)?, friends_reply))
     }
 
     pub fn request_friend(state: &CloudState, email: &str) -> Result<Friend> {
-        let body = FriendRequest {
-            email: email.to_owned(),
-        };
-        post(&state.server, "/v1/friends", Some(&state.token), &body)
+        run(Exchange::new(
+            request_friend_call(state, email)?,
+            request_friend_reply,
+        ))
     }
 
     /// Removes a friend, withdraws a request or declines one (see `remove_friend_call`).
@@ -1661,6 +1722,105 @@ mod tests {
             ),
             (Method::Post, Method::Get)
         );
+    }
+
+    #[test]
+    fn the_friend_list_requests_rankings_and_previews_are_calls() {
+        let ok = |body: &str| {
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+        };
+        let (state, worker) = fixture(ok("[]"));
+        let call = friends_call(&state).unwrap();
+        assert_eq!(call.method, Method::Get);
+        assert_eq!(call.token.as_deref(), Some("synthetic-test-token"));
+        assert!(friends(&state).unwrap().is_empty());
+        assert_eq!(worker.join().unwrap(), "GET /v1/friends HTTP/1.1\r\n");
+
+        let call = request_friend_call(&state, "  a@example.org ").unwrap();
+        assert_eq!(
+            (call.method, call.url.ends_with("/v1/friends")),
+            (Method::Post, true)
+        );
+        assert_eq!(
+            call.body,
+            Some(Body::Json(br#"{"email":"a@example.org"}"#.to_vec()))
+        );
+        assert!(
+            ranking_call(&state, true)
+                .unwrap()
+                .url
+                .ends_with("/v1/ranking?scope=friends")
+        );
+        assert!(
+            ranking_call(&state, false)
+                .unwrap()
+                .url
+                .ends_with("/v1/ranking?scope=global")
+        );
+        let (state, worker) = fixture(ok(r#"{"entries":[]}"#));
+        assert!(ranking(&state, false).unwrap().entries.is_empty());
+        assert_eq!(
+            worker.join().unwrap(),
+            "GET /v1/ranking?scope=global HTTP/1.1\r\n"
+        );
+
+        // The preview needs no session and keeps the code in one path segment.
+        let preview = invite_preview_call(&state.server, "ABCD/../x?y").unwrap();
+        assert_eq!(preview.method, Method::Get);
+        assert_eq!(preview.token, None);
+        assert!(
+            preview
+                .url
+                .ends_with("/v1/friends/invites/ABCD%2F%2E%2E%2Fx%3Fy"),
+            "{}",
+            preview.url
+        );
+        assert!(invite_preview_call("http://example.org", "ABCD").is_err());
+    }
+
+    #[test]
+    fn an_invite_preview_tells_an_older_server_from_a_gone_code() {
+        let reply = |status: u16, body: &str| Reply {
+            status,
+            body: body.as_bytes().to_vec(),
+        };
+        for older in [
+            reply(404, r#"{"error":"Nicht gefunden"}"#),
+            reply(405, ""),
+            reply(404, ""),
+        ] {
+            let error = invite_preview_reply(older).unwrap_err().to_string();
+            assert!(
+                error.starts_with("Dieser Server kennt noch keine Einladungslinks"),
+                "{error}"
+            );
+        }
+        let gone = "Diese Einladung gibt es nicht (mehr): Sie ist abgelaufen, wurde schon angenommen oder zurückgezogen.";
+        assert_eq!(
+            invite_preview_reply(reply(404, &format!(r#"{{"error":"{gone}"}}"#)))
+                .unwrap_err()
+                .to_string(),
+            gone
+        );
+        let with = invite_preview_reply(reply(
+            200,
+            r#"{"display_name":"Ada","expires_at":5,"ref":"nr_1"}"#,
+        ))
+        .unwrap();
+        assert_eq!(
+            (
+                with.display_name.as_str(),
+                with.expires_at,
+                with.reference.as_deref()
+            ),
+            ("Ada", 5, Some("nr_1"))
+        );
+        let without =
+            invite_preview_reply(reply(200, r#"{"display_name":"Ada","expires_at":5}"#)).unwrap();
+        assert_eq!(without.reference, None);
     }
 
     #[test]
