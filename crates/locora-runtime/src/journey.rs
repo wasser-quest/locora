@@ -51,12 +51,13 @@ pub struct Plan {
     pub warnings: Vec<String>,
 }
 
-/// Plan a journey over `trees` (one run per tree, same order).
+/// Plan a journey over `trees` (one run per tree, same order). A due-only journey asks what is
+/// due on the learning day `day` (see `DueDay::asks`).
 pub fn plan(
     trees: &[PalaceTree],
     runs: &[Run],
     cards: &HashMap<String, CardState>,
-    now: u64,
+    day: &crate::game::DueDay,
     options: &PlanOptions,
 ) -> Plan {
     let mut out = Plan::default();
@@ -76,7 +77,7 @@ pub fn plan(
                 }
                 let include = !options.due_only
                     || match cards.get(&locus.id) {
-                        Some(card) => card.due <= now,
+                        Some(card) => day.asks(card),
                         None if new_left > 0 => {
                             new_left -= 1;
                             true
@@ -173,7 +174,19 @@ mod tests {
             palace(&store, "B", &["d"]),
         ];
         let runs = vec![Run::new(vec![]).unwrap(), Run::new(vec![]).unwrap()];
-        let all = plan(&trees, &runs, &HashMap::new(), 100, &PlanOptions::default());
+        // 100 is now; the learning day runs from 90 to 200.
+        let day = crate::game::DueDay {
+            now: 100,
+            start: 90,
+            end: 200,
+        };
+        let all = plan(
+            &trees,
+            &runs,
+            &HashMap::new(),
+            &day,
+            &PlanOptions::default(),
+        );
         let items: Vec<_> = all
             .stops
             .iter()
@@ -197,11 +210,20 @@ mod tests {
                 lapses: 0,
             },
         );
+        // Due later today counts too.
+        let c = trees[0].route().find(|locus| locus.item == "c").unwrap();
+        cards.insert(
+            c.id.clone(),
+            CardState {
+                due: 150,
+                ..cards[&b.id]
+            },
+        );
         let due = plan(
             &trees,
             &runs,
             &cards,
-            100,
+            &day,
             &PlanOptions {
                 due_only: true,
                 new: 1,
@@ -213,13 +235,13 @@ mod tests {
             .iter()
             .map(|s| s.locus(&trees).item.as_str())
             .collect();
-        assert_eq!(items, ["a", "b"], "one new plus the due one");
+        assert_eq!(items, ["a", "b", "c"], "one new plus the due ones");
 
         let shuffled = plan(
             &trees,
             &runs,
             &HashMap::new(),
-            100,
+            &day,
             &PlanOptions {
                 shuffle: true,
                 seed: 3,

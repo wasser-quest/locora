@@ -133,23 +133,100 @@ pub enum HostEvent {
 pub trait KvStore: Send + Sync {
     fn get(&self, plugin: &str, key: &str) -> Result<Option<Vec<u8>>, String>;
     fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String>;
+    /// The keys of `plugin` starting with `prefix` that changed after revision `after_rev`, in
+    /// the order they changed (`storage.list@1`). Storage without revisions cannot list.
+    fn list(&self, plugin: &str, prefix: &str, after_rev: u64) -> Result<ListResponse, String> {
+        let _ = (plugin, prefix, after_rev);
+        Err("Dieser Speicher kann keine Schlüssel auflisten".into())
+    }
 }
+
+pub use locora_api::storage::{ListEntry, ListResponse};
 
 /// In-memory storage, used when the host is created without a backend.
 #[derive(Default)]
-pub struct MemoryKv(Mutex<HashMap<(String, String), Vec<u8>>>);
+pub struct MemoryKv(Mutex<MemoryEntries>);
+
+/// Values with the revision of their last change, and the latest revision.
+#[derive(Default)]
+struct MemoryEntries {
+    values: HashMap<(String, String), (Vec<u8>, u64)>,
+    rev: u64,
+}
 
 impl KvStore for MemoryKv {
     fn get(&self, plugin: &str, key: &str) -> Result<Option<Vec<u8>>, String> {
         let map = self.0.lock().map_err(|e| e.to_string())?;
-        Ok(map.get(&(plugin.to_owned(), key.to_owned())).cloned())
+        Ok(map
+            .values
+            .get(&(plugin.to_owned(), key.to_owned()))
+            .map(|(value, _)| value.clone()))
     }
 
     fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String> {
         let mut map = self.0.lock().map_err(|e| e.to_string())?;
-        map.insert((plugin.to_owned(), key.to_owned()), value.to_vec());
+        let id = (plugin.to_owned(), key.to_owned());
+        if map.values.get(&id).is_some_and(|(old, _)| old == value) {
+            return Ok(());
+        }
+        map.rev += 1;
+        let rev = map.rev;
+        map.values.insert(id, (value.to_vec(), rev));
         Ok(())
     }
+
+    fn list(&self, plugin: &str, prefix: &str, after_rev: u64) -> Result<ListResponse, String> {
+        let map = self.0.lock().map_err(|e| e.to_string())?;
+        let mut changed: Vec<(u64, &String, &Vec<u8>)> = map
+            .values
+            .iter()
+            .filter(|((owner, key), (_, rev))| {
+                owner == plugin && key.starts_with(prefix) && *rev > after_rev
+            })
+            .map(|((_, key), (value, rev))| (*rev, key, value))
+            .collect();
+        changed.sort_by_key(|(rev, _, _)| *rev);
+        let more = changed.len() > locora_api::storage::PAGE;
+        changed.truncate(locora_api::storage::PAGE);
+        let rev = if more {
+            changed.last().map_or(after_rev, |(rev, _, _)| *rev)
+        } else {
+            map.rev.max(after_rev)
+        };
+        Ok(ListResponse {
+            entries: changed
+                .into_iter()
+                .map(|(_, key, value)| ListEntry {
+                    key: key.clone(),
+                    value: value.clone(),
+                })
+                .collect(),
+            rev,
+            more,
+        })
+    }
+}
+
+/// The reply of `storage.list@1` for `plugin`: only its own keys, with a bounded prefix.
+pub fn list_own_keys(kv: &dyn KvStore, plugin: &str, request: &[u8]) -> Result<Vec<u8>, String> {
+    let request: locora_api::storage::ListRequest =
+        locora_api::decode(request).map_err(|e| format!("Ungültige Listenanfrage: {e}"))?;
+    if request.prefix.len() > locora_api::storage::MAX_PREFIX {
+        return Err("Präfix ist zu lang".into());
+    }
+    let listed = kv.list(plugin, &request.prefix, request.after_rev)?;
+    locora_api::encode(&listed).map_err(|e| e.to_string())
+}
+
+/// Services only the host answers; a plugin cannot provide them.
+fn reserved(service: &str) -> bool {
+    use locora_api::Service as _;
+    [
+        locora_api::palaces::Palaces::NAME,
+        locora_api::ui::Highlight::NAME,
+        locora_api::storage::List::NAME,
+    ]
+    .contains(&service)
 }
 
 /// Per-plugin sandbox state.
@@ -226,9 +303,7 @@ impl host::Host for PluginState {
     }
 
     fn provide(&mut self, service: String) {
-        if service == <locora_api::palaces::Palaces as locora_api::Service>::NAME
-            || service == <locora_api::ui::Highlight as locora_api::Service>::NAME
-        {
+        if reserved(&service) {
             self.logs.push((
                 Level::Warn,
                 format!("Dienst `{service}` ist für den Host reserviert"),
@@ -249,6 +324,10 @@ impl host::Host for PluginState {
     }
 
     fn call_host(&mut self, service: String, request: Vec<u8>) -> Result<Vec<u8>, String> {
+        if service == <locora_api::storage::List as locora_api::Service>::NAME {
+            self.require(locora_api::permission::STORAGE)?;
+            return list_own_keys(self.kv.as_ref(), &self.id, &request);
+        }
         if service == <locora_api::ui::Highlight as locora_api::Service>::NAME {
             self.require(locora_api::permission::UI_HIGHLIGHT)?;
             if request.len() > 1_024 {
@@ -887,11 +966,16 @@ fn api_compatible(plugin_api: &str) -> bool {
     };
     match (parse(plugin_api), parse(locora_api::API_VERSION)) {
         (Some((major, minor)), Some((host_major, host_minor))) => {
-            major == host_major && (major != 0 || minor == host_minor)
+            major == host_major
+                && (major != 0 || (OLDEST_COMPATIBLE_MINOR..=host_minor).contains(&minor))
         }
         _ => false,
     }
 }
+
+/// The oldest `0.minor` this host still runs: 0.7 only added services and events to 0.6, so
+/// 0.6 components keep their layout. A component built for a newer minor needs a newer host.
+const OLDEST_COMPATIBLE_MINOR: u64 = 6;
 
 #[cfg(test)]
 mod tests {
@@ -907,8 +991,14 @@ mod tests {
 
     #[test]
     fn api_versions() {
-        assert!(api_compatible("0.6"));
+        assert!(api_compatible("0.7"));
+        assert!(api_compatible("0.7.2"));
+        assert!(api_compatible("0.6"), "0.7 only adds to 0.6");
         assert!(api_compatible("0.6.123"));
+        assert!(
+            !api_compatible("0.8"),
+            "a newer component needs a newer host"
+        );
         for malformed in [
             "",
             "0",
@@ -927,5 +1017,66 @@ mod tests {
         assert!(!api_compatible("0.2"));
         assert!(!api_compatible("0.1"));
         assert!(!api_compatible("1.0"));
+    }
+
+    fn state(id: &str, permissions: &[&str], kv: Arc<dyn KvStore>) -> PluginState {
+        let mut state = PluginState::new(kv, None);
+        state.id = id.into();
+        state.permissions = permissions.iter().map(|p| (*p).to_owned()).collect();
+        state
+    }
+
+    fn list(state: &mut PluginState, prefix: &str, after_rev: u64) -> Result<ListResponse, String> {
+        let request = locora_api::encode(&locora_api::storage::ListRequest {
+            prefix: prefix.into(),
+            after_rev,
+        })
+        .unwrap();
+        let reply = host::Host::call_host(state, "storage.list@1".into(), request)?;
+        Ok(locora_api::decode(&reply).unwrap())
+    }
+
+    #[test]
+    fn storage_listing_needs_the_permission_and_shows_only_the_own_keys() {
+        let kv: Arc<dyn KvStore> = Arc::new(MemoryKv::default());
+        kv.set("game", "g/a", b"1").unwrap();
+        kv.set("other", "g/b", b"2").unwrap();
+        kv.set("game", "seen", b"3").unwrap();
+        let mut without = state("game", &[], kv.clone());
+        assert!(list(&mut without, "", 0).unwrap_err().contains("storage"));
+        let mut game = state("game", &["storage"], kv.clone());
+        let listed = list(&mut game, "g/", 0).unwrap();
+        assert_eq!(
+            listed.entries,
+            vec![ListEntry {
+                key: "g/a".into(),
+                value: b"1".to_vec()
+            }]
+        );
+        assert!(!listed.more);
+        kv.set("game", "g/a", b"").unwrap();
+        let blanked = list(&mut game, "g/", listed.rev).unwrap();
+        assert_eq!(blanked.entries.len(), 1, "a blanked key is a change");
+        assert!(blanked.entries[0].value.is_empty());
+        assert!(
+            list(&mut game, "g/", blanked.rev)
+                .unwrap()
+                .entries
+                .is_empty()
+        );
+        assert!(
+            list(&mut game, &"x".repeat(201), 0)
+                .unwrap_err()
+                .contains("Präfix")
+        );
+    }
+
+    #[test]
+    fn a_plugin_cannot_provide_the_storage_listing() {
+        let mut plugin = state("game", &["storage"], Arc::new(MemoryKv::default()));
+        host::Host::provide(&mut plugin, "storage.list@1".into());
+        host::Host::provide(&mut plugin, "game.status@1".into());
+        assert_eq!(plugin.provided, ["game.status@1"]);
+        assert!(plugin.logs.iter().any(|(_, m)| m.contains("reserviert")));
     }
 }

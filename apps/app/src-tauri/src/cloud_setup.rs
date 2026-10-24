@@ -86,6 +86,8 @@ pub async fn cloud_connect(
         }
         .map_err(err)?;
         cloud::save(&data, &state).map_err(err)?;
+        // A deletion of this account's game scores that waited for a new session.
+        let _ = cloud::retry_rankings(&data);
         Ok(status(&state))
     })
     .await

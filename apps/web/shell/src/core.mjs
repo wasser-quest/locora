@@ -6,6 +6,8 @@
 //   bridge.call(plugin | null, service, request: Uint8Array) -> { tag: 'ok', val } | { tag: 'err', val }
 
 const NO_PLUGINS = { provides: () => false, call: () => ({ tag: 'err', val: 'no plugins are connected' }) };
+//   bridge.publish(topic, payload) -> boolean: the event reached the plugins (else the core hands
+//   it to the page with the command's reply)
 // `plugin` is null when a call may go to any plugin; the core sends an empty name for that.
 
 /** Instantiates the core. `fs` is a MemFs; the core's folder is its preopened `/locora`. */
@@ -56,6 +58,17 @@ export async function instantiateCore(wasmBytes, { fs, bridge = NO_PLUGINS }) {
         // Copied first: reserving the reply may grow the memory and detach the old buffer.
         const request = new Uint8Array(core.memory.buffer.slice(requestPointer, requestPointer + requestLength));
         return reply(callBridge(plugin, service, request));
+      },
+      publish: (topicPointer, topicLength, payloadPointer, payloadLength) => {
+        if (typeof bridge.publish !== 'function') return 0;
+        const topic = text(topicPointer, topicLength);
+        const payload = new Uint8Array(core.memory.buffer.slice(payloadPointer, payloadPointer + payloadLength));
+        try {
+          return bridge.publish(topic, payload) ? 1 : 0;
+        } catch (error) {
+          console.warn(`an event for the plugins failed: ${error?.message ?? error}`);
+          return 1;
+        }
       },
       filter: (hookPointer, hookLength, valuePointer, valueLength) => {
         const hook = text(hookPointer, hookLength);
@@ -113,6 +126,26 @@ export async function instantiateCore(wasmBytes, { fs, bridge = NO_PLUGINS }) {
   call.palaceService = (request) => nested('palace_service', request);
   call.highlight = (plugin, request) => nested('plugin_highlight', plugin, request);
   call.publish = (plugin, topic, payload) => nested('plugin_publish', plugin, topic, payload);
+  /**
+   * The storage of a plugin whose keys the core keeps (and syncs), in the shape PluginHost.register
+   * takes: `get` answers the bytes or undefined, `list` takes and answers postcard (storage.list@1).
+   */
+  call.syncedStorage = (plugin) => ({
+    get: (key) => {
+      const result = nested('plugin_kv_get', plugin, key);
+      if (result.tag === 'err') throw new Error(result.val);
+      return result.val[0] === 1 ? result.val.slice(1) : undefined;
+    },
+    set: (key, value) => {
+      const result = nested('plugin_kv_set', plugin, key, value);
+      if (result.tag === 'err') throw new Error(result.val);
+    },
+    list: (request) => {
+      const result = nested('plugin_kv_list', plugin, request);
+      if (result.tag === 'err') throw new Error(result.val);
+      return result.val.slice();
+    },
+  });
 
   /**
    * The page's reply to the call a cloud command waits for: the HTTP status (0 when no reply came)

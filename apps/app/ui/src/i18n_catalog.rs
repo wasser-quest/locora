@@ -17,7 +17,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Type the answer – Enter checks (empty: Space reveals)",
             "Antwort eingeben – Enter prüft (leer: Leertaste deckt auf)",
-            "Saisis la réponse – Entrée vérifie (vide : Espace révèle)",
+            "Saisis la réponse – Entrée vérifie (vide : Espace révèle)",
             "答えを入力 – Enter で確認（空欄なら Space で表示）",
             "输入答案 – 回车检查（为空时按空格显示）",
         ],
@@ -37,7 +37,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Choose all right answers: numbers 1–9 choose, Enter or Space checks. Several can be right.",
             "Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter oder Leertaste prüft. Es können auch mehrere richtig sein.",
-            "Choisis toutes les bonnes réponses : chiffres 1–9 pour choisir, Entrée ou Espace vérifie. Plusieurs peuvent être justes.",
+            "Choisis toutes les bonnes réponses : chiffres 1–9 pour choisir, Entrée ou Espace vérifie. Plusieurs peuvent être justes.",
             "正しい答えをすべて選んでください：1–9 で選択、Enter または Space で確認。複数正解もあります。",
             "选择所有正确答案：数字 1–9 选择，回车或空格检查。可能有多个正确答案。",
         ],
@@ -47,7 +47,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Place chosen. “Reveal” shows whether it is right; another click moves your choice.",
             "Ort gewählt. „Aufdecken“ zeigt, ob er stimmt; ein neuer Klick verschiebt deine Wahl.",
-            "Lieu choisi. « Révéler » montre s’il est juste ; un nouveau clic déplace ton choix.",
+            "Lieu choisi. « Révéler » montre s’il est juste ; un nouveau clic déplace ton choix.",
             "場所を選びました。「答えを表示」で正誤がわかります。もう一度クリックすると選択を移動できます。",
             "已选择位置。“显示答案”会告诉你是否正确；再次点击可移动你的选择。",
         ],
@@ -105,16 +105,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
     ),
     ("100 XP", ["100 XP", "100 XP", "100 XP", "100 XP", "100 XP"]),
     (
-        "7 Tage gelernt",
-        [
-            "7 days learned",
-            "7 Tage gelernt",
-            "7 jours d'apprentissage",
-            "7日間学習",
-            "已学习 7 天",
-        ],
-    ),
-    (
         "Lernfortschritt",
         [
             "Learning progress",
@@ -132,16 +122,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "Points d'expérience",
             "経験値",
             "经验值",
-        ],
-    ),
-    (
-        "Richtige Antworten in Folge",
-        [
-            "Correct answers in a row",
-            "Richtige Antworten in Folge",
-            "Bonnes réponses d'affilée",
-            "連続正解",
-            "连续答对",
         ],
     ),
     (
@@ -183,7 +163,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Automatic playback is not possible; jumped straight to the locus.",
             "Automatische Wiedergabe nicht möglich; direkt zum Locus gesprungen.",
-            "Lecture automatique impossible ; saut direct au lieu.",
+            "Lecture automatique impossible ; saut direct au lieu.",
             "自動再生できないため、位置に直接移動しました。",
             "无法自动播放，已直接跳到该位置。",
         ],
@@ -234,7 +214,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Choose all correct answers: pick with the numbers 1–9, Enter checks. More than one answer can be correct.",
             "Wähle alle richtigen Antworten: Zahlen 1–9 wählen, Enter prüft. Es können auch mehrere richtig sein.",
-            "Choisis toutes les bonnes réponses : touches 1–9, Entrée vérifie. Plusieurs réponses peuvent être justes.",
+            "Choisis toutes les bonnes réponses : touches 1–9, Entrée vérifie. Plusieurs réponses peuvent être justes.",
             "正しい答えをすべて選ぶ：数字キー 1–9 で選択、Enter で確認。複数が正解のこともあります。",
             "选出所有正确答案：按数字键 1–9 选择，回车检查。正确答案可能不止一个。",
         ],
@@ -298,7 +278,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Add a locus: switch on “Place a locus” and tap the picture.",
             "Ort setzen: „Ort setzen“ einschalten und auf das Bild tippen.",
-            "Ajouter un lieu : activez « Placer un lieu » et touchez l'image.",
+            "Ajouter un lieu : activez « Placer un lieu » et touchez l'image.",
             "場所を置く：「場所を置く」をオンにして画像をタップします。",
             "添加位置：打开“放置位置”，然后点击图片。",
         ],
@@ -318,7 +298,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Done: everything is saved automatically.",
             "Fertig: Alles wird automatisch gespeichert.",
-            "Terminé : tout est enregistré automatiquement.",
+            "Terminé : tout est enregistré automatiquement.",
             "完了：すべて自動で保存されます。",
             "完成：所有内容都会自动保存。",
         ],
@@ -338,7 +318,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "A memory palace is a place you know well, for example your home. Normally you choose a photo of it here. Now Simo builds an example palace for you: watch and tap “Next”. You may click and try out anything along the way.",
             "Ein Gedächtnispalast ist ein Ort, den du gut kennst, zum Beispiel deine Wohnung. Normalerweise wählst du hier ein Foto davon. Jetzt baut Simo dir einen Beispiel-Palast: Schau zu und tippe auf „Weiter“. Du darfst dabei alles anklicken und ausprobieren.",
-            "Un palais de la mémoire est un lieu que vous connaissez bien, par exemple votre logement. D'habitude, vous choisissez ici une photo de ce lieu. Simo vous construit maintenant un palais d'exemple : regardez et touchez « Suivant ». Vous pouvez tout cliquer et essayer en chemin.",
+            "Un palais de la mémoire est un lieu que vous connaissez bien, par exemple votre logement. D'habitude, vous choisissez ici une photo de ce lieu. Simo vous construit maintenant un palais d'exemple : regardez et touchez « Suivant ». Vous pouvez tout cliquer et essayer en chemin.",
             "記憶の宮殿とは、よく知っている場所のことです。たとえば自分の家です。ふだんはここでその写真を選びます。これからシモが例の宮殿を作ります。見ながら「次へ」をタップしてください。途中で何でもクリックして試せます。",
             "记忆宫殿是你很熟悉的地方，比如你的家。通常你在这里选择它的照片。现在西莫为你搭建一个示例宫殿：看着就好，然后点“下一步”。途中你可以随意点击和尝试。",
         ],
@@ -358,7 +338,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Simo chose a picture: an entrance hall. It became the palace “Simo's example” with one room. With “+ Room from a picture or video” you add more rooms.",
             "Simo hat ein Bild gewählt: eine Eingangshalle. Daraus ist der Palast „Simos Beispiel“ mit einem Raum geworden. Mit „+ Raum aus Bild oder Video“ kommen weitere Räume dazu.",
-            "Simo a choisi une image : un hall d'entrée. Elle est devenue le palais « L'exemple de Simo » avec une pièce. Avec « + Pièce depuis une image ou une vidéo », vous ajoutez d'autres pièces.",
+            "Simo a choisi une image : un hall d'entrée. Elle est devenue le palais « L'exemple de Simo » avec une pièce. Avec « + Pièce depuis une image ou une vidéo », vous ajoutez d'autres pièces.",
             "シモは玄関ホールの画像を選びました。そこから部屋が1つある宮殿「シモの例」ができました。「＋ 画像や動画から部屋を追加」で部屋を増やせます。",
             "西莫选了一张图片：一个门厅。它变成了有一个房间的宫殿“西莫的示例”。用“+ 用图片或视频添加房间”可以添加更多房间。",
         ],
@@ -398,7 +378,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Simo tapped the door. Locus 1 is there now, the round dot with the number. The numbers are the order in which you later walk through the palace.",
             "Simo hat auf die Tür getippt. Dort ist jetzt Ort 1, der runde Punkt mit der Nummer. Die Nummern sind die Reihenfolge, in der du später durch den Palast gehst.",
-            "Simo a touché la porte. Le lieu 1 s'y trouve maintenant : le point rond avec le numéro. Les numéros donnent l'ordre dans lequel vous parcourrez le palais.",
+            "Simo a touché la porte. Le lieu 1 s'y trouve maintenant : le point rond avec le numéro. Les numéros donnent l'ordre dans lequel vous parcourrez le palais.",
             "シモはドアをタップしました。そこに場所1ができました。番号のついた丸い点です。番号は、あとで宮殿を歩く順番です。",
             "西莫点了门。那里现在是位置 1，就是带数字的圆点。这些数字就是你之后走过宫殿的顺序。",
         ],
@@ -408,7 +388,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The “Locus” field: where is it?",
             "Feld „Ort“: Wo ist es?",
-            "Le champ « Lieu » : où est-ce ?",
+            "Le champ « Lieu » : où est-ce ?",
             "「場所」欄：どこ？",
             "“位置”字段：在哪里？",
         ],
@@ -418,7 +398,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "This says where the locus is: “Door”. Later this is the question.",
             "Hier steht, wo der Ort ist: „Tür“. Das ist später die Frage.",
-            "Ici figure l'endroit du lieu : « Porte ». Plus tard, c'est la question.",
+            "Ici figure l'endroit du lieu : « Porte ». Plus tard, c'est la question.",
             "ここには場所がどこかを書きます：「ドア」。あとでこれが問題になります。",
             "这里写位置在哪里：“门”。之后这就是问题。",
         ],
@@ -428,7 +408,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The “Item” field: what do you remember?",
             "Feld „Inhalt“: Was merkst du dir?",
-            "Le champ « Contenu » : que retenez-vous ?",
+            "Le champ « Contenu » : que retenez-vous ?",
             "「内容」欄：何を覚える？",
             "“内容”字段：你要记住什么？",
         ],
@@ -438,7 +418,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "This says what you want to remember at this spot: “Key”. Later this is the answer.",
             "Hier steht, was du dir an dieser Stelle merken willst: „Schlüssel“. Das ist später die Antwort.",
-            "Ici figure ce que vous voulez retenir à cet endroit : « Clé ». Plus tard, c'est la réponse.",
+            "Ici figure ce que vous voulez retenir à cet endroit : « Clé ». Plus tard, c'est la réponse.",
             "ここには、この場所で覚えたいことを書きます：「鍵」。あとでこれが答えになります。",
             "这里写你想在这个地方记住的东西：“钥匙”。之后这就是答案。",
         ],
@@ -458,7 +438,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "A crazy picture in your head helps you remember: “A giant golden key is stuck crosswise in the door.” Locora shows it to you after the answer. The field may also stay empty.",
             "Ein verrücktes Bild im Kopf hilft beim Merken: „Ein riesiger goldener Schlüssel steckt quer in der Tür.“ Locora zeigt es dir nach der Antwort. Das Feld darf auch leer bleiben.",
-            "Une image folle dans la tête aide à retenir : « Une clé dorée géante est coincée en travers de la porte. » Locora vous la montre après la réponse. Le champ peut aussi rester vide.",
+            "Une image folle dans la tête aide à retenir : « Une clé dorée géante est coincée en travers de la porte. » Locora vous la montre après la réponse. Le champ peut aussi rester vide.",
             "頭の中のおかしな絵が記憶を助けます：「巨大な金の鍵がドアに横向きに刺さっている。」答えのあとにLocoraが表示します。空欄のままでも大丈夫です。",
             "脑海中一个疯狂的画面能帮你记忆：“一把巨大的金钥匙横着卡在门里。”回答后 Locora 会显示它。这个字段也可以留空。",
         ],
@@ -468,7 +448,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Answer type: can stay as it is",
             "Antwortart: darf so bleiben",
-            "Type de réponse : peut rester ainsi",
+            "Type de réponse : peut rester ainsi",
             "答え方：そのままで大丈夫",
             "回答方式：保持不变即可",
         ],
@@ -478,7 +458,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "“Recall” fits almost always: you remember, reveal and say honestly how well it went. With “Guess” you type the answer, with “Quiz” you choose from several.",
             "„Recall“ passt fast immer: Du erinnerst dich, deckst auf und sagst ehrlich, wie gut es ging. Bei „Guess“ tippst du die Antwort ein, bei „Quiz“ wählst du aus mehreren.",
-            "« Recall » convient presque toujours : vous vous souvenez, révélez et dites honnêtement si c'était facile. Avec « Guess », vous tapez la réponse ; avec « Quiz », vous choisissez parmi plusieurs.",
+            "« Recall » convient presque toujours : vous vous souvenez, révélez et dites honnêtement si c'était facile. Avec « Guess », vous tapez la réponse ; avec « Quiz », vous choisissez parmi plusieurs.",
             "ほとんどの場合「Recall」で十分です。思い出して、めくって、どれだけできたか正直に答えます。「Guess」は答えを入力し、「Quiz」はいくつかの中から選びます。",
             "“Recall”几乎总是合适：你回忆、揭示，然后诚实地说出效果如何。“Guess”需要输入答案，“Quiz”从多个选项中选择。",
         ],
@@ -508,7 +488,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Locora shows you the locus: “Door”. Picture the door. What is there?",
             "Locora zeigt dir den Ort: „Tür“. Stell dir die Tür vor. Was liegt dort?",
-            "Locora vous montre le lieu : « Porte ». Imaginez la porte. Qu'y a-t-il ?",
+            "Locora vous montre le lieu : « Porte ». Imaginez la porte. Qu'y a-t-il ?",
             "Locoraが場所を見せます：「ドア」。ドアを思い浮かべてください。そこに何がありますか？",
             "Locora 会给你看位置：“门”。想象那扇门。那里有什么？",
         ],
@@ -538,7 +518,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Say how well you knew it: “Again” means not at all, “Easy” means at once. What you knew badly, Locora asks again soon. Then it goes on to the next locus.",
             "Sag, wie gut du es wusstest: „Nochmal“ heißt gar nicht, „Leicht“ heißt sofort. Was du schlecht wusstest, fragt Locora bald wieder. Danach geht es zum nächsten Ort.",
-            "Dites si vous le saviez : « Encore » veut dire pas du tout, « Facile » tout de suite. Ce que vous saviez mal, Locora le redemande bientôt. Ensuite, on passe au lieu suivant.",
+            "Dites si vous le saviez : « Encore » veut dire pas du tout, « Facile » tout de suite. Ce que vous saviez mal, Locora le redemande bientôt. Ensuite, on passe au lieu suivant.",
             "どれだけ覚えていたかを答えます。「もう一度」はまったく、「簡単」はすぐに、という意味です。覚えていなかったものは、Locoraがすぐにまた聞きます。そのあと次の場所へ進みます。",
             "说出你记得多好：“再来”表示完全不记得，“简单”表示马上就想起来。记得不好的，Locora 很快会再问。然后进入下一个位置。",
         ],
@@ -548,7 +528,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Your turn!",
             "Jetzt du!",
-            "À vous !",
+            "À vous !",
             "あなたの番です！",
             "轮到你了！",
         ],
@@ -558,7 +538,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Take a photo of your home and choose it here. Then you build your own palace, just like Simo. You find Simo's example among your palaces: keep it or delete it.",
             "Mach ein Foto von deiner Wohnung und wähle es hier. Dann baust du deinen eigenen Palast, genau wie Simo. Simos Beispiel findest du bei deinen Palästen: behalten oder löschen.",
-            "Prenez une photo de votre logement et choisissez-la ici. Vous construisez alors votre propre palais, comme Simo. L'exemple de Simo se trouve parmi vos palais : gardez-le ou supprimez-le.",
+            "Prenez une photo de votre logement et choisissez-la ici. Vous construisez alors votre propre palais, comme Simo. L'exemple de Simo se trouve parmi vos palais : gardez-le ou supprimez-le.",
             "自分の家の写真を撮って、ここで選んでください。シモと同じように自分の宮殿を作れます。シモの例は宮殿の一覧にあります。残しても削除しても大丈夫です。",
             "给你的家拍张照片，在这里选择它。然后你就能像西莫一样搭建自己的宫殿。西莫的示例在你的宫殿列表里：可以保留，也可以删除。",
         ],
@@ -662,7 +642,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Tables and formulas of this palace; a formula can set a locus's place, content, position and visibility.",
             "Tabellen und Formeln dieses Palasts; eine Formel kann Ort, Inhalt, Position und Sichtbarkeit eines Orts setzen.",
-            "Tables et formules de ce palais ; une formule peut définir le lieu, le contenu, la position et la visibilité d’un locus.",
+            "Tables et formules de ce palais ; une formule peut définir le lieu, le contenu, la position et la visibilité d’un locus.",
             "この宮殿の表と数式。数式で場所の名前・内容・位置・表示を設定できます。",
             "此宫殿的表格和公式；公式可以设置位置的名称、内容、坐标和可见性。",
         ],
@@ -921,7 +901,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The quickest way to learn Locora is with Locora itself: the tutorial is a ",
             "Am schnellsten lernst du Locora mit Locora selbst: Das Tutorial ist ein ",
-            "Le plus vite, on apprend Locora avec Locora : le tutoriel est un ",
+            "Le plus vite, on apprend Locora avec Locora : le tutoriel est un ",
             "Locora は Locora 自身で学ぶのが一番早いです。チュートリアルは ",
             "最快的学习方式是用 Locora 本身：教程就是一座 ",
         ],
@@ -1005,7 +985,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The tutorial is a memory palace itself: 3 rooms, 9 places.",
             "Das Tutorial ist selbst ein Gedächtnispalast: 3 Räume, 9 Orte.",
-            "Le tutoriel est lui-même un palais de la mémoire : 3 pièces, 9 lieux.",
+            "Le tutoriel est lui-même un palais de la mémoire : 3 pièces, 9 lieux.",
             "チュートリアル自体が記憶の宮殿です：3 つの部屋、9 つの場所。",
             "教程本身就是一座记忆宫殿：3 个房间，9 个位置。",
         ],
@@ -1055,7 +1035,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "No palaces yet. Choose an image or video above, or use the CLI: ",
             "Noch keine Paläste. Wähle oben ein Bild oder Video, oder nutze die CLI: ",
-            "Pas encore de palais. Choisis une image ou une vidéo ci-dessus, ou utilise la CLI : ",
+            "Pas encore de palais. Choisis une image ou une vidéo ci-dessus, ou utilise la CLI : ",
             "まだパレスがありません。上で画像か動画を選ぶか、CLI を使ってください: ",
             "还没有宫殿。请在上方选择图片或视频，或使用命令行：",
         ],
@@ -1295,7 +1275,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Quick next: go straight to the next place after grading or typing an answer",
             "Schnell weiter: nach der Bewertung oder der Eingabe direkt zum nächsten Ort",
-            "Suivant rapide : passer directement au lieu suivant après la notation ou la saisie",
+            "Suivant rapide : passer directement au lieu suivant après la notation ou la saisie",
             "クイック次へ：評価または入力のあと、すぐ次の場所へ",
             "快速下一个：评分或输入答案后直接进入下一个位置",
         ],
@@ -1305,7 +1285,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Backwards: hit radius (% of the stage width) ",
             "Rückwärts: Trefferradius (% der Bühnenbreite) ",
-            "À l'envers : rayon de réussite (% de la largeur de la scène) ",
+            "À l'envers : rayon de réussite (% de la largeur de la scène) ",
             "逆向：命中半径（舞台幅度の %） ",
             "逆向：命中半径（舞台宽度的 %） ",
         ],
@@ -1315,7 +1295,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Video: marker at the earliest before the stop (seconds) ",
             "Video: Marker frühestens vor dem Stopp (Sekunden) ",
-            "Vidéo : marqueur au plus tôt avant l'arrêt (secondes) ",
+            "Vidéo : marqueur au plus tôt avant l'arrêt (secondes) ",
             "動画：停止の何秒前からマーカーを表示 ",
             "视频：标记最早在停止前多少秒出现（秒） ",
         ],
@@ -1419,7 +1399,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "FSRS weights: personal (from your history)",
             "FSRS-Gewichte: persönlich (aus deinem Verlauf)",
-            "Poids FSRS : personnels (d'après ton historique)",
+            "Poids FSRS : personnels (d'après ton historique)",
             "FSRS の重み：個人用（履歴から）",
             "FSRS 权重：个人（基于你的历史记录）",
         ],
@@ -1429,7 +1409,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "FSRS weights: default",
             "FSRS-Gewichte: Standard",
-            "Poids FSRS : par défaut",
+            "Poids FSRS : par défaut",
             "FSRS の重み：標準",
             "FSRS 权重：默认",
         ],
@@ -1492,7 +1472,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Quiz: every line must start with + (right) or - (wrong)",
             "Quiz: Jede Zeile muss mit + (richtig) oder - (falsch) beginnen",
-            "Quiz : chaque ligne doit commencer par + (juste) ou - (faux)",
+            "Quiz : chaque ligne doit commencer par + (juste) ou - (faux)",
             "クイズ：各行は + （正解）か - （不正解）で始めてください",
             "测验：每行必须以 + （正确）或 - （错误）开头",
         ],
@@ -1627,7 +1607,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Drag markers (keyboard: arrow keys) · changes save automatically. Undo (Ctrl/⌘+Z): adding, deleting, contents/pictures, position and size; switching rooms starts a new history.",
             "Marker ziehen (Tastatur: Pfeiltasten) · Änderungen speichern automatisch. Rückgängig (Strg/⌘+Z): Hinzufügen, Löschen, Inhalte/Bilder, Position und Größe; ein Raumwechsel beginnt einen neuen Verlauf.",
-            "Déplacer les marqueurs (clavier : flèches) · les modifications s'enregistrent automatiquement. Annuler (Ctrl/⌘+Z) : ajout, suppression, contenus/images, position et taille ; changer de pièce commence un nouvel historique.",
+            "Déplacer les marqueurs (clavier : flèches) · les modifications s'enregistrent automatiquement. Annuler (Ctrl/⌘+Z) : ajout, suppression, contenus/images, position et taille ; changer de pièce commence un nouvel historique.",
             "マーカーをドラッグ（キーボード：矢印キー）・変更は自動保存。元に戻す（Ctrl/⌘+Z）：追加、削除、内容/画像、位置とサイズ。部屋を変えると新しい履歴になります。",
             "拖动标记（键盘：方向键）· 更改自动保存。撤销（Ctrl/⌘+Z）：添加、删除、内容/图片、位置和大小；切换房间会开始新的记录。",
         ],
@@ -1667,7 +1647,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "1–100 terms, at most 500 bytes each. Blank lines are ignored. New places are added as a snake route; existing places stay as they are. Correct positions afterwards by dragging. Not for video rooms.",
             "1–100 Begriffe, je höchstens 500 Bytes. Leerzeilen werden ignoriert. Neue Orte werden als Schlangenroute angehängt; vorhandene Orte bleiben unverändert. Positionen danach per Ziehen korrigieren. Nicht für Video-Räume.",
-            "1 à 100 termes, 500 octets au maximum chacun. Les lignes vides sont ignorées. Les nouveaux lieux sont ajoutés en trajet en serpentin ; les lieux existants restent inchangés. Corrige ensuite les positions en les faisant glisser. Pas pour les pièces vidéo.",
+            "1 à 100 termes, 500 octets au maximum chacun. Les lignes vides sont ignorées. Les nouveaux lieux sont ajoutés en trajet en serpentin ; les lieux existants restent inchangés. Corrige ensuite les positions en les faisant glisser. Pas pour les pièces vidéo.",
             "1〜100 語、それぞれ 500 バイトまで。空行は無視されます。新しい場所はヘビ状のルートとして追加され、既存の場所は変わりません。あとからドラッグで位置を直せます。動画の部屋では使えません。",
             "1–100 个词条，每个最多 500 字节。空行会被忽略。新位置会按蛇形路线添加；已有位置保持不变。之后可拖动修正位置。不适用于视频房间。",
         ],
@@ -1770,7 +1750,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "A locus picture can also be dragged into the app window (locus selected, no unsaved changes). More rooms: “+ Room from a picture or video” next to the rooms.",
             "Ein Ortsbild kann auch ins App-Fenster gezogen werden (ausgewählter Ort, keine offenen Änderungen). Weitere Räume: „+ Raum aus Bild oder Video“ neben den Räumen.",
-            "Une image de lieu peut aussi être glissée dans la fenêtre de l'app (lieu sélectionné, sans modifications en cours). D'autres pièces : « + Pièce depuis une image ou une vidéo » à côté des pièces.",
+            "Une image de lieu peut aussi être glissée dans la fenêtre de l'app (lieu sélectionné, sans modifications en cours). D'autres pièces : « + Pièce depuis une image ou une vidéo » à côté des pièces.",
             "場所の画像はアプリの画面にドラッグすることもできます（場所を選択中で、未保存の変更がないとき）。部屋を増やすには、部屋の横の「＋ 画像や動画から部屋を追加」を使います。",
             "也可以把位置图片拖进应用窗口（需已选中位置且没有未保存的更改）。添加更多房间：使用房间旁边的“+ 用图片或视频添加房间”。",
         ],
@@ -1800,7 +1780,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Really delete?",
             "Endgültig?",
-            "Vraiment supprimer ?",
+            "Vraiment supprimer ?",
             "本当に削除しますか？",
             "确定删除？",
         ],
@@ -1820,7 +1800,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Really delete the palace?",
             "Palast endgültig löschen?",
-            "Vraiment supprimer le palais ?",
+            "Vraiment supprimer le palais ?",
             "パレスを本当に削除しますか？",
             "确定删除宫殿？",
         ],
@@ -1943,7 +1923,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Quiz options (one per line: + right, - wrong; any number of + per question)",
             "Quizoptionen (eine pro Zeile: + richtig, - falsch; beliebig viele + pro Frage möglich)",
-            "Options du quiz (une par ligne : + juste, - faux ; autant de + que voulu par question)",
+            "Options du quiz (une par ligne : + juste, - faux ; autant de + que voulu par question)",
             "クイズの選択肢（1 行に 1 つ：+ 正解、- 不正解。問題ごとに + はいくつでも）",
             "测验选项（每行一个：+ 正确，- 错误；每题可有任意多个 +）",
         ],
@@ -2083,7 +2063,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Recovery key – visible only now. Keep it safely outside the app:",
             "Wiederherstellungsschlüssel – nur jetzt sichtbar. Sicher außerhalb der App aufbewahren:",
-            "Clé de récupération – visible seulement maintenant. Garde-la en lieu sûr, hors de l'app :",
+            "Clé de récupération – visible seulement maintenant. Garde-la en lieu sûr, hors de l'app :",
             "復元用の鍵（今だけ表示）。アプリの外に安全に保管してください：",
             "恢复密钥——仅此刻可见。请妥善保存在应用之外：",
         ],
@@ -2167,7 +2147,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Your data stays while you sync; without a sync for six months.",
             "Die Daten bleiben, solange du synchronisierst; ohne Synchronisation sechs Monate lang.",
-            "Vos données restent tant que vous synchronisez ; sans synchronisation pendant six mois.",
+            "Vos données restent tant que vous synchronisez ; sans synchronisation pendant six mois.",
             "同期している限りデータは残ります。同期しない場合は6か月間残ります。",
             "只要你同步，数据就会保留；不同步时保留六个月。",
         ],
@@ -2281,7 +2261,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Cloud data deleted. The data on this device stays; the next sync uploads it again.",
             "Cloud-Daten gelöscht. Die Daten auf diesem Gerät bleiben; der nächste Sync lädt sie wieder hoch.",
-            "Données cloud supprimées. Les données de cet appareil restent ; la prochaine synchronisation les renvoie.",
+            "Données cloud supprimées. Les données de cet appareil restent ; la prochaine synchronisation les renvoie.",
             "クラウドのデータを削除しました。この端末のデータは残り、次の同期で再びアップロードされます。",
             "云端数据已删除。此设备上的数据会保留，下次同步时会重新上传。",
         ],
@@ -2408,7 +2388,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "This device cannot play the video (format: {0}). It plays on another device or in another browser.",
             "Dieses Gerät kann das Video nicht abspielen (Format: {0}). Auf einem anderen Gerät oder in einem anderen Browser geht es.",
-            "Cet appareil ne peut pas lire la vidéo (format : {0}). Elle se lit sur un autre appareil ou dans un autre navigateur.",
+            "Cet appareil ne peut pas lire la vidéo (format : {0}). Elle se lit sur un autre appareil ou dans un autre navigateur.",
             "この端末では動画を再生できません（形式: {0}）。別の端末や別のブラウザーなら再生できます。",
             "此设备无法播放该视频（格式：{0}）。换一台设备或换一个浏览器即可播放。",
         ],
@@ -2418,7 +2398,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "This device cannot play the sound (format: {0}). It plays on another device or in another browser.",
             "Dieses Gerät kann den Ton nicht abspielen (Format: {0}). Auf einem anderen Gerät oder in einem anderen Browser geht es.",
-            "Cet appareil ne peut pas lire le son (format : {0}). Il se lit sur un autre appareil ou dans un autre navigateur.",
+            "Cet appareil ne peut pas lire le son (format : {0}). Il se lit sur un autre appareil ou dans un autre navigateur.",
             "この端末では音声を再生できません（形式: {0}）。別の端末や別のブラウザーなら再生できます。",
             "此设备无法播放该音频（格式：{0}）。换一台设备或换一个浏览器即可播放。",
         ],
@@ -2428,7 +2408,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The video does not load; the journey goes on without it.",
             "Das Video lädt nicht; die Reise geht ohne Video weiter.",
-            "La vidéo ne se charge pas ; le parcours continue sans elle.",
+            "La vidéo ne se charge pas ; le parcours continue sans elle.",
             "動画が読み込まれません。動画なしでジャーニーを続けます。",
             "视频无法加载；旅程将在没有视频的情况下继续。",
         ],
@@ -2542,43 +2522,13 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         ],
     ),
     (
-        "{0} Combo",
-        [
-            "{0} combo",
-            "{0} Combo",
-            "Combo {0}",
-            "コンボ {0}",
-            "连击 {0}",
-        ],
-    ),
-    (
-        "Tagesziel: {0} von {1} richtig · {2} Tage in Folge",
-        [
-            "Daily goal: {0} of {1} correct · {2} days in a row",
-            "Tagesziel: {0} von {1} richtig · {2} Tage in Folge",
-            "Objectif du jour : {0} sur {1} justes · {2} jours d'affilée",
-            "今日の目標：{1} 問中 {0} 問正解 · {2} 日連続",
-            "今日目标：答对 {0}/{1} · 连续 {2} 天",
-        ],
-    ),
-    (
         "Richtig: {0}",
         [
             "Correct: {0}",
             "Richtig: {0}",
-            "Juste : {0}",
+            "Juste : {0}",
             "正解：{0}",
             "正确：{0}",
-        ],
-    ),
-    (
-        "Combo {0} · Herzen {1}",
-        [
-            "Combo {0} · Hearts {1}",
-            "Combo {0} · Herzen {1}",
-            "Combo {0} · Cœurs {1}",
-            "コンボ {0} · ハート {1}",
-            "连击 {0} · 心 {1}",
         ],
     ),
     (
@@ -2619,26 +2569,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "État des révisions pour {0} lieux repris",
             "{0} 個の場所の復習の進みを引き継ぎました",
             "已接收 {0} 个位置的复习进度",
-        ],
-    ),
-    (
-        "{0} Tage in Folge",
-        [
-            "{0} days in a row",
-            "{0} Tage in Folge",
-            "{0} jours d'affilée",
-            "{0} 日連続",
-            "连续 {0} 天",
-        ],
-    ),
-    (
-        "Erfahrungspunkte, Combo und Herzen in der Journey anzeigen",
-        [
-            "Show XP, combo and hearts in journeys",
-            "Erfahrungspunkte, Combo und Herzen in der Journey anzeigen",
-            "Afficher XP, combo et cœurs dans les parcours",
-            "ジャーニーで経験値・コンボ・ハートを表示",
-            "在旅程中显示经验值、连击和心",
         ],
     ),
     (
@@ -2735,16 +2665,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "活动",
         ],
     ),
-    (
-        "{0} aktive Tage in den letzten 12 Monaten · {1} Antworten",
-        [
-            "{0} active days in the last 12 months · {1} answers",
-            "{0} aktive Tage in den letzten 12 Monaten · {1} Antworten",
-            "{0} jours actifs sur les 12 derniers mois · {1} réponses",
-            "過去 12 か月で {0} 日活動 · {1} 回答",
-            "过去 12 个月有 {0} 个活跃日 · {1} 次作答",
-        ],
-    ),
     ("weniger", ["Less", "weniger", "Moins", "少", "少"]),
     ("mehr", ["More", "mehr", "Plus", "多", "多"]),
     (
@@ -2752,7 +2672,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "{0}: no answers",
             "{0}: keine Antworten",
-            "{0} : aucune réponse",
+            "{0} : aucune réponse",
             "{0}：回答なし",
             "{0}：没有作答",
         ],
@@ -2762,7 +2682,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "{0}: {1} answers",
             "{0}: {1} Antworten",
-            "{0} : {1} réponses",
+            "{0} : {1} réponses",
             "{0}：{1} 回答",
             "{0}：{1} 次作答",
         ],
@@ -2892,7 +2812,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Select a place. In the Place field, describe the spot; in the Content field, what you want to remember – for example \"front door\" and \"keys\".",
             "Klicke einen Ort an. Im Feld Ort beschreibst du den Platz, im Feld Inhalt das, was du dir merken willst – zum Beispiel „Haustür“ und „Schlüssel“.",
-            "Sélectionne un lieu. Dans le champ Lieu, décris l'endroit ; dans le champ Contenu, ce que tu veux retenir – par exemple « porte d'entrée » et « clés ».",
+            "Sélectionne un lieu. Dans le champ Lieu, décris l'endroit ; dans le champ Contenu, ce que tu veux retenir – par exemple « porte d'entrée » et « clés ».",
             "場所を選びます。「場所」欄には場所を、「内容」欄には覚えたいことを書きます。例：「玄関のドア」と「鍵」。",
             "选中一个位置。在「位置」栏描述这个地点，在「内容」栏写下你想记住的东西——例如「前门」和「钥匙」。",
         ],
@@ -2988,7 +2908,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Delete “{0}”? You can add it again later.",
             "„{0}“ löschen? Du kannst ihn später wieder anlegen.",
-            "Supprimer « {0} » ? Tu pourras le recréer plus tard.",
+            "Supprimer « {0} » ? Tu pourras le recréer plus tard.",
             "「{0}」を削除しますか？あとで作り直せます。",
             "删除「{0}」？之后可以重新创建。",
         ],
@@ -3022,7 +2942,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Sudden death: the first wrong answer ends the run",
             "Sudden Death: die erste falsche Antwort beendet die Runde",
-            "Mort subite : la première mauvaise réponse termine la série",
+            "Mort subite : la première mauvaise réponse termine la série",
             "サドンデス：最初の誤答でこのセッションは終了",
             "突然死：第一次答错即结束本轮",
         ],
@@ -3308,7 +3228,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The layout is invalid: {0}",
             "Das Layout ist ungültig: {0}",
-            "La disposition n’est pas valide : {0}",
+            "La disposition n’est pas valide : {0}",
             "レイアウトが正しくありません: {0}",
             "布局无效：{0}",
         ],
@@ -3329,16 +3249,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "tout su",
             "すべて覚えた",
             "全部记住了",
-        ],
-    ),
-    (
-        "{0} von 5 Herzen",
-        [
-            "{0} of 5 hearts",
-            "{0} von 5 Herzen",
-            "{0} sur 5 cœurs",
-            "ハート {0}/5",
-            "{0}/5 颗心",
         ],
     ),
     (
@@ -3370,7 +3280,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Place {0}: {1}",
             "Ort {0}: {1}",
-            "Lieu {0} : {1}",
+            "Lieu {0} : {1}",
             "場所 {0}: {1}",
             "位置 {0}：{1}",
         ],
@@ -3538,7 +3448,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Turns a list, such as a shopping list, into a route: each line becomes a new place with that content, laid out in order across the room.",
             "Aus einer Liste, z. B. einem Einkaufszettel, wird eine Route: Jede Zeile wird ein neuer Ort mit diesem Inhalt, der Reihe nach im Raum verteilt.",
-            "Transforme une liste, par exemple une liste de courses, en parcours : chaque ligne devient un nouveau lieu avec ce contenu, répartis dans l'ordre dans la pièce.",
+            "Transforme une liste, par exemple une liste de courses, en parcours : chaque ligne devient un nouveau lieu avec ce contenu, répartis dans l'ordre dans la pièce.",
             "買い物リストなどのリストからルートを作ります。1 行ごとにその内容を持つ新しい場所になり、順番に部屋に並びます。",
             "把一份清单（比如购物清单）变成路线：每一行成为一个带有该内容的新位置，按顺序排布在房间里。",
         ],
@@ -3608,7 +3518,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Recall: you reveal the answer and grade yourself. Guess: you type the answer. Quiz: you pick from several answers.",
             "Recall: Du deckst auf und bewertest dich selbst. Guess: Du tippst die Antwort ein. Quiz: Du wählst aus mehreren Antworten.",
-            "Rappel : tu révèles la réponse et tu t'évalues toi-même. Deviner : tu tapes la réponse. Quiz : tu choisis parmi plusieurs réponses.",
+            "Rappel : tu révèles la réponse et tu t'évalues toi-même. Deviner : tu tapes la réponse. Quiz : tu choisis parmi plusieurs réponses.",
             "想起：答えをめくって自分で評価します。推測：答えを入力します。クイズ：いくつかの答えから選びます。",
             "回忆：揭示答案后自己评分。猜测：输入答案。测验：从几个答案中选择。",
         ],
@@ -3638,7 +3548,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "How wide this place's picture is in the room: 1 is as wide as the whole room, 0.1 is a tenth of it.",
             "Wie breit das Bild dieses Orts im Raum ist: 1 ist so breit wie der ganze Raum, 0.1 ein Zehntel davon.",
-            "La largeur de l'image de ce lieu dans la pièce : 1 est aussi large que toute la pièce, 0.1 en est un dixième.",
+            "La largeur de l'image de ce lieu dans la pièce : 1 est aussi large que toute la pièce, 0.1 en est un dixième.",
             "この場所の画像の部屋の中での幅です。1 は部屋全体の幅、0.1 はその 10 分の 1 です。",
             "这个位置的图片在房间里的宽度：1 与整个房间一样宽，0.1 是它的十分之一。",
         ],
@@ -3671,16 +3581,6 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "« Système » suit le réglage de ton appareil. « Contraste élevé » aide si tu vois mal.",
             "「システム」は端末の設定に合わせます。「ハイコントラスト」は見えにくいときに役立ちます。",
             "“跟随系统”使用设备的设置。“高对比度”适合视力不好的人。",
-        ],
-    ),
-    (
-        "Zeigt beim Lernen eine Leiste mit Punkten, Treffern in Folge und Herzen. Ausschalten blendet sie nur aus.",
-        [
-            "Shows a bar with points, correct answers in a row and hearts while learning. Turning it off only hides it.",
-            "Zeigt beim Lernen eine Leiste mit Punkten, Treffern in Folge und Herzen. Ausschalten blendet sie nur aus.",
-            "Affiche pendant l'apprentissage une barre avec les points, les bonnes réponses d'affilée et les cœurs. La désactiver la masque seulement.",
-            "学習中にポイント、連続正解、ハートのバーを表示します。オフにしても隠れるだけです。",
-            "学习时显示一条包含积分、连续答对次数和心的栏。关闭只是把它隐藏。",
         ],
     ),
     (
@@ -3898,7 +3798,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Sync complete: {0} changes sent, {1} media uploaded, {2} changes received, {3} media downloaded; {4} applied, {5} already known, {6} with a missing locus.",
             "Sync abgeschlossen: {0} Änderungen gesendet, {1} Medien hochgeladen, {2} Änderungen empfangen, {3} Medien geladen; {4} angewendet, {5} schon bekannt, {6} mit fehlendem Ort.",
-            "Synchronisation terminée : {0} modifications envoyées, {1} médias téléversés, {2} modifications reçues, {3} médias téléchargés ; {4} appliquées, {5} déjà connues, {6} avec un locus manquant.",
+            "Synchronisation terminée : {0} modifications envoyées, {1} médias téléversés, {2} modifications reçues, {3} médias téléchargés ; {4} appliquées, {5} déjà connues, {6} avec un locus manquant.",
             "同期完了：{0} 件の変更を送信、{1} 件のメディアをアップロード、{2} 件の変更を受信、{3} 件のメディアをダウンロード。{4} 件を適用、{5} 件は既知、{6} 件は場所が見つかりません。",
             "同步完成：已发送 {0} 项更改，已上传 {1} 个媒体，已接收 {2} 项更改，已下载 {3} 个媒体；已应用 {4} 项，{5} 项已存在，{6} 项缺少地点。",
         ],
@@ -4082,7 +3982,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "For a locus picture, switch on editing and select a place. More rooms: “+ Room from a picture or video”.",
             "Für ein Ortsbild bitte Bearbeiten aktivieren und einen Ort auswählen. Weitere Räume: „+ Raum aus Bild oder Video“.",
-            "Pour une image de lieu, active la modification et sélectionne un lieu. D'autres pièces : « + Pièce depuis une image ou une vidéo ».",
+            "Pour une image de lieu, active la modification et sélectionne un lieu. D'autres pièces : « + Pièce depuis une image ou une vidéo ».",
             "場所の画像を使うには、編集をオンにして場所を選んでください。部屋を増やすには「＋ 画像や動画から部屋を追加」。",
             "要使用位置图片，请开启编辑并选择一个位置。添加更多房间：“+ 用图片或视频添加房间”。",
         ],
@@ -4162,7 +4062,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Video: choose a moment on the timeline, switch on “Place a locus” and click into the picture. The L key places a locus in the middle; , and . step one frame.",
             "Video: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken. Taste L setzt einen Ort in der Mitte; , und . springen einen Frame.",
-            "Vidéo : choisis un moment sur la frise, active « Placer un lieu » et clique dans l'image. La touche L place un lieu au milieu ; , et . avancent d'une image.",
+            "Vidéo : choisis un moment sur la frise, active « Placer un lieu » et clique dans l'image. La touche L place un lieu au milieu ; , et . avancent d'une image.",
             "動画：タイムラインで時点を選び、「場所を置く」をオンにして画像をクリックします。L キーで中央に場所を置き、, と . で 1 フレーム移動します。",
             "视频：在时间轴上选择时间点，打开“放置位置”，然后点击画面。按 L 键在中间放置位置；按 , 和 . 跳一帧。",
         ],
@@ -4172,7 +4072,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Splinely: choose a moment on the timeline, switch on “Place a locus” and click into the picture.",
             "Splinely: Zeitpunkt auf der Zeitleiste wählen, „Ort setzen“ aktivieren und ins Bild klicken.",
-            "Splinely : choisis un moment sur la frise, active « Placer un lieu » et clique dans l'image.",
+            "Splinely : choisis un moment sur la frise, active « Placer un lieu » et clique dans l'image.",
             "Splinely：タイムラインで時点を選び、「場所を置く」をオンにして画像をクリックします。",
             "Splinely：在时间轴上选择时间点，打开“放置位置”，然后点击画面。",
         ],
@@ -4192,7 +4092,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Video room – focus the stage: L places a locus at the current time, , and . step one frame",
             "Videoraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit, , und . springen einen Frame",
-            "Pièce vidéo – mettre le focus sur la scène : L place un lieu au moment actuel, , et . avancent d'une image",
+            "Pièce vidéo – mettre le focus sur la scène : L place un lieu au moment actuel, , et . avancent d'une image",
             "動画の部屋 – 舞台にフォーカス：L で現在の時点に場所を置き、, と . で 1 フレーム移動",
             "视频房间 – 聚焦舞台：L 在当前时间放置位置，, 和 . 跳一帧",
         ],
@@ -4202,7 +4102,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Animation room – focus the stage: L places a locus at the current time",
             "Animationsraum – Bühne fokussieren: L setzt einen Ort an der aktuellen Zeit",
-            "Pièce animée – mettre le focus sur la scène : L place un lieu au moment actuel",
+            "Pièce animée – mettre le focus sur la scène : L place un lieu au moment actuel",
             "アニメーションの部屋 – 舞台にフォーカス：L で現在の時点に場所を置く",
             "动画房间 – 聚焦舞台：L 在当前时间放置位置",
         ],
@@ -4252,7 +4152,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Workbook locus: {0} comes from formulas and is changed in the source file; everything else can be edited here.",
             "Workbook-Ort: {0} kommt aus Formeln und wird in der Quelldatei geändert; alles andere ist hier bearbeitbar.",
-            "Lieu de classeur : {0} vient des formules et se modifie dans le fichier source ; tout le reste se modifie ici.",
+            "Lieu de classeur : {0} vient des formules et se modifie dans le fichier source ; tout le reste se modifie ici.",
             "ワークブックの場所：{0} は数式から来ており、元のファイルで変更します。それ以外はここで編集できます。",
             "工作簿位置：{0} 来自公式，需要在源文件中修改；其他内容都可以在这里编辑。",
         ],
@@ -4262,7 +4162,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Not saved yet: {0}",
             "Noch nicht gespeichert: {0}",
-            "Pas encore enregistré : {0}",
+            "Pas encore enregistré : {0}",
             "まだ保存されていません：{0}",
             "尚未保存：{0}",
         ],
@@ -4272,7 +4172,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "File not used: first save/discard the changes and select an editable place.",
             "Datei nicht übernommen: erst Änderungen speichern/verwerfen und einen bearbeitbaren Ort auswählen.",
-            "Fichier non repris : enregistre ou abandonne d'abord les modifications et sélectionne un lieu modifiable.",
+            "Fichier non repris : enregistre ou abandonne d'abord les modifications et sélectionne un lieu modifiable.",
             "ファイルは使われませんでした。先に変更を保存/破棄し、編集できる場所を選んでください。",
             "未使用该文件：请先保存/放弃更改，并选择一个可编辑的位置。",
         ],
@@ -4350,7 +4250,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Interval: whole hours from 1 to 12",
             "Abstand: ganze Stunden von 1 bis 12",
-            "Intervalle : heures entières de 1 à 12",
+            "Intervalle : heures entières de 1 à 12",
             "間隔：1〜12 の整数の時間",
             "间隔：1 到 12 的整小时数",
         ],
@@ -4360,7 +4260,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Learning day starts: full hour from 0 to 23",
             "Lerntag beginnt: volle Stunde von 0 bis 23",
-            "Début de la journée d'apprentissage : heure pleine de 0 à 23",
+            "Début de la journée d'apprentissage : heure pleine de 0 à 23",
             "学習日の開始：0〜23 の正時",
             "学习日开始：0 到 23 的整点",
         ],
@@ -4370,7 +4270,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "New places per day: whole number from 0 to {0}",
             "Neue Loci pro Tag: ganze Zahl von 0 bis {0}",
-            "Nouveaux lieux par jour : nombre entier de 0 à {0}",
+            "Nouveaux lieux par jour : nombre entier de 0 à {0}",
             "1 日あたりの新しい場所：0〜{0} の整数",
             "每天的新位置：0 到 {0} 的整数",
         ],
@@ -4519,7 +4419,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Sudden death: the round ended at the first wrong answer.",
             "Sudden Death: die Runde endete bei der ersten falschen Antwort.",
-            "Mort subite : la manche s'est arrêtée à la première mauvaise réponse.",
+            "Mort subite : la manche s'est arrêtée à la première mauvaise réponse.",
             "サドンデス：最初の不正解でラウンドが終わりました。",
             "突然死：本轮在第一次答错时结束。",
         ],
@@ -4879,7 +4779,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "On a phone, please import a .locora file; TOML with separate media needs a shared folder",
             "Auf dem Handy bitte eine .locora-Datei importieren; TOML mit separaten Medien benötigt einen gemeinsamen Ordner",
-            "Sur téléphone, importe un fichier .locora ; un TOML avec des médias séparés demande un dossier commun",
+            "Sur téléphone, importe un fichier .locora ; un TOML avec des médias séparés demande un dossier commun",
             "スマートフォンでは .locora ファイルをインポートしてください。メディアが別になった TOML には共通のフォルダーが必要です",
             "在手机上请导入 .locora 文件；带独立媒体的 TOML 需要共享文件夹",
         ],
@@ -4889,7 +4789,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "TOML folder export is only available on desktop; please export a .locora file",
             "TOML-Ordnerexport ist nur auf dem Desktop verfügbar; bitte .locora exportieren",
-            "L'export TOML vers un dossier n'existe que sur ordinateur ; exporte un fichier .locora",
+            "L'export TOML vers un dossier n'existe que sur ordinateur ; exporte un fichier .locora",
             "TOML のフォルダー書き出しはデスクトップ版だけです。.locora で書き出してください",
             "TOML 文件夹导出仅在桌面版可用；请导出 .locora 文件",
         ],
@@ -5419,7 +5319,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The cloud data has expired; it has to be rebuilt from local data",
             "Der Cloud-Bestand ist abgelaufen; ein Neuaufbau aus lokalen Daten ist nötig",
-            "Les données cloud ont expiré ; il faut les reconstruire à partir des données locales",
+            "Les données cloud ont expiré ; il faut les reconstruire à partir des données locales",
             "クラウドのデータは期限切れです。ローカルのデータから作り直す必要があります",
             "云端数据已过期；需要用本地数据重建",
         ],
@@ -5711,7 +5611,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "This device sends:",
             "Dieses Gerät sendet:",
-            "Cet appareil envoie :",
+            "Cet appareil envoie :",
             "この端末から送信するもの：",
             "此设备将发送：",
         ],
@@ -5731,7 +5631,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "From your other devices:",
             "Von deinen anderen Geräten:",
-            "De tes autres appareils :",
+            "De tes autres appareils :",
             "ほかの端末から：",
             "来自你的其他设备：",
         ],
@@ -5781,7 +5681,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Auto-sync is on: the app syncs when it starts, shortly after your changes and every ten minutes.",
             "Auto-Sync ist an: Die App synchronisiert beim Start, kurz nach deinen Änderungen und alle zehn Minuten.",
-            "La synchronisation automatique est active : l’app se synchronise au démarrage, peu après tes modifications et toutes les dix minutes.",
+            "La synchronisation automatique est active : l’app se synchronise au démarrage, peu après tes modifications et toutes les dix minutes.",
             "自動同期はオンです：起動時、変更の少しあと、そして10分ごとに同期します。",
             "自动同步已开启：应用会在启动时、你更改后不久以及每十分钟同步一次。",
         ],
@@ -5911,7 +5811,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Last synced: {0}",
             "Zuletzt synchronisiert: {0}",
-            "Dernière synchronisation : {0}",
+            "Dernière synchronisation : {0}",
             "最終同期：{0}",
             "上次同步：{0}",
         ],
@@ -5921,7 +5821,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Auto-sync is not working right now: {0}. The app will try again later.",
             "Auto-Sync klappt gerade nicht: {0}. Die App versucht es später noch einmal.",
-            "La synchronisation automatique ne fonctionne pas pour le moment : {0}. L’app réessaiera plus tard.",
+            "La synchronisation automatique ne fonctionne pas pour le moment : {0}. L’app réessaiera plus tard.",
             "自動同期は現在うまくいきません：{0}。あとでもう一度試します。",
             "自动同步暂时失败：{0}。应用稍后会再试。",
         ],
@@ -5931,7 +5831,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Forgot your password?",
             "Passwort vergessen?",
-            "Mot de passe oublié ?",
+            "Mot de passe oublié ?",
             "パスワードをお忘れですか？",
             "忘记密码？",
         ],
@@ -5981,7 +5881,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Please confirm your e-mail address: we sent you a link at {0}.",
             "Bitte bestätige deine E-Mail-Adresse: Wir haben dir einen Link an {0} geschickt.",
-            "Confirme ton adresse e-mail : nous t’avons envoyé un lien à {0}.",
+            "Confirme ton adresse e-mail : nous t’avons envoyé un lien à {0}.",
             "メールアドレスを確認してください：{0} にリンクを送りました。",
             "请确认你的电子邮件地址：我们已向 {0} 发送了一个链接。",
         ],
@@ -6031,7 +5931,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "This device has no secure key store, so auto-sync is not possible",
             "Auf diesem Gerät gibt es keinen sicheren Schlüsselspeicher. Auto-Sync ist deshalb nicht möglich",
-            "Cet appareil n’a pas de stockage de clés sécurisé ; la synchronisation automatique n’est donc pas possible",
+            "Cet appareil n’a pas de stockage de clés sécurisé ; la synchronisation automatique n’est donc pas possible",
             "この端末には安全な鍵保管庫がないため、自動同期は使えません",
             "此设备没有安全的密钥存储，因此无法使用自动同步",
         ],
@@ -6131,7 +6031,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "New achievement!",
             "Neuer Erfolg!",
-            "Nouveau succès !",
+            "Nouveau succès !",
             "新しい実績！",
             "新成就！",
         ],
@@ -6222,7 +6122,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Now walk your route once. Locora asks you place by place; reveal the answer and say how well you knew it.",
             "Geh deine Route jetzt einmal durch. Locora fragt dich Ort für Ort; deck auf und sag, wie gut du es wusstest.",
-            "Parcours maintenant ta route une fois. Locora te demande lieu par lieu ; révèle la réponse et dis si tu la savais bien.",
+            "Parcours maintenant ta route une fois. Locora te demande lieu par lieu ; révèle la réponse et dis si tu la savais bien.",
             "では、ルートを一度たどりましょう。Locora が場所ごとに質問します。答えを表示して、どれくらい覚えていたかを選んでください。",
             "现在把你的路线走一遍。Locora 会逐个地点提问；显示答案，然后说说你记得有多好。",
         ],
@@ -6232,7 +6132,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Done – your first own palace!",
             "Geschafft – dein erster eigener Palast!",
-            "Bravo – ton premier palais à toi !",
+            "Bravo – ton premier palais à toi !",
             "できました – 初めての自分の宮殿！",
             "完成了——你的第一座自己的宫殿！",
         ],
@@ -6285,7 +6185,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Step 1 of 3: set places",
             "Schritt 1 von 3: Orte setzen",
-            "Étape 1 sur 3 : placer les lieux",
+            "Étape 1 sur 3 : placer les lieux",
             "ステップ 1/3：場所を置く",
             "第 1 步（共 3 步）：放置地点",
         ],
@@ -6295,7 +6195,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Step 2 of 3: put down the shopping list",
             "Schritt 2 von 3: Einkaufsliste ablegen",
-            "Étape 2 sur 3 : ranger la liste de courses",
+            "Étape 2 sur 3 : ranger la liste de courses",
             "ステップ 2/3：買い物リストを置く",
             "第 2 步（共 3 步）：放好购物清单",
         ],
@@ -6305,7 +6205,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Step 3 of 3: walk the route",
             "Schritt 3 von 3: Route ablaufen",
-            "Étape 3 sur 3 : parcourir la route",
+            "Étape 3 sur 3 : parcourir la route",
             "ステップ 3/3：ルートをたどる",
             "第 3 步（共 3 步）：走一遍路线",
         ],
@@ -6416,7 +6316,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Well done! You now know all the techniques.",
             "Geschafft! Du kennst jetzt alle Techniken.",
-            "Bravo ! Tu connais maintenant toutes les techniques.",
+            "Bravo ! Tu connais maintenant toutes les techniques.",
             "おめでとう！これですべてのテクニックを覚えました。",
             "太棒了！你现在掌握了所有技巧。",
         ],
@@ -6540,7 +6440,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Right! The exercise is done.",
             "Richtig! Die Übung ist geschafft.",
-            "Juste ! L’exercice est réussi.",
+            "Juste ! L’exercice est réussi.",
             "正解！練習をクリアしました。",
             "答对了！练习完成。",
         ],
@@ -6570,7 +6470,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Simo and his friends congratulate you! The app tour now shows you how to do all this in Locora.",
             "Simo und seine Freunde gratulieren dir! Die App-Tour zeigt dir jetzt, wie du das alles in Locora machst.",
-            "Simo et ses amis te félicitent ! La visite de l’app te montre maintenant comment faire tout cela dans Locora.",
+            "Simo et ses amis te félicitent ! La visite de l’app te montre maintenant comment faire tout cela dans Locora.",
             "シモと仲間たちからおめでとう！次はアプリのツアーで、Locora でのやり方を見てみましょう。",
             "西莫和朋友们祝贺你！现在应用导览会告诉你怎样在 Locora 里做到这些。",
         ],
@@ -6644,7 +6544,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Wrong translation? Report it",
             "Übersetzung falsch? Melden",
-            "Traduction fausse ? Signaler",
+            "Traduction fausse ? Signaler",
             "翻訳がおかしい？報告する",
             "翻译有误？报告",
         ],
@@ -6734,7 +6634,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Best of all, it does something with the place: the milk splashes over the doormat, the bread bounces up and down on the sofa.",
             "Am besten tut es etwas mit dem Ort: Die Milch spritzt über die Fußmatte, das Brot hüpft auf dem Sofa auf und ab.",
-            "Le mieux, c’est qu’elle fasse quelque chose avec le lieu : le lait éclabousse le paillasson, le pain rebondit sur le canapé.",
+            "Le mieux, c’est qu’elle fasse quelque chose avec le lieu : le lait éclabousse le paillasson, le pain rebondit sur le canapé.",
             "いちばんいいのは、場所と一緒に何かをすることです：牛乳が玄関マットに飛び散り、パンがソファの上でぴょんぴょんはねます。",
             "最好是它和地点一起做点什么：牛奶溅满门垫，面包在沙发上蹦来蹦去。",
         ],
@@ -6744,7 +6644,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Feelings help too: something funny, disgusting or touching stays better than something we don't care about.",
             "Auch Gefühle helfen: Etwas Lustiges, Ekliges oder Rührendes merken wir uns besser als etwas, das uns egal ist.",
-            "Les émotions aident aussi : quelque chose de drôle, de dégoûtant ou d’émouvant se retient mieux que quelque chose qui nous est égal.",
+            "Les émotions aident aussi : quelque chose de drôle, de dégoûtant ou d’émouvant se retient mieux que quelque chose qui nous est égal.",
             "気持ちも役に立ちます：おかしいこと、気持ち悪いこと、心を動かされることは、どうでもいいことより覚えやすいのです。",
             "情感也有帮助：好笑的、恶心的或感人的东西，比我们无所谓的东西更容易记住。",
         ],
@@ -6754,7 +6654,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Simo's friends have names from history too: Mina after Mnemosyne, the Greek goddess of memory; Cami after Giulio Camillo and his “theatre of memory”; Bruno after Giordano Bruno, who wrote about the art of memory. Hafiza means “memory” in Turkish.",
             "Auch Simos Freunde tragen Namen aus der Geschichte: Mina nach Mnemosyne, der griechischen Göttin der Erinnerung; Cami nach Giulio Camillo und seinem „Gedächtnistheater“; Bruno nach Giordano Bruno, der über die Gedächtniskunst schrieb. Hafiza heißt auf Türkisch „Gedächtnis“.",
-            "Les amis de Simo portent aussi des noms tirés de l’histoire : Mina d’après Mnémosyne, la déesse grecque de la mémoire ; Cami d’après Giulio Camillo et son « théâtre de la mémoire » ; Bruno d’après Giordano Bruno, qui a écrit sur l’art de la mémoire. Hafiza veut dire « mémoire » en turc.",
+            "Les amis de Simo portent aussi des noms tirés de l’histoire : Mina d’après Mnémosyne, la déesse grecque de la mémoire ; Cami d’après Giulio Camillo et son « théâtre de la mémoire » ; Bruno d’après Giordano Bruno, qui a écrit sur l’art de la mémoire. Hafiza veut dire « mémoire » en turc.",
             "シモの友だちの名前も歴史から来ています：ミナは、ギリシャの記憶の女神ムネモシュネから。カミは、ジュリオ・カミッロと彼の「記憶の劇場」から。ブルーノは、記憶術について書いたジョルダーノ・ブルーノから。ハフィザはトルコ語で「記憶」という意味です。",
             "西莫的朋友们也有来自历史的名字：米娜来自希腊记忆女神摩涅莫辛涅（Mnemosyne）；卡米来自朱利奥·卡米洛（Giulio Camillo）和他的“记忆剧场”；布鲁诺来自写过记忆术的乔尔丹诺·布鲁诺（Giordano Bruno）。哈菲扎在土耳其语里是“记忆”的意思。",
         ],
@@ -6764,7 +6664,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "On the start page Locora shows what is due today; “Next ▶” starts the review. In the settings you can switch on reminders.",
             "Auf der Startseite zeigt Locora, was heute fällig ist; „Weiter ▶“ startet die Wiederholung. In den Einstellungen kannst du Erinnerungen einschalten.",
-            "Sur la page d’accueil, Locora montre ce qui est à revoir aujourd’hui ; « Suivant ▶ » lance la révision. Dans les réglages, tu peux activer des rappels.",
+            "Sur la page d’accueil, Locora montre ce qui est à revoir aujourd’hui ; « Suivant ▶ » lance la révision. Dans les réglages, tu peux activer des rappels.",
             "ホーム画面には、今日復習するものが表示されます。「次へ ▶」で復習が始まります。設定でリマインダーをオンにできます。",
             "在首页上，Locora 会显示今天该复习的内容；点“下一个 ▶”就开始复习。在设置里你可以打开提醒。",
         ],
@@ -6794,7 +6694,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Example: your shopping list says milk, bread and apples. A cow stands on your doormat, a giant loaf of bread lies on the sofa, and apples float in the bathtub.",
             "Beispiel: Auf deiner Einkaufsliste stehen Milch, Brot und Äpfel. Auf deiner Fußmatte steht eine Kuh, auf dem Sofa liegt ein riesiges Brot, und in der Badewanne schwimmen Äpfel.",
-            "Exemple : ta liste de courses dit : lait, pain et pommes. Une vache se tient sur ton paillasson, un pain géant est couché sur le canapé, et des pommes flottent dans la baignoire.",
+            "Exemple : ta liste de courses dit : lait, pain et pommes. Une vache se tient sur ton paillasson, un pain géant est couché sur le canapé, et des pommes flottent dans la baignoire.",
             "例：牛乳とパンとリンゴを買いたいとします。玄関マットの上に牛が立ち、ソファには巨大なパンが寝ころび、お風呂にはリンゴがぷかぷか浮いています。",
             "例子：你想买牛奶、面包和苹果。门垫上站着一头奶牛，沙发上躺着一个巨大的面包，浴缸里漂着苹果。",
         ],
@@ -6834,7 +6734,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Bruno takes his kitchen: door, fridge, stove, sink, window. Five places he could find in his sleep.",
             "Bruno nimmt seine Küche: Tür, Kühlschrank, Herd, Spüle, Fenster. Fünf Orte, die er im Schlaf findet.",
-            "Bruno prend sa cuisine : porte, frigo, cuisinière, évier, fenêtre. Cinq lieux qu’il trouverait les yeux fermés.",
+            "Bruno prend sa cuisine : porte, frigo, cuisinière, évier, fenêtre. Cinq lieux qu’il trouverait les yeux fermés.",
             "ブルーノは自分の台所を使います：ドア、冷蔵庫、コンロ、流し、窓。目をつぶっていても見つけられる5つの場所です。",
             "布鲁诺用的是他的厨房：门、冰箱、灶台、水池、窗户。这五个地点他闭着眼睛都能找到。",
         ],
@@ -6844,7 +6744,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Bruno: kitchen = shopping (new every week), living room = birthdays (for good), way to work = next week's talk.",
             "Bruno: Küche = Einkauf (jede Woche neu), Wohnzimmer = Geburtstage (für immer), Weg zur Arbeit = Vortrag nächste Woche.",
-            "Bruno : cuisine = courses (nouvelles chaque semaine), salon = anniversaires (pour toujours), chemin du travail = exposé de la semaine prochaine.",
+            "Bruno : cuisine = courses (nouvelles chaque semaine), salon = anniversaires (pour toujours), chemin du travail = exposé de la semaine prochaine.",
             "ブルーノ：台所 = 買い物（毎週新しく）、居間 = 誕生日（ずっと）、通勤路 = 来週の発表。",
             "布鲁诺：厨房 = 购物清单（每周换新），客厅 = 生日（永久保存），上班的路 = 下周的报告。",
         ],
@@ -6864,7 +6764,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Then check: is it right? If a picture is missing, look it up and make it a bit crazier. Next time it will stick.",
             "Dann prüf: Stimmt es? Fehlt ein Bild, schau nach und mach es noch etwas verrückter. Beim nächsten Mal sitzt es.",
-            "Puis vérifie : est-ce juste ? Si une image manque, regarde-la et rends-la encore un peu plus folle. La prochaine fois, elle restera.",
+            "Puis vérifie : est-ce juste ? Si une image manque, regarde-la et rends-la encore un peu plus folle. La prochaine fois, elle restera.",
             "それから確かめます：合っていますか？イメージが抜けていたら、見直して、もう少しへんてこにしましょう。次はきっと覚えています。",
             "然后检查：对吗？如果少了一个画面，就去看一下，再把它变得更疯狂一点。下次就记住了。",
         ],
@@ -6874,7 +6774,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "So: exaggerate! Make things huge or tiny, take a hundred instead of one, or let them do something they would never do.",
             "Darum: Übertreib! Mach Dinge riesig oder winzig, nimm statt einem gleich hundert, oder lass sie etwas tun, was sie nie tun würden.",
-            "Alors : exagère ! Rends les choses énormes ou minuscules, prends-en cent au lieu d’une, ou fais-leur faire quelque chose qu’elles ne feraient jamais.",
+            "Alors : exagère ! Rends les choses énormes ou minuscules, prends-en cent au lieu d’une, ou fais-leur faire quelque chose qu’elles ne feraient jamais.",
             "だから、大げさにしましょう！ものを巨大にしたり、とても小さくしたり、1つではなく100個にしたり、ふだんは絶対しないことをさせたりします。",
             "所以：夸张一点！把东西变得巨大或者极小，一个不够就来一百个，或者让它们做些平时绝不会做的事。",
         ],
@@ -6894,7 +6794,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The picture should be concrete: not “fruit”, but one particular red, shiny apple. The more clearly you see it, the better.",
             "Das Bild soll konkret sein: nicht „Obst“, sondern ein bestimmter, roter, glänzender Apfel. Je genauer du es siehst, desto besser.",
-            "L’image doit être concrète : pas « des fruits », mais une pomme précise, rouge et brillante. Plus tu la vois clairement, mieux c’est.",
+            "L’image doit être concrète : pas « des fruits », mais une pomme précise, rouge et brillante. Plus tu la vois clairement, mieux c’est.",
             "イメージは具体的に：「果物」ではなく、赤くてつやつやした、ある1つのリンゴ。はっきり見えるほど、よく覚えられます。",
             "画面要具体：不是“水果”，而是一个特定的、红红的、亮亮的苹果。你看得越清楚越好。",
         ],
@@ -6904,7 +6804,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The picture does something to the place, or the place to the picture: the toaster pops the glasses up, the door traps the key.",
             "Das Bild tut etwas mit dem Ort oder der Ort mit dem Bild: Der Toaster wirft die Brille hoch, die Tür klemmt den Schlüssel ein.",
-            "L’image fait quelque chose au lieu, ou le lieu à l’image : le grille-pain fait sauter les lunettes, la porte coince la clé.",
+            "L’image fait quelque chose au lieu, ou le lieu à l’image : le grille-pain fait sauter les lunettes, la porte coince la clé.",
             "イメージが場所に何かをするか、場所がイメージに何かをします：トースターがメガネをポンと飛ばし、ドアが鍵をはさみます。",
             "画面对地点做点什么，或者地点对画面做点什么：烤面包机把眼镜弹了出来，门把钥匙夹住了。",
         ],
@@ -6924,7 +6824,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "This is called spaced repetition. Locora plans it for you with the FSRS method: it keeps track of how well you knew each place.",
             "Das heißt verteiltes Wiederholen (Spaced Repetition). Locora plant es für dich mit dem Verfahren FSRS: Es merkt sich, wie gut du jeden Ort wusstest.",
-            "C’est ce qu’on appelle la répétition espacée. Locora la planifie pour toi avec la méthode FSRS : elle retient à quel point tu connaissais bien chaque lieu.",
+            "C’est ce qu’on appelle la répétition espacée. Locora la planifie pour toi avec la méthode FSRS : elle retient à quel point tu connaissais bien chaque lieu.",
             "これを「間隔反復」（スペースド・リピティション）といいます。LocoraはFSRSという方法で予定を立てます。それぞれの場所をどのくらい覚えていたかを記録しているのです。",
             "这叫间隔重复。Locora 用 FSRS 方法帮你安排：它会记下你对每个地点记得有多好。",
         ],
@@ -6954,7 +6854,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Think of Cami: concrete, colourful and at one particular place.",
             "Denk an Cami: konkret, farbig und an einem bestimmten Ort.",
-            "Pense à Cami : concret, coloré et à un endroit précis.",
+            "Pense à Cami : concret, coloré et à un endroit précis.",
             "カミを思い出して：具体的で、色があって、決まった場所にあること。",
             "想想卡米：具体、有颜色，而且在一个固定的地方。",
         ],
@@ -6964,7 +6864,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Think of Hafiza's stopwatch: the right moment counts.",
             "Denk an Hafizas Stoppuhr: Der richtige Zeitpunkt zählt.",
-            "Pense au chronomètre de Hafiza : c’est le bon moment qui compte.",
+            "Pense au chronomètre de Hafiza : c’est le bon moment qui compte.",
             "ハフィザのストップウォッチを思い出して：大切なのはタイミングです。",
             "想想哈菲扎的秒表：关键是时机。",
         ],
@@ -6974,7 +6874,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Think of three places you know really well. Which one would be your first palace?",
             "Denk an drei Orte, die du richtig gut kennst. Welcher davon wäre dein erster Palast?",
-            "Pense à trois endroits que tu connais vraiment bien. Lequel serait ton premier palais ?",
+            "Pense à trois endroits que tu connais vraiment bien. Lequel serait ton premier palais ?",
             "本当によく知っている場所を3つ思い浮かべてください。最初の宮殿にするならどれですか？",
             "想三个你特别熟悉的地方。哪一个可以当你的第一座宫殿？",
         ],
@@ -6984,7 +6884,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Think of a picture you made today. Is it crazy enough? Make it a little crazier still.",
             "Denk an ein Bild, das du heute gemacht hast. Ist es verrückt genug? Mach es noch ein bisschen verrückter.",
-            "Pense à une image que tu as faite aujourd’hui. Est-elle assez folle ? Rends-la encore un peu plus folle.",
+            "Pense à une image que tu as faite aujourd’hui. Est-elle assez folle ? Rends-la encore un peu plus folle.",
             "今日作ったイメージを1つ思い出してください。十分へんてこですか？もう少しへんてこにしてみましょう。",
             "想一个你今天做的画面。它够疯狂吗？再让它疯狂一点。",
         ],
@@ -6994,7 +6894,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Think of fresh bread: how does it smell? How does the crust crackle when you bite into it?",
             "Denk an frisches Brot: Wie riecht es? Wie knackt die Kruste, wenn du hineinbeißt?",
-            "Pense à du pain frais : quelle odeur a-t-il ? Comment craque la croûte quand tu croques dedans ?",
+            "Pense à du pain frais : quelle odeur a-t-il ? Comment craque la croûte quand tu croques dedans ?",
             "焼きたてのパンを思い浮かべて：どんなにおいがしますか？かじると皮はどんな音でパリッと鳴りますか？",
             "想想刚出炉的面包：它闻起来怎么样？你咬下去时，外皮怎么咔嚓作响？",
         ],
@@ -7024,7 +6924,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "The capital of Australia is Canberra: a can sits on a giant berry, and a kangaroo jumps out of it.",
             "Die Hauptstadt von Australien ist Canberra: Eine Kanne steht auf einem Berg, und ein Känguru springt heraus.",
-            "La capitale de l’Australie est Canberra : une canne est posée sur une barre, et un kangourou saute par-dessus.",
+            "La capitale de l’Australie est Canberra : une canne est posée sur une barre, et un kangourou saute par-dessus.",
             "オーストラリアの首都はキャンベラ：缶（キャン）をかかえたカンガルーが、ベラベラしゃべっています。",
             "澳大利亚的首都是堪培拉：一只袋鼠一边看（堪）报纸，一边啃培（培）根，一边拉（拉）小提琴。",
         ],
@@ -7094,7 +6994,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "You need stamps: a stamp as big as your front door is stuck over it, and you have to squeeze past it.",
             "Du brauchst Briefmarken: Eine Briefmarke, so groß wie deine Haustür, klebt davor, und du musst dich daran vorbeiquetschen.",
-            "Il te faut des timbres : un timbre aussi grand que ta porte d’entrée est collé devant, et tu dois te faufiler à côté.",
+            "Il te faut des timbres : un timbre aussi grand que ta porte d’entrée est collé devant, et tu dois te faufiler à côté.",
             "切手を買わなければいけません：玄関のドアと同じくらい大きな切手がドアの前に貼ってあって、その横を体をよじって通り抜けます。",
             "你要买邮票：一张跟家门一样大的邮票贴在门前，你得挤着身子才能过去。",
         ],
@@ -7114,7 +7014,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "You don't have to learn it – you know it already. That is the whole trick: your memory for places is ready to use.",
             "Du musst ihn nicht neu lernen – du kennst ihn schon. Das ist der ganze Trick: Das Gedächtnis für Orte ist schon fertig.",
-            "Tu n’as pas besoin de l’apprendre – tu le connais déjà. C’est tout le secret : ta mémoire des lieux est déjà prête.",
+            "Tu n’as pas besoin de l’apprendre – tu le connais déjà. C’est tout le secret : ta mémoire des lieux est déjà prête.",
             "新しく覚える必要はありません。もう知っているのですから。それがコツのすべてです：場所の記憶は、もうできあがっています。",
             "你不用重新去学——你早就熟悉了。这就是全部的诀窍：你对地点的记忆早已准备好了。",
         ],
@@ -7124,7 +7024,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "You want to remember your family's birthdays for good. What do you do?",
             "Du willst dir die Geburtstage deiner Familie für immer merken. Was tust du?",
-            "Tu veux retenir pour toujours les anniversaires de ta famille. Que fais-tu ?",
+            "Tu veux retenir pour toujours les anniversaires de ta famille. Que fais-tu ?",
             "家族の誕生日をずっと覚えておきたいとします。どうしますか？",
             "你想永远记住家人的生日。你会怎么做？",
         ],
@@ -7134,7 +7034,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "An everyday picture is too tame. Which one would surprise you?",
             "Ein Bild aus dem Alltag ist zu brav. Welches würde dich überraschen?",
-            "Une image du quotidien est trop sage. Laquelle te surprendrait ?",
+            "Une image du quotidien est trop sage. Laquelle te surprendrait ?",
             "ふだんのイメージはおとなしすぎます。どれならびっくりしますか？",
             "日常的画面太平淡了。哪个会让你吃惊？",
         ],
@@ -7154,7 +7054,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "A picture gets stronger when you do more than look. What do you hear? What do you smell? How does it feel?",
             "Ein Bild wird stärker, wenn du nicht nur hinschaust. Was hörst du? Was riechst du? Wie fühlt es sich an?",
-            "Une image devient plus forte quand tu ne fais pas que regarder. Qu’entends-tu ? Que sens-tu ? Quelle sensation au toucher ?",
+            "Une image devient plus forte quand tu ne fais pas que regarder. Qu’entends-tu ? Que sens-tu ? Quelle sensation au toucher ?",
             "見るだけでなく、ほかの感覚も使うとイメージは強くなります。何が聞こえますか？どんなにおいですか？さわるとどんな感じですか？",
             "不只是看，画面就会更有力。你听到什么？闻到什么？摸起来是什么感觉？",
         ],
@@ -7214,7 +7114,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "A memory palace is a real place you know well: your home, your parents' house, your way to school, your workplace, a park.",
             "Ein Gedächtnispalast ist ein echter Ort, den du gut kennst: deine Wohnung, das Haus deiner Eltern, dein Schulweg, dein Arbeitsplatz, ein Park.",
-            "Un palais de la mémoire est un vrai lieu que tu connais bien : ton logement, la maison de tes parents, ton chemin de l’école, ton lieu de travail, un parc.",
+            "Un palais de la mémoire est un vrai lieu que tu connais bien : ton logement, la maison de tes parents, ton chemin de l’école, ton lieu de travail, un parc.",
             "記憶の宮殿は、よく知っている本当の場所です：自分の家、実家、学校への道、職場、公園。",
             "记忆宫殿是一个你熟悉的真实地方：你的家、父母的房子、上学的路、工作的地方、一个公园。",
         ],
@@ -7254,7 +7154,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "A tip: Simo carries his name.",
             "Ein Tipp: Simo trägt seinen Namen.",
-            "Un indice : Simo porte son nom.",
+            "Un indice : Simo porte son nom.",
             "ヒント：シモの名前はこの人から来ています。",
             "提示：西莫的名字就来自他。",
         ],
@@ -7348,7 +7248,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "A well-known discipline: memorising a shuffled deck of cards as fast as possible. The best do it in under 20 seconds.",
             "Eine bekannte Disziplin: ein gemischtes Kartenspiel so schnell wie möglich merken. Die Besten schaffen das in weniger als 20 Sekunden.",
-            "Une épreuve connue : retenir un jeu de cartes mélangé le plus vite possible. Les meilleurs y arrivent en moins de 20 secondes.",
+            "Une épreuve connue : retenir un jeu de cartes mélangé le plus vite possible. Les meilleurs y arrivent en moins de 20 secondes.",
             "よく知られた種目：よく切ったトランプ1組をできるだけ速く覚えます。トップの人は20秒もかかりません。",
             "一个有名的项目：尽快记住一副洗乱的扑克牌。最厉害的人不到 20 秒就能做到。",
         ],
@@ -7398,7 +7298,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "There are also number rhymes, where the number and the picture rhyme. Experts use the Major system: each digit becomes a sound, and the sounds make words. It takes practice – a good next step.",
             "Es gibt auch Zahl-Reime, bei denen sich Zahl und Bild reimen. Profis nutzen das Major-System: Jede Ziffer wird ein Laut, und aus den Lauten werden Wörter. Das braucht Übung – ein guter nächster Schritt.",
-            "Il existe aussi des rimes de nombres, où le nombre et l’image riment. Les experts utilisent le système majeur : chaque chiffre devient un son, et les sons forment des mots. Ça demande de l’entraînement – une bonne étape suivante.",
+            "Il existe aussi des rimes de nombres, où le nombre et l’image riment. Les experts utilisent le système majeur : chaque chiffre devient un son, et les sons forment des mots. Ça demande de l’entraînement – une bonne étape suivante.",
             "数字の語呂合わせもあります。数字の読み方と音の似た言葉をイメージにするのです。上級者は「メジャー法」を使います：数字ごとに音を決めて、その音から言葉を作ります。練習が必要ですが、次の一歩にぴったりです。",
             "还有数字谐音，就是数字的读音和画面听起来很像。高手会用“Major 系统”：每个数字变成一个音，再由这些音组成词。这需要练习——是个不错的下一步。",
         ],
@@ -7448,7 +7348,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Almost! Think of Simo's example: the cow on the doormat, the bread on the sofa …",
             "Fast! Denk an Simos Beispiel: die Kuh auf der Fußmatte, das Brot auf dem Sofa …",
-            "Presque ! Pense à l’exemple de Simo : la vache sur le paillasson, le pain sur le canapé …",
+            "Presque ! Pense à l’exemple de Simo : la vache sur le paillasson, le pain sur le canapé …",
             "おしい！シモの例を思い出して：玄関マットの上の牛、ソファの上のパン …",
             "差一点！想想西莫的例子：门垫上的奶牛，沙发上的面包 …",
         ],
@@ -7468,7 +7368,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Ask yourself: what happens when exactly this thing is exactly here?",
             "Frag dich: Was passiert, wenn genau dieses Ding genau hier ist?",
-            "Demande-toi : qu’est-ce qui se passe quand exactement cette chose est exactement ici ?",
+            "Demande-toi : qu’est-ce qui se passe quand exactement cette chose est exactement ici ?",
             "自分に聞いてみましょう：まさにこの物が、まさにここにあったら、何が起きる？",
             "问问自己：如果正是这个东西正好在这里，会发生什么？",
         ],
@@ -7498,7 +7398,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Which digit does the snowman stand for?",
             "Für welche Ziffer steht der Schneemann?",
-            "Quel chiffre le bonhomme de neige représente-t-il ?",
+            "Quel chiffre le bonhomme de neige représente-t-il ?",
             "雪だるまはどの数字を表していますか？",
             "雪人代表哪个数字？",
         ],
@@ -7538,7 +7438,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Walk Simo's route in your mind: doormat, sofa, bathtub. What was where?",
             "Geh Simos Route im Kopf: Fußmatte, Sofa, Badewanne. Was war wo?",
-            "Parcours la route de Simo dans ta tête : paillasson, canapé, baignoire. Qu’est-ce qui était où ?",
+            "Parcours la route de Simo dans ta tête : paillasson, canapé, baignoire. Qu’est-ce qui était où ?",
             "シモのルートを頭の中でたどりましょう：玄関マット、ソファ、お風呂。どこに何がありましたか？",
             "在脑海里走一遍西莫的路线：门垫、沙发、浴缸。哪里有什么？",
         ],
@@ -7558,7 +7458,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Go slowly. Stop briefly at each place and ask yourself: what is here? Wait until the picture appears.",
             "Geh langsam. Bleib an jedem Ort kurz stehen und frag dich: Was ist hier? Warte, bis das Bild auftaucht.",
-            "Va lentement. Arrête-toi un instant à chaque lieu et demande-toi : qu’est-ce qu’il y a ici ? Attends que l’image apparaisse.",
+            "Va lentement. Arrête-toi un instant à chaque lieu et demande-toi : qu’est-ce qu’il y a ici ? Attends que l’image apparaisse.",
             "ゆっくり進みましょう。場所ごとに少し立ち止まって、自分に聞きます：ここには何がある？イメージが浮かぶまで待ちましょう。",
             "慢慢走。在每个地点停一下，问问自己：这里有什么？等画面浮现出来。",
         ],
@@ -7568,7 +7468,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Set off once more: first the doormat, then the sofa …",
             "Geh noch einmal los: erst die Fußmatte, dann das Sofa …",
-            "Repars encore une fois : d’abord le paillasson, puis le canapé …",
+            "Repars encore une fois : d’abord le paillasson, puis le canapé …",
             "もう一度歩いてみましょう：まず玄関マット、それからソファ …",
             "再走一遍：先是门垫，然后是沙发 …",
         ],
@@ -7588,7 +7488,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "History: Simonides",
             "Geschichte: Simonides",
-            "Histoire : Simonide",
+            "Histoire : Simonide",
             "歴史：シモニデス",
             "历史：西摩尼得斯",
         ],
@@ -7598,7 +7498,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Good: door → coat hooks → mirror → shoe rack → lamp. Bad: chair 1 → chair 2 → chair 3.",
             "Gut: Tür → Garderobe → Spiegel → Schuhregal → Lampe. Schlecht: Stuhl 1 → Stuhl 2 → Stuhl 3.",
-            "Bien : porte → portemanteau → miroir → étagère à chaussures → lampe. Mauvais : chaise 1 → chaise 2 → chaise 3.",
+            "Bien : porte → portemanteau → miroir → étagère à chaussures → lampe. Mauvais : chaise 1 → chaise 2 → chaise 3.",
             "よい例：ドア → コート掛け → 鏡 → 靴箱 → ランプ。悪い例：いす1 → いす2 → いす3。",
             "好：门 → 衣帽架 → 镜子 → 鞋架 → 灯。不好：椅子 1 → 椅子 2 → 椅子 3。",
         ],
@@ -7608,7 +7508,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Good places stand out and differ from each other: door, sofa, lamp, window. Two identical chairs side by side are easily mixed up.",
             "Gute Orte fallen auf und sind verschieden: Tür, Sofa, Lampe, Fenster. Zwei gleiche Stühle nebeneinander verwechselt man leicht.",
-            "Les bons lieux se remarquent et sont différents : porte, canapé, lampe, fenêtre. Deux chaises identiques côte à côte, on les confond facilement.",
+            "Les bons lieux se remarquent et sont différents : porte, canapé, lampe, fenêtre. Deux chaises identiques côte à côte, on les confond facilement.",
             "いい場所は目立って、それぞれ違います：ドア、ソファ、ランプ、窓。同じいすが2つ並んでいると、すぐに取りちがえます。",
             "好的地点显眼又各不相同：门、沙发、灯、窗户。两把一样的椅子并排放着，很容易弄混。",
         ],
@@ -7858,7 +7758,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Getting coffee: a lake of coffee bubbles on the sofa, it smells strong, the cushions are warm and wet – and a duck swims around on it.",
             "Kaffee besorgen: Auf dem Sofa blubbert ein See aus Kaffee, es duftet stark, die Polster sind warm und nass – und eine Ente schwimmt darauf herum.",
-            "Prendre du café : sur le canapé bouillonne un lac de café, ça sent fort, les coussins sont chauds et mouillés – et un canard y barbote.",
+            "Prendre du café : sur le canapé bouillonne un lac de café, ça sent fort, les coussins sont chauds et mouillés – et un canard y barbote.",
             "コーヒーを買う：ソファの上でコーヒーの湖がぶくぶく泡立ち、強い香りがして、クッションは温かくてびしょびしょ。そこをアヒルがすいすい泳いでいます。",
             "买咖啡：沙发上冒着泡的是一湖咖啡，香味很浓，坐垫又热又湿——还有一只鸭子在上面划来划去。",
         ],
@@ -7868,7 +7768,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Sound-alike: what sounds similar? “Baker” becomes a man in a white hat pulling bread from an oven. A foreign word you break into parts you can see.",
             "Klangbild: Was klingt ähnlich? „Bergmann“ wird ein Mann mit Helm auf einem Berg. Ein fremdes Wort zerlegst du in Teile, die du sehen kannst.",
-            "Sonorité : qu’est-ce qui sonne pareil ? « Boulanger » devient un homme en toque blanche qui sort du pain du four. Un mot étranger, tu le découpes en morceaux que tu peux voir.",
+            "Sonorité : qu’est-ce qui sonne pareil ? « Boulanger » devient un homme en toque blanche qui sort du pain du four. Un mot étranger, tu le découpes en morceaux que tu peux voir.",
             "似た音や意味：何が思い浮かぶ？「山田さん」は、山の上の田んぼに立っている人になります。外国の言葉は、目に見える部分に分けましょう。",
             "谐音：什么听起来像？“马先生”就变成一个骑着马的男人。陌生的词，你可以拆成几个看得见的部分。",
         ],
@@ -7898,7 +7798,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Let your picture do something: it jumps, explodes, dances, melts or runs away.",
             "Lass dein Bild etwas tun: Es springt, explodiert, tanzt, schmilzt oder rennt davon.",
-            "Fais faire quelque chose à ton image : elle saute, explose, danse, fond ou s’enfuit.",
+            "Fais faire quelque chose à ton image : elle saute, explose, danse, fond ou s’enfuit.",
             "イメージに何かをさせましょう：跳ぶ、爆発する、踊る、溶ける、走って逃げる。",
             "让你的画面做点什么：它跳起来、爆炸、跳舞、融化，或者逃跑。",
         ],
@@ -7948,7 +7848,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Make a picture for the word “patience”. Tip: who is especially patient – a snail? Someone fishing?",
             "Mach ein Bild für das Wort „Geduld“. Tipp: Wer ist besonders geduldig – eine Schnecke? Ein Angler?",
-            "Fais une image pour le mot « patience ». Astuce : qui est particulièrement patient – un escargot ? Un pêcheur à la ligne ?",
+            "Fais une image pour le mot « patience ». Astuce : qui est particulièrement patient – un escargot ? Un pêcheur à la ligne ?",
             "「忍耐」という言葉のイメージを作りましょう。ヒント：とくに辛抱強いのはだれ？カタツムリ？釣りをしている人？",
             "为“耐心”这个词做一个画面。提示：谁特别有耐心——蜗牛？还是钓鱼的人？",
         ],
@@ -7978,7 +7878,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "In 20 seconds, memorise: hat, fish, guitar, candle, cloud – put them at five places in your room.",
             "Merk dir in 20 Sekunden: Hut, Fisch, Gitarre, Kerze, Wolke – leg sie an fünf Orte in deinem Zimmer.",
-            "En 20 secondes, retiens : chapeau, poisson, guitare, bougie, nuage – place-les sur cinq lieux de ta pièce.",
+            "En 20 secondes, retiens : chapeau, poisson, guitare, bougie, nuage – place-les sur cinq lieux de ta pièce.",
             "20秒で覚えましょう：帽子、魚、ギター、ろうそく、雲。部屋の5つの場所に置いてみてください。",
             "用 20 秒记住：帽子、鱼、吉他、蜡烛、云——把它们放到你房间里的五个地点上。",
         ],
@@ -7988,7 +7888,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Mina stresses: it works through practice – and anyone can learn it.",
             "Mina betont: Es wirkt durch Üben – und jeder kann es lernen.",
-            "Mina insiste : ça marche grâce à l’entraînement – et tout le monde peut l’apprendre.",
+            "Mina insiste : ça marche grâce à l’entraînement – et tout le monde peut l’apprendre.",
             "ミナは強調します：練習すれば効果が出ます。そして、だれでも身につけられます。",
             "米娜强调：它靠练习才有效——而且人人都能学会。",
         ],
@@ -7998,7 +7898,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Mina says: “I once took twenty chairs as places. Afterwards I never knew what sat on which chair!”",
             "Mina erzählt: „Ich habe einmal zwanzig Stühle als Orte genommen. Danach wusste ich nie, auf welchem Stuhl was saß!“",
-            "Mina raconte : « Une fois, j’ai pris vingt chaises comme lieux. Après, je ne savais jamais ce qui était assis sur quelle chaise ! »",
+            "Mina raconte : « Une fois, j’ai pris vingt chaises comme lieux. Après, je ne savais jamais ce qui était assis sur quelle chaise ! »",
             "ミナの話：「前に、いす20脚を場所にしたことがあるの。そのあと、どのいすに何が座っていたのか、さっぱりわからなくなって！」",
             "米娜说：“我有一次拿二十把椅子当地点。后来我根本不知道哪把椅子上坐的是什么！”",
         ],
@@ -8008,7 +7908,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Over time you collect several palaces: home, work, the way to school, a favourite park. Give each one a topic.",
             "Mit der Zeit sammelst du mehrere Paläste: Wohnung, Arbeit, Schulweg, Lieblingspark. Gib jedem ein Thema.",
-            "Avec le temps, tu rassembles plusieurs palais : logement, travail, chemin de l’école, parc préféré. Donne un thème à chacun.",
+            "Avec le temps, tu rassembles plusieurs palais : logement, travail, chemin de l’école, parc préféré. Donne un thème à chacun.",
             "だんだん宮殿が増えていきます：家、職場、学校への道、お気に入りの公園。それぞれにテーマを決めましょう。",
             "慢慢地你会攒下好几座宫殿：家、单位、上学的路、最喜欢的公园。给每一座定一个主题。",
         ],
@@ -8028,7 +7928,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Not repeating: even the best picture fades without repetition. And always walk the route in the same direction.",
             "Nicht wiederholen: Auch das beste Bild verblasst ohne Wiederholung. Und geh die Route immer in derselben Richtung.",
-            "Ne pas répéter : même la meilleure image s’efface sans répétition. Et parcours toujours la route dans le même sens.",
+            "Ne pas répéter : même la meilleure image s’efface sans répétition. Et parcours toujours la route dans le même sens.",
             "復習しない：どんなにいいイメージも、復習しないと薄れていきます。それから、ルートはいつも同じ向きでたどりましょう。",
             "不复习：再好的画面，不复习也会淡去。还有，路线要总是按同一个方向走。",
         ],
@@ -8038,7 +7938,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Give each picture two or three seconds: what colour is it? How big is it? Where exactly is it?",
             "Nimm dir für jedes Bild zwei, drei Sekunden: Welche Farbe hat es? Wie groß ist es? Wo genau liegt es?",
-            "Prends deux ou trois secondes pour chaque image : de quelle couleur est-elle ? Quelle taille a-t-elle ? Où est-elle exactement ?",
+            "Prends deux ou trois secondes pour chaque image : de quelle couleur est-elle ? Quelle taille a-t-elle ? Où est-elle exactement ?",
             "1つのイメージに2〜3秒かけましょう：何色ですか？大きさは？正確にはどこにありますか？",
             "每个画面花两三秒：它是什么颜色？有多大？具体在哪里？",
         ],
@@ -8058,7 +7958,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Take a key and, in your mind, make it as big as a car. Where does it park?",
             "Nimm einen Schlüssel und mach ihn in Gedanken so groß wie ein Auto. Wo parkt er?",
-            "Prends une clé et, en pensée, rends-la aussi grande qu’une voiture. Où se gare-t-elle ?",
+            "Prends une clé et, en pensée, rends-la aussi grande qu’une voiture. Où se gare-t-elle ?",
             "鍵を1つ思い浮かべて、頭の中で車くらいの大きさにしてみましょう。どこに駐車しますか？",
             "拿一把钥匙，在脑海里把它变得像汽车一样大。它停在哪里？",
         ],
@@ -8108,7 +8008,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Place: fridge. Content: tomatoes. Not “tomatoes lie in front of it”, but: you open the fridge and an avalanche of tomatoes rolls out at you.",
             "Ort: Kühlschrank. Inhalt: Tomaten. Nicht „Tomaten liegen davor“, sondern: Du öffnest den Kühlschrank, und eine Lawine Tomaten rollt dir entgegen.",
-            "Lieu : le frigo. Contenu : des tomates. Pas « des tomates sont posées devant », mais : tu ouvres le frigo, et une avalanche de tomates roule vers toi.",
+            "Lieu : le frigo. Contenu : des tomates. Pas « des tomates sont posées devant », mais : tu ouvres le frigo, et une avalanche de tomates roule vers toi.",
             "場所：冷蔵庫。内容：トマト。「前にトマトが置いてある」ではなく、冷蔵庫を開けたら、トマトがなだれのように転がり出てくるのです。",
             "地点：冰箱。内容：西红柿。不是“西红柿放在冰箱前面”，而是：你一打开冰箱，西红柿就像雪崩一样朝你滚过来。",
         ],
@@ -8118,7 +8018,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Place: washing machine. Content: cat. Which picture links the two best?",
             "Ort: Waschmaschine. Inhalt: Katze. Welches Bild verknüpft beides am besten?",
-            "Lieu : la machine à laver. Contenu : un chat. Quelle image relie le mieux les deux ?",
+            "Lieu : la machine à laver. Contenu : un chat. Quelle image relie le mieux les deux ?",
             "場所：洗濯機。内容：ネコ。両方をいちばんよく結びつけるイメージはどれですか？",
             "地点：洗衣机。内容：猫。哪个画面把两者连得最好？",
         ],
@@ -8128,7 +8028,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Place: your bed. Content: an umbrella. Make up what the umbrella does with the bed.",
             "Ort: dein Bett. Inhalt: ein Regenschirm. Denk dir aus, was der Regenschirm mit dem Bett macht.",
-            "Lieu : ton lit. Contenu : un parapluie. Invente ce que le parapluie fait avec le lit.",
+            "Lieu : ton lit. Contenu : un parapluie. Invente ce que le parapluie fait avec le lit.",
             "場所：あなたのベッド。内容：かさ。かさがベッドで何をするか、考えてみましょう。",
             "地点：你的床。内容：一把雨伞。想一想雨伞会对床做什么。",
         ],
@@ -8148,7 +8048,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "PIN 1-2-8-0: a candle (1) singes a swan's (2) feathers. It flees to a snowman (8) who is hatching an egg (0).",
             "PIN 1-2-8-0: Eine Kerze (1) sengt einem Schwan (2) die Federn an. Er flüchtet zu einem Schneemann (8), der ein Ei (0) ausbrütet.",
-            "Code PIN 1-2-8-0 : une bougie (1) roussit les plumes d’un cygne (2). Il s’enfuit vers un bonhomme de neige (8) qui couve un œuf (0).",
+            "Code PIN 1-2-8-0 : une bougie (1) roussit les plumes d’un cygne (2). Il s’enfuit vers un bonhomme de neige (8) qui couve un œuf (0).",
             "暗証番号 1-2-8-0：ろうそく（1）が白鳥（2）の羽をこがします。白鳥は、卵（0）をあたためている雪だるま（8）のところへ逃げていきます。",
             "密码 1-2-8-0：一根蜡烛（1）烧焦了天鹅（2）的羽毛。天鹅逃到一个雪人（8）那里，雪人正在孵一个蛋（0）。",
         ],
@@ -8178,7 +8078,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Look around: choose five places in your room, clockwise, and count them off quietly.",
             "Schau dich um: Wähle in deinem Zimmer fünf Orte im Uhrzeigersinn und zähl sie leise auf.",
-            "Regarde autour de toi : choisis cinq lieux dans ta pièce, dans le sens des aiguilles d’une montre, et compte-les doucement.",
+            "Regarde autour de toi : choisis cinq lieux dans ta pièce, dans le sens des aiguilles d’une montre, et compte-les doucement.",
             "まわりを見てみましょう：部屋の中で時計回りに5つの場所を選び、小さな声で数えます。",
             "看看四周：在你的房间里按顺时针方向选五个地点，小声地数一遍。",
         ],
@@ -8188,7 +8088,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Look at the shape: two balls on top of each other.",
             "Schau dir die Form an: zwei Kugeln übereinander.",
-            "Regarde la forme : deux boules l’une sur l’autre.",
+            "Regarde la forme : deux boules l’une sur l’autre.",
             "形を見てみましょう：玉が2つ重なっています。",
             "看看形状：两个球上下叠在一起。",
         ],
@@ -8198,7 +8098,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Close your eyes for a moment and walk in your mind from your front door to the kitchen. Which three things do you pass on the way?",
             "Schließ kurz die Augen und geh in Gedanken von deiner Haustür in die Küche. Welche drei Dinge siehst du unterwegs?",
-            "Ferme un instant les yeux et va en pensée de ta porte d’entrée jusqu’à la cuisine. Quelles trois choses vois-tu en chemin ?",
+            "Ferme un instant les yeux et va en pensée de ta porte d’entrée jusqu’à la cuisine. Quelles trois choses vois-tu en chemin ?",
             "少し目を閉じて、頭の中で玄関から台所まで歩いてみましょう。途中で見える3つのものは何ですか？",
             "闭上眼睛一会儿，在脑海里从家门口走到厨房。路上你会看到哪三样东西？",
         ],
@@ -8228,7 +8128,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Simo sets off: doormat – a cow, so milk. Sofa – a giant loaf, so bread. Bathtub – floating apples, so apples.",
             "Simo geht los: Fußmatte – eine Kuh, also Milch. Sofa – ein Riesenbrot, also Brot. Badewanne – schwimmende Äpfel, also Äpfel.",
-            "Simo se met en route : paillasson – une vache, donc du lait. Canapé – un pain géant, donc du pain. Baignoire – des pommes qui flottent, donc des pommes.",
+            "Simo se met en route : paillasson – une vache, donc du lait. Canapé – un pain géant, donc du pain. Baignoire – des pommes qui flottent, donc des pommes.",
             "シモが歩きだします：玄関マット – 牛、だから牛乳。ソファ – 巨大なパン、だからパン。お風呂 – 浮かんでいるリンゴ、だからリンゴ。",
             "西莫出发了：门垫——一头奶牛，所以是牛奶。沙发——一个巨大的面包，所以是面包。浴缸——漂着的苹果，所以是苹果。",
         ],
@@ -8248,7 +8148,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Simonides knew who sat where. Think of your last meal with others: who sat where?",
             "Simonides wusste, wer wo saß. Denk an dein letztes Essen mit anderen: Wer saß wo?",
-            "Simonide savait qui était assis où. Pense à ton dernier repas avec d’autres personnes : qui était assis où ?",
+            "Simonide savait qui était assis où. Pense à ton dernier repas avec d’autres personnes : qui était assis où ?",
             "シモニデスは、だれがどこに座っていたかを覚えていました。最近だれかと一緒にした食事を思い出してください：だれがどこに座っていましたか？",
             "西摩尼得斯知道谁坐在哪里。想想你最近一次和别人一起吃饭：谁坐在哪里？",
         ],
@@ -8268,7 +8168,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Instead of “dentist appointment”: a giant white tooth rings your doorbell, a calendar under its arm.",
             "Statt „Termin beim Zahnarzt“: Ein riesiger weißer Zahn klingelt an deiner Tür, einen Kalender unter dem Arm.",
-            "Au lieu de « rendez-vous chez le dentiste » : une énorme dent blanche sonne à ta porte, un calendrier sous le bras.",
+            "Au lieu de « rendez-vous chez le dentiste » : une énorme dent blanche sonne à ta porte, un calendrier sous le bras.",
             "「歯医者の予約」の代わりに：大きな白い歯が、カレンダーを小脇にかかえて、あなたの家の呼び鈴を鳴らします。",
             "不要只想“看牙医的预约”，而是：一颗巨大的白牙夹着日历，来按你家的门铃。",
         ],
@@ -8278,7 +8178,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Instead of “a book on the table”: the book opens and shuts like a mouth and snaps at your hand.",
             "Statt „ein Buch auf dem Tisch“: Das Buch klappt auf und zu wie ein Maul und schnappt nach deiner Hand.",
-            "Au lieu de « un livre sur la table » : le livre s’ouvre et se ferme comme une bouche et essaie de te mordre la main.",
+            "Au lieu de « un livre sur la table » : le livre s’ouvre et se ferme comme une bouche et essaie de te mordre la main.",
             "「テーブルの上の本」の代わりに：本が口のようにパクパク開いたり閉じたりして、あなたの手にかみつこうとします。",
             "不要只想“桌上的一本书”，而是：书像嘴巴一样一张一合，咬向你的手。",
         ],
@@ -8318,7 +8218,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Symbol: what stands for the idea? Freedom becomes a bird flying out of its cage; love a heart; danger a warning sign.",
             "Symbol: Was steht für die Idee? Freiheit wird ein Vogel, der aus dem Käfig fliegt; Liebe ein Herz; Gefahr ein Warnschild.",
-            "Symbole : qu’est-ce qui représente l’idée ? La liberté devient un oiseau qui s’envole de sa cage ; l’amour un cœur ; le danger un panneau d’avertissement.",
+            "Symbole : qu’est-ce qui représente l’idée ? La liberté devient un oiseau qui s’envole de sa cage ; l’amour un cœur ; le danger un panneau d’avertissement.",
             "シンボル：その考えを表すものは何？自由は、かごから飛び立つ鳥。愛はハート。危険は警告の標識。",
             "符号：什么代表这个意思？自由变成一只飞出笼子的鸟；爱是一颗心；危险是一块警示牌。",
         ],
@@ -8358,7 +8258,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Linking: picture and place",
             "Verknüpfen: Bild und Ort",
-            "Relier : image et lieu",
+            "Relier : image et lieu",
             "結びつける：イメージと場所",
             "连接：画面与地点",
         ],
@@ -8408,7 +8308,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Visualising: vivid pictures",
             "Visualisieren: lebendige Bilder",
-            "Visualiser : des images vivantes",
+            "Visualiser : des images vivantes",
             "思い描く：生き生きしたイメージ",
             "想象：生动的画面",
         ],
@@ -8418,7 +8318,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "When is the best time to repeat?",
             "Wann wiederholst du am besten?",
-            "Quel est le meilleur moment pour répéter ?",
+            "Quel est le meilleur moment pour répéter ?",
             "いつ復習するのがいちばんいいですか？",
             "什么时候复习最好？",
         ],
@@ -8458,7 +8358,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "What is the heart of the method of loci?",
             "Was ist der Kern der Loci-Methode?",
-            "Quel est le cœur de la méthode des loci ?",
+            "Quel est le cœur de la méthode des loci ?",
             "ロキ法のいちばん大事なところは？",
             "记忆宫殿法的核心是什么？",
         ],
@@ -8468,7 +8368,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "What is the method of loci?",
             "Was ist die Loci-Methode?",
-            "Qu’est-ce que la méthode des loci ?",
+            "Qu’est-ce que la méthode des loci ?",
             "ロキ法とは？",
             "什么是记忆宫殿法？",
         ],
@@ -8478,7 +8378,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "What is a typical beginner's mistake?",
             "Was ist ein typischer Anfängerfehler?",
-            "Quelle est une erreur typique des débutants ?",
+            "Quelle est une erreur typique des débutants ?",
             "初心者によくある失敗は？",
             "初学者典型的错误是什么？",
         ],
@@ -8488,7 +8388,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "What was on the sofa in Simo's route?",
             "Was lag in Simos Route auf dem Sofa?",
-            "Qu’est-ce qui était sur le canapé dans la route de Simo ?",
+            "Qu’est-ce qui était sur le canapé dans la route de Simo ?",
             "シモのルートで、ソファの上には何がありましたか？",
             "西莫的路线上，沙发上放的是什么？",
         ],
@@ -8508,7 +8408,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "What makes a picture stronger?",
             "Was macht ein Bild stärker?",
-            "Qu’est-ce qui rend une image plus forte ?",
+            "Qu’est-ce qui rend une image plus forte ?",
             "イメージを強くするのは何ですか？",
             "什么能让画面更有力？",
         ],
@@ -8518,7 +8418,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "What do most memory athletes use?",
             "Was nutzen die meisten Gedächtnissportler?",
-            "Qu’utilisent la plupart des athlètes de la mémoire ?",
+            "Qu’utilisent la plupart des athlètes de la mémoire ?",
             "記憶スポーツの選手の多くが使っているのは何ですか？",
             "大多数记忆运动员用的是什么？",
         ],
@@ -8548,7 +8448,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "What did the study by Dresler and colleagues (2017) show?",
             "Was zeigte die Studie von Dresler und Kollegen (2017)?",
-            "Qu’a montré l’étude de Dresler et ses collègues (2017) ?",
+            "Qu’a montré l’étude de Dresler et ses collègues (2017) ?",
             "ドレスラーらの研究（2017年）で何がわかりましたか？",
             "德雷斯勒及其同事的研究（2017 年）发现了什么？",
         ],
@@ -8558,7 +8458,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Which places are best?",
             "Welche Orte sind am besten?",
-            "Quels lieux sont les meilleurs ?",
+            "Quels lieux sont les meilleurs ?",
             "いちばんいい場所はどれですか？",
             "哪些地点最好？",
         ],
@@ -8568,7 +8468,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Which place makes the best first palace?",
             "Welcher Ort eignet sich am besten als erster Palast?",
-            "Quel endroit convient le mieux comme premier palais ?",
+            "Quel endroit convient le mieux comme premier palais ?",
             "最初の宮殿にいちばん向いている場所はどれですか？",
             "哪个地方最适合当第一座宫殿？",
         ],
@@ -8578,7 +8478,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Which picture is exaggerated best?",
             "Welches Bild ist am besten übertrieben?",
-            "Quelle image est la mieux exagérée ?",
+            "Quelle image est la mieux exagérée ?",
             "いちばん大げさなイメージはどれですか？",
             "哪个画面夸张得最好？",
         ],
@@ -8588,7 +8488,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Which picture is easier to remember?",
             "Welches Bild merkt man sich leichter?",
-            "Quelle image retient-on le plus facilement ?",
+            "Quelle image retient-on le plus facilement ?",
             "どのイメージが覚えやすいですか？",
             "哪个画面更容易记住？",
         ],
@@ -8598,7 +8498,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Which picture uses movement?",
             "Welches Bild nutzt Bewegung?",
-            "Quelle image utilise le mouvement ?",
+            "Quelle image utilise le mouvement ?",
             "動きを使っているイメージはどれですか？",
             "哪个画面用到了动作？",
         ],
@@ -8608,7 +8508,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Who is credited with inventing the method of loci?",
             "Wem wird die Erfindung der Loci-Methode zugeschrieben?",
-            "À qui attribue-t-on l’invention de la méthode des loci ?",
+            "À qui attribue-t-on l’invention de la méthode des loci ?",
             "ロキ法を発明したとされるのはだれですか？",
             "记忆宫殿法的发明被归功于谁？",
         ],
@@ -8628,7 +8528,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Important: the method helps above all with lists and sequences. It does not replace understanding – and it works through practice, not by itself.",
             "Wichtig: Die Methode hilft vor allem bei Listen und Reihenfolgen. Sie ersetzt nicht das Verstehen – und sie wirkt durch Üben, nicht von allein.",
-            "Important : la méthode aide surtout pour les listes et les suites dans un ordre. Elle ne remplace pas la compréhension – et elle marche grâce à l’entraînement, pas toute seule.",
+            "Important : la méthode aide surtout pour les listes et les suites dans un ordre. Elle ne remplace pas la compréhension – et elle marche grâce à l’entraînement, pas toute seule.",
             "大切なこと：この方法がとくに役立つのは、リストや順番を覚えるときです。理解することの代わりにはなりません。そして、ひとりでに効くのではなく、練習で効くのです。",
             "重要的是：这个方法主要帮助记清单和顺序。它不能代替理解——而且要靠练习才有效，不会自己起作用。",
         ],
@@ -8648,7 +8548,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "How do you best remember the name “Mrs Fisher”?",
             "Wie merkst du dir den Namen „Frau Fischer“ am besten?",
-            "Comment retiens-tu le mieux le nom « Madame Poisson » ?",
+            "Comment retiens-tu le mieux le nom « Madame Poisson » ?",
             "「魚住（うおずみ）さん」という名前は、どう覚えるのがいちばんですか？",
             "怎样最好地记住“余女士”这个名字？",
         ],
@@ -8658,7 +8558,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Repeat Simo's route in your mind now: doormat, sofa, bathtub. Do you still know everything?",
             "Wiederhole jetzt im Kopf Simos Route: Fußmatte, Sofa, Badewanne. Weißt du noch alles?",
-            "Répète maintenant dans ta tête la route de Simo : paillasson, canapé, baignoire. Tu te souviens de tout ?",
+            "Répète maintenant dans ta tête la route de Simo : paillasson, canapé, baignoire. Tu te souviens de tout ?",
             "今、頭の中でシモのルートを復習しましょう：玄関マット、ソファ、お風呂。全部覚えていますか？",
             "现在在脑海里复习一下西莫的路线：门垫、沙发、浴缸。你还全都记得吗？",
         ],
@@ -8678,7 +8578,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "If you repeat something just before you would forget it, it lasts longer afterwards. So the gaps keep growing: a day, a few days, weeks.",
             "Wiederholst du kurz bevor du etwas vergessen würdest, hält es danach länger. Darum werden die Abstände immer größer: ein Tag, ein paar Tage, Wochen.",
-            "Si tu répètes juste avant d’oublier quelque chose, ça tient plus longtemps ensuite. C’est pourquoi les intervalles deviennent de plus en plus grands : un jour, quelques jours, des semaines.",
+            "Si tu répètes juste avant d’oublier quelque chose, ça tient plus longtemps ensuite. C’est pourquoi les intervalles deviennent de plus en plus grands : un jour, quelques jours, des semaines.",
             "忘れそうになる少し前に復習すると、そのあと長く覚えていられます。だから間隔はだんだん長くなります：1日、数日、数週間。",
             "如果你在快要忘记之前复习，之后就能记得更久。所以间隔会越来越长：一天、几天、几周。",
         ],
@@ -8698,7 +8598,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Number shapes: 0 = egg, 1 = candle, 2 = swan, 4 = sailing boat, 8 = snowman. From the pictures you build a little story.",
             "Zahl-Form: 0 = Ei, 1 = Kerze, 2 = Schwan, 4 = Segelboot, 8 = Schneemann. Aus den Bildern baust du eine kleine Geschichte.",
-            "Formes des chiffres : 0 = œuf, 1 = bougie, 2 = cygne, 4 = voilier, 8 = bonhomme de neige. Avec ces images, tu construis une petite histoire.",
+            "Formes des chiffres : 0 = œuf, 1 = bougie, 2 = cygne, 4 = voilier, 8 = bonhomme de neige. Avec ces images, tu construis une petite histoire.",
             "数字の形：0 = 卵、1 = ろうそく、2 = 白鳥、4 = ヨット、8 = 雪だるま。これらのイメージで短いお話を作ります。",
             "数字的形状：0 = 蛋，1 = 蜡烛，2 = 天鹅，4 = 帆船，8 = 雪人。用这些画面编一个小故事。",
         ],
@@ -8738,7 +8638,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Pictures that are too tame: an apple on the table is too normal. Make it huge, loud or funny.",
             "Zu brave Bilder: Ein Apfel auf dem Tisch ist zu normal. Mach ihn riesig, laut oder lustig.",
-            "Des images trop sages : une pomme sur la table, c’est trop normal. Rends-la énorme, bruyante ou drôle.",
+            "Des images trop sages : une pomme sur la table, c’est trop normal. Rends-la énorme, bruyante ou drôle.",
             "おとなしすぎるイメージ：テーブルの上のリンゴでは、ふつうすぎます。巨大に、うるさく、おもしろくしましょう。",
             "画面太平淡：桌上的一个苹果太普通了。把它变得巨大、吵闹或者好笑。",
         ],
@@ -8748,7 +8648,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Too many or too similar places: start with 5 to 10 places. Places that look alike are easily swapped.",
             "Zu viele oder zu ähnliche Orte: Fang mit 5 bis 10 Orten an. Orte, die sich ähneln, vertauscht man leicht.",
-            "Trop de lieux ou des lieux trop semblables : commence avec 5 à 10 lieux. Les lieux qui se ressemblent, on les confond facilement.",
+            "Trop de lieux ou des lieux trop semblables : commence avec 5 à 10 lieux. Les lieux qui se ressemblent, on les confond facilement.",
             "場所が多すぎる、または似すぎている：まずは5〜10か所から始めましょう。似ている場所は、すぐに取りちがえます。",
             "地点太多或太相似：先从 5 到 10 个地点开始。相似的地点很容易弄混。",
         ],
@@ -8758,7 +8658,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Two of the answers are good tips – which one is the mistake?",
             "Zwei der Antworten sind gute Tipps – welche ist der Fehler?",
-            "Deux des réponses sont de bonnes astuces – laquelle est l’erreur ?",
+            "Deux des réponses sont de bonnes astuces – laquelle est l’erreur ?",
             "2つの答えはいいコツです。失敗はどれでしょう？",
             "其中两个答案是好技巧——哪一个是错误？",
         ],
@@ -8768,7 +8668,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Think: for which list in your everyday life would a memory palace help you most?",
             "Überleg: Bei welcher Liste im Alltag würde dir ein Gedächtnispalast am meisten helfen?",
-            "Réfléchis : pour quelle liste de ton quotidien un palais de la mémoire t’aiderait-il le plus ?",
+            "Réfléchis : pour quelle liste de ton quotidien un palais de la mémoire t’aiderait-il le plus ?",
             "考えてみましょう：毎日の生活で、記憶の宮殿がいちばん役に立つのはどんなリストですか？",
             "想一想：在日常生活中，哪份清单最能用上记忆宫殿？",
         ],
@@ -8778,7 +8678,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Think: which topic would you give to which place you know?",
             "Überleg: Welches Thema würdest du welchem Ort geben, den du kennst?",
-            "Réfléchis : quel thème donnerais-tu à quel endroit que tu connais ?",
+            "Réfléchis : quel thème donnerais-tu à quel endroit que tu connais ?",
             "考えてみましょう：知っている場所のどこに、どんなテーマを割り当てますか？",
             "想一想：你会把哪个主题交给你熟悉的哪个地方？",
         ],
@@ -8852,7 +8752,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "For advanced users: formula guide",
             "Für Fortgeschrittene: Formel-Guide",
-            "Pour aller plus loin : guide des formules",
+            "Pour aller plus loin : guide des formules",
             "上級者向け：数式ガイド",
             "进阶：公式指南",
         ],
@@ -8862,7 +8762,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Remember anything you like – with pictures at places you know. Here is how to start:",
             "Merk dir alles, was du willst – mit Bildern an Orten, die du kennst. So fängst du an:",
-            "Retiens tout ce que tu veux – avec des images à des endroits que tu connais. Voici comment commencer :",
+            "Retiens tout ce que tu veux – avec des images à des endroits que tu connais. Voici comment commencer :",
             "覚えたいことを、知っている場所にイメージで置いて覚えましょう。始め方はこちら：",
             "用熟悉地点上的画面，记住你想记的一切。这样开始：",
         ],
@@ -8872,7 +8772,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Have you practised the memory techniques yet?",
             "Hast du die Mnemotechniken schon geübt?",
-            "As-tu déjà pratiqué les techniques de mémoire ?",
+            "As-tu déjà pratiqué les techniques de mémoire ?",
             "記憶術はもう練習しましたか？",
             "你已经练过记忆技巧了吗？",
         ],
@@ -8905,6 +8805,1117 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "D’abord apprendre la mnémotechnique",
             "先に記憶術を学ぶ",
             "先学习记忆术",
+        ],
+    ),
+    (
+        "Spielfortschritt & Erfolge",
+        [
+            "Game progress & achievements",
+            "Spielfortschritt & Erfolge",
+            "Progression du jeu et succès",
+            "ゲームの進み具合と実績",
+            "游戏进度与成就",
+        ],
+    ),
+    (
+        "{0} Medaillen",
+        [
+            "{0} medals",
+            "{0} Medaillen",
+            "{0} médailles",
+            "メダル {0} 個",
+            "{0} 枚奖章",
+        ],
+    ),
+    (
+        "1 Medaille",
+        [
+            "1 medal",
+            "1 Medaille",
+            "1 médaille",
+            "メダル 1 個",
+            "1 枚奖章",
+        ],
+    ),
+    (
+        "Wird über Locora Cloud mit deinen Geräten abgeglichen.",
+        [
+            "Synced with your devices through Locora Cloud.",
+            "Wird über Locora Cloud mit deinen Geräten abgeglichen.",
+            "Synchronisé avec tes appareils via Locora Cloud.",
+            "Locora Cloud を通じてあなたのデバイス間で同期されます。",
+            "通过 Locora Cloud 在你的设备之间同步。",
+        ],
+    ),
+    (
+        "Nur auf diesem Gerät gespeichert.",
+        [
+            "Stored on this device only.",
+            "Nur auf diesem Gerät gespeichert.",
+            "Enregistré uniquement sur cet appareil.",
+            "このデバイスにだけ保存されています。",
+            "仅保存在此设备上。",
+        ],
+    ),
+    (
+        "Spielfortschritt löschen …",
+        [
+            "Delete game progress…",
+            "Spielfortschritt löschen …",
+            "Supprimer la progression du jeu…",
+            "ゲームの進み具合を削除…",
+            "删除游戏进度…",
+        ],
+    ),
+    (
+        "Spielfortschritt löschen?",
+        [
+            "Delete game progress?",
+            "Spielfortschritt löschen?",
+            "Supprimer la progression du jeu ?",
+            "ゲームの進み具合を削除しますか？",
+            "删除游戏进度？",
+        ],
+    ),
+    (
+        "Palastmedaillen kommen von selbst zurück, wo deine Paläste sie noch erfüllen, denn der Wiederholungsplan bleibt.",
+        [
+            "Palace medals come back by themselves where your palaces still qualify, because the review schedule stays.",
+            "Palastmedaillen kommen von selbst zurück, wo deine Paläste sie noch erfüllen, denn der Wiederholungsplan bleibt.",
+            "Les médailles de palais reviennent d’elles-mêmes là où tes palais les méritent encore, car le plan de révision est conservé.",
+            "宮殿メダルは、条件を満たしている宮殿では自動的に戻ります。復習の予定は残るためです。",
+            "只要你的记忆宫殿仍然符合条件，宫殿奖章会自动回来，因为复习计划会保留。",
+        ],
+    ),
+    (
+        "Auf deinen anderen Geräten wird der Spielfortschritt beim nächsten Sync gelöscht. Was ein Gerät bis dahin offline sammelt, verfällt. Geräte mit einer älteren Locora-Version zeigen ihre alten Zahlen, bis sie aktualisiert sind.",
+        [
+            "On your other devices the game progress is deleted at their next sync. Progress a device makes offline before that sync is discarded. Devices with an older Locora version show their old numbers until they are updated.",
+            "Auf deinen anderen Geräten wird der Spielfortschritt beim nächsten Sync gelöscht. Was ein Gerät bis dahin offline sammelt, verfällt. Geräte mit einer älteren Locora-Version zeigen ihre alten Zahlen, bis sie aktualisiert sind.",
+            "Sur tes autres appareils, la progression est supprimée à leur prochaine synchronisation. Ce qu’un appareil gagne hors ligne d’ici là est perdu pour le jeu. Les appareils avec une ancienne version de Locora affichent leurs anciens chiffres jusqu’à leur mise à jour.",
+            "ほかのデバイスでは、次の同期のときにゲームの進み具合が削除されます。それまでにオフラインで進めた分は破棄されます。古いバージョンの Locora を使っているデバイスでは、更新されるまで以前の数字が表示されます。",
+            "在你的其他设备上，游戏进度会在下次同步时删除。设备在此之前离线获得的进度会被舍弃。使用旧版 Locora 的设备在更新前会继续显示旧的数字。",
+        ],
+    ),
+    (
+        "Frühere verschlüsselte Kopien bleiben im Änderungsprotokoll des Servers, bis du „Cloud-Daten löschen“ verwendest; dort kann sie niemand lesen.",
+        [
+            "Earlier encrypted copies stay in the server’s change log until you use “Delete cloud data”; nobody can read them there.",
+            "Frühere verschlüsselte Kopien bleiben im Änderungsprotokoll des Servers, bis du „Cloud-Daten löschen“ verwendest; dort kann sie niemand lesen.",
+            "Les copies chiffrées antérieures restent dans le journal des modifications du serveur jusqu’à ce que tu utilises « Supprimer les données cloud » ; personne ne peut les y lire.",
+            "以前の暗号化されたコピーは、「クラウドのデータを削除」を使うまでサーバーの変更履歴に残ります。そこでは誰も読むことができません。",
+            "较早的加密副本会保留在服务器的变更记录中，直到你使用“删除云端数据”；在那里没有人能读取它们。",
+        ],
+    ),
+    (
+        "Deine Ranglisteneinträge werden auch vom Locora-Cloud-Server gelöscht.",
+        [
+            "Your ranking entries are also deleted from the Locora Cloud server.",
+            "Deine Ranglisteneinträge werden auch vom Locora-Cloud-Server gelöscht.",
+            "Tes entrées de classement sont aussi supprimées du serveur Locora Cloud.",
+            "ランキングの記録も Locora Cloud のサーバーから削除されます。",
+            "你的排行榜记录也会从 Locora Cloud 服务器上删除。",
+        ],
+    ),
+    (
+        "Dieses Gerät ist nicht bei Locora Cloud angemeldet; Ranglisteneinträge auf dem Server bleiben unberührt.",
+        [
+            "This device is not signed in to Locora Cloud, so ranking entries on the server are not touched.",
+            "Dieses Gerät ist nicht bei Locora Cloud angemeldet; Ranglisteneinträge auf dem Server bleiben unberührt.",
+            "Cet appareil n’est pas connecté à Locora Cloud ; les entrées de classement sur le serveur ne sont pas touchées.",
+            "このデバイスは Locora Cloud にサインインしていないため、サーバー上のランキングの記録には触れません。",
+            "此设备未登录 Locora Cloud，因此服务器上的排行榜记录不受影响。",
+        ],
+    ),
+    (
+        "Ja, Spielfortschritt auf allen Geräten löschen",
+        [
+            "Yes, delete game progress on all devices",
+            "Ja, Spielfortschritt auf allen Geräten löschen",
+            "Oui, supprimer la progression du jeu sur tous les appareils",
+            "はい、すべてのデバイスでゲームの進み具合を削除します",
+            "是的，在所有设备上删除游戏进度",
+        ],
+    ),
+    (
+        "Spielfortschritt gelöscht.",
+        [
+            "Game progress deleted.",
+            "Spielfortschritt gelöscht.",
+            "Progression du jeu supprimée.",
+            "ゲームの進み具合を削除しました。",
+            "游戏进度已删除。",
+        ],
+    ),
+    (
+        "Ranglisteneinträge vom Server gelöscht.",
+        [
+            "Ranking entries deleted from the server.",
+            "Ranglisteneinträge vom Server gelöscht.",
+            "Entrées de classement supprimées du serveur.",
+            "ランキングの記録をサーバーから削除しました。",
+            "排行榜记录已从服务器删除。",
+        ],
+    ),
+    (
+        "Spielfortschritt konnte nicht gelöscht werden: {0}",
+        [
+            "Game progress could not be deleted: {0}",
+            "Spielfortschritt konnte nicht gelöscht werden: {0}",
+            "La progression du jeu n’a pas pu être supprimée : {0}",
+            "ゲームの進み具合を削除できませんでした：{0}",
+            "无法删除游戏进度：{0}",
+        ],
+    ),
+    (
+        "Ranglisteneinträge gehören nicht zu den synchronisierten Daten; lösche sie mit „Spielfortschritt löschen“.",
+        [
+            "Ranking entries are not part of the synced data; delete them with “Delete game progress”.",
+            "Ranglisteneinträge gehören nicht zu den synchronisierten Daten; lösche sie mit „Spielfortschritt löschen“.",
+            "Les entrées de classement ne font pas partie des données synchronisées ; supprime-les avec « Supprimer la progression du jeu ».",
+            "ランキングの記録は同期データに含まれません。「ゲームの進み具合を削除」で削除してください。",
+            "排行榜记录不属于同步数据；请用“删除游戏进度”删除它们。",
+        ],
+    ),
+    ("{0} XP", ["{0} XP", "{0} XP", "{0} XP", "{0} XP", "{0} XP"]),
+    (
+        "Heute fällig: {0} von {1} erledigt",
+        [
+            "Due today: {0} of {1} done",
+            "Heute fällig: {0} von {1} erledigt",
+            "Dû aujourd’hui : {0} sur {1} faits",
+            "今日の復習：{1} 件中 {0} 件完了",
+            "今日到期：已完成 {0}/{1}",
+        ],
+    ),
+    (
+        "Alle fälligen Wiederholungen erledigt",
+        [
+            "All due reviews done",
+            "Alle fälligen Wiederholungen erledigt",
+            "Toutes les révisions dues sont faites",
+            "期日の復習はすべて完了",
+            "所有到期复习已完成",
+        ],
+    ),
+    (
+        "{0} fällige Wiederholungen erledigt – der Rest kann warten",
+        [
+            "{0} due reviews done – the rest can wait",
+            "{0} fällige Wiederholungen erledigt – der Rest kann warten",
+            "{0} révisions dues faites – le reste peut attendre",
+            "期日の復習を {0} 件完了 – 残りは後でも大丈夫",
+            "已完成 {0} 个到期复习 – 其余的可以等等",
+        ],
+    ),
+    (
+        "{0} in Folge",
+        [
+            "{0} in a row",
+            "{0} in Folge",
+            "{0} d’affilée",
+            "{0} 連続",
+            "连续 {0} 个",
+        ],
+    ),
+    (
+        "Kommt bald wieder – so bleibt es hängen.",
+        [
+            "Comes back soon – that is how it sticks.",
+            "Kommt bald wieder – so bleibt es hängen.",
+            "Ça reviendra bientôt – c’est comme ça que ça reste.",
+            "すぐにまた出てきます – そうやって覚えていきます。",
+            "很快会再出现 – 这样就能记住。",
+        ],
+    ),
+    (
+        "So funktionieren XP jetzt",
+        [
+            "How XP works now",
+            "So funktionieren XP jetzt",
+            "Comment fonctionnent les XP maintenant",
+            "XP のしくみが変わりました",
+            "XP 现在的计算方式",
+        ],
+    ),
+    (
+        "XP: 10 für jede fällige Wiederholung, 6 für jeden neuen Ort – egal, wie du bewertest.",
+        [
+            "XP: 10 for each due review, 6 for each new locus – whatever you grade.",
+            "XP: 10 für jede fällige Wiederholung, 6 für jeden neuen Ort – egal, wie du bewertest.",
+            "XP : 10 pour chaque révision due, 6 pour chaque nouveau lieu – quelle que soit ta note.",
+            "XP：期日の復習ごとに 10、新しい場所ごとに 6 – 自己評価に関係なく。",
+            "XP：每个到期复习 10 点，每个新地点 6 点 – 与你的评分无关。",
+        ],
+    ),
+    (
+        "Früheres Üben bringt keine XP; dein Wiederholungsplan entscheidet, was fällig ist.",
+        [
+            "Practising early earns no XP; your review schedule decides what is due.",
+            "Früheres Üben bringt keine XP; dein Wiederholungsplan entscheidet, was fällig ist.",
+            "S’entraîner en avance ne rapporte pas d’XP ; ton plan de révision décide de ce qui est dû.",
+            "期日前の練習では XP はもらえません。何が期日かは復習の予定が決めます。",
+            "提前练习不获得 XP；你的复习计划决定什么到期。",
+        ],
+    ),
+    (
+        "Wochenziel: an {0} Tagen pro Woche lernen. Ein verpasster Tag kostet nichts.",
+        [
+            "Weekly goal: learn on {0} days a week. A missed day costs nothing.",
+            "Wochenziel: an {0} Tagen pro Woche lernen. Ein verpasster Tag kostet nichts.",
+            "Objectif hebdomadaire : apprendre {0} jours par semaine. Un jour manqué ne coûte rien.",
+            "週の目標：週に {0} 日学習する。休んだ日があっても何も失いません。",
+            "每周目标：每周学习 {0} 天。错过一天没有任何损失。",
+        ],
+    ),
+    (
+        "Verstanden",
+        ["Got it", "Verstanden", "Compris", "わかりました", "知道了"],
+    ),
+    (
+        "Leiste ausblenden",
+        [
+            "Hide the bar",
+            "Leiste ausblenden",
+            "Masquer la barre",
+            "バーを非表示にする",
+            "隐藏进度栏",
+        ],
+    ),
+    (
+        "Fortschrittsleiste in der Journey anzeigen",
+        [
+            "Show the progress bar during journeys",
+            "Fortschrittsleiste in der Journey anzeigen",
+            "Afficher la barre de progression pendant les parcours",
+            "ジャーニー中に進み具合のバーを表示する",
+            "在旅程中显示进度栏",
+        ],
+    ),
+    (
+        "Zeigt beim Lernen XP, das heutige Fälligkeitsziel und deine Woche. Ausschalten blendet sie nur aus.",
+        [
+            "Shows XP, today’s due goal and your week while you learn. Turning it off only hides it.",
+            "Zeigt beim Lernen XP, das heutige Fälligkeitsziel und deine Woche. Ausschalten blendet sie nur aus.",
+            "Affiche les XP, l’objectif du jour et ta semaine pendant que tu apprends. La désactiver la masque seulement.",
+            "学習中に XP、今日の復習目標、今週の状況を表示します。オフにしても非表示になるだけです。",
+            "学习时显示 XP、今日到期目标和你的这一周。关闭后只是隐藏。",
+        ],
+    ),
+    (
+        "Wochenziel",
+        [
+            "Weekly goal",
+            "Wochenziel",
+            "Objectif hebdomadaire",
+            "週の目標",
+            "每周目标",
+        ],
+    ),
+    (
+        "An {0} Tagen pro Woche lernen",
+        [
+            "Learn on {0} days a week",
+            "An {0} Tagen pro Woche lernen",
+            "Apprendre {0} jours par semaine",
+            "週に {0} 日学習する",
+            "每周学习 {0} 天",
+        ],
+    ),
+    (
+        "Wochenziel gespeichert.",
+        [
+            "Weekly goal saved.",
+            "Wochenziel gespeichert.",
+            "Objectif hebdomadaire enregistré.",
+            "週の目標を保存しました。",
+            "每周目标已保存。",
+        ],
+    ),
+    (
+        "Diese Woche: {0} von {1} Lerntagen",
+        [
+            "This week: {0} of {1} learning days",
+            "Diese Woche: {0} von {1} Lerntagen",
+            "Cette semaine : {0} jours d’apprentissage sur {1}",
+            "今週：学習日 {1} 日中 {0} 日",
+            "本周：{0}/{1} 个学习日",
+        ],
+    ),
+    (
+        "{0} Lerntage",
+        [
+            "{0} learning days",
+            "{0} Lerntage",
+            "{0} jours d’apprentissage",
+            "学習日 {0} 日",
+            "{0} 个学习日",
+        ],
+    ),
+    (
+        "1 Lerntag",
+        [
+            "1 learning day",
+            "1 Lerntag",
+            "1 jour d’apprentissage",
+            "学習日 1 日",
+            "1 个学习日",
+        ],
+    ),
+    (
+        "Wochenziel {0} Wochen in Folge erreicht",
+        [
+            "Weekly goal reached {0} weeks in a row",
+            "Wochenziel {0} Wochen in Folge erreicht",
+            "Objectif hebdomadaire atteint {0} semaines d’affilée",
+            "週の目標を {0} 週連続で達成",
+            "已连续 {0} 周达成每周目标",
+        ],
+    ),
+    (
+        "Wochenziel erreicht",
+        [
+            "Weekly goal reached",
+            "Wochenziel erreicht",
+            "Objectif hebdomadaire atteint",
+            "週の目標を達成",
+            "已达成每周目标",
+        ],
+    ),
+    (
+        "Neue Woche, neues Ziel. Dein Bestwert: {0} Wochen in Folge.",
+        [
+            "New week, new goal. Your best: {0} weeks in a row.",
+            "Neue Woche, neues Ziel. Dein Bestwert: {0} Wochen in Folge.",
+            "Nouvelle semaine, nouvel objectif. Ton record : {0} semaines d’affilée.",
+            "新しい週、新しい目標。これまでの最高：{0} 週連続。",
+            "新的一周，新的目标。你的最佳纪录：连续 {0} 周。",
+        ],
+    ),
+    (
+        "Lerntage",
+        [
+            "Learning days",
+            "Lerntage",
+            "Jours d’apprentissage",
+            "学習日",
+            "学习日",
+        ],
+    ),
+    (
+        "Wochenziel in Folge",
+        [
+            "Weekly goal in a row",
+            "Wochenziel in Folge",
+            "Objectif hebdomadaire d’affilée",
+            "週の目標の連続達成",
+            "连续达成每周目标",
+        ],
+    ),
+    (
+        "{0} Wochen",
+        [
+            "{0} weeks",
+            "{0} Wochen",
+            "{0} semaines",
+            "{0} 週",
+            "{0} 周",
+        ],
+    ),
+    (
+        "1 Woche",
+        ["1 week", "1 Woche", "1 semaine", "1 週", "1 周"],
+    ),
+    (
+        "7 Lerntage",
+        [
+            "7 learning days",
+            "7 Lerntage",
+            "7 jours d’apprentissage",
+            "学習日 7 日",
+            "7 个学习日",
+        ],
+    ),
+    (
+        "Lerne an 7 Tagen – sie müssen nicht aufeinanderfolgen.",
+        [
+            "Learn on 7 days – they do not have to be in a row.",
+            "Lerne an 7 Tagen – sie müssen nicht aufeinanderfolgen.",
+            "Apprends pendant 7 jours – ils n’ont pas besoin de se suivre.",
+            "7 日間学習しましょう – 連続していなくてもかまいません。",
+            "学习 7 天 – 不必是连续的。",
+        ],
+    ),
+    (
+        "Wochenziel 4-mal",
+        [
+            "Weekly goal 4 times",
+            "Wochenziel 4-mal",
+            "Objectif hebdomadaire 4 fois",
+            "週の目標を 4 回",
+            "每周目标达成 4 次",
+        ],
+    ),
+    (
+        "Erreiche dein Wochenziel in 4 Wochen – sie müssen nicht aufeinanderfolgen.",
+        [
+            "Reach your weekly goal in 4 weeks – they do not have to be in a row.",
+            "Erreiche dein Wochenziel in 4 Wochen – sie müssen nicht aufeinanderfolgen.",
+            "Atteins ton objectif hebdomadaire pendant 4 semaines – elles n’ont pas besoin de se suivre.",
+            "4 週で週の目標を達成しましょう – 連続していなくてもかまいません。",
+            "在 4 周里达成每周目标 – 不必是连续的。",
+        ],
+    ),
+    (
+        "{0} von {1} gewusst · +{2} XP",
+        [
+            "{0} of {1} recalled · +{2} XP",
+            "{0} von {1} gewusst · +{2} XP",
+            "{0} sur {1} retrouvés · +{2} XP",
+            "{1} 件中 {0} 件思い出せた · +{2} XP",
+            "想起 {0}/{1} 个 · +{2} XP",
+        ],
+    ),
+    (
+        "{0} Orte waren noch nicht fällig und brachten deshalb keine XP. Ihre nächste Wiederholung: {1}.",
+        [
+            "{0} loci were not due yet, so they earned no XP. Their next review: {1}.",
+            "{0} Orte waren noch nicht fällig und brachten deshalb keine XP. Ihre nächste Wiederholung: {1}.",
+            "{0} lieux n’étaient pas encore dus et n’ont donc rapporté aucun XP. Leur prochaine révision : {1}.",
+            "{0} 件の場所はまだ期日前だったため XP はありませんでした。次の復習：{1}。",
+            "{0} 个地点尚未到期，因此没有获得 XP。它们的下次复习：{1}。",
+        ],
+    ),
+    (
+        "1 Ort war noch nicht fällig und brachte deshalb keine XP. Seine nächste Wiederholung: {0}.",
+        [
+            "1 locus was not due yet, so it earned no XP. Its next review: {0}.",
+            "1 Ort war noch nicht fällig und brachte deshalb keine XP. Seine nächste Wiederholung: {0}.",
+            "1 lieu n’était pas encore dû et n’a donc rapporté aucun XP. Sa prochaine révision : {0}.",
+            "1 件の場所はまだ期日前だったため XP はありませんでした。次の復習：{0}。",
+            "1 个地点尚未到期，因此没有获得 XP。它的下次复习：{0}。",
+        ],
+    ),
+    (
+        "Alle fälligen Wiederholungen für heute erledigt",
+        [
+            "All due reviews for today done",
+            "Alle fälligen Wiederholungen für heute erledigt",
+            "Toutes les révisions dues d’aujourd’hui sont faites",
+            "今日の期日の復習はすべて完了",
+            "今天所有到期复习已完成",
+        ],
+    ),
+    (
+        "Heute noch fällig: {0} Orte",
+        [
+            "Still due today: {0} loci",
+            "Heute noch fällig: {0} Orte",
+            "Encore dus aujourd’hui : {0} lieux",
+            "今日まだ期日の場所：{0} 件",
+            "今天仍需复习：{0} 个地点",
+        ],
+    ),
+    (
+        "Heute noch fällig: 1 Ort",
+        [
+            "Still due today: 1 locus",
+            "Heute noch fällig: 1 Ort",
+            "Encore dû aujourd’hui : 1 lieu",
+            "今日まだ期日の場所：1 件",
+            "今天仍需复习：1 个地点",
+        ],
+    ),
+    (
+        "Nächste Wiederholung: {0} · {1} Orte",
+        [
+            "Next review: {0} · {1} loci",
+            "Nächste Wiederholung: {0} · {1} Orte",
+            "Prochaine révision : {0} · {1} lieux",
+            "次の復習：{0} · {1} 件",
+            "下次复习：{0} · {1} 个地点",
+        ],
+    ),
+    (
+        "Nächste Wiederholung: {0} · 1 Ort",
+        [
+            "Next review: {0} · 1 locus",
+            "Nächste Wiederholung: {0} · 1 Ort",
+            "Prochaine révision : {0} · 1 lieu",
+            "次の復習：{0} · 1 件",
+            "下次复习：{0} · 1 个地点",
+        ],
+    ),
+    ("heute", ["today", "heute", "aujourd’hui", "今日", "今天"]),
+    ("morgen", ["tomorrow", "morgen", "demain", "明日", "明天"]),
+    (
+        "Neue Medaille: {0}",
+        [
+            "New medal: {0}",
+            "Neue Medaille: {0}",
+            "Nouvelle médaille : {0}",
+            "新しいメダル：{0}",
+            "新奖章：{0}",
+        ],
+    ),
+    (
+        "Punkte: {0}",
+        [
+            "Points: {0}",
+            "Punkte: {0}",
+            "Points : {0}",
+            "ポイント：{0}",
+            "积分：{0}",
+        ],
+    ),
+    (
+        "Gefestigt: {0} von {1} Orten",
+        [
+            "Consolidated: {0} of {1} loci",
+            "Gefestigt: {0} von {1} Orten",
+            "Consolidés : {0} lieux sur {1}",
+            "定着：{1} 件中 {0} 件",
+            "已巩固：{0}/{1} 个地点",
+        ],
+    ),
+    (
+        "Palastmedaillen",
+        [
+            "Palace medals",
+            "Palastmedaillen",
+            "Médailles de palais",
+            "宮殿メダル",
+            "宫殿奖章",
+        ],
+    ),
+    (
+        "Verankert",
+        ["Anchored", "Verankert", "Ancré", "固定", "已扎根"],
+    ),
+    (
+        "Gefestigt",
+        ["Consolidated", "Gefestigt", "Consolidé", "定着", "已巩固"],
+    ),
+    (
+        "Dauerhaft",
+        ["Lasting", "Dauerhaft", "Durable", "長期記憶", "持久"],
+    ),
+    (
+        "Mindestens 9 von 10 Orten von „{0}“ halten {1} Tage oder länger.",
+        [
+            "At least 9 in 10 loci of “{0}” hold for {1} days or more.",
+            "Mindestens 9 von 10 Orten von „{0}“ halten {1} Tage oder länger.",
+            "Au moins 9 lieux sur 10 de « {0} » tiennent {1} jours ou plus.",
+            "「{0}」の場所の 10 件中 9 件以上が {1} 日以上保たれています。",
+            "“{0}”中至少十分之九的地点能保持 {1} 天或更久。",
+        ],
+    ),
+    (
+        "{0} von {1} Orten halten {2}+ Tage",
+        [
+            "{0} of {1} loci hold {2}+ days",
+            "{0} von {1} Orten halten {2}+ Tage",
+            "{0} lieux sur {1} tiennent {2} jours ou plus",
+            "{1} 件中 {0} 件が {2} 日以上保持",
+            "{0}/{1} 个地点保持 {2} 天以上",
+        ],
+    ),
+    (
+        "Paläste mit mindestens 5 Orten bekommen Medaillen.",
+        [
+            "Palaces with at least 5 loci earn medals.",
+            "Paläste mit mindestens 5 Orten bekommen Medaillen.",
+            "Les palais d’au moins 5 lieux gagnent des médailles.",
+            "場所が 5 件以上ある宮殿がメダルの対象です。",
+            "至少有 5 个地点的记忆宫殿才能获得奖章。",
+        ],
+    ),
+    (
+        "Journey-Trophäen",
+        [
+            "Journey trophies",
+            "Journey-Trophäen",
+            "Trophées de parcours",
+            "ジャーニーのトロフィー",
+            "旅程奖杯",
+        ],
+    ),
+    (
+        "Seit {0}",
+        [
+            "Since {0}",
+            "Seit {0}",
+            "Depuis le {0}",
+            "{0} から",
+            "自 {0} 起",
+        ],
+    ),
+    (
+        "Schließe eine Journey ab.",
+        [
+            "Finish a journey.",
+            "Schließe eine Journey ab.",
+            "Termine un parcours.",
+            "ジャーニーを 1 回終える。",
+            "完成一次旅程。",
+        ],
+    ),
+    (
+        "Sammle 100 XP mit fälligen Wiederholungen und neuen Orten.",
+        [
+            "Collect 100 XP with due reviews and new loci.",
+            "Sammle 100 XP mit fälligen Wiederholungen und neuen Orten.",
+            "Gagne 100 XP avec des révisions dues et de nouveaux lieux.",
+            "期日の復習と新しい場所で 100 XP を集める。",
+            "通过到期复习和新地点获得 100 XP。",
+        ],
+    ),
+    (
+        "Alles Fällige erledigt",
+        [
+            "All due done",
+            "Alles Fällige erledigt",
+            "Tout ce qui est dû est fait",
+            "期日の復習をすべて完了",
+            "到期全部完成",
+        ],
+    ),
+    (
+        "Mach an einem Tag jede fällige Wiederholung.",
+        [
+            "Do every review that is due on one day.",
+            "Mach an einem Tag jede fällige Wiederholung.",
+            "Fais en un jour toutes les révisions dues.",
+            "1 日のうちに期日の復習をすべて行う。",
+            "在一天内完成所有到期复习。",
+        ],
+    ),
+    (
+        "Eine Journey ohne Fehler (aus früheren Versionen).",
+        [
+            "A journey without mistakes (from earlier versions).",
+            "Eine Journey ohne Fehler (aus früheren Versionen).",
+            "Un parcours sans erreur (des versions précédentes).",
+            "ミスのないジャーニー（以前のバージョンから）。",
+            "一次没有错误的旅程（来自早期版本）。",
+        ],
+    ),
+    (
+        "Fortschritt",
+        ["Progress", "Fortschritt", "Progression", "進み具合", "进度"],
+    ),
+    (
+        "Starte eine Journey, um XP zu sammeln.",
+        [
+            "Start a journey to collect XP.",
+            "Starte eine Journey, um XP zu sammeln.",
+            "Lance un parcours pour gagner des XP.",
+            "ジャーニーを始めて XP を集めましょう。",
+            "开始一次旅程来获得 XP。",
+        ],
+    ),
+    (
+        "1 Ort zum Nachüben (ohne XP)",
+        [
+            "1 locus to practise again (no XP)",
+            "1 Ort zum Nachüben (ohne XP)",
+            "1 lieu à revoir encore (sans XP)",
+            "もう一度練習する場所 1 件（XP なし）",
+            "1 个地点待再练习（无 XP）",
+        ],
+    ),
+    (
+        "{0} Orte zum Nachüben (ohne XP)",
+        [
+            "{0} loci to practise again (no XP)",
+            "{0} Orte zum Nachüben (ohne XP)",
+            "{0} lieux à revoir encore (sans XP)",
+            "もう一度練習する場所 {0} 件（XP なし）",
+            "{0} 个地点待再练习（无 XP）",
+        ],
+    ),
+    (
+        "Neue Woche, neues Ziel. Dein Bestwert: 1 Woche in Folge.",
+        [
+            "New week, new goal. Your best: 1 week in a row.",
+            "Neue Woche, neues Ziel. Dein Bestwert: 1 Woche in Folge.",
+            "Nouvelle semaine, nouvel objectif. Ton record : 1 semaine d’affilée.",
+            "新しい週、新しい目標。これまでの最高：1 週連続。",
+            "新的一周，新的目标。你的最佳纪录：连续 1 周。",
+        ],
+    ),
+    (
+        "Diese Woche: 1 von {0} Lerntagen",
+        [
+            "This week: 1 of {0} learning days",
+            "Diese Woche: 1 von {0} Lerntagen",
+            "Cette semaine : 1 jour d’apprentissage sur {0}",
+            "今週：学習日 {0} 日中 1 日",
+            "本周：1/{0} 个学习日",
+        ],
+    ),
+    (
+        "1 Tag ohne Fälliges",
+        [
+            "1 day with nothing due",
+            "1 Tag ohne Fälliges",
+            "1 jour sans révision due",
+            "期日のない日 1 日",
+            "1 天无到期内容",
+        ],
+    ),
+    (
+        "{0} Tage ohne Fälliges",
+        [
+            "{0} days with nothing due",
+            "{0} Tage ohne Fälliges",
+            "{0} jours sans révision due",
+            "期日のない日 {0} 日",
+            "{0} 天无到期内容",
+        ],
+    ),
+    (
+        "So funktionieren XP",
+        [
+            "How XP works",
+            "So funktionieren XP",
+            "Comment fonctionnent les XP",
+            "XP のしくみ",
+            "XP 的计算方式",
+        ],
+    ),
+    (
+        "Wochenziel: an 1 Tag pro Woche lernen. Ein verpasster Tag kostet nichts.",
+        [
+            "Weekly goal: learn on 1 day a week. A missed day costs nothing.",
+            "Wochenziel: an 1 Tag pro Woche lernen. Ein verpasster Tag kostet nichts.",
+            "Objectif hebdomadaire : apprendre 1 jour par semaine. Un jour manqué ne coûte rien.",
+            "週の目標：週に 1 日学習する。休んだ日があっても何も失いません。",
+            "每周目标：每周学习 1 天。错过一天没有任何损失。",
+        ],
+    ),
+    (
+        "1 fällige Wiederholung",
+        [
+            "1 due review",
+            "1 fällige Wiederholung",
+            "1 révision due",
+            "期日の復習 1 件",
+            "1 个到期复习",
+        ],
+    ),
+    (
+        "{0} fällige Wiederholungen",
+        [
+            "{0} due reviews",
+            "{0} fällige Wiederholungen",
+            "{0} révisions dues",
+            "期日の復習 {0} 件",
+            "{0} 个到期复习",
+        ],
+    ),
+    (
+        "1 neuer Ort",
+        [
+            "1 new locus",
+            "1 neuer Ort",
+            "1 nouveau lieu",
+            "新しい場所 1 件",
+            "1 个新地点",
+        ],
+    ),
+    (
+        "{0} neue Orte",
+        [
+            "{0} new loci",
+            "{0} neue Orte",
+            "{0} nouveaux lieux",
+            "新しい場所 {0} 件",
+            "{0} 个新地点",
+        ],
+    ),
+    (
+        "1 Ort war noch nicht fällig und brachte deshalb keine XP.",
+        [
+            "1 locus was not due yet, so it earned no XP.",
+            "1 Ort war noch nicht fällig und brachte deshalb keine XP.",
+            "1 lieu n’était pas encore dû et n’a donc rapporté aucun XP.",
+            "1 件の場所はまだ期日前だったため XP はありませんでした。",
+            "1 个地点尚未到期，因此没有获得 XP。",
+        ],
+    ),
+    (
+        "{0} Orte waren noch nicht fällig und brachten deshalb keine XP.",
+        [
+            "{0} loci were not due yet, so they earned no XP.",
+            "{0} Orte waren noch nicht fällig und brachten deshalb keine XP.",
+            "{0} lieux n’étaient pas encore dus et n’ont donc rapporté aucun XP.",
+            "{0} 件の場所はまだ期日前だったため XP はありませんでした。",
+            "{0} 个地点尚未到期，因此没有获得 XP。",
+        ],
+    ),
+    (
+        "1 Ort hattest du heute schon; noch einmal üben bringt keine XP.",
+        [
+            "You had 1 locus today already; practising it again earns no XP.",
+            "1 Ort hattest du heute schon; noch einmal üben bringt keine XP.",
+            "Tu as déjà vu 1 lieu aujourd’hui ; le revoir ne rapporte pas d’XP.",
+            "1 件の場所は今日すでに答えました。もう一度練習しても XP はありません。",
+            "1 个地点你今天已经复习过；再次练习不会获得 XP。",
+        ],
+    ),
+    (
+        "{0} Orte hattest du heute schon; noch einmal üben bringt keine XP.",
+        [
+            "You had {0} loci today already; practising them again earns no XP.",
+            "{0} Orte hattest du heute schon; noch einmal üben bringt keine XP.",
+            "Tu as déjà vu {0} lieux aujourd’hui ; les revoir ne rapporte pas d’XP.",
+            "{0} 件の場所は今日すでに答えました。もう一度練習しても XP はありません。",
+            "{0} 个地点你今天已经复习过；再次练习不会获得 XP。",
+        ],
+    ),
+    (
+        "Kommt heute noch einmal zum Üben (ohne XP): 1 Ort",
+        [
+            "Back later today for practice (no XP): 1 locus",
+            "Kommt heute noch einmal zum Üben (ohne XP): 1 Ort",
+            "Revient plus tard aujourd’hui pour s’entraîner (sans XP) : 1 lieu",
+            "今日このあと練習でもう一度（XP なし）：1 件",
+            "今天稍后再练习一次（无 XP）：1 个地点",
+        ],
+    ),
+    (
+        "Kommt heute noch einmal zum Üben (ohne XP): {0} Orte",
+        [
+            "Back later today for practice (no XP): {0} loci",
+            "Kommt heute noch einmal zum Üben (ohne XP): {0} Orte",
+            "Reviennent plus tard aujourd’hui pour s’entraîner (sans XP) : {0} lieux",
+            "今日このあと練習でもう一度（XP なし）：{0} 件",
+            "今天稍后再练习一次（无 XP）：{0} 个地点",
+        ],
+    ),
+    (
+        "Neue Trophäe: {0}",
+        [
+            "New trophy: {0}",
+            "Neue Trophäe: {0}",
+            "Nouveau trophée : {0}",
+            "新しいトロフィー：{0}",
+            "新奖杯：{0}",
+        ],
+    ),
+    (
+        "Neue Trophäe!",
+        [
+            "New trophy!",
+            "Neue Trophäe!",
+            "Nouveau trophée !",
+            "新しいトロフィー！",
+            "新奖杯！",
+        ],
+    ),
+    (
+        "Neue Medaille!",
+        [
+            "New medal!",
+            "Neue Medaille!",
+            "Nouvelle médaille !",
+            "新しいメダル！",
+            "新奖章！",
+        ],
+    ),
+    (
+        "Gefestigt: {0} von 1 Ort",
+        [
+            "Consolidated: {0} of 1 locus",
+            "Gefestigt: {0} von 1 Ort",
+            "Consolidés : {0} lieu sur 1",
+            "定着：1 件中 {0} 件",
+            "已巩固：{0}/1 个地点",
+        ],
+    ),
+    (
+        "Medaillen zählen nur, was Wiederholungen an verschiedenen Tagen gezeigt haben; mehrmals am selben Tag zu üben bringt keine.",
+        [
+            "Medals count only what reviews on different days have shown; practising several times on one day earns none.",
+            "Medaillen zählen nur, was Wiederholungen an verschiedenen Tagen gezeigt haben; mehrmals am selben Tag zu üben bringt keine.",
+            "Les médailles ne comptent que ce que des révisions faites des jours différents ont montré ; s’entraîner plusieurs fois le même jour n’en rapporte aucune.",
+            "メダルは別々の日の復習で示されたことだけを数えます。同じ日に何度練習してももらえません。",
+            "奖章只计算不同日期的复习所证明的结果；同一天多次练习不会获得奖章。",
+        ],
+    ),
+    (
+        "Der Server kann Ranglisteneinträge noch nicht löschen; sie bleiben, bis er aktualisiert ist. Locora fragt beim Start, bei der Anmeldung und beim Sync wieder nach.",
+        [
+            "The server cannot delete ranking entries yet; they stay until it is updated. Locora asks again at start, at sign-in and at sync.",
+            "Der Server kann Ranglisteneinträge noch nicht löschen; sie bleiben, bis er aktualisiert ist. Locora fragt beim Start, bei der Anmeldung und beim Sync wieder nach.",
+            "Le serveur ne peut pas encore supprimer les entrées de classement ; elles restent jusqu’à sa mise à jour. Locora redemande au démarrage, à la connexion et à la synchronisation.",
+            "サーバーはまだランキングの記録を削除できません。更新されるまで残ります。Locora は起動時、サインイン時、同期時にもう一度依頼します。",
+            "服务器还无法删除排行榜记录；在服务器更新之前它们会保留。Locora 会在启动、登录和同步时再次请求。",
+        ],
+    ),
+    (
+        "Der Server war nicht erreichbar. Locora fragt beim Start, bei der Anmeldung und beim Sync wieder nach; bis dahin bleiben die Ranglisteneinträge.",
+        [
+            "The server could not be reached. Locora asks again at start, at sign-in and at sync; until then the ranking entries stay.",
+            "Der Server war nicht erreichbar. Locora fragt beim Start, bei der Anmeldung und beim Sync wieder nach; bis dahin bleiben die Ranglisteneinträge.",
+            "Le serveur n’a pas pu être joint. Locora redemande au démarrage, à la connexion et à la synchronisation ; d’ici là, les entrées de classement restent.",
+            "サーバーに接続できませんでした。Locora は起動時、サインイン時、同期時にもう一度依頼します。それまでランキングの記録は残ります。",
+            "无法连接服务器。Locora 会在启动、登录和同步时再次请求；在此之前排行榜记录会保留。",
+        ],
+    ),
+    (
+        "Deine Anmeldung bei Locora Cloud ist abgelaufen. Sobald du dich mit diesem Konto wieder anmeldest, werden die Ranglisteneinträge gelöscht.",
+        [
+            "Your Locora Cloud session has ended. As soon as you sign in to this account again, the ranking entries are deleted.",
+            "Deine Anmeldung bei Locora Cloud ist abgelaufen. Sobald du dich mit diesem Konto wieder anmeldest, werden die Ranglisteneinträge gelöscht.",
+            "Ta session Locora Cloud a expiré. Dès que tu te reconnectes à ce compte, les entrées de classement sont supprimées.",
+            "Locora Cloud のサインインの有効期限が切れました。このアカウントにもう一度サインインすると、ランキングの記録が削除されます。",
+            "你的 Locora Cloud 登录已过期。一旦你再次登录此账户，排行榜记录就会被删除。",
+        ],
+    ),
+    (
+        "1 Trophäe",
+        [
+            "1 trophy",
+            "1 Trophäe",
+            "1 trophée",
+            "トロフィー 1 個",
+            "1 个奖杯",
+        ],
+    ),
+    (
+        "{0} Trophäen",
+        [
+            "{0} trophies",
+            "{0} Trophäen",
+            "{0} trophées",
+            "トロフィー {0} 個",
+            "{0} 个奖杯",
+        ],
+    ),
+    (
+        "An 1 Tag pro Woche lernen",
+        [
+            "Learn on 1 day a week",
+            "An 1 Tag pro Woche lernen",
+            "Apprendre 1 jour par semaine",
+            "週に 1 日学習する",
+            "每周学习 1 天",
+        ],
+    ),
+    (
+        "Ein Lerntag ist ein Tag, an dem du auf einem deiner Geräte etwas Fälliges wiederholst oder Neues lernst; die App nur zu öffnen zählt nicht. Ein Tag, an dem nichts fällig war, senkt das Ziel dieser Woche um einen Tag (auf mindestens einen). Locora erkennt ihn am Wiederholungsplan, auch wenn du die App an dem Tag nicht öffnest. Ein verpasster Tag kostet nichts.",
+        [
+            "A learning day is a day on which you review something due or learn something new on one of your devices; just opening the app does not count. A day with nothing due lowers this week’s goal by one day (to at least one). Locora tells it from your review schedule, even if you do not open the app that day. A missed day costs nothing.",
+            "Ein Lerntag ist ein Tag, an dem du auf einem deiner Geräte etwas Fälliges wiederholst oder Neues lernst; die App nur zu öffnen zählt nicht. Ein Tag, an dem nichts fällig war, senkt das Ziel dieser Woche um einen Tag (auf mindestens einen). Locora erkennt ihn am Wiederholungsplan, auch wenn du die App an dem Tag nicht öffnest. Ein verpasster Tag kostet nichts.",
+            "Un jour d’apprentissage est un jour où tu révises quelque chose de dû ou apprends quelque chose de nouveau sur l’un de tes appareils ; ouvrir simplement l’app ne compte pas. Un jour où rien n’était dû réduit l’objectif de la semaine d’un jour (à un jour au moins). Locora le reconnaît à ton plan de révision, même si tu n’ouvres pas l’app ce jour-là. Un jour manqué ne coûte rien.",
+            "学習日とは、どれかのデバイスで期日のものを復習したか、新しいことを学んだ日です。アプリを開くだけでは数えません。期日のものがなかった日は、その週の目標を 1 日減らします（最低 1 日）。その日にアプリを開かなくても、Locora は復習の予定からそれを判断します。休んだ日があっても何も失いません。",
+            "学习日是指你在任一设备上复习了到期内容或学习了新内容的日子；仅打开应用不算。没有到期内容的日子会让本周目标减少一天（至少一天）。即使你那天没有打开应用，Locora 也会根据复习计划识别出来。错过一天没有任何损失。",
+        ],
+    ),
+    (
+        "Gelöscht werden: XP, Journey-Trophäen und Palastmedaillen, Lerntage und Wochenziel-Serien, das Tagesziel und der Fortschritt in Challenges.",
+        [
+            "This deletes: XP, journey trophies and palace medals, learning days and weekly-goal runs, today’s goal and challenge progress.",
+            "Gelöscht werden: XP, Journey-Trophäen und Palastmedaillen, Lerntage und Wochenziel-Serien, das Tagesziel und der Fortschritt in Challenges.",
+            "Sont supprimés : les XP, les trophées de parcours et les médailles de palais, les jours d’apprentissage et les séries d’objectif hebdomadaire, l’objectif du jour et la progression des défis.",
+            "削除されるもの：XP、ジャーニーのトロフィーと宮殿メダル、学習日と週の目標の連続記録、今日の目標とチャレンジの進み具合。",
+            "将被删除：XP、旅程奖杯和宫殿奖章、学习日和每周目标连续记录、今日目标以及挑战进度。",
+        ],
+    ),
+    (
+        "Erhalten bleiben: deine Paläste, Orte und Medien, der Wiederholungsplan und -verlauf (wann ein Ort fällig ist, ändert sich nicht), deine Lektionen, App-Tour und Tutorial („Dein Weg in Locora“), die Antworten in der Statistik, deine Einstellungen samt Wochenziel und dein Cloud-Konto.",
+        [
+            "This stays: your palaces, loci and media, the review schedule and history (when each locus is due does not change), your lessons, app tour and tutorial (“Your way into Locora”), the answers in the statistics, your settings including the weekly goal, and your cloud account.",
+            "Erhalten bleiben: deine Paläste, Orte und Medien, der Wiederholungsplan und -verlauf (wann ein Ort fällig ist, ändert sich nicht), deine Lektionen, App-Tour und Tutorial („Dein Weg in Locora“), die Antworten in der Statistik, deine Einstellungen samt Wochenziel und dein Cloud-Konto.",
+            "Sont conservés : tes palais, lieux et médias, le plan et l’historique des révisions (la date à laquelle chaque lieu est dû ne change pas), tes leçons, la visite de l’app et le tutoriel (« Ton chemin dans Locora »), les réponses dans les statistiques, tes réglages y compris l’objectif hebdomadaire, et ton compte cloud.",
+            "残るもの：宮殿、場所、メディア、復習の予定と履歴（各場所の期日は変わりません）、レッスン、アプリのツアーとチュートリアル（「Locora へのステップ」）、統計の回答、週の目標を含む設定、クラウドアカウント。",
+            "将保留：你的记忆宫殿、地点和媒体、复习计划和历史（每个地点何时到期不会改变）、你的课程、应用导览和教程（“你的 Locora 之路”）、统计中的回答、包括每周目标在内的设置，以及你的云账户。",
+        ],
+    ),
+    (
+        "Ja, Spielfortschritt auf diesem Gerät löschen",
+        [
+            "Yes, delete game progress on this device",
+            "Ja, Spielfortschritt auf diesem Gerät löschen",
+            "Oui, supprimer la progression du jeu sur cet appareil",
+            "はい、このデバイスでゲームの進み具合を削除します",
+            "是的，在此设备上删除游戏进度",
+        ],
+    ),
+    (
+        "Ein Ort gilt als gefestigt, wenn er gezeigt hat, dass er mindestens 30 Tage hält: Es zählen nur Wiederholungen an verschiedenen Tagen, und ein Ort braucht dafür eine richtige Antwort an einem späteren Tag als dem ersten. Mehrmals am selben Tag zu üben bringt ihn nicht dorthin.",
+        [
+            "A locus counts as consolidated once it has shown that it holds for at least 30 days: only reviews on different days count, and it needs a right answer on a later day than its first. Practising several times on one day does not get it there.",
+            "Ein Ort gilt als gefestigt, wenn er gezeigt hat, dass er mindestens 30 Tage hält: Es zählen nur Wiederholungen an verschiedenen Tagen, und ein Ort braucht dafür eine richtige Antwort an einem späteren Tag als dem ersten. Mehrmals am selben Tag zu üben bringt ihn nicht dorthin.",
+            "Un lieu est consolidé quand il a montré qu’il tient au moins 30 jours : seules comptent les révisions faites des jours différents, et il lui faut une bonne réponse un autre jour que le premier. S’entraîner plusieurs fois le même jour ne l’y mène pas.",
+            "場所が少なくとも 30 日もつことを示したとき、定着したとみなされます。数えるのは別々の日の復習だけで、最初の日より後の日に正しく答える必要があります。同じ日に何度練習してもそこには届きません。",
+            "当一个地点证明了它至少能保持 30 天时，就算已巩固：只计算不同日期的复习，并且需要在第一次之后的某一天答对。同一天多次练习无法达到。",
+        ],
+    ),
+    (
+        "{0} XP · diese Woche {1}/{2} Tage · 1 Trophäe",
+        [
+            "{0} XP · this week {1}/{2} days · 1 trophy",
+            "{0} XP · diese Woche {1}/{2} Tage · 1 Trophäe",
+            "{0} XP · cette semaine {1}/{2} jours · 1 trophée",
+            "{0} XP · 今週 {1}/{2} 日 · トロフィー 1 個",
+            "{0} XP · 本周 {1}/{2} 天 · 1 个奖杯",
+        ],
+    ),
+    (
+        "{0} XP · diese Woche {1}/{2} Tage · {3} Trophäen",
+        [
+            "{0} XP · this week {1}/{2} days · {3} trophies",
+            "{0} XP · diese Woche {1}/{2} Tage · {3} Trophäen",
+            "{0} XP · cette semaine {1}/{2} jours · {3} trophées",
+            "{0} XP · 今週 {1}/{2} 日 · トロフィー {3} 個",
+            "{0} XP · 本周 {1}/{2} 天 · {3} 个奖杯",
+        ],
+    ),
+    (
+        "1 aktiver Tag in den letzten 12 Monaten",
+        [
+            "1 active day in the last 12 months",
+            "1 aktiver Tag in den letzten 12 Monaten",
+            "1 jour actif sur les 12 derniers mois",
+            "過去 12 か月で 1 日活動",
+            "过去 12 个月有 1 个活跃日",
+        ],
+    ),
+    (
+        "{0} aktive Tage in den letzten 12 Monaten",
+        [
+            "{0} active days in the last 12 months",
+            "{0} aktive Tage in den letzten 12 Monaten",
+            "{0} jours actifs sur les 12 derniers mois",
+            "過去 12 か月で {0} 日活動",
+            "过去 12 个月有 {0} 个活跃日",
+        ],
+    ),
+    (
+        "1 Antwort",
+        ["1 answer", "1 Antwort", "1 réponse", "1 回答", "1 次作答"],
+    ),
+    (
+        "{0} Antworten",
+        [
+            "{0} answers",
+            "{0} Antworten",
+            "{0} réponses",
+            "{0} 回答",
+            "{0} 次作答",
+        ],
+    ),
+    (
+        "{0}: 1 Antwort",
+        [
+            "{0}: 1 answer",
+            "{0}: 1 Antwort",
+            "{0} : 1 réponse",
+            "{0}：1 回答",
+            "{0}：1 次作答",
         ],
     ),
 ];

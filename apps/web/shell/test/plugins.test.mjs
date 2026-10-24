@@ -14,11 +14,12 @@ const unwrap = (result) => {
 };
 
 let core;
+let raw;
 let tutorialPalace;
 
 before(async () => {
   const wasm = await readFile(new URL('../../../../target/wasm32-wasip1/release/locora_web_core.wasm', import.meta.url));
-  const raw = await instantiateCore(wasm, { fs: new MemFs(), bridge: host.asBridge() });
+  raw = await instantiateCore(wasm, { fs: new MemFs(), bridge: host.asBridge() });
   // What the page does: forward the core's events to the plugins, and the plugins' calls to the core.
   core = (command, args) => {
     const reply = raw(command, args);
@@ -28,11 +29,13 @@ before(async () => {
   host.provideHostService('core.palaces@1', (_plugin, request) => unwrap(raw.palaceService(request)));
   host.provideHostService('ui.highlight@1', (plugin, request) => unwrap(raw.highlight(plugin, request)));
   host.onPublish = (plugin, topic, payload) => raw.publish(plugin, topic, payload);
+  // As the page does: the profile opens first; the game keeps its storage in it (synced).
+  assert.equal(core('open', '/locora').err, undefined);
   for (const id of PLUGINS) {
-    host.register(id, await import(`../../plugin-host/dist/${id}/${id}.js`));
+    const synced = id === 'gamification' ? raw.syncedStorage(id) : null;
+    host.register(id, await import(`../../plugin-host/dist/${id}/${id}.js`), new Map(), synced);
     host.start(id);
   }
-  assert.equal(core('open', '/locora').err, undefined);
   assert.equal(core('set_plugins', { plugins: PLUGINS.map((id) => host.require(id).manifest) }).err, undefined);
   tutorialPalace = core('tutorial', { lang: 'en' }).ok;
 });
@@ -81,11 +84,21 @@ test('answering the journey counts for review: the answers are counted and the c
   assert.ok(afterHome.fresh < beforeHome.fresh, 'answered cards are no longer new');
 });
 
-test('finishing the journey grants XP, trophies and streak through the gamification plugin', () => {
-  const status = core('gamification_status', {}).ok;
+test('finishing the journey grants XP, a learning day and the first trophy through the gamification plugin', () => {
+  const status = core('gamification_status', { full: true }).ok;
   assert.ok(status.xp > 0, JSON.stringify(status));
-  assert.ok(status.daily_correct > 0);
-  assert.ok(status.streak >= 1);
+  assert.ok(status.learning_days >= 1);
+  assert.ok(status.trophies.some((trophy) => trophy.id === 'first-journey'), JSON.stringify(status.trophies));
+  assert.equal(status.hearts, undefined, 'no hearts any more');
+});
+
+test('the game keeps its progress in the core, where the sync finds it', () => {
+  const storage = raw.syncedStorage('gamification');
+  const request = new Uint8Array([2, 0x67, 0x2f, 0]); // ListRequest { prefix: "g/", after_rev: 0 }
+  const listed = storage.list(request);
+  assert.ok(listed.length > 4, 'facts of this device are listed');
+  assert.equal(host.takeDirty('gamification').length, 0, 'nothing waits for IndexedDB');
+  assert.throws(() => raw.syncedStorage('review').get('palaces'), /not kept by the core/);
 });
 
 test('reminders are set through the notify plugin, and due messages are handed to the page once', () => {

@@ -99,7 +99,10 @@ fn daily_new_limit_settings_and_stats() {
         stats.contains("Heute:                 2 Antworten, 2 neue Loci"),
         "{stats}"
     );
-    assert!(stats.contains("Serie:                 2 Tage"), "{stats}");
+    // Learning days come from the game, the same on every device.
+    assert!(stats.contains("Lerntage:              2"), "{stats}");
+    assert!(stats.contains("Diese Woche:"), "{stats}");
+    assert!(!stats.contains("Herzen"), "{stats}");
     assert!(stats.contains("Trefferquote 30 Tage:  100 %"), "{stats}");
 
     assert!(ok(d, T0 + DAY, &["optimize"], "").contains("Noch zu wenig Daten"));

@@ -141,6 +141,8 @@ pub fn sync_with(
     options: SyncOptions,
 ) -> Result<SyncReport> {
     let state = cloud::load(data)?.ok_or_else(|| anyhow!("Nicht bei Locora Cloud angemeldet"))?;
+    // A deletion of the game scores that waits needs no sync access; the sync never waits for it.
+    let _ = cloud::retry_rankings(data);
     if !cloud::can_sync(&state, cloud::now_secs()) {
         bail!("Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren");
     }

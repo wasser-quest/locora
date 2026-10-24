@@ -23,7 +23,6 @@ const FILES: &[(&str, &[u8])] = ui![
     "richtig",
     "nochmal",
     "geschafft",
-    "herz",
     "combo",
     "pokal",
     "serie",
@@ -58,6 +57,27 @@ const FILES: &[(&str, &[u8])] = ui![
     "erfolg-lernen-history",
     "erfolg-lernen-research",
     "erfolg-lernen-sport",
+    "erfolg-spiel-erste",
+    "erfolg-spiel-100xp",
+    "erfolg-spiel-7tage",
+    "erfolg-spiel-faellig",
+    "erfolg-spiel-rhythmus",
+    "erfolg-spiel-perfekt",
+    "erfolg-spiel-gesperrt",
+    "erfolg-gefestigt-7",
+    "erfolg-gefestigt-30",
+    "erfolg-gefestigt-180",
+    "erfolg-gefestigt-gesperrt",
+];
+
+/// The journey trophies (`game-<id>`) and their medals; they share one grey medal while locked.
+const GAME_MEDALS: [(&str, &str); 6] = [
+    ("first-journey", "erfolg-spiel-erste"),
+    ("hundred-xp", "erfolg-spiel-100xp"),
+    ("seven-day-streak", "erfolg-spiel-7tage"),
+    ("due-cleared", "erfolg-spiel-faellig"),
+    ("rhythm-4", "erfolg-spiel-rhythmus"),
+    ("perfect-journey", "erfolg-spiel-perfekt"),
 ];
 
 /// Simo's friends who teach „Mnemotechnik lernen“ (assets/mascot).
@@ -113,7 +133,6 @@ impl Assets {
             right: self.media("richtig"),
             again: self.media("nochmal"),
             done: self.media("geschafft"),
-            heart: self.media("herz"),
             combo: self.media("combo"),
             trophy: self.media("pokal"),
             streak: self.media("serie"),
@@ -162,6 +181,19 @@ impl Assets {
             "first-palace".into(),
             pair("erfolg-palast", "erfolg-palast-gesperrt"),
         );
+        for (id, file) in GAME_MEDALS {
+            medals.insert(format!("game-{id}"), pair(file, "erfolg-spiel-gesperrt"));
+        }
+        // Palace medals by level (`palace-7`, `palace-30`, `palace-180`).
+        for level in [7, 30, 180] {
+            medals.insert(
+                format!("palace-{level}"),
+                pair(
+                    &format!("erfolg-gefestigt-{level}"),
+                    "erfolg-gefestigt-gesperrt",
+                ),
+            );
+        }
         medals
     }
 }

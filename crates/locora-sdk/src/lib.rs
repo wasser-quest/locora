@@ -271,6 +271,33 @@ impl Store {
         self.set(key, &total)?;
         Ok(total)
     }
+
+    /// The raw bytes of a key, or `None` if it was never written.
+    pub fn get_raw(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        host::kv_get(key).map_err(Error::msg)
+    }
+
+    /// Write raw bytes (empty bytes blank a key: there is no delete).
+    pub fn set_raw(&self, key: &str, value: &[u8]) -> Result {
+        host::kv_set(key, value).map_err(Error::msg)
+    }
+
+    /// This plugin's keys starting with `prefix` that changed after revision `after_rev` – here
+    /// or on another device, through a sync – in the order they changed, with their raw bytes
+    /// (empty for a blanked key). Pass the returned `rev` next time to get only newer changes;
+    /// while `more` is set, call again for the rest. Host service `storage.list@1`.
+    pub fn list(&self, prefix: &str, after_rev: u64) -> Result<api::storage::ListResponse> {
+        let request = api::storage::ListRequest {
+            prefix: prefix.to_owned(),
+            after_rev,
+        };
+        let bytes = host::call_host(
+            <api::storage::List as api::Service>::NAME,
+            &api::encode(&request)?,
+        )
+        .map_err(Error::msg)?;
+        Ok(api::decode(&bytes)?)
+    }
 }
 
 #[doc(hidden)]

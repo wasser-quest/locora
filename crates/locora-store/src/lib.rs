@@ -1426,10 +1426,11 @@ impl Store {
         if current.as_deref() == Some(value) {
             return Ok(());
         }
+        let rev = next_kv_rev(&conn)?;
         conn.execute(
-            "INSERT INTO kv(plugin, key, value) VALUES (?1, ?2, ?3)
-             ON CONFLICT(plugin, key) DO UPDATE SET value = excluded.value",
-            params![plugin, key, value],
+            "INSERT INTO kv(plugin, key, value, rev) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(plugin, key) DO UPDATE SET value = excluded.value, rev = excluded.rev",
+            params![plugin, key, value, rev],
         )?;
         self.log(
             &conn,
@@ -1438,6 +1439,71 @@ impl Store {
             "set",
             Some(serde_json::json!({ "value": sync::hex(value) })),
         )
+    }
+
+    /// The keys of `plugin` that start with `prefix` and changed after revision `after_rev`
+    /// (written here or applied by a sync), in the order they changed, at most `limit`. A key
+    /// written with empty bytes is listed with them. The returned revision is where the next call
+    /// goes on from; `more` says that `limit` was reached and more changes wait.
+    pub fn kv_list(
+        &self,
+        plugin: &str,
+        prefix: &str,
+        after_rev: u64,
+        limit: usize,
+    ) -> Result<KvChanges> {
+        let conn = self.conn();
+        let after = i64::try_from(after_rev).unwrap_or(i64::MAX);
+        let mut stmt = conn.prepare(
+            "SELECT key, value, rev FROM kv
+             WHERE plugin = ?1 AND rev > ?2 AND substr(key, 1, length(?3)) = ?3
+             ORDER BY rev LIMIT ?4",
+        )?;
+        let fetch = i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX);
+        let mut entries = stmt
+            .query_map(params![plugin, after, prefix, fetch], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Vec<u8>>(1)?,
+                    r.get::<_, i64>(2)?,
+                ))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let more = entries.len() > limit;
+        entries.truncate(limit);
+        // Without more to come, everything up to the counter was looked at.
+        let rev = if more {
+            entries.last().map_or(after, |(_, _, rev)| *rev)
+        } else {
+            kv_rev(&conn)?.max(after)
+        };
+        Ok(KvChanges {
+            entries: entries
+                .into_iter()
+                .map(|(key, value, _)| (key, value))
+                .collect(),
+            rev: rev.max(0) as u64,
+            more,
+        })
+    }
+
+    /// A value of this device only (the meta table is never synced), e.g. that a one-time
+    /// migration ran.
+    pub fn local_value(&self, key: &str) -> Result<Option<String>> {
+        let conn = self.conn();
+        Ok(conn
+            .query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
+            .optional()?)
+    }
+
+    pub fn set_local_value(&self, key: &str, value: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO meta(key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
     }
 
     // ------------------------------------------------------------ sync
@@ -1550,6 +1616,36 @@ impl Store {
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
+}
+
+/// What [`Store::kv_list`] found: `(key, value)` in the order they changed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct KvChanges {
+    pub entries: Vec<(String, Vec<u8>)>,
+    pub rev: u64,
+    pub more: bool,
+}
+
+/// The latest revision of plugin data handed out (`kv.rev` in the meta table).
+fn kv_rev(conn: &Connection) -> Result<i64> {
+    let value: Option<String> = conn
+        .query_row("SELECT value FROM meta WHERE key = 'kv.rev'", [], |r| {
+            r.get(0)
+        })
+        .optional()?;
+    Ok(value.and_then(|v| v.parse().ok()).unwrap_or(0))
+}
+
+/// The next revision of plugin data: every write of a key, local or from a sync, gets one, so a
+/// change that arrives late with an old clock is still seen as new here.
+pub(crate) fn next_kv_rev(conn: &Connection) -> Result<i64> {
+    let next = kv_rev(conn)? + 1;
+    conn.execute(
+        "INSERT INTO meta(key, value) VALUES ('kv.rev', ?1)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [next.to_string()],
+    )?;
+    Ok(next)
 }
 
 fn rows_in(conn: &Connection, palace_id: Option<&str>) -> Result<Vec<Row>> {

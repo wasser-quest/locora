@@ -4,6 +4,11 @@
 //! every locus has a *stability* (days until recall probability falls to 90 %)
 //! and a *difficulty* (1–10). Each answer updates both and schedules the next
 //! review so that recall probability stays at the desired retention.
+//!
+//! One deliberate difference: an answer less than a day after the previous one
+//! never raises the stability (FSRS-5 multiplies it on every same-day answer, so
+//! cramming a locus ten times in an evening would schedule it months away).
+//! A same-day „Again“ or „Hard“ still lowers it.
 
 pub mod optimize;
 
@@ -105,8 +110,10 @@ impl Params {
         next.min(s)
     }
 
+    /// Less than a day after the last answer: lowered by a lapse, never raised (see the
+    /// crate documentation).
     fn short_term_stability(&self, s: f64, g: f64) -> f64 {
-        s * (self.w(17) * (g - 3.0 + self.w(18))).exp()
+        s * (self.w(17) * (g - 3.0 + self.w(18))).exp().min(1.0)
     }
 
     /// Days until recall probability falls to the desired retention.
@@ -213,6 +220,30 @@ mod tests {
         assert!(lapse.difficulty > card.difficulty);
         assert_eq!(lapse.lapses, 1);
         assert_eq!(lapse.due, card.due + RELEARN_SECS);
+    }
+
+    #[test]
+    fn answers_on_the_same_day_never_raise_the_stability() {
+        let p = Params::default();
+        for grade in [Grade::Good, Grade::Easy] {
+            let first = p.review(None, grade, T0);
+            let mut card = first;
+            for walk in 1..=12 {
+                card = p.review(Some(&card), grade, T0 + walk * 600);
+            }
+            assert!((card.stability - first.stability).abs() < 1e-9, "{grade:?}");
+            assert_eq!(
+                card.due - card.last_review,
+                first.due - first.last_review,
+                "the interval stays that of the first answer"
+            );
+        }
+        // A lapse on the same day still lowers it; a later day raises it again.
+        let card = p.review(None, Grade::Good, T0);
+        let lapse = p.review(Some(&card), Grade::Again, T0 + 600);
+        assert!(lapse.stability < card.stability);
+        let next_day = p.review(Some(&card), Grade::Good, T0 + DAY + 600);
+        assert!(next_day.stability > card.stability);
     }
 
     #[test]

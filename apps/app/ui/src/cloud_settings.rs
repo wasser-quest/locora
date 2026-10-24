@@ -79,10 +79,22 @@ fn refresh_keys_for(
     });
 }
 
+/// Whether an account is signed in on this device, as the cloud settings last saw it; other
+/// sections (the game's) follow it.
+#[derive(Clone, Copy)]
+pub struct SignedIn(pub RwSignal<Option<bool>>);
+
 #[component]
 pub fn CloudSettings() -> impl IntoView {
     provide_context(PasswordsShown(RwSignal::new(false)));
     let status = load(call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}));
+    if let Some(SignedIn(signed_in)) = use_context::<SignedIn>() {
+        Effect::new(move |_| {
+            if let Some(Ok(status)) = status.get() {
+                signed_in.set(Some(status.account.is_some()));
+            }
+        });
+    }
     let keys = RwSignal::new(None::<Result<bool, String>>);
     let recovery = RwSignal::new(None::<CloudKeyCreated>);
     let message = RwSignal::new(None::<Result<String, String>>);
@@ -283,6 +295,7 @@ fn DeleteCloud(
                 }
             >
                 <p role="alert">{t("Alle synchronisierten Änderungen und Medien werden vom Server gelöscht. Andere angemeldete Geräte laden ihre Daten beim nächsten Sync wieder hoch.")}</p>
+                <p class="notes">{t("Ranglisteneinträge gehören nicht zu den synchronisierten Daten; lösche sie mit „Spielfortschritt löschen“.")}</p>
                 <button type="button" class="danger" disabled=move || busy.get() on:click=move |_| erase()>
                     {t("Ja, Cloud-Daten löschen")}
                 </button>
@@ -426,7 +439,12 @@ fn ConnectForm(
         message.set(None);
         spawn_local(async move {
             match call::<CloudStatus>(CMD_CLOUD_CONNECT, ConnectArgs { request }).await {
-                Ok(connected) => status.set(Some(Ok(connected))),
+                Ok(connected) => {
+                    status.set(Some(Ok(connected)));
+                    // Reading the status asks the server again for anything that waited for a
+                    // session (a deletion of the game scores).
+                    let _ = call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}).await;
+                }
                 Err(error) => {
                     message.set(Some(Err(error)));
                     // A response can fail after the session was persisted.

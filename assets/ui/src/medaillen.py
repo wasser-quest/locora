@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Builds the medals of „Mnemotechnik lernen“, the app tour and the first own palace.
+"""Builds the medals of „Mnemotechnik lernen“, the app tour, the first own palace, the journey
+trophies (erfolg-spiel-*) and the palace medals (erfolg-gefestigt-*).
 
 Usage: SPLINELY_CLI=splinely-cli python3 assets/ui/src/medaillen.py [OUTPUT_DIR]
 
@@ -7,7 +8,8 @@ One parametric medal (96 x 96, transparent, same build as erfolg-* in ui.py): a 
 medal in the colour of the character who teaches the lesson, with a simple topic
 symbol on it. Unlocked medals glow, breathe and spin on click, with their cel
 shading, halo and symbol as one `Body` (assets/tutorial/src/tutorial.py); the locked
-ones are grey and still. All lessons share one locked medal (erfolg-lernen-gesperrt).
+ones are grey and still. All lessons share one locked medal (erfolg-lernen-gesperrt); the
+journey trophies share erfolg-spiel-gesperrt and the palace medals erfolg-gefestigt-gesperrt.
 """
 import os, sys
 
@@ -75,6 +77,10 @@ SYMBOLS = {
     "key": [(ring(9, 4, -8, -8), "fg"), ("M-3 -3 L1 -7 L19 11 L15 15 L13 13 L10 16 L7 13 L10 10 Z", "fg")],
     "flag": [("M-11 -19 L-7 -19 L-7 19 L-11 19 Z M-7 -19 L16 -12 L-7 -4 Z", "fg")],
     "crown": [("M-19 12 L-19 -11 L-9 -1 L0 -18 L9 -1 L19 -11 L19 12 Z M-19 15 L19 15 L19 19 L-19 19 Z", "fg")],
+    "anchor": [(ring(5, 2.5, 0, -14), "fg"),
+               ("M-9 -8 L9 -8 L9 -4 L-9 -4 Z M-2 -9 L2 -9 L2 14 L-2 14 Z "
+                "M-16 2 L-12 0 C -11 9 -6 14 0 14 C 6 14 11 9 12 0 L16 2 C 15 13 8 19 0 19 C -8 19 -15 13 -16 2 Z "
+                "M-19 5 L-14 -4 L-9 5 Z M19 5 L14 -4 L9 5 Z", "fg")],
     "castle": [("M-18 19 L-18 -13 L-12 -13 L-12 -7 L-6 -7 L-6 -13 L6 -13 L6 -7 L12 -7 L12 -13 L18 -13 L18 19 "
                 "L5 19 L5 8 C 5 2 -5 2 -5 8 L-5 19 Z", "fg")],
 }
@@ -98,6 +104,23 @@ LESSONS = [
     ("history", SIMO, "temple", "Geschichte"),
     ("research", MINA, "lens", "Forschung"),
     ("sport", HAFIZA, "cup", "Gedächtnissport"),
+]
+
+# Journey trophies: file name, colours, symbol, title, what earned it.
+GAME = [
+    ("erste", SIMO, "steps", "Erste Journey", "die erste Journey ist geschafft."),
+    ("100xp", CAMI, "bolt", "100 XP", "100 XP aus fälligen Wiederholungen und neuen Orten."),
+    ("7tage", MINA, "clock", "7 Lerntage", "an sieben Tagen gelernt."),
+    ("faellig", HAFIZA, "flag", "Alles Fällige erledigt", "an einem Tag jede fällige Wiederholung gemacht."),
+    ("rhythmus", BRUNO, "cycle", "Wochenziel 4-mal", "das Wochenziel in vier Wochen erreicht."),
+    ("perfekt", AMBER, "crown", "Fehlerfreie Journey", "eine Journey ohne Fehler (aus früheren Versionen)."),
+]
+
+# Palace medals: days a locus holds, tips, symbol, title.
+PALACE = [
+    (7, 7, "anchor", "Verankert"),
+    (30, 8, "castle", "Gefestigt"),
+    (180, 10, "temple", "Dauerhaft"),
 ]
 
 
@@ -146,3 +169,14 @@ if __name__ == "__main__":
           "Eine grüne Medaille mit Schlüssel: der erste eigene Palast ist gebaut und durchlaufen.")
     medal("erfolg-palast-gesperrt", "Erster eigener Palast", 9, None, None,
           "Eine graue Medaille: der erste eigene Palast fehlt noch.", unlocked=False)
+    # Journey trophies: earned with due reviews, new loci and the weekly goal.
+    for name, colours, symbol, title, what in GAME:
+        medal(f"erfolg-spiel-{name}", title, 9, colours, symbol, f"Eine Medaille mit neun Spitzen: {what}")
+    medal("erfolg-spiel-gesperrt", "Trophäe", 9, None, None,
+          "Eine graue Medaille: diese Trophäe ist noch nicht erreicht.", unlocked=False)
+    # Palace medals: most loci of a palace hold for 7, 30 or 180 days; more tips for longer.
+    for level, tips, symbol, title in PALACE:
+        medal(f"erfolg-gefestigt-{level}", title, tips, BRUNO, symbol,
+              f"Eine grüne Medaille: fast alle Orte eines Palasts halten {level} Tage oder länger.")
+    medal("erfolg-gefestigt-gesperrt", "Palastmedaille", 8, None, None,
+          "Eine graue Medaille: diese Palastmedaille ist noch nicht erreicht.", unlocked=False)

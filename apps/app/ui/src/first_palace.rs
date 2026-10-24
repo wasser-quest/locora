@@ -143,10 +143,8 @@ pub fn GuidePanel(
                         reminders.set(settings.reminders.enabled);
                     }
                     finished.set(true);
-                    if let (true, false, Some(Celebration(signal))) =
-                        (unlocked, before, celebration)
-                    {
-                        signal.set(Some("first-palace".into()));
+                    if let (true, false, Some(celebration)) = (unlocked, before, celebration) {
+                        celebration.celebrate("first-palace");
                     }
                 }
             });

@@ -105,11 +105,22 @@ pub enum HostEvent {
 pub trait KvStore: Send + Sync {
     fn get(&self, plugin: &str, key: &str) -> Result<Option<Vec<u8>>, String>;
     fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String>;
+    /// The keys of `plugin` starting with `prefix` that changed after `after_rev`, in the order
+    /// they changed (`storage.list@1`). Storage without revisions cannot list.
+    fn list(&self, plugin: &str, prefix: &str, after_rev: u64) -> Result<ListResponse, String> {
+        let _ = (plugin, prefix, after_rev);
+        Err("Dieser Speicher kann keine Schlüssel auflisten".into())
+    }
 }
+
+pub use locora_api::storage::{ListEntry, ListResponse};
+
+/// Values by (plugin, key) with the revision of their last change, and the latest revision.
+type Revised = (BTreeMap<(String, String), (Vec<u8>, u64)>, u64);
 
 /// In-memory storage.
 #[derive(Default)]
-pub struct MemoryKv(std::sync::Mutex<BTreeMap<(String, String), Vec<u8>>>);
+pub struct MemoryKv(std::sync::Mutex<Revised>);
 
 impl KvStore for MemoryKv {
     fn get(&self, plugin: &str, key: &str) -> Result<Option<Vec<u8>>, String> {
@@ -117,7 +128,10 @@ impl KvStore for MemoryKv {
             .0
             .lock()
             .map_err(|_| "storage is poisoned".to_owned())?;
-        Ok(map.get(&(plugin.to_owned(), key.to_owned())).cloned())
+        Ok(map
+            .0
+            .get(&(plugin.to_owned(), key.to_owned()))
+            .map(|(value, _)| value.clone()))
     }
 
     fn set(&self, plugin: &str, key: &str, value: &[u8]) -> Result<(), String> {
@@ -125,8 +139,45 @@ impl KvStore for MemoryKv {
             .0
             .lock()
             .map_err(|_| "storage is poisoned".to_owned())?;
-        map.insert((plugin.to_owned(), key.to_owned()), value.to_vec());
+        let id = (plugin.to_owned(), key.to_owned());
+        if map.0.get(&id).is_some_and(|(old, _)| old == value) {
+            return Ok(());
+        }
+        map.1 += 1;
+        let rev = map.1;
+        map.0.insert(id, (value.to_vec(), rev));
         Ok(())
+    }
+
+    fn list(&self, plugin: &str, prefix: &str, after_rev: u64) -> Result<ListResponse, String> {
+        let map = self
+            .0
+            .lock()
+            .map_err(|_| "storage is poisoned".to_owned())?;
+        let mut changed: Vec<(u64, String, Vec<u8>)> = map
+            .0
+            .iter()
+            .filter(|((owner, key), (_, rev))| {
+                owner == plugin && key.starts_with(prefix) && *rev > after_rev
+            })
+            .map(|((_, key), (value, rev))| (*rev, key.clone(), value.clone()))
+            .collect();
+        changed.sort_by_key(|(rev, _, _)| *rev);
+        let more = changed.len() > locora_api::storage::PAGE;
+        changed.truncate(locora_api::storage::PAGE);
+        let rev = if more {
+            changed.last().map_or(after_rev, |(rev, _, _)| *rev)
+        } else {
+            map.1.max(after_rev)
+        };
+        Ok(ListResponse {
+            entries: changed
+                .into_iter()
+                .map(|(_, key, value)| ListEntry { key, value })
+                .collect(),
+            rev,
+            more,
+        })
     }
 }
 
@@ -138,6 +189,12 @@ pub trait ServiceBridge {
     fn call(&self, plugin: Option<&str>, service: &str, request: &[u8]) -> Result<Vec<u8>, String>;
     /// Runs the filters of `hook` on an encoded value; the result is the encoded value after them.
     fn filter(&self, hook: &str, value: &[u8]) -> Result<Vec<u8>, String>;
+    /// Delivers an event to the plugins now, as the native host does; `false` when the page
+    /// cannot, and the event goes to the page with the command's reply instead.
+    fn publish(&self, topic: &str, payload: &[u8]) -> bool {
+        let _ = (topic, payload);
+        false
+    }
 }
 
 thread_local! {
@@ -309,6 +366,15 @@ impl PluginHost {
     }
 
     pub fn publish_raw(&mut self, topic: &str, payload: Vec<u8>) {
+        // At once where the page can deliver it: a command then reads what the plugins made of it
+        // (the game counts an answer before the journey's end card is written).
+        if self
+            .bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.publish(topic, &payload))
+        {
+            return;
+        }
         self.events.push(HostEvent::Published {
             plugin: "host".to_owned(),
             topic: topic.to_owned(),

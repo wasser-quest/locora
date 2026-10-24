@@ -63,6 +63,13 @@ mod plugins {
         #[link_name = "filter"]
         fn host_filter(hook: *const u8, hook_len: usize, value: *const u8, value_len: usize)
         -> u64;
+        #[link_name = "publish"]
+        fn host_publish(
+            topic: *const u8,
+            topic_len: usize,
+            payload: *const u8,
+            payload_len: usize,
+        ) -> u32;
     }
 
     pub struct Bridge;
@@ -104,6 +111,12 @@ mod plugins {
             let packed =
                 unsafe { host_filter(hook.as_ptr(), hook.len(), value.as_ptr(), value.len()) };
             read_reply(packed)
+        }
+
+        fn publish(&self, topic: &str, payload: &[u8]) -> bool {
+            unsafe {
+                host_publish(topic.as_ptr(), topic.len(), payload.as_ptr(), payload.len()) == 1
+            }
         }
     }
 
@@ -196,7 +209,8 @@ fn dispatch(command: &str, args: &str) -> String {
             serde_json::from_str(args)?
         };
         // The cloud commands take the backend themselves, and may wait for the page's calls.
-        if command.starts_with("cloud_") {
+        // Deleting the game progress is local first, then asks the server about the rankings.
+        if command.starts_with("cloud_") || command == "game_reset" {
             return Ok((cloud::command(command, &args)?, serde_json::json!([])));
         }
         // Events are taken in every case: the page delivers them to the plugins after the command.
@@ -289,6 +303,106 @@ pub unsafe extern "C" fn plugin_publish(
     tagged(Ok(Vec::new()))
 }
 
+/// Plugins whose storage is the profile's own, so it is logged and synced like everything else
+/// (on the desktop every plugin's storage is). The others keep theirs in the browser.
+pub const SYNCED_PLUGINS: [&str; 1] = ["gamification"];
+
+/// The store, for a plugin of `SYNCED_PLUGINS`.
+#[cfg_attr(not(any(target_arch = "wasm32", test)), allow(dead_code))]
+fn synced_store(plugin: &str) -> Result<std::sync::Arc<locora_store::Store>, String> {
+    if !SYNCED_PLUGINS.contains(&plugin) {
+        return Err(format!("the storage of {plugin} is not kept by the core"));
+    }
+    STORE
+        .with(|cell| cell.borrow().clone())
+        .ok_or_else(|| "the profile is not open".to_owned())
+}
+
+/// A synced plugin's key: one byte (1 = stored, 0 = never written), then the value.
+#[cfg_attr(not(any(target_arch = "wasm32", test)), allow(dead_code))]
+fn kv_get(plugin: &str, key: &str) -> Result<Vec<u8>, String> {
+    let value = synced_store(plugin)?
+        .kv_get(plugin, key)
+        .map_err(|e| e.to_string())?;
+    Ok(match value {
+        Some(bytes) => std::iter::once(1).chain(bytes).collect(),
+        None => vec![0],
+    })
+}
+
+#[cfg_attr(not(any(target_arch = "wasm32", test)), allow(dead_code))]
+fn kv_set(plugin: &str, key: &str, value: &[u8]) -> Result<Vec<u8>, String> {
+    synced_store(plugin)?
+        .kv_set(plugin, key, value)
+        .map_err(|e| e.to_string())?;
+    Ok(Vec::new())
+}
+
+/// `storage.list@1` for a synced plugin: the postcard request in, the postcard reply out.
+#[cfg_attr(not(any(target_arch = "wasm32", test)), allow(dead_code))]
+fn kv_list(plugin: &str, request: &[u8]) -> Result<Vec<u8>, String> {
+    let store = synced_store(plugin)?;
+    let request: locora_api::storage::ListRequest =
+        locora_api::decode(request).map_err(|e| format!("Ungültige Listenanfrage: {e}"))?;
+    if request.prefix.len() > locora_api::storage::MAX_PREFIX {
+        return Err("Präfix ist zu lang".into());
+    }
+    let listed =
+        locora_runtime::list_plugin_keys(&store, plugin, &request.prefix, request.after_rev)?;
+    locora_api::encode(&listed).map_err(|e| e.to_string())
+}
+
+/// A synced plugin reads a key (see `kv_get` for the reply).
+/// # Safety
+/// Both pairs must describe bytes the host wrote with `alloc`.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plugin_kv_get(
+    plugin_pointer: *const u8,
+    plugin_len: usize,
+    key_pointer: *const u8,
+    key_len: usize,
+) -> u64 {
+    let plugin = unsafe { text(plugin_pointer, plugin_len) };
+    let key = unsafe { text(key_pointer, key_len) };
+    tagged(kv_get(&plugin, &key))
+}
+
+/// A synced plugin writes a key (empty bytes blank it).
+/// # Safety
+/// The three pairs must describe bytes the host wrote with `alloc`.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plugin_kv_set(
+    plugin_pointer: *const u8,
+    plugin_len: usize,
+    key_pointer: *const u8,
+    key_len: usize,
+    value_pointer: *const u8,
+    value_len: usize,
+) -> u64 {
+    let plugin = unsafe { text(plugin_pointer, plugin_len) };
+    let key = unsafe { text(key_pointer, key_len) };
+    let value = unsafe { input(value_pointer, value_len) };
+    tagged(kv_set(&plugin, &key, &value))
+}
+
+/// A synced plugin lists what changed (`storage.list@1`).
+/// # Safety
+/// Both pairs must describe bytes the host wrote with `alloc`.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plugin_kv_list(
+    plugin_pointer: *const u8,
+    plugin_len: usize,
+    request_pointer: *const u8,
+    request_len: usize,
+) -> u64 {
+    let plugin = unsafe { text(plugin_pointer, plugin_len) };
+    let request = unsafe { input(request_pointer, request_len) };
+    tagged(kv_list(&plugin, &request))
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
     let mut buffer = Vec::<u8>::with_capacity(len);
@@ -351,4 +465,33 @@ fn pack_bytes(mut output: Vec<u8>) -> u64 {
     let (pointer, len) = (output.as_mut_ptr(), output.len());
     std::mem::forget(output);
     ((pointer as u64) << 32) | len as u64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_synced_plugins_reach_the_profile_storage() {
+        let store = std::sync::Arc::new(locora_store::Store::in_memory().unwrap());
+        STORE.with(|cell| *cell.borrow_mut() = Some(store.clone()));
+        assert!(kv_get("review", "cards").is_err());
+        assert_eq!(kv_get("gamification", "progress").unwrap(), vec![0]);
+        kv_set("gamification", "g/0/day/x/d", b"fact").unwrap();
+        assert_eq!(
+            kv_get("gamification", "g/0/day/x/d").unwrap(),
+            b"\x01fact".to_vec()
+        );
+        assert_eq!(store.ops_since(0).unwrap().len(), 1, "logged, so it syncs");
+        let request = locora_api::encode(&locora_api::storage::ListRequest {
+            prefix: "g/".into(),
+            after_rev: 0,
+        })
+        .unwrap();
+        let listed: locora_api::storage::ListResponse =
+            locora_api::decode(&kv_list("gamification", &request).unwrap()).unwrap();
+        assert_eq!(listed.entries.len(), 1);
+        assert!(kv_list("notify", &request).is_err());
+        STORE.with(|cell| cell.borrow_mut().take());
+    }
 }

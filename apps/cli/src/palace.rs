@@ -10,7 +10,7 @@ use locora_api::core::{LocusDeleted, PalaceCreated, PalaceDeleted};
 use locora_api::review::{CardState, Schedule};
 use locora_store::{Locus, LocusPatch, NewLocus, RoomKind};
 
-use crate::app::{App, now};
+use crate::app::App;
 
 /// One locus to create: from a command-line item or a line of a file.
 #[derive(Debug, Clone, PartialEq)]
@@ -366,14 +366,14 @@ pub fn list(app: &mut App) -> Result<()> {
         return Ok(());
     }
     let cards = schedule(app, None);
-    let now = now();
+    let day = app.due_day()?;
     println!(
         "{:<28} {:>5} {:>7} {:>5}",
         "Palast", "Loci", "fällig", "neu"
     );
     for summary in palaces {
         let tree = app.store.palace(&summary.id)?;
-        let (due, fresh) = count_due(&tree, &cards, now);
+        let (due, fresh) = count_due(&tree, &cards, &day);
         println!(
             "{:<28} {:>5} {:>7} {:>5}",
             truncate(&summary.name, 28),
@@ -399,7 +399,7 @@ pub use locora_runtime::count_due;
 pub fn show(app: &mut App, query: &str) -> Result<()> {
     let tree = app.store.palace(query)?;
     let cards = schedule(app, Some(&tree.palace.id));
-    let now = now();
+    let day = app.due_day()?;
     println!("{}", tree.palace.name);
     let mut n = 0;
     for room in &tree.rooms {
@@ -413,8 +413,8 @@ pub fn show(app: &mut App, query: &str) -> Result<()> {
             n += 1;
             let when = match cards.get(&locus.id) {
                 None => "neu".into(),
-                Some(card) if card.due <= now => "fällig".into(),
-                Some(card) => relative(card.due, now),
+                Some(card) if day.asks(card) => "fällig".into(),
+                Some(card) => relative(card.due, day.now),
             };
             let time = locus
                 .time
@@ -518,14 +518,14 @@ pub fn due(app: &mut App) -> Result<()> {
     if !app.host.provides(<Schedule as locora_api::Service>::NAME) {
         bail!("Das Plugin `review` (Wiederholung) ist nicht geladen");
     }
-    let now = now();
+    let day = app.due_day()?;
     let mut any = false;
     let mut next: Option<u64> = None;
     for summary in app.store.palaces()? {
         let tree = app.store.palace(&summary.id)?;
-        let (due, fresh) = count_due(&tree, &cards, now);
+        let (due, fresh) = count_due(&tree, &cards, &day);
         for l in tree.route() {
-            if let Some(card) = cards.get(&l.id).filter(|c| c.due > now) {
+            if let Some(card) = cards.get(&l.id).filter(|c| !day.asks(c)) {
                 next = Some(next.map_or(card.due, |n| n.min(card.due)));
             }
         }
@@ -545,7 +545,10 @@ pub fn due(app: &mut App) -> Result<()> {
         println!("  Wiederholen: locora review");
     } else {
         match next {
-            Some(t) => println!("Nichts fällig. Nächste Wiederholung {}.", relative(t, now)),
+            Some(t) => println!(
+                "Nichts fällig. Nächste Wiederholung {}.",
+                relative(t, day.now)
+            ),
             None => println!("Nichts fällig."),
         }
     }

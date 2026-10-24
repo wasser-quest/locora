@@ -104,6 +104,21 @@ pub fn auto_outcome(result: anyhow::Result<SyncReport>) -> CloudAutoOutcome {
     outcome
 }
 
+/// The runtime's answer about the rankings, as the UI reads it.
+pub fn rankings(
+    outcome: locora_runtime::cloud::RankingsDeletion,
+) -> locora_app_api::RankingsDeletion {
+    use locora_app_api::RankingsDeletion as Ui;
+    use locora_runtime::cloud::RankingsDeletion as Run;
+    match outcome {
+        Run::NotSignedIn => Ui::NotSignedIn,
+        Run::Deleted => Ui::Deleted,
+        Run::ServerTooOld => Ui::ServerTooOld,
+        Run::Pending => Ui::Pending,
+        Run::SignInAgain => Ui::SignInAgain,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

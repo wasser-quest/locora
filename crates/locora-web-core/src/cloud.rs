@@ -8,7 +8,8 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 
 use anyhow::{Result, anyhow, bail};
-use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus};
+use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, GameResetReport};
+use locora_app_core::cloud_view;
 use locora_cloud_api::api::KeyBundle;
 use locora_runtime::cloud::{self, CloudState, Connect, Refresh, RetentionStatus};
 use locora_runtime::cloud_http::{
@@ -47,9 +48,26 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
         };
     }
     match name {
+        // A deletion of the game scores that still waits for the server is asked again here
+        // (the app reads the status at the start, after signing in and on the settings).
         "cloud_status" => {
             let state = cloud::load(&data)?;
-            Ok(json!({ "done": status(state.as_ref()) }))
+            match state {
+                Some(state) if cloud::rankings_pending(&data, &state.account.id)? => {
+                    let call = cloud::erase_game_call(&state)?;
+                    drive(
+                        Box::new(Map::new(
+                            Exchange::new(call, cloud::erase_game_reply),
+                            move |outcome: cloud::RankingsDeletion| {
+                                cloud::note_rankings(&data, &state, outcome)?;
+                                Ok(json!(status(Some(&state))))
+                            },
+                        )),
+                        None,
+                    )
+                }
+                state => Ok(json!({ "done": status(state.as_ref()) })),
+            }
         }
         "cloud_refresh" => {
             let state = saved(&data)?;
@@ -120,6 +138,30 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             drive(Box::new(KeysSetup::new(state, request.passphrase)), None)
         }
         "cloud_sync" => crate::cloud_auto::sync(args, data),
+        // Deleted here first; the rankings on the server are asked for when an account is
+        // signed in, and asked again (see `cloud_status`) until the server has deleted them.
+        "game_reset" => {
+            crate::with_backend(|backend| backend.profile.reset_game().map(drop))?;
+            let report = |outcome| {
+                json!(GameResetReport {
+                    rankings: cloud_view::rankings(outcome),
+                })
+            };
+            let Some(state) = cloud::load(&data)? else {
+                return Ok(json!({ "done": report(cloud::RankingsDeletion::NotSignedIn) }));
+            };
+            let call = cloud::erase_game_call(&state)?;
+            drive(
+                Box::new(Map::new(
+                    Exchange::new(call, cloud::erase_game_reply),
+                    move |outcome: cloud::RankingsDeletion| {
+                        cloud::note_rankings(&data, &state, outcome)?;
+                        Ok(report(outcome))
+                    },
+                )),
+                None,
+            )
+        }
         "cloud_erase" => {
             let state = saved(&data)?;
             let call = cloud::erase_call(&state)?;

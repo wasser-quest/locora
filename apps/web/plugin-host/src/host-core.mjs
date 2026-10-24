@@ -9,6 +9,65 @@
 const ok = (val) => ({ tag: 'ok', val });
 const err = (val) => ({ tag: 'err', val: String(val) });
 
+/** Services only the host answers; a plugin cannot provide them (as in the native host). */
+const RESERVED = new Set(['core.palaces@1', 'ui.highlight@1', 'storage.list@1']);
+/** Most entries in one `storage.list@1` reply, and the longest prefix (locora_api::storage). */
+const LIST_PAGE = 5000;
+const MAX_PREFIX = 200;
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+// Postcard, as far as `storage.list@1` needs it: unsigned varints, strings and byte lists.
+function readVarint(bytes, at) {
+  let value = 0n;
+  let shift = 0n;
+  for (;;) {
+    if (at >= bytes.length) throw new Error('the request ends too early');
+    const byte = bytes[at++];
+    value |= BigInt(byte & 0x7f) << shift;
+    if ((byte & 0x80) === 0) return [value, at];
+    shift += 7n;
+  }
+}
+
+function writeVarint(out, value) {
+  let rest = BigInt(value);
+  do {
+    let byte = Number(rest & 0x7fn);
+    rest >>= 7n;
+    if (rest > 0n) byte |= 0x80;
+    out.push(byte);
+  } while (rest > 0n);
+}
+
+/** `ListRequest { prefix: String, after_rev: u64 }` from its postcard bytes. */
+export function decodeListRequest(bytes) {
+  const [length, at] = readVarint(bytes, 0);
+  const end = at + Number(length);
+  if (end > bytes.length) throw new Error('the request ends too early');
+  const prefix = decoder.decode(bytes.subarray(at, end));
+  const [afterRev] = readVarint(bytes, end);
+  return { prefix, afterRev };
+}
+
+/** `ListResponse { entries: Vec<ListEntry { key, value }>, rev: u64, more: bool }` as postcard. */
+export function encodeListResponse({ entries, rev, more }) {
+  const out = [];
+  writeVarint(out, entries.length);
+  for (const [key, value] of entries) {
+    const name = encoder.encode(key);
+    writeVarint(out, name.length);
+    out.push(...name);
+    writeVarint(out, value.length);
+    out.push(...value);
+  }
+  writeVarint(out, rev);
+  out.push(more ? 1 : 0);
+  return new Uint8Array(out);
+}
+
+const sameBytes = (a, b) => a !== undefined && a.length === b.length && a.every((byte, i) => byte === b[i]);
+
 /**
  * Runs one plugin export. jco returns the value of an `ok` and throws the payload of an `err`
  * (a ComponentError); this turns both into WIT results.
@@ -31,16 +90,42 @@ export class PluginHost {
     this.pending = [];             // events published but not yet delivered
     this.logs = [];                // { plugin, level, message }
     this.onPublish = null;         // (plugin id, topic, payload) for the core, set by the app
+    // A plugin's own keys that changed after a revision, as the native host lists them.
+    this.provideHostService('storage.list@1', (plugin, request) => this.list(plugin, request));
   }
 
-  /** Registers a transpiled plugin module under its id (the id is checked against the manifest). */
-  register(id, module, initialStorage = new Map()) {
+  /**
+   * Registers a transpiled plugin module under its id (the id is checked against the manifest).
+   * Its storage lives here, starting with `initialStorage` (written to IndexedDB by the app), unless
+   * `synced` is given: then every key is read and written through it – the core's own store, which
+   * logs and syncs the changes – as `{ get(key), set(key, value), list(request) }`.
+   */
+  register(id, module, initialStorage = new Map(), synced = null) {
     if (this.plugins.has(id)) throw new Error(`plugin ${id} is already registered`);
+    const store = new Map(initialStorage);
+    // Every key gets a revision: storage.list@1 hands out what changed after one.
+    const revs = new Map([...store.keys()].map((key, index) => [key, index + 1]));
     this.plugins.set(id, {
       id, module, manifest: null, active: false,
-      store: new Map(initialStorage), dirty: new Set(),
+      store, revs, rev: revs.size, synced, dirty: new Set(),
       subscriptions: new Set(), provided: new Set(), filters: new Map(),
     });
+  }
+
+  /** `storage.list@1` for the plugin `id` (postcard request in, postcard reply out). */
+  list(id, request) {
+    const plugin = this.require(id);
+    if (!plugin.manifest?.permissions?.includes('storage')) throw new Error('the storage permission is missing');
+    if (plugin.synced) return plugin.synced.list(request);
+    const { prefix, afterRev } = decodeListRequest(request);
+    if (encoder.encode(prefix).length > MAX_PREFIX) throw new Error('the prefix is too long');
+    const changed = [...plugin.revs]
+      .filter(([key, rev]) => BigInt(rev) > afterRev && key.startsWith(prefix))
+      .sort((a, b) => a[1] - b[1]);
+    const more = changed.length > LIST_PAGE;
+    const page = changed.slice(0, LIST_PAGE);
+    const rev = more ? page[page.length - 1][1] : Math.max(plugin.rev, Number(afterRev));
+    return encodeListResponse({ entries: page.map(([key]) => [key, plugin.store.get(key) ?? new Uint8Array()]), rev, more });
   }
 
   /** Activates a plugin: reads its manifest, checks the id, runs `activate`, delivers what it published. */
@@ -89,6 +174,11 @@ export class PluginHost {
    */
   asBridge() {
     return {
+      // Events of the core reach the plugins at once, as in the native host.
+      publish: (topic, payload) => {
+        this.publish(topic, payload);
+        return true;
+      },
       provides: (plugin, service) => (plugin ? this.services.get(service) === plugin : this.services.has(service)),
       call: (plugin, service, request) => {
         if (plugin && this.services.get(service) !== plugin) return err(`plugin ${plugin} does not provide ${service}`);
@@ -166,6 +256,10 @@ export class PluginHost {
         host.onPublish?.(id, topic, new Uint8Array(payload));
       },
       provide(service) {
+        if (RESERVED.has(service)) {
+          host.logs.push({ plugin: id, level: 'warn', message: `${service} is reserved for the host` });
+          return ok(undefined);
+        }
         const owner = host.services.get(service);
         if (owner && owner !== id) return err(`${service} is already provided by ${owner}`);
         host.services.set(service, id);
@@ -187,13 +281,31 @@ export class PluginHost {
       },
       kvGet(key) {
         if (!storage()) return err('the storage permission is missing');
-        const value = plugin().store.get(key);
-        return ok(value === undefined ? undefined : new Uint8Array(value));
+        const p = plugin();
+        try {
+          const value = p.synced ? p.synced.get(key) : p.store.get(key);
+          return ok(value === undefined ? undefined : new Uint8Array(value));
+        } catch (error) {
+          return err(error?.message ?? error);
+        }
       },
       kvSet(key, value) {
         if (!storage()) return err('the storage permission is missing');
         const p = plugin();
-        p.store.set(key, new Uint8Array(value));
+        const bytes = new Uint8Array(value);
+        if (p.synced) {
+          try {
+            p.synced.set(key, bytes);
+            return ok(undefined);
+          } catch (error) {
+            return err(error?.message ?? error);
+          }
+        }
+        // The same bytes again are no change (as in the core's store).
+        if (sameBytes(p.store.get(key), bytes)) return ok(undefined);
+        p.store.set(key, bytes);
+        p.rev += 1;
+        p.revs.set(key, p.rev);
         p.dirty.add(key);
         return ok(undefined);
       },

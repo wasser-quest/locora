@@ -304,8 +304,8 @@ fn LessonView(
                     d.insert(key.clone());
                 });
             }
-            if let (Ok(true), Some(Celebration(signal))) = (new, celebration) {
-                signal.set(Some(key));
+            if let (Ok(true), Some(celebration)) = (new, celebration) {
+                celebration.celebrate(&key);
             }
         });
     };

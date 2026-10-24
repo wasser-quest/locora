@@ -142,6 +142,11 @@ struct PluginsArgs {
 }
 
 #[derive(Deserialize)]
+struct OwnProgressArgs {
+    progress: Vec<u8>,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NotificationArgs {
     notification: NotificationView,
@@ -216,6 +221,9 @@ pub const NAMES: &[&str] = &[
     "achievement_unlock",
     "activity",
     "gamification_status",
+    "game_week_goal",
+    "game_seen",
+    "game_reset",
     "settings",
     "settings_set",
     "settings_optimize",
@@ -234,6 +242,7 @@ pub const NAMES: &[&str] = &[
     "sply_svg",
     "dump_file",
     "set_plugins",
+    "game_keep_own",
 ];
 
 /// Whether a command name is known, before any backend is needed to answer it.
@@ -408,7 +417,19 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
                 .map(|(day, answers)| locora_app_api::ActivityDay { day, answers })
                 .collect::<Vec<_>>())
         }
-        "gamification_status" => out(profile.gamification_status()?),
+        "gamification_status" => {
+            let a: locora_app_api::GameStatusArgs = take(args).unwrap_or_default();
+            out(profile.gamification_status(a.full)?)
+        }
+        "game_week_goal" => {
+            let a: locora_app_api::WeekGoalArgs = take(args)?;
+            out(profile.set_week_goal(a.days)?)
+        }
+        "game_seen" => {
+            let a: locora_app_api::GameSeenArgs = take(args)?;
+            profile.game_seen(&a.hint)?;
+            out(())
+        }
         "settings" => out(settings::view(profile)?),
         "settings_set" => {
             let a: SettingsArgs = take(args)?;
@@ -569,9 +590,22 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         }
         // The folder export: the palace's source and media, as one ZIP file for the page to save.
         // The plugins the page started: their tiles and declared blocks are shown.
+        // The game progress this browser kept for itself before the sync (the plugin's old
+        // `progress` from IndexedDB): taken over by the migration on top of the synced progress,
+        // never written over it.
+        "game_keep_own" => {
+            let a: OwnProgressArgs = take(args)?;
+            out(profile.keep_own_game_progress(&a.progress)?)
+        }
         "set_plugins" => {
             let a: PluginsArgs = take(args)?;
             tell_host_plugins(profile, a.plugins);
+            // The plugins run now: the progress from before the sync can be taken over (once).
+            if let Err(error) = profile.ensure_game_migrated() {
+                profile
+                    .notes
+                    .push(format!("Spielfortschritt nicht übernommen: {error:#}"));
+            }
             out(())
         }
         "dump_file" => {

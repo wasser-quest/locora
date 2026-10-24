@@ -14,7 +14,7 @@ use locora_runtime::cloud::{self, CloudState};
 use locora_store::JourneyAnswer;
 use locora_store::{Locus, PalaceTree};
 
-use crate::app::{App, now};
+use crate::app::App;
 use crate::palace::{count_due, schedule};
 
 pub struct Options {
@@ -438,13 +438,13 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
             .and_then(|_| trees.first())
             .map(|t| t.palace.id.as_str()),
     );
-    let now_at_start = now();
+    let day = app.due_day()?;
     let seed = locora_runtime::now();
     let planned = locora_runtime::journey::plan(
         &trees,
         &runs,
         &cards,
-        now_at_start,
+        &day,
         &locora_runtime::journey::PlanOptions {
             due_only: options.due_only,
             new: options.new,
@@ -472,7 +472,7 @@ pub fn run(app: &mut App, palace: Option<&str>, options: Options) -> Result<()> 
         }
         let (due, fresh): (usize, usize) = trees
             .iter()
-            .map(|t| count_due(t, &cards, now_at_start))
+            .map(|t| count_due(t, &cards, &day))
             .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
         if options.due_only && due == 0 && fresh > 0 && options.new == 0 && options.daily_limit {
             println!(

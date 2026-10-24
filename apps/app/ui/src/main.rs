@@ -35,6 +35,7 @@ mod tour_gate;
 mod video_frames;
 
 use crate::i18n::{t, tf};
+use crate::info::Info;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -402,6 +403,11 @@ pub fn tour_target_in(tour: Option<TourStep>, palace_id: &str) -> Option<String>
     TOUR_DEMO
         .with(|demo| demo.borrow().as_deref() == Some(palace_id))
         .then_some(target)
+}
+
+/// Whether `palace_id` is Simo's example palace from the tour.
+pub fn is_tour_demo(palace_id: &str) -> bool {
+    TOUR_DEMO.with(|demo| demo.borrow().as_deref() == Some(palace_id))
 }
 
 /// What Simo writes into the example's locus: place, content and memory aid.
@@ -835,7 +841,8 @@ fn App() -> impl IntoView {
         busy: RwSignal::new(false),
         asking: RwSignal::new(false),
     });
-    provide_context(achievements::Celebration(RwSignal::new(None)));
+    provide_context(achievements::Celebration::new());
+    provide_context(cloud_settings::SignedIn(RwSignal::new(None)));
     provide_context(first_palace::Guide(RwSignal::new(first_palace::load())));
     // The first start shows only the language choice and then the welcome page; the tour starts
     // from its button.
@@ -1557,13 +1564,16 @@ fn HomeView(
 /// Plugin tiles (`ui.tile`), on the welcome screen as well as the overview.
 #[component]
 fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
-    let streak = RwSignal::new(None::<u32>);
+    // The game's tile names XP, the week and the medals; the weekly run goes below, when there
+    // is one (never what was lost).
+    let run = RwSignal::new(None::<String>);
     if tiles.iter().any(|tile| tile.plugin == "gamification") {
         spawn_local(async move {
+            let args = locora_app_api::GameStatusArgs { full: false };
             if let Ok(Some(status)) =
-                call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, tauri::NoArgs {}).await
+                call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, args).await
             {
-                streak.set(Some(status.streak));
+                run.set(journey::week_run_text(&status.week));
             }
         });
     }
@@ -1582,10 +1592,12 @@ fn Tiles(tiles: Vec<locora_app_api::TileView>) -> impl IntoView {
                                     <span class="meta">{crate::i18n::plugin_text(&t.title)}</span>
                                     <span class="count">{crate::i18n::plugin_text(&t.text)}</span>
                                     {gamification.then(|| view! {
-                                        <span class="tile-streak">
-                                            {move || art.get().map(|assets| view! { <span class="game-icon" aria-hidden="true"><Sply media=assets.streak /></span> })}
-                                            {move || streak.get().map(|days| crate::i18n::tf("{0} Tage in Folge", &[&days]))}
-                                        </span>
+                                        <Show when=move || run.with(Option::is_some)>
+                                            <span class="tile-streak">
+                                                {move || art.get().map(|assets| view! { <span class="game-icon" aria-hidden="true"><Sply media=assets.streak /></span> })}
+                                                {move || run.get()}
+                                            </span>
+                                        </Show>
                                     })}
                                 </div>
                             </article>
@@ -1675,6 +1687,15 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                 }
             })}
             <button class="name palace-title" disabled=move || busy.get()>{palace.name.clone()}</button>
+            {palace.strength.filter(|s| s.loci > 0).map(|s| {
+                let text = crate::achievements::strength_text(s);
+                view! {
+                    <div class="strength">
+                        <span class="meta">{text.clone()}<Info text="Ein Ort gilt als gefestigt, wenn er gezeigt hat, dass er mindestens 30 Tage hält: Es zählen nur Wiederholungen an verschiedenen Tagen, und ein Ort braucht dafür eine richtige Antwort an einem späteren Tag als dem ersten. Mehrmals am selben Tag zu üben bringt ihn nicht dorthin." /></span>
+                        <meter min="0" max=s.loci.to_string() value=s.solid.to_string() aria-label=text></meter>
+                    </div>
+                }
+            })}
             <div class="row">
                 <span class="meta">{format!("{} · {}", loci_text(palace.loci), status)}</span>
                 {built_in.then(|| {

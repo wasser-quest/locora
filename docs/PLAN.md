@@ -73,7 +73,8 @@ locora/                          (öffentlich, MIT)
 │   ├── review/                  Spaced Repetition (FSRS): fällige Loci, Planung
 │   ├── notify/                  Benachrichtigungen: System, In-App, Zeitplanung, Ruhezeiten
 │   ├── tutorial/                Onboarding, interaktive Touren, Formel-Guide
-│   └── gamification/            XP, Herzen, Combos, Trophäen, Daily Challenges (lokal, kostenlos) + Cloud-Client
+│   └── gamification/            XP für fällige Wiederholungen und neue Orte, Wochenziel, Trophäen, Palastmedaillen
+│                                (lokal, kostenlos; über Locora Cloud auf allen Geräten gleich, siehe 4.7)
 ├── apps/
 │   ├── cli/                     `locora` Binary (clap)
 │   └── app/                     Tauri 2 (src-tauri/) + Leptos-UI (ui/)
@@ -120,9 +121,9 @@ impl Plugin for Review {
 |---|---|---|
 | **Events** (Pub/Sub) | Etwas *ist passiert*, ohne Antwort | `core.journey.locus_answered`, `core.palace.created` |
 | **Services** (Request/Response) | Ein Plugin bietet eine versionierte Schnittstelle an | `core.palaces@1`, `tutorial.highlight@1` |
-| **Hooks** (Filter-Ketten) | Plugins dürfen ein Ergebnis verändern | `core.journey.score` → Gamification addiert Combo-Bonus |
-| **Storage** | Eigener Namensraum in SQLite (Tabellen + KV) | `gamification.xp` |
-| **UI-Beiträge** | Deklarativ: Kachel, Befehle, Panels, Locus-Typen, Overlays | Gamification fügt ein XP-Overlay in die Journey ein |
+| **Hooks** (Filter-Ketten) | Plugins dürfen ein Ergebnis verändern | `core.journey.score` → ein Punkte-Plugin vergibt Bonuspunkte |
+| **Storage** | Eigener Namensraum in SQLite (KV), wird gesynct; `storage.list@1` liefert, was sich seit einer Revision geändert hat | `gamification` → `g/<epoche>/day/<datum>/<gerät>` |
+| **UI-Beiträge** | Deklarativ: Kachel, Befehle, Panels, Locus-Typen, Overlays | Gamification zeigt XP, Tagesziel und Woche als Kachel |
 | **CLI-Beiträge** | Eigene Unterbefehle | `locora tutorial reset`, `locora stats` |
 
 Payloads sind serde-Structs. Sie werden im SDK als Typen veröffentlicht und intern als JSON/Postcard übertragen.
@@ -131,19 +132,22 @@ Dieselben Typen gelten auf beiden Seiten der WASM-Grenze.
 ### 4.2 So reden die Plugins miteinander
 
 ```text
-core ──event: journey.locus_answered──▶ gamification (Combo, Herz-Verlust)
-core ──hook:  journey.score ──────────▶ gamification (Multiplikator) ──▶ zurück an core
+core ──event: journey.reviewed ───────▶ gamification (fällig/neu/zu früh/heute schon, Lerntag, Gerät, Epoche)
+core ──hook:  journey.score ──────────▶ Punkte-Plugins (Bonus) ──▶ zurück an core
 core ──event: palace.created ─────────▶ tutorial (nächster Tour-Schritt)
 core ──event: journey.locus_answered──▶ review (FSRS-Bewertung, neuer Fälligkeitstermin)
 core ──hook:  journey.roster ─────────▶ review (nur fällige Loci abfragen)
 core/host ──service: review.due@1 ────▶ review (Badges auf Palastkarten, Weiter-Zeile)
 review ──service: notify.schedule@1 ──▶ notify (Erinnerung „12 Loci fällig“)
-gamification ──service: notify.send@1 ▶ notify (Streak in Gefahr, Trophäe freigeschaltet)
-review ──event: review.session_done ──▶ gamification (Streak, Daily Challenge „alles Fällige erledigt“)
+host ──service: gamification.status@2 ▶ gamification (heute offen Fälliges, Palaststärke → Tagesziel, Medaillen)
+host ──service: gamification.reset@1 ─▶ gamification (neue Epoche: alter Fortschritt wird geleert)
 tutorial ──service: core.palaces@1 ───▶ core (Beispielpalast anlegen)
 tutorial ──service: ui.highlight@1 ───▶ host (Element hervorheben)
 gamification ──event: trophy.unlocked ▶ tutorial (erklärt Trophäen beim ersten Mal)
 ```
+
+Gamification schickt **keine** Benachrichtigungen: Erinnerungen gibt es nur, wenn man sie selbst einschaltet
+(„12 Loci fällig“, über `review` und `notify`).
 
 Alle Abhängigkeiten außer `core` sind **optional**. Fehlt Gamification, rechnet `core` die Journey
 einfach ohne Hook. Fehlt `review`, gibt es keine Fälligkeiten und die Weiter-Zeile zeigt den zuletzt bearbeiteten Palast. Fehlt Tutorial, passiert gar nichts.
@@ -304,6 +308,9 @@ Plant, **wann** welcher Locus wiederholt werden muss, damit man ihn nicht vergis
 
 - **Algorithmus:** FSRS über die Crate `fsrs` (pures Rust, vom Open-Spaced-Repetition-Projekt).
   Jeder Locus ist eine Karte mit Stabilität, Schwierigkeit und Fälligkeitsdatum. Ziel-Behaltensrate einstellbar, Standard 90 %.
+  Eine Abweichung von FSRS-5 (`crates/locora-fsrs`): Eine Antwort weniger als einen Tag nach der vorigen hebt die
+  Stabilität nie (ein „Nochmal“ oder „Schwer“ senkt sie weiter). Sonst würde zehnmal Üben an einem Abend einen Ort
+  Monate wegplanen: Pauken darf den Plan nicht verschieben.
 - **Persönliche Optimierung:** Aus dem lokalen Wiederholungs-Log werden die FSRS-Parameter auf dem Gerät neu berechnet
   (automatisch alle ~1.000 Wiederholungen oder per `locora review optimize`). Es gibt keinen Server dafür.
 - **Bewertung ohne Extra-Klicks:**
@@ -332,7 +339,7 @@ So gibt es eine Einstellungsseite, einheitliche Ruhezeiten und keine Benachricht
 - **Services für andere Plugins:**
   - `notify.send@1`: sofort anzeigen (In-App-Toast und/oder System-Benachrichtigung).
   - `notify.schedule@1`: zu einem Zeitpunkt oder wiederkehrend planen (`daily 18:00`), mit Schlüssel zum Ersetzen/Abbrechen.
-  - Jede Nachricht hat Plugin, Kanal (z. B. `review.due`, `gamification.streak`), Priorität und eine **Aktion**
+  - Jede Nachricht hat Plugin, Kanal (z. B. `review.due`), Priorität und eine **Aktion**
     (z. B. `review.start@Planeten`). Ein Tipp auf die Benachrichtigung öffnet direkt die passende Ansicht: **0 Zusatzklicks**.
 - **Ausgabe:**
 
@@ -345,9 +352,82 @@ So gibt es eine Einstellungsseite, einheitliche Ruhezeiten und keine Benachricht
 
 - **Offline:** Alles ist lokal geplant und in SQLite gespeichert (`notify.queue`, `notify.settings`). Push über Locora Cloud (z. B. „Freund hat dich überholt“) kommt erst später als optionaler Kanal.
 - **Gegen Nerven:** Ruhezeiten, Tageslimit pro Kanal, und Bündeln: Nachrichten im selben Zeitfenster werden zu **einer** zusammengefasst
-  („12 Loci fällig · Streak endet heute“). Jeder Kanal lässt sich einzeln abschalten.
+  („12 Loci fällig · 3 Paläste“). Jeder Kanal lässt sich einzeln abschalten.
 - **Ohne `notify`:** Plugins laufen weiter, Hinweise erscheinen nur als Badges in der App.
 - **CLI:** `locora notify ls`, `locora notify mute <kanal>`, `locora notify quiet 22:00-08:00`.
+
+### 4.7 Plugin `gamification`: Fortschritt, der dem Lernen dient
+
+Die Regeln des Spiels (seit 0.2.0 des Plugins). Alles läuft offline, ohne Konto und kostenlos; es gibt keine Preise,
+keine Käufe, keine Benachrichtigungen und keine Verlust-Sprache.
+
+- **XP pro Ort und Lerntag, egal wie bewertet:** 10 für eine fällige Wiederholung, 6 für einen neu gelernten Ort,
+  einmal am Tag +20, wenn an dem Tag fällige Wiederholungen anstanden und alle erledigt sind. Früheres Üben (noch
+  nicht fällig) ist erlaubt und bringt 0 XP. Ein Ort zählt am selben Lerntag nur einmal, auch über Geräte; was heute
+  schon dran war, ist beim nächsten Mal Nachüben („Nochmal, zehn Minuten warten, nochmal“ bringt nichts). Wer ehrlich
+  „Nochmal“ wählt, verliert nichts. Journeys selbst bringen keine XP mehr (`locora-scoring` bleibt nur für die
+  Ranglisten von Locora Cloud).
+- **Keine Herzen.** Die Combo („3 in Folge“) gibt es nur bei Quiz und Guess, ab zwei richtigen Antworten und ohne
+  XP-Wirkung; eine Recall-Bewertung zeigt und bricht sie nicht. Nach einem Fehler steht ein ruhiges „Kommt bald
+  wieder – so bleibt es hängen.“
+- **Fällig ist, was an diesem Lerntag fällig wird:** eine Wiederholung ist den ganzen Lerntag fällig, auf den ihr
+  Termin fällt, egal ob morgens oder abends gelernt wird (`DueDay` in `crates/locora-runtime/src/game.rs`; dieselbe
+  Regel für Tagesziel, Startseite, fällige Journeys und XP). Orte, die heute schon dran waren und nach „Nochmal“
+  zurückkommen, sind Nachüben: Die fällige Journey fragt sie, sobald ihre Zeit da ist, sie zählen aber nicht zum
+  Tagesziel und bringen keine XP; Leiste und Abschlusskarte sagen das („zum Nachüben“, „Kommt heute noch einmal“).
+- **Tagesziel = das Fällige:** erledigt sind die fälligen Wiederholungen des Tages (über alle Geräte), offen ist, was
+  heute fällig und heute noch nicht wiederholt ist. Bei einem großen Rückstand gilt das Ziel nach 50 als erreicht. Ist
+  nichts fällig, zeigt die Leiste „Heute ist nichts fällig“ ohne Fortschrittsbalken; dafür gibt es weder +20 noch die
+  Trophäe „Alles Fällige erledigt“.
+- **Wochenrhythmus statt Tagesserie:** Ziel 1–7 Lerntage pro ISO-Woche (Standard 4), selbst gewählt. Ein Lerntag ist
+  ein Tag mit fälliger oder neuer Wiederholung auf irgendeinem Gerät; die App nur zu öffnen zählt nicht. Ein Tag, an
+  dem nichts fällig war und nichts gelernt wurde, senkt das Ziel seiner Woche um einen Tag (auf mindestens einen
+  Lerntag). Solche Tage erkennt das Plugin am Wiederholungsplan, nicht an einem Besuch: Bei jedem Blick auf den Stand
+  merkt sich ein Gerät, wann als Nächstes etwas fällig ist („look“); die Tage davor waren frei, auch wenn die App an
+  ihnen geschlossen blieb. Eine Woche ohne Lerntag, deren freie Tage das Ziel abdecken, zählt nicht und bricht keine
+  Serie. Angezeigt werden die Lerntage insgesamt (sie sinken nur durch Löschen), „diese Woche x von y“ (y = Ziel der
+  Woche, x höchstens y) mit den Tagen ohne Fälliges und, nachrangig, wie viele Wochen in Folge das Ziel erreicht wurde;
+  eine laufende Woche bricht das nicht, der Bestwert bleibt. Nach einer verpassten Woche: „Neue Woche, neues Ziel.“
+- **Trophäen**, alle mit festem Datum: erste Journey, 100 XP, 7 Lerntage (nicht in Folge), alles Fällige an einem Tag,
+  Wochenziel 4-mal. „Fehlerfreie Journey“ bleibt nur, wo sie schon verdient war. Freie Tage zählen bei keiner.
+- **Palastmedaillen aus gezeigter Stabilität** (Paläste ab 5 Orten): Verankert (9 von 10 Orten halten 7 Tage),
+  Gefestigt (30 Tage), Dauerhaft (180 Tage). Ein Ort zählt nur, wenn er an einem späteren Lerntag als seinem ersten
+  richtig (mindestens „Schwer“) beantwortet wurde, und nur mit der Stabilität, die das Antwortlog mit der jeweils
+  ersten Antwort jedes Lerntags ergibt (höchstens der seiner Karte): Pauken an einem Tag bringt keine Medaille, auch
+  kein erstes „Leicht“. Außerdem hebt eine Antwort am selben Tag die FSRS-Stabilität nicht mehr (4.5), sodass frühes
+  Üben die nächste Wiederholung nicht Monate wegschiebt. Eine Medaille bleibt, auch wenn die Stärke später sinkt.
+  Jede Palastkarte zeigt „Gefestigt: x von y Orten“ nach derselben Regel.
+- **Feiern** nur, was dieses Gerät gerade verdient hat: Das Plugin merkt sich in der Sitzung, was die eigenen
+  Antworten und die eigene Journey freigeschaltet haben (`SessionView::unlocked`); Synchronisiertes erscheint still.
+  Gleichzeitig Verdientes wird nacheinander gefeiert; auf dem Handy oben, damit die Karte keine Knöpfe verdeckt.
+  Medaillen stehen mit Datum unter „Erfolge“; mit reduzierter Bewegung bleiben sie still. Wörter: Trophäen sind die
+  der Journeys, Medaillen die der Paläste, Erfolge die der App (Lektionen, Tour, Tutorial).
+- **Die Erklärung** („So funktionieren XP“, für Umsteiger „… jetzt“) erscheint einmal, nie während der App-Tour oder
+  in Simos Beispielpalast, und ist auf dem Handy zu einer Zeile eingeklappt.
+
+**Daten: Fakten statt Zähler.** Jedes Gerät schreibt nur eigene Schlüssel und ergänzt sie nur:
+`g/<epoche>/day/<YYYY-MM-DD>/<gerät>` (sortierte FNV-1a-Hashes der fälligen und neuen Orte, Journeys, Flag „alles
+erledigt“, der letzte Blick auf den Plan: wann und welcher Lerntag als Nächstes fällig ist), `g/<epoche>/medal/<palast>/<stufe>/<gerät>`
+(Tag), einmalig `legacy/<gerät>` (der alte, synchronisierte Stand) und, im Browser, `legacy/<gerät>/own` (was der
+Browser vor dem Sync nur für sich in IndexedDB hatte), `pref/week-goal/<YYYY-Www>` und `seen/<hinweis>`. Der Sync
+führt Schlüssel per Last-Writer-Wins zusammen; weil der neueste Wert eines Schlüssels jeden früheren enthält, geht
+nichts verloren und nichts zählt doppelt (vom Blick auf den Plan zählt je Tag der jüngste aller Geräte). XP,
+Lerntage, freie Tage, Wochen und Trophäen leitet das Plugin aus den zusammengeführten Fakten ab
+(`plugins/gamification/src/ledger.rs`). Der alte, geteilte Stand (`progress`) zählt mit seinem größten Wert, nie als
+Summe; der eigene Stand eines Browsers kommt dazu. Die Laufzeit liefert Lerntag, Gerät und Epoche
+(`core.journey.reviewed`, `gamification.status@2`), das Plugin braucht keine Uhr. Eine Epoche übernimmt das Plugin
+nur aus Anfragen der Laufzeit, nie aus einem Ereignis (das jedes Plugin senden könnte).
+
+**App-Erfolge** (Lektionen von „Mnemotechnik lernen“, Tutorial, Formel-Guide, App-Tour, erster eigener Palast) sind
+Lernfortschritt, kein Spiel: Jedes Gerät schreibt `achievements/<id>/<gerät>` mit dem Tag (und `achievements/<id>` = `1`
+für ältere Versionen); es gilt der früheste Tag aller Geräte. Löschen des Spielfortschritts lässt sie stehen.
+
+**Löschen:** „Spielfortschritt löschen“ in den Einstellungen schreibt eine neue Epoche (`host/game-epoch`, die
+letzte gewinnt). Nur Fakten der aktuellen Epoche zählen; jedes Gerät leert ältere, sobald es die neue sieht, auch
+wenn ein Gerät nach dem Löschen noch alte Fakten nachliefert. Der Tag des Löschens ist nie ein freier Tag (seine
+Wiederholungen sind mitgelöscht). Wiederholungsplan, Paläste, App-Erfolge und Einstellungen bleiben. Ist das Gerät
+angemeldet, bittet es Locora Cloud, die Ranglistenpunkte zu löschen (`DELETE /v1/game/data`, siehe `docs/CLOUD.md`);
+ohne Bestätigung fragt es bei Start, Anmeldung, Statusabfrage und Sync wieder, auch ohne Sync-Zugang.
 
 ---
 
@@ -369,7 +449,7 @@ So gibt es eine Einstellungsseite, einheitliche Ruhezeiten und keine Benachricht
 | Paläste, Stages (jetzt **Räume**), Loci, Recall/Quiz/Guess | `core` |
 | Workbook, Formeln, Major-Tabellen, Actions, Collections | `core` (`locora-formula`) |
 | Import/Export `.mnemodim` | neues Format `.locora` (`locora-format`); `.mnemodim` wird nicht mehr unterstützt |
-| Timing-Punkte, Combos, Herzen, XP, Trophäen, Daily Challenges | `gamification` (kostenlos) |
+| Timing-Punkte, Combos, XP, Trophäen, Daily Challenges | `gamification` (kostenlos; XP für fällige und neue Orte, Wochenziel statt Herzen und Tagesserie, siehe 4.7) |
 | Formel-Guide, Onboarding | `tutorial` |
 | Auth, Convex | entfällt lokal; Account nur für Locora Cloud |
 | Friends, Competitive, AI-Chat (im Schema, nicht live) | später eigene Plugins |
@@ -520,7 +600,7 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 
 ## 10. Gamification und Bezahlung
 
-- **Gamification ist kostenlos:** XP, Combos, Herzen, Trophäen und Daily Challenges laufen vollständig lokal und offline, ohne Account.
+- **Gamification ist kostenlos:** XP, Tagesziel, Wochenziel, Trophäen und Palastmedaillen laufen vollständig lokal und offline, ohne Account (Regeln: 4.7).
 - **Locora Cloud kostet:** Sync von Fortschritt und Palästen über Geräte. Die Rangliste (eine öffentliche, Tag/Woche/Monat/Jahr, nur auf Wunsch) bleibt kostenlos; Freunde und gemeinsame Challenges entfallen.
 - **Preis (Entscheidung vom 22.10.2026):**
 
@@ -613,7 +693,7 @@ Für den aktuellen Arbeitsstand gilt [`OFFEN.md`](OFFEN.md).
 
 | Baustein | Stand |
 |---|---|
-| `crates/locora-api` | Typisierte Events, Services und Hooks für Core, Review, Notify, Tutorial und Gamification; API-Version 0.6 |
+| `crates/locora-api` | Typisierte Events, Services und Hooks für Core, Review, Notify, Tutorial und Gamification; API-Version 0.7 (0.6-Komponenten laufen weiter) |
 | `crates/locora-sdk` + `-macros` | `#[locora_plugin]`, `ctx.on/emit/provide/filter/call_host/palaces`, `ctx.store()`, `ctx.tile`, WIT in `wit/plugin.wit`; Anleitung: `crates/locora-sdk/README.md` |
 | `crates/locora-host` | wasmtime-Komponenten, Hot-Reload, Fuel-Limit, Absturz-Isolation, Kompilat-Cache, Berechtigungen (`storage`, `palaces:read/write`), Filter-Ketten, native Palastdienste, austauschbarer `KvStore` |
 | `crates/locora-store` | SQLite (Migrationen 1–12), Paläste → Räume → Loci, Medien nach SHA-256, Tabellen, Bindungen, Plugin-KV, Op-Log mit HLC, Sync (Feldzeiten, Grabsteine, Anwenden von Remote-Ops), Journeys |
@@ -679,10 +759,10 @@ Der Formel-Guide „Formeln verstehen“ ist als eigener Palast mit sechs `.sply
 Eingaben, `Integer`, `Major` und Bindungen werden mit echten Workbook-Formeln gezeigt;
 `locora formula-guide [--reset]` und die Startseite legen ihn an.
 
-Das offizielle `gamification`-Plugin berechnet lokal XP, Combos, Herzen, vier Trophäen
-und das Tagesziel. Der native Lernbeginn bestimmt Tagesgrenzen und den Review-Streak;
-`locora stats` und die App-Kachel zeigen den Stand. Animierte Erfolgsansichten in der
-Journey stehen noch aus.
+Das offizielle `gamification`-Plugin leitet XP, Lerntage, Wochenziel, Trophäen und
+Palastmedaillen aus Fakten ab, die jedes Gerät unter eigenen Schlüsseln speichert (4.7); der
+native Lernbeginn bestimmt den Lerntag. `locora game`, `locora stats`, die App-Kachel, die
+Fortschrittsleiste der Journey und die Erfolge zeigen den Stand.
 
 **Antworten und Abfragen (erledigt, aus dem Abgleich mit mnemodim):** Quiz mit bis zu 30 Optionen, pro Frage alle
 richtigen und drei zufällige falsche, gemischt (`Answer::quiz_selection`); Guess vergleicht ohne Groß-/Kleinschreibung,
@@ -838,8 +918,7 @@ Tageslimit, Tutorial, Bewertung über das Core-Plugin).
   (4.6: lokale Benachrichtigungen, Ruhezeiten, Bündelung).
 - **Phase 4:** Plugin `tutorial`: der Tutorial-Palast existiert schon (`locora tutorial`); dazu kommen Touren durch die
   App über `ui.highlight@1`, ein Formel-Guide (ebenfalls als Palast mit `.sply`-Bildern) und Simo als Begleiter.
-- **Phase 5:** Plugin `gamification` (XP, Combos, Herzen, Trophäen, Daily Challenges; lokal und kostenlos, Werte aus
-  mnemodim `shared/journeyScoring.ts`), danach privates Repo `locora-cloud` (axum + Postgres, Abo, Ranglisten,
+- **Phase 5:** Plugin `gamification` (lokal und kostenlos; seit 0.2.0 die Regeln aus 4.7), danach privates Repo `locora-cloud` (axum + Postgres, Abo, Ranglisten,
   Ed25519-Entitlements mit 14 Tagen Offline-Kulanz). Bezahlt wird später nur im Web, nicht per In-App-Kauf (Abschnitt 10).
 - **Phase 6:** Sync über das Op-Log (HLC, Last-Writer-Wins pro Feld) mit Locora Cloud.
 - **Phase 7:** Plugin-Verzeichnis, Signaturen, WASM-Plugins für Dritte inkl. deklarativer UI (4.4) und Store-Prüfung.
@@ -850,8 +929,8 @@ Der manuelle Cloud-Sync sowie Anmeldung, Registrierung und Schlüsselaufbau sind
 erreichbar; der vollständige Durchlauf gegen einen realen Server und auf Mobilgeräten steht noch aus.
 Neue Tutorial- und Formel-Guide-Paläste verwenden feste Kennungen über
 Geräte hinweg. Für vorhandene Paläste ist ein bewusster Neuaufbau nötig, der den bisherigen
-Wiederholungsstand zurücksetzt. Der Gamification-Fortschritt bleibt beim Sync ein LWW-Snapshot;
-eine verlustfreie Zusammenführung erfordert Ereignis-IDs und ein Upgrade-Protokoll für alte Clients.
+Wiederholungsstand zurücksetzt. Der Gamification-Fortschritt wird seit Plugin 0.2.0 verlustfrei
+zusammengeführt (Fakten pro Gerät, 4.7); ältere App-Versionen zeigen bis zum Update ihre alten Zahlen.
 Die Vorlagen `befehl`, `locus-typ` und `importer` sind als aufrufbare Dienste angelegt;
 die automatische Journey-Einbindung eines Locus-Typs und `plugin dev --device` benötigen noch
 zusätzliche Host- und App-Schnittstellen. Zeitgebundene `.sply`-Räume nutzen die Splinely-Runtime

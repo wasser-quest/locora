@@ -209,18 +209,31 @@ img.sply { display: block; width: 100%; height: 100%; max-height: min(70vw, 300p
 .prompt { font-size: 1.3rem; font-weight: 600; }
 .progress { color: var(--muted); font-size: .9rem; }
 .game-status { display: grid; gap: .35rem; margin-bottom: .6rem; padding: .45rem .7rem; }
-.game-numbers, .game-stat, .game-hearts, .game-trophy { display: flex; align-items: center; gap: .35rem; }
+.game-numbers, .game-stat { display: flex; align-items: center; gap: .35rem; }
 .game-numbers { flex-wrap: wrap; gap: .65rem 1rem; }
-.game-hearts { margin-left: auto; gap: .1rem; }
+.game-week { color: var(--muted); font-size: .85rem; }
 .game-icon { display: inline-block; width: 22px; height: 22px; flex: none; }
-.game-icon.spent { opacity: .22; filter: grayscale(1); }
 .game-daily { display: grid; gap: .2rem; color: var(--muted); font-size: .85rem; }
-.game-daily-label { display: flex; align-items: center; gap: .35rem; }
 .tile-streak { display: flex; align-items: center; gap: .35rem; color: var(--muted); font-size: .8rem; }
 .game-daily progress { width: 100%; height: .7rem; accent-color: var(--indigo); }
-.game-trophies { display: flex; flex-wrap: wrap; gap: .35rem .8rem; border-top: 1px solid var(--line); padding-top: .45rem; }
-.game-trophy { color: var(--muted); font-size: .8rem; }
-.game-trophy .game-icon { width: 22px; height: 22px; }
+.game-run { margin: 0; color: var(--muted); font-size: .8rem; }
+.game-intro { margin-bottom: .6rem; padding: .6rem .8rem; }
+.game-intro summary { cursor: pointer; }
+.game-intro h2 { display: inline; font-size: 1rem; margin: 0; }
+.game-intro details[open] summary { margin-bottom: .3rem; }
+.game-intro p { margin: .2rem 0; }
+.game-intro .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .4rem; }
+.game-pending { border-left: 3px solid var(--again); padding-left: .5rem; }
+.game-line { margin-top: .3rem; }
+.done-lines { margin: .4rem 0 .8rem; padding-left: 1.1rem; display: grid; gap: .2rem; }
+.game-progress .progress { font-weight: 600; }
+.game-reset { display: grid; gap: .4rem; border: 1px solid var(--again); border-radius: 8px; padding: .6rem .8rem; }
+.game-reset h3, .game-reset p { margin: 0; }
+.game-reset p[role="alert"]:focus { outline: 2px solid var(--indigo); outline-offset: 2px; }
+.strength { display: grid; gap: .15rem; }
+.strength meter { width: 100%; height: .5rem; }
+.medal-since { color: var(--muted); font-size: .8rem; }
+.achievements h3 { margin: 1rem 0 .6rem; font-size: 1rem; }
 .solution { font-size: 1.2rem; }
 /* Solution and picture share one row: the picture never adds a line below the text. */
 .answer { display: flex; align-items: center; gap: .75rem; }
@@ -284,9 +297,14 @@ label.input.check { flex-direction: row; align-items: center; }
 .tabs > .info-button { align-self: center; }
 input[type=number] { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); width: 100%; }
-dl.stats { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0; }
-dl.stats dt { color: var(--muted); }
-dl.stats dd { margin: 0; font-weight: 600; }
+/* Long labels (French, German) wrap instead of widening the page. */
+dl.stats { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: .35rem 1rem; margin: 0; }
+dl.stats dt { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+dl.stats dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 420px) {
+  dl.stats { grid-template-columns: minmax(0, 1fr); gap: .1rem; }
+  dl.stats dd { margin-bottom: .35rem; }
+}
 .status { color: var(--ok); font-size: .9rem; }
 .status:empty, .notes:empty { display: none; }
 /* auto-fit: a single tile takes the whole row, as the other cards do; several tiles share it. */
@@ -320,7 +338,9 @@ dl.stats dd { margin: 0; font-weight: 600; }
   .game-icon { width: 20px; height: 20px; }
   .game-daily { font-size: .78rem; gap: .1rem; }
   .game-daily progress { height: .4rem; }
-  .game-trophies { display: none; }
+  .game-intro { padding: .4rem .6rem; }
+  .game-intro .actions { margin-top: .3rem; gap: .4rem; }
+  .game-intro .actions button { min-height: 2.2rem; padding-block: .2rem; }
 }
 .welcome { display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; }
 .welcome .simo { width: min(220px, 40vw); aspect-ratio: 2 / 3; flex: none; }
@@ -622,10 +642,14 @@ button.big { font-size: 1.15rem; padding: .8rem 1.4rem; }
 .tour-ask p { margin: 0 0 .8rem; }
 .tour-ask .row { display: flex; flex-direction: column; gap: .5rem; }
 .tour-ask .row button { min-height: 2.8rem; }
-/* A new achievement. */
-.celebration { position: fixed; z-index: 25; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%);
+/* A new achievement, at the top: at the bottom it would cover the end card's buttons, the grades and
+   the tour's panel. */
+.celebration { position: fixed; z-index: 25; left: 50%; top: calc(.75rem + env(safe-area-inset-top)); transform: translateX(-50%);
   display: flex; align-items: center; gap: .8rem; width: min(420px, calc(100vw - 2rem)); border: 2px solid var(--lime);
-  box-shadow: 0 10px 32px #17183a66; }
+  box-shadow: 0 10px 32px #17183a66; pointer-events: none; }
+/* Taps go through the card to what it covers (the header's back button, the video's time slider);
+   only its own button closes it. */
+.celebration button { pointer-events: auto; }
 .celebration-medal { width: 64px; min-width: 64px; height: 64px; }
 .celebration .text { flex: 1; display: grid; }
 .celebration-title { font-size: 1.05rem; }
@@ -647,5 +671,6 @@ button.big { font-size: 1.15rem; padding: .8rem 1.4rem; }
   .tour-ask-figure { width: 64px; min-width: 64px; height: 96px; }
   .lesson-nav button { flex: 1; }
   .finish-figure { width: 48px; height: 72px; }
-  .celebration { bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .celebration { top: calc(.5rem + env(safe-area-inset-top)); gap: .6rem; padding: .5rem .7rem; }
+  .celebration-medal { width: 48px; min-width: 48px; height: 48px; }
 }

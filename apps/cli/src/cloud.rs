@@ -51,7 +51,7 @@ pub enum CloudCommand {
     /// Verschlüsselung einrichten oder wiederherstellen
     #[command(subcommand)]
     Encrypt(EncryptCommand),
-    /// Den XP-Stand zeigen, den der Server berechnet hat
+    /// Die Ranglistenpunkte zeigen, die der Server berechnet hat
     Xp,
     /// Rangliste: alle Lernenden oder nur Freunde (Abo nötig); neben jedem Namen sein Verweis zum
     /// Melden
@@ -179,6 +179,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             cloud::save(&data, &state)?;
             println!("✓ Angemeldet als {}.", shown::address(&state.account.email));
             print_status(&state);
+            retry_rankings(&data);
             Ok(())
         }
         CloudCommand::Password => {
@@ -202,6 +203,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
                 return Ok(());
             };
             print_status(&state);
+            retry_rankings(&data);
             Ok(())
         }
         CloudCommand::Refresh => {
@@ -371,7 +373,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
         CloudCommand::Xp => {
             let state = signed_in(&data)?;
             let xp = cloud::xp(&state)?;
-            println!("XP auf dem Server: {}", xp.xp_total);
+            println!("Ranglistenpunkte auf dem Server: {}", xp.xp_total);
             println!(
                 "Abgeschlossene Journeys: {} · offen: {}",
                 xp.journeys_finished, xp.journeys_open
@@ -801,7 +803,7 @@ fn ranking_lines(ranking: &Ranking) -> Vec<String> {
         .enumerate()
         .map(|(place, entry)| {
             let line = format!(
-                "{:>3}. {:<24} {:>7} XP",
+                "{:>3}. {:<24} {:>7} Ranglistenpunkte",
                 place + 1,
                 shown::name(&entry.display_name),
                 entry.xp
@@ -909,6 +911,14 @@ fn date(unix: u64) -> String {
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
     format!("{year:04}-{month:02}-{day:02}")
+}
+
+/// Asks the server again to delete the game scores when that still waits (see `locora game
+/// reset`), and says what happened.
+fn retry_rankings(data: &std::path::Path) {
+    if let Ok(Some(outcome)) = cloud::retry_rankings(data) {
+        println!("{}", crate::game::rankings_text(outcome));
+    }
 }
 
 #[cfg(test)]
@@ -1022,8 +1032,11 @@ mod tests {
         assert_eq!(
             ranking_lines(&ranking),
             [
-                format!("  1. {:<24} {:>7} XP  nr_0a", "Ada", 1200),
-                format!("  2. {:<24} {:>7} XP  nr_1b\\u{{1b}}[2J", "Nutzer-3F2A", 80),
+                format!("  1. {:<24} {:>7} Ranglistenpunkte  nr_0a", "Ada", 1200),
+                format!(
+                    "  2. {:<24} {:>7} Ranglistenpunkte  nr_1b\\u{{1b}}[2J",
+                    "Nutzer-3F2A", 80
+                ),
                 String::new(),
                 "Einen Namen melden: locora cloud report <Verweis>".into(),
             ]
@@ -1034,7 +1047,7 @@ mod tests {
         };
         assert_eq!(
             ranking_lines(&older),
-            [format!("  1. {:<24} {:>7} XP", "Ada", 1200)]
+            [format!("  1. {:<24} {:>7} Ranglistenpunkte", "Ada", 1200)]
         );
         assert_eq!(
             ranking_lines(&Ranking { entries: vec![] }),

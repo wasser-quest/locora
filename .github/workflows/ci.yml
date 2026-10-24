@@ -42,6 +42,12 @@ jobs:
       - name: Clippy (plugins)
         working-directory: plugins
         run: cargo clippy -- -D warnings
+      # The plugins' own unit tests (e.g. how the game merges the facts of several devices) run
+      # natively; the workspace builds for wasm32-wasip2 by default.
+      - name: Test (plugins)
+        if: runner.os == 'Linux'
+        working-directory: plugins
+        run: cargo test --target x86_64-unknown-linux-gnu -p core -p review -p notify -p gamification
       - name: Test
         run: cargo test
       - name: Plugin round trip
