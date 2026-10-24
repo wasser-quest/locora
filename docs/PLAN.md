@@ -461,7 +461,11 @@ Fakten einer neueren und überliest unbekannte Felder), unter der Spiel-Epoche d
 `g/<epoche>/e/<runde>/<abendabfrage>`. Runden-Ids sind UUID v7 (32 Hex-Zeichen), Seeds 60 Bit aus dem Zufall des
 Systems. Jeder Schlüssel wird einmal geschrieben, der Sync vereinigt die Geräte. Haben zwei Geräte dieselbe
 Tages-Challenge offline gespielt, ist die Runde mit der frühesten Startmarke der Versuch des Tages, die andere zählt
-als Übung, auf beiden Geräten gleich. Eine begonnene und nie abgegebene Tagesrunde bleibt „begonnen, nicht beendet“:
+als Übung, auf beiden Geräten gleich. Eine Startmarke zählt allein durch ihren Schlüssel: Auch eine Marke einer Art,
+die diese Version nicht kennt (Locora Clouds Tages-Challenge schreibt `cloud_daily` unter dieselben Schlüssel), oder
+eine, deren Wert sich nicht lesen lässt, ist ein Versuch und belegt die Stufe; `today@1` und `begin@1` lesen dieselben
+Marken. Runden einer Art, die 0.1.8 nicht kennt (`cloud_daily`, `duel`), überliest es dagegen absichtlich und zeigt
+ihre Stufe als „begonnen, nicht beendet“; Locora Cloud muss damit rechnen. Eine begonnene und nie abgegebene Tagesrunde bleibt „begonnen, nicht beendet“:
 Dieselbe Aufgabe ein zweites Mal zu sehen, wäre kein Versuch mehr. Das Plugin hält die Fakten in einem Speicherabbild,
 das es über `storage.list@1` nachführt, und berechnet daraus den Stand von heute, Rekorde, Trophäen und den Verlauf
 (`plugins/competition/src/facts.rs`). Die laufende Runde liegt nur im App-Kern; nichts Halbfertiges wird

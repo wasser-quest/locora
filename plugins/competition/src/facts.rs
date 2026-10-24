@@ -4,7 +4,9 @@
 //! Keys (in the plugin's namespace, below the game epoch the runtime keeps):
 //! - `g/<epoch>/r/<round_id>`: [`RoundFact`], written when a round is handed in
 //! - `g/<epoch>/s/<date>/<discipline>/<level>/<round_id>`: [`MarkerFact`], written when a daily
-//!   round begins
+//!   round begins. The key alone holds the level: a marker of a kind this version does not know
+//!   (Locora Cloud's daily writes `cloud_daily` under the same keys), or one whose value does not
+//!   read, is the day's try all the same.
 //! - `g/<epoch>/e/<round_id>/<evening_id>`: [`EveningFact`], written when an evening recall is
 //!   handed in
 //!
@@ -41,15 +43,6 @@ pub fn round_key(epoch: &str, round_id: &str) -> String {
     format!("g/{epoch}/r/{round_id}")
 }
 
-/// The keys of every start marker of one daily challenge begin with this.
-pub fn marker_prefix(epoch: &str, date: Date, discipline: Discipline, level: Level) -> String {
-    format!(
-        "g/{epoch}/s/{date}/{}/{}/",
-        discipline.as_str(),
-        level.get()
-    )
-}
-
 pub fn marker_key(
     epoch: &str,
     date: Date,
@@ -58,8 +51,9 @@ pub fn marker_key(
     round_id: &str,
 ) -> String {
     format!(
-        "{}{round_id}",
-        marker_prefix(epoch, date, discipline, level)
+        "g/{epoch}/s/{date}/{}/{}/{round_id}",
+        discipline.as_str(),
+        level.get()
     )
 }
 
@@ -96,11 +90,15 @@ pub struct RoundFact {
     pub perfect: bool,
 }
 
-/// A daily round began (the date, discipline, level and round id are in the key).
+/// The kind of the start markers this version writes.
+pub const DAILY: &str = "daily";
+
+/// A daily round began (the date, discipline, level and round id are in the key). The kind is
+/// text, so a marker of a newer kind still reads.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MarkerFact {
     pub v: u16,
-    pub kind: Kind,
+    pub kind: String,
     pub started_at_ms: u64,
 }
 
@@ -126,7 +124,29 @@ pub struct Marker {
     pub discipline: Discipline,
     pub level: Level,
     pub round_id: String,
-    pub fact: MarkerFact,
+    /// `None` when the value does not read: the marker still holds its level.
+    pub fact: Option<MarkerFact>,
+}
+
+impl Marker {
+    /// When its round began; `None` when the marker does not say.
+    pub fn started_at_ms(&self) -> Option<u64> {
+        self.fact.as_ref().map(|fact| fact.started_at_ms)
+    }
+
+    /// The order of the tries of one daily: the earliest start first, a marker that does not
+    /// say when last.
+    fn order(&self) -> (u64, &str) {
+        (
+            self.started_at_ms().unwrap_or(u64::MAX),
+            self.round_id.as_str(),
+        )
+    }
+
+    /// A daily round of this version: its task is the date's ([`daily_seed`]).
+    fn local_daily(&self) -> bool {
+        self.fact.as_ref().is_some_and(|fact| fact.kind == DAILY)
+    }
 }
 
 /// The readable facts of one epoch.
@@ -140,7 +160,8 @@ pub struct Facts {
 }
 
 /// Reads the facts of `epoch` from the stored keys. Blanked keys, keys of other epochs and
-/// values that do not read (a kind or a level of a newer version) are left out.
+/// values that do not read (a kind or a level of a newer version) are left out, except start
+/// markers: every one under a valid key counts.
 pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch: &str) -> Facts {
     let mut facts = Facts::default();
     let prefix = format!("g/{epoch}/");
@@ -165,15 +186,14 @@ pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch
                     Date::parse(date),
                     Discipline::parse(discipline),
                     level.parse().ok().and_then(Level::new),
-                    serde_json::from_slice::<MarkerFact>(value),
                 );
-                if let (Some(date), Some(discipline), Some(level), Ok(fact)) = parsed {
+                if let (Some(date), Some(discipline), Some(level)) = parsed {
                     facts.markers.push(Marker {
                         date,
                         discipline,
                         level,
                         round_id: id.to_owned(),
-                        fact,
+                        fact: serde_json::from_slice(value).ok(),
                     });
                 }
             }
@@ -252,12 +272,13 @@ fn by_finish(round: &RoundFact) -> (u64, &str) {
 type Sighting<'a> = (u64, &'a str);
 
 impl Facts {
-    /// The day's try of a daily challenge: its earliest start marker.
+    /// The day's try of a daily challenge: its earliest start marker, of any kind. Once there
+    /// is one, the level cannot be begun again.
     pub fn daily_try(&self, date: Date, discipline: Discipline, level: Level) -> Option<&Marker> {
         self.markers
             .iter()
             .filter(|m| m.date == date && m.discipline == discipline && m.level == level)
-            .min_by_key(|m| (m.fact.started_at_ms, m.round_id.as_str()))
+            .min_by_key(|m| m.order())
     }
 
     /// A daily round that is not the day's try: another round began the same daily earlier.
@@ -277,14 +298,15 @@ impl Facts {
                 (round.started_at_ms, round.id.as_str()),
             )
         });
-        let markers = self.markers.iter().map(|m| {
+        // A marker of another kind (Locora Cloud's daily) had another task.
+        let markers = self.markers.iter().filter(|m| m.local_daily()).map(|m| {
             (
                 (
                     m.discipline,
                     m.level,
                     daily_seed(m.date, m.discipline, m.level),
                 ),
-                (m.fact.started_at_ms, m.round_id.as_str()),
+                m.order(),
             )
         });
         for (task, seen) in rounds.chain(markers) {
@@ -509,12 +531,12 @@ impl Facts {
             return done(round, Counted::Daily);
         }
         let spec = Spec::standard(discipline, level);
-        let ends = first
-            .fact
-            .started_at_ms
-            .saturating_add(u64::from(spec.memorize_ms) + u64::from(spec.recall_ms))
-            .saturating_add(u64::from(RECALL_GRACE_MS));
-        if now_ms < ends {
+        let ends = first.started_at_ms().map(|started| {
+            started
+                .saturating_add(u64::from(spec.memorize_ms) + u64::from(spec.recall_ms))
+                .saturating_add(u64::from(RECALL_GRACE_MS))
+        });
+        if ends.is_some_and(|ends| now_ms < ends) {
             return LevelState::Started {
                 round_id: first.round_id.clone(),
             };
@@ -670,7 +692,7 @@ mod tests {
         let fact = round("a", Kind::Practice, Discipline::Cards, 1, 13);
         let marker = MarkerFact {
             v: VERSION,
-            kind: Kind::Daily,
+            kind: DAILY.into(),
             started_at_ms: 5,
         };
         let mut newer =
@@ -749,11 +771,11 @@ mod tests {
             discipline: plan(date(day)).discipline,
             level: level(n),
             round_id: id.into(),
-            fact: MarkerFact {
+            fact: Some(MarkerFact {
                 v: VERSION,
-                kind: Kind::Daily,
+                kind: DAILY.into(),
                 started_at_ms,
-            },
+            }),
         }
     }
 
@@ -798,6 +820,57 @@ mod tests {
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].round_id, "a", "newest first");
         assert!(history[0].counted_as_practice && !history[1].counted_as_practice);
+    }
+
+    #[test]
+    fn a_start_marker_of_any_kind_or_one_that_does_not_read_holds_its_level() {
+        let day = date("2026-10-28");
+        let key = |n, id| marker_key("0", day, Discipline::Cards, level(n), id);
+        // Locora Cloud's daily (stage 2) began level 1 first; this device's daily later.
+        let cloud = serde_json::json!({"v": 2, "kind": "cloud_daily", "started_at_ms": H});
+        let mut local = round("l", Kind::Daily, Discipline::Cards, 1, 13);
+        local.seed = daily_seed(day, Discipline::Cards, level(1));
+        local.started_at_ms = 2 * H;
+        local.finished_at_ms = 2 * H + H / 4;
+        let marker = MarkerFact {
+            v: VERSION,
+            kind: DAILY.into(),
+            started_at_ms: 2 * H,
+        };
+        let mut entries = vec![
+            (key(1, "c"), serde_json::to_vec(&cloud).unwrap()),
+            (key(1, "l"), json(&marker)),
+            // Level 2: a marker that does not read, and one without its start.
+            (key(2, "x"), b"garbage".to_vec()),
+            (key(2, "y"), br#"{"v":3,"kind":"duel"}"#.to_vec()),
+        ];
+        let state = |entries: &[(String, Vec<u8>)], n: usize, now| {
+            facts(entries).today(day, now).levels[n].state.clone()
+        };
+        let started = LevelState::Started {
+            round_id: "c".into(),
+        };
+        assert_eq!(state(&entries, 0, H + 60_000), started);
+        let unfinished = |id: &str| LevelState::Unfinished {
+            round_id: id.into(),
+        };
+        assert_eq!(state(&entries, 0, 2 * H), unfinished("c"));
+        // A marker that does not say when it began sorts last and is never running.
+        assert_eq!(state(&entries, 1, 0), unfinished("x"));
+        assert_eq!(state(&entries, 2, 0), LevelState::Open);
+        // The local round, handed in, counts as practice; its task (the date's) was new.
+        entries.push((round_key("0", "l"), json(&local)));
+        let facts = facts(&entries);
+        assert!(facts.counted_as_practice(&local));
+        assert!(matches!(
+            facts.today(day, 3 * H).levels[0].state,
+            LevelState::Done {
+                counted: Counted::Practice,
+                ..
+            }
+        ));
+        assert!(!facts.repeat_seed(&local), "the cloud's task is another");
+        assert_eq!(facts.markers.len(), 4);
     }
 
     #[test]

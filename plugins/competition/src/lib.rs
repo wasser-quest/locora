@@ -232,12 +232,11 @@ impl Contest {
             request.level,
             request.seed,
         )?;
-        let prefix = facts::marker_prefix(epoch, request.date, request.discipline, request.level);
+        // The same markers as `today@1` reads, so a level shown open can be begun.
         let played = self
-            .mirror
-            .range(prefix.clone()..)
-            .take_while(|(key, _)| key.starts_with(&prefix))
-            .any(|(_, value)| !value.is_empty());
+            .facts()
+            .daily_try(request.date, request.discipline, request.level)
+            .is_some();
         if played {
             return Err(Error::msg(
                 "Diese Tages-Challenge hast du heute schon gespielt",
@@ -245,10 +244,16 @@ impl Contest {
         }
         let marker = MarkerFact {
             v: VERSION,
-            kind: Kind::Daily,
+            kind: facts::DAILY.into(),
             started_at_ms: request.now_ms,
         };
-        let key = format!("{prefix}{}", request.round_id);
+        let key = facts::marker_key(
+            epoch,
+            request.date,
+            request.discipline,
+            request.level,
+            &request.round_id,
+        );
         self.write(kv, &key, json(&marker)?)?;
         let tile = self.tile(request.date, request.now_ms);
         Ok((BeginResponse { spec, task }, Some(tile)))
@@ -873,6 +878,36 @@ mod tests {
             state(&mut contest, &mut kv, H + 13 * 60_000),
             LevelState::Unfinished { round_id: id(1) }
         );
+    }
+
+    #[test]
+    fn a_level_shown_open_can_be_begun_and_any_start_marker_holds_one() {
+        let mut contest = Contest::default();
+        let mut kv = Memory::new(5000);
+        let key = |n, round| {
+            let level = Level::new(n).unwrap();
+            facts::marker_key("0", wednesday(), Discipline::Cards, level, &id(round))
+        };
+        // A marker of a newer kind (Locora Cloud's daily) and one that does not read.
+        let cloud = br#"{"v":2,"kind":"cloud_daily","started_at_ms":3600000}"#;
+        kv.set(&key(1, 8), cloud).unwrap();
+        kv.set(&key(2, 9), b"garbage").unwrap();
+        let levels = today(&mut contest, &mut kv, "0", 2 * H).levels;
+        assert_eq!(levels[0].state, LevelState::Unfinished { round_id: id(8) });
+        assert_eq!(levels[1].state, LevelState::Unfinished { round_id: id(9) });
+        assert_eq!(levels[2].state, LevelState::Open);
+        for (n, round) in [(1, 1), (2, 2)] {
+            let error = Play::daily(n)
+                .begin(&mut contest, &mut kv, &id(round), 2 * H)
+                .unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                "Diese Tages-Challenge hast du heute schon gespielt"
+            );
+        }
+        Play::daily(3)
+            .begin(&mut contest, &mut kv, &id(3), 2 * H)
+            .unwrap();
     }
 
     #[test]
