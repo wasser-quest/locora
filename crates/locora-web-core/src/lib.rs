@@ -20,6 +20,8 @@ use locora_store::SPLINELY;
 pub struct Backend {
     profile: Profile,
     journey: Option<Journey>,
+    /// The memory contest's running round.
+    compete: locora_app_core::competition::Contest,
     /// Hash of the built-in locus marker in the store.
     default_marker: String,
     /// Hash of Simo (welcome and empty states) in the store.
@@ -154,6 +156,7 @@ fn open(dir: &str) -> anyhow::Result<()> {
         *cell.borrow_mut() = Some(Backend {
             profile,
             journey: None,
+            compete: Default::default(),
             default_marker,
             simo,
             assets,

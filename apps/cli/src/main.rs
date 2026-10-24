@@ -2,6 +2,7 @@
 
 mod app;
 mod cloud;
+mod compete;
 mod game;
 mod notify;
 mod palace;
@@ -191,6 +192,12 @@ enum Command {
     Game {
         #[command(subcommand)]
         command: game::GameCommand,
+    },
+    /// Gedächtnis-Wettkampf: Tages-Challenge, Übung und Challenge-Codes mit Einkaufsliste,
+    /// Zahlen und Karten; Rekorde und Verlauf
+    Compete {
+        #[command(subcommand)]
+        command: Option<compete::CompeteCommand>,
     },
     /// Anleitung: welcher Befehl wann passt (auch für LLMs gedacht; Text aus llm.txt)
     Guide,
@@ -485,6 +492,7 @@ fn main() -> Result<()> {
         }
         Command::Stats => settings::stats(&mut app::App::open(data)?),
         Command::Game { command } => game::run(&mut app::App::open(data)?, data, command),
+        Command::Compete { command } => compete::run(&mut app::App::open(data)?, command),
         // Printed without opening the profile, so a guide works before any setup.
         Command::Guide => {
             print!("{GUIDE}");

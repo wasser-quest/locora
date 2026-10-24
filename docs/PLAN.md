@@ -478,6 +478,15 @@ XP aus einem Ereignis ließe sich fälschen, denn jedes Plugin kann jedes Thema 
 zeigt den Stand von heute. Im Browser liegt der Speicher im Profil des Kerns und wird synchronisiert wie auf dem
 Desktop (`SYNCED_PLUGINS`).
 
+**Laufzeit, App-Kern und CLI:** `locora_runtime::competition` vergibt Runden-Ids und Seeds und ruft die Dienste mit
+Epoche, Lerndatum (`Profile::learning_day`) und Uhrzeit auf; „Spielfortschritt löschen“ ruft auch
+`competition.reset@1`. Der App-Kern (`locora_app_core::competition`) hält die eine laufende Runde im Speicher: Die
+Einprägezeit zählt bis zu ihrem Limit, die Abrufzeit bis zu ihrem Limit plus 10 Sekunden; eine abgebrochene
+Tagesrunde bleibt begonnen. Er bietet die Befehle `compete_*` für Tauri und den Browser, nennt die Paläste, deren
+Route für eine Runde reicht (die eingebauten nicht), und beschriftet die Orte nach „pro Ort“. Im Terminal:
+`locora compete` (`today`, `play`, `evening`, `code`, `records`, `history`); eine Runde zeigt die Aufgabe auf dem
+Wechselbildschirm, damit der Verlauf des Terminals nichts behält.
+
 ---
 
 ## 5. Datenmodell und Offline first

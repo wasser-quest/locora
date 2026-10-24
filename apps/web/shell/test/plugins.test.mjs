@@ -104,6 +104,27 @@ test('the game keeps its progress in the core, where the sync finds it', () => {
   assert.throws(() => raw.syncedStorage('review').get('palaces'), /not kept by the core/);
 });
 
+test('the memory contest plays a round in the browser and keeps it in the core, where the sync finds it', () => {
+  const today = core('compete_today', {});
+  assert.equal(today.err, undefined, today.err);
+  assert.equal(today.ok.today.levels.length, 3);
+  const started = core('compete_start', { start: { kind: 'code', code: 'C2-28T5-CY4T-QKFF-K', lang: 'en' } });
+  assert.equal(started.err, undefined, started.err);
+  const deck = started.ok.task.cards;
+  assert.deepEqual(deck.slice(0, 3), [36, 18, 7], 'the golden deck of the code');
+  const result = core('compete_finish', { finish: { recall: { cards: deck }, lang: 'en' } });
+  assert.equal(result.err, undefined, result.err);
+  assert.equal(result.ok.finished.score.points, 26);
+  assert.deepEqual(result.ok.finished.trophies, ['compete-first']);
+  const storage = raw.syncedStorage('competition');
+  const request = new Uint8Array([2, 0x67, 0x2f, 0]); // ListRequest { prefix: "g/", after_rev: 0 }
+  assert.ok(storage.list(request).length > 4, 'the round is listed');
+  assert.equal(host.takeDirty('competition').length, 0, 'nothing waits for IndexedDB');
+  assert.equal(core('compete_history', {}).ok.length, 1);
+  const tiles = core('home', {}).ok.tiles.map((tile) => tile.plugin);
+  assert.ok(tiles.includes('competition'), JSON.stringify(tiles));
+});
+
 test('reminders are set through the notify plugin, and due messages are handed to the page once', () => {
   const set = core('settings_set', { change: { reminders: { enabled: true, start: '00:00', end: '23:59', every: 1 } } });
   assert.equal(set.err, undefined, set.err);

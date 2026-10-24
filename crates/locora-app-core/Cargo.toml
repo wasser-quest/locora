@@ -13,6 +13,7 @@ anyhow.workspace = true
 base64 = "0.22"
 locora-api.workspace = true
 locora-app-api = { path = "../../apps/app/shared" }
+locora-competition = { path = "../locora-competition" }
 infer = "0.22"
 locora-cloud-api = { path = "../locora-cloud-api" }
 locora-format = { path = "../locora-format" }

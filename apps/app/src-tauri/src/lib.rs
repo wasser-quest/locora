@@ -7,7 +7,7 @@ mod cloud_social;
 mod drops;
 mod keystore;
 pub use locora_app_core::journey;
-use locora_app_core::{assets, editor, settings, sply, transfer, workbook};
+use locora_app_core::{assets, competition, editor, settings, sply, transfer, workbook};
 mod media;
 #[cfg(any(mobile, test))]
 #[cfg_attr(not(mobile), allow(dead_code))]
@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use locora_app_api::{
     ActionDone, Feedback, Home, ImportResult, InputField, JourneyStart, NotificationView,
@@ -35,6 +36,8 @@ use journey::Journey;
 pub struct Backend {
     profile: Profile,
     journey: Option<Journey>,
+    /// The memory contest's running round.
+    compete: competition::Contest,
     /// Hash of the built-in locus marker in the store.
     default_marker: String,
     /// Hash of Simo (welcome and empty states) in the store.
@@ -941,6 +944,101 @@ async fn game_reset(app: tauri::AppHandle) -> Result<locora_app_api::GameResetRe
     })
 }
 
+// The memory contest (see `locora_app_core::competition`): one round at a time, its task and
+// hand-in; the plugin keeps the results.
+
+#[tauri::command]
+async fn compete_today(state: State<'_, Shared>) -> Result<locora_app_api::CompeteToday, String> {
+    competition::today(&mut lock(&state)?.profile).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_start(
+    state: State<'_, Shared>,
+    start: locora_app_api::CompeteStart,
+) -> Result<locora_app_api::CompeteStarted, String> {
+    let mut b = lock(&state)?;
+    let b = &mut *b;
+    competition::start(&mut b.compete, &mut b.profile, start, Instant::now()).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_recall(state: State<'_, Shared>) -> Result<locora_app_api::CompeteRecall, String> {
+    competition::recall(&mut lock(&state)?.compete, Instant::now()).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_finish(
+    state: State<'_, Shared>,
+    finish: locora_app_api::CompeteHandIn,
+) -> Result<locora_app_api::CompeteResult, String> {
+    let mut b = lock(&state)?;
+    let b = &mut *b;
+    competition::finish(&mut b.compete, &mut b.profile, finish, Instant::now()).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_abandon(state: State<'_, Shared>) -> Result<(), String> {
+    competition::abandon(&mut lock(&state)?.compete);
+    Ok(())
+}
+
+#[tauri::command]
+async fn compete_evening_start(
+    state: State<'_, Shared>,
+    evening: locora_app_api::CompeteEvening,
+) -> Result<locora_app_api::CompeteEveningStarted, String> {
+    let mut b = lock(&state)?;
+    let b = &mut *b;
+    competition::evening_start(&mut b.compete, &mut b.profile, evening, Instant::now()).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_evening_finish(
+    state: State<'_, Shared>,
+    finish: locora_app_api::CompeteHandIn,
+) -> Result<locora_app_api::CompeteEveningResult, String> {
+    let mut b = lock(&state)?;
+    let b = &mut *b;
+    competition::evening_finish(&mut b.compete, &mut b.profile, finish).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_records(
+    state: State<'_, Shared>,
+) -> Result<locora_app_api::CompeteRecords, String> {
+    competition::records(&mut lock(&state)?.profile).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_history(
+    state: State<'_, Shared>,
+    query: Option<locora_app_api::CompeteHistoryQuery>,
+) -> Result<Vec<locora_app_api::CompeteHistoryEntry>, String> {
+    competition::history(&mut lock(&state)?.profile, query.unwrap_or_default()).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_code(choice: locora_app_api::CompeteChoice) -> Result<String, String> {
+    Ok(competition::new_code(choice))
+}
+
+#[tauri::command]
+async fn compete_routes(
+    state: State<'_, Shared>,
+    choice: locora_app_api::CompeteChoice,
+) -> Result<Vec<locora_app_api::RouteChoice>, String> {
+    competition::route_choices(&lock(&state)?.profile.store, choice).map_err(err)
+}
+
+#[tauri::command]
+async fn compete_route_walk(
+    state: State<'_, Shared>,
+    palace_id: String,
+) -> Result<Vec<String>, String> {
+    competition::route_places(&lock(&state)?.profile.store, &palace_id).map_err(err)
+}
+
 #[tauri::command]
 async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
     let mut b = lock(&state)?;
@@ -1237,6 +1335,7 @@ fn open(app: &tauri::AppHandle) -> anyhow::Result<Backend> {
     Ok(Backend {
         profile,
         journey: None,
+        compete: competition::Contest::default(),
         default_marker,
         simo,
         assets,
@@ -1411,7 +1510,19 @@ pub fn run() {
             journey_action,
             journey_reveal,
             journey_answer,
-            journey_stop
+            journey_stop,
+            compete_today,
+            compete_start,
+            compete_recall,
+            compete_finish,
+            compete_abandon,
+            compete_evening_start,
+            compete_evening_finish,
+            compete_records,
+            compete_history,
+            compete_code,
+            compete_routes,
+            compete_route_walk
         ])
         .run(context)
         .expect("Locora konnte nicht starten");

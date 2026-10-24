@@ -15,14 +15,14 @@ use tempfile::TempDir;
 use super::*;
 use crate::{AnswerRequest, Profile, now};
 
-struct Device {
+pub(crate) struct Device {
     _dir: TempDir,
-    profile: Profile,
+    pub(crate) profile: Profile,
     /// How far the other device's log was taken over.
-    seen: i64,
+    pub(crate) seen: i64,
 }
 
-fn device() -> Device {
+pub(crate) fn device() -> Device {
     let dir = TempDir::new().unwrap();
     let profile = Profile::open(Some(dir.path())).unwrap();
     assert!(profile.has_game(), "the gamification plugin is built in");
@@ -34,7 +34,7 @@ fn device() -> Device {
 }
 
 /// Everything `from` logged that `to` has not taken over yet, applied in order.
-fn ship(from: &Device, to: &mut Device) {
+pub(crate) fn ship(from: &Device, to: &mut Device) {
     let ops = from.profile.store.ops_since(to.seen).unwrap();
     to.seen = ops.last().map_or(to.seen, |op| op.seq);
     let remote: Vec<RemoteOp> = ops
@@ -51,7 +51,7 @@ fn ship(from: &Device, to: &mut Device) {
     assert!(report.failed.is_empty(), "{:?}", report.failed);
 }
 
-fn exchange(a: &mut Device, b: &mut Device) {
+pub(crate) fn exchange(a: &mut Device, b: &mut Device) {
     ship(a, b);
     ship(b, a);
 }

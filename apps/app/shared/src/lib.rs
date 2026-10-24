@@ -1360,3 +1360,192 @@ pub enum WorkbookChange {
         field: String,
     },
 }
+
+// The memory contest (`locora_app_core::competition`): one round runs at a time; the app shows its
+// task and collects the recall, and the `competition` plugin keeps what was handed in.
+
+/// Today's challenge (`CompeteToday`).
+pub const CMD_COMPETE_TODAY: &str = "compete_today";
+/// Begins a round (`{ start: CompeteStart }`); answers `CompeteStarted`.
+pub const CMD_COMPETE_START: &str = "compete_start";
+/// Memorizing is done: the content goes, recall begins (`CompeteRecall`).
+pub const CMD_COMPETE_RECALL: &str = "compete_recall";
+/// Hands the round in (`{ finish: CompeteHandIn }`); answers `CompeteResult`.
+pub const CMD_COMPETE_FINISH: &str = "compete_finish";
+/// Drops the running round before its result (a daily stays begun: one try per day).
+pub const CMD_COMPETE_ABANDON: &str = "compete_abandon";
+/// Begins the evening recall of a daily round (`{ evening: CompeteEvening }`); answers
+/// `CompeteEveningStarted`.
+pub const CMD_COMPETE_EVENING_START: &str = "compete_evening_start";
+/// Hands the evening recall in (`{ finish: CompeteHandIn }`); answers `CompeteEveningResult`.
+pub const CMD_COMPETE_EVENING_FINISH: &str = "compete_evening_finish";
+/// Records, days with a daily challenge and the contest trophies (`CompeteRecords`).
+pub const CMD_COMPETE_RECORDS: &str = "compete_records";
+/// The rounds handed in, newest first (`{ query: CompeteHistoryQuery }`; `CompeteHistoryEntry`).
+pub const CMD_COMPETE_HISTORY: &str = "compete_history";
+/// A new challenge code (`{ choice: CompeteChoice }`), with a fresh seed.
+pub const CMD_COMPETE_CODE: &str = "compete_code";
+/// The palaces whose route a round could be laid on (`{ choice: CompeteChoice }`;
+/// `RouteChoice`).
+pub const CMD_COMPETE_ROUTES: &str = "compete_routes";
+/// The place names of a palace's route, in order (`{ palaceId }`), to walk it before a round.
+pub const CMD_COMPETE_ROUTE_WALK: &str = "compete_route_walk";
+
+pub use locora_api::competition::{
+    Best, Counted, DayPlan, EveningFinishResponse as CompeteEveningFinished,
+    EveningResponse as CompeteEveningView, EveningScore, EveningState, EveningToday,
+    FinishResponse as CompeteFinished, Hint, HistoryEntry as CompeteHistoryEntry, Kind,
+    LevelRecord, LevelState, LevelToday, RecordLine, RecordsResponse as CompeteRecords,
+    TodayResponse as CompeteDay, Trophy as CompeteTrophy,
+};
+pub use locora_competition::schedule::{PlaceOption, Prep};
+pub use locora_competition::{
+    Date, Discipline, Info, Lang as ContestLang, Level, Mark, Recall, Score, Spec, Task,
+};
+
+/// Today's challenge, and for each of its levels the places a route needs per "per place".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteToday {
+    pub today: CompeteDay,
+    /// Levels 1 to 3 of today's discipline.
+    pub routes_needed: Vec<Prep>,
+}
+
+/// What a round is: practice, the daily challenge, a challenge code, or an earlier day's daily
+/// played as practice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StartKind {
+    Practice,
+    Daily,
+    Code,
+    Earlier,
+}
+
+/// Arguments of `CMD_COMPETE_START`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteStart {
+    pub kind: StartKind,
+    /// Practice only; the daily and an earlier day have their date's discipline, a code its own.
+    #[serde(default)]
+    pub discipline: Option<Discipline>,
+    /// Level 1 when missing; a code has its own.
+    #[serde(default)]
+    pub level: Option<Level>,
+    #[serde(default)]
+    pub code: Option<String>,
+    /// `Earlier` only: one of the last seven days.
+    #[serde(default)]
+    pub date: Option<Date>,
+    /// Practice and codes only: no time limit (no records, no trophies).
+    #[serde(default)]
+    pub untimed: bool,
+    /// A palace whose route labels the places.
+    #[serde(default)]
+    pub route: Option<String>,
+    /// Things per place (see `PlaceOption`); the discipline's first option when missing.
+    #[serde(default)]
+    pub per_place: Option<u8>,
+    /// The language the shopping list is shown and scored in.
+    pub lang: ContestLang,
+}
+
+/// The place a task item lies on: its number from 1, and the route's name for it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaceLabel {
+    pub place: u16,
+    pub name: Option<String>,
+}
+
+/// A round that began: its task, and what the screens show with it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteStarted {
+    pub round_id: String,
+    pub kind: Kind,
+    pub spec: Spec,
+    pub task: Task,
+    /// The learning date of the round.
+    pub date: Date,
+    pub untimed: bool,
+    /// Shopping list: the things in the round's language, in task order; empty otherwise.
+    pub words: Vec<String>,
+    /// One per task item.
+    pub places: Vec<PlaceLabel>,
+}
+
+/// Memorizing ended: how long it counted and how long recall may take (`None` without a limit).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteRecall {
+    pub memorize_ms: u32,
+    pub recall_ms_left: Option<u32>,
+}
+
+/// Arguments of `CMD_COMPETE_FINISH` and `CMD_COMPETE_EVENING_FINISH`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteHandIn {
+    pub recall: Recall,
+    /// The language of the person (the evening recall and the result's names are in it).
+    pub lang: ContestLang,
+}
+
+/// A round's result: the plugin's verdict, and per place what was right.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteResult {
+    pub finished: CompeteFinished,
+    /// The task per place, as people read it: things, digits, card names.
+    pub correct: Vec<String>,
+    pub memorize_ms: u32,
+    pub recall_ms: u32,
+    /// Practice and code rounds: the challenge code of the task.
+    pub code: Option<String>,
+}
+
+/// Arguments of `CMD_COMPETE_EVENING_START`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteEvening {
+    pub round_id: String,
+    #[serde(default)]
+    pub per_place: Option<u8>,
+}
+
+/// An evening recall that began: its window and the places to fill.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteEveningStarted {
+    pub evening: CompeteEveningView,
+    pub places: Vec<PlaceLabel>,
+}
+
+/// An evening recall's result, with the morning's task per place.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteEveningResult {
+    pub finished: CompeteEveningFinished,
+    pub correct: Vec<String>,
+}
+
+/// Arguments of `CMD_COMPETE_HISTORY`: at most `limit` (100 for 0), before `before_ms`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteHistoryQuery {
+    #[serde(default)]
+    pub limit: u32,
+    #[serde(default)]
+    pub before_ms: Option<u64>,
+}
+
+/// A discipline and level, for `CMD_COMPETE_CODE` and `CMD_COMPETE_ROUTES`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompeteChoice {
+    pub discipline: Discipline,
+    pub level: Level,
+    /// Routes: things per place; the discipline's first option when missing.
+    #[serde(default)]
+    pub per_place: Option<u8>,
+}
+
+/// A palace a round could be laid on: the places on its route, and whether they are enough.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RouteChoice {
+    pub palace_id: String,
+    pub name: String,
+    pub places: u32,
+    pub fits: bool,
+}

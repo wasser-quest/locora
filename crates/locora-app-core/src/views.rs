@@ -60,6 +60,14 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
             .notes
             .push(format!("Fortschritt nicht verfügbar: {error:#}"));
     }
+    // The contest's tile shows today's challenge, which changes with the learning day.
+    if profile.has_competition()
+        && let Err(error) = profile.compete_today()
+    {
+        profile
+            .notes
+            .push(format!("Gedächtnis-Wettkampf nicht verfügbar: {error:#}"));
+    }
     let has_review = profile.has_review();
     let day = profile.due_day()?;
     // What spaced reviews have shown of each locus, for the palaces' strength.

@@ -1455,6 +1455,7 @@ dependencies = [
  "dirs",
  "locora-api",
  "locora-cloud-api",
+ "locora-competition",
  "locora-crypto",
  "locora-format",
  "locora-formula",
@@ -1487,6 +1488,7 @@ name = "locora-app-api"
 version = "0.1.7"
 dependencies = [
  "locora-api",
+ "locora-competition",
  "serde",
 ]
 
@@ -1500,6 +1502,7 @@ dependencies = [
  "locora-api",
  "locora-app-api",
  "locora-cloud-api",
+ "locora-competition",
  "locora-format",
  "locora-formula",
  "locora-media",
@@ -1634,6 +1637,7 @@ dependencies = [
  "dirs",
  "locora-api",
  "locora-cloud-api",
+ "locora-competition",
  "locora-crypto",
  "locora-format",
  "locora-formula",
@@ -1643,12 +1647,14 @@ dependencies = [
  "locora-source",
  "locora-store",
  "percent-encoding",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
  "ureq",
  "url",
+ "uuid",
  "zeroize",
 ]
 

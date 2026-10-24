@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use anyhow::{Context, Result};
 use locora_api::Service as _;
+use locora_api::competition::{Reset as CompetitionReset, ResetRequest as CompetitionResetRequest};
 use locora_api::core::{Grade, Timing};
 use locora_api::gamification::{
     Migrate, MigrateRequest, PalaceStrength, Reset, ResetRequest, Seen, SeenRequest, StatusV2,
@@ -433,9 +434,9 @@ impl Profile {
     }
 
     /// Deletes the game progress on this device and, through the sync, on every other one: a new
-    /// epoch, and the plugin empties the facts of the old ones. The app's own medals (lessons,
-    /// tour, tutorial: learning progress), review cards and log, palaces and settings stay.
-    /// Returns the new epoch.
+    /// epoch, and the plugins empty the facts of the old ones (gamification, and the contest's
+    /// rounds, records and trophies). The app's own medals (lessons, tour, tutorial: learning
+    /// progress), review cards and log, palaces and settings stay. Returns the new epoch.
     pub fn reset_game(&mut self) -> Result<GameEpoch> {
         let current = self.game_epoch().unwrap_or_default();
         let device = self.store.node_id().to_owned();
@@ -456,6 +457,17 @@ impl Profile {
                 },
             )?;
             self.game_epoch_told = Some(next.id.clone());
+        }
+        if self
+            .host
+            .plugin_provides(crate::competition::PLUGIN, CompetitionReset::NAME)
+        {
+            self.host.call_plugin::<CompetitionReset>(
+                crate::competition::PLUGIN,
+                &CompetitionResetRequest {
+                    epoch: next.id.clone(),
+                },
+            )?;
         }
         // Nothing from before the sync is left to take over.
         self.store.set_local_value(MIGRATED, "1")?;
@@ -540,7 +552,7 @@ fn decode_hex(hex: &str) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 #[path = "game_tests.rs"]
-mod game_tests;
+pub(crate) mod game_tests;
 
 #[cfg(test)]
 mod tests {
