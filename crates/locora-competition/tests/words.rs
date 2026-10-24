@@ -180,7 +180,7 @@ fn lists_keep_their_rules_and_reach_every_concept() {
         let seed = Seed::masked(seeds.next_u64());
         for level in Level::ALL {
             let spec = Spec::standard(Discipline::List, level);
-            let Task::List(ids) = generate(&spec, seed) else {
+            let Ok(Task::List(ids)) = generate(&spec, seed) else {
                 panic!("not a list");
             };
             assert_eq!(ids.len(), usize::from(spec.items));

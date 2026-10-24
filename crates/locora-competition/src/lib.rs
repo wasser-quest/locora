@@ -72,6 +72,16 @@ impl Discipline {
     pub fn parse(text: &str) -> Option<Discipline> {
         Discipline::ALL.into_iter().find(|d| d.as_str() == text)
     }
+
+    /// The most items a task can have: a whole deck of cards, a list of 30 (3 per
+    /// category, which every category has outside its groups) and 255 digits.
+    pub fn max_items(self) -> u8 {
+        match self {
+            Discipline::List => 30,
+            Discipline::Numbers => u8::MAX,
+            Discipline::Cards => cards::DECK as u8,
+        }
+    }
 }
 
 /// A level from 1 (starter) to 3 (expert); other numbers cannot be built or
@@ -218,6 +228,28 @@ pub struct Spec {
 }
 
 impl Spec {
+    /// Whether this build can serve the spec: rules and content of a version it
+    /// supports, and 1 to [`Discipline::max_items`] items. [`generate`] and
+    /// [`validate`] refuse a spec that fails, so a spec from a newer device or
+    /// server never turns into a different task here.
+    pub fn check(&self) -> Result<(), SpecError> {
+        if !supported_rules().contains(&self.rules) || !supported_content().contains(&self.content)
+        {
+            return Err(SpecError::Version {
+                rules: self.rules,
+                content: self.content,
+            });
+        }
+        let max = self.discipline.max_items();
+        if self.items == 0 || self.items > max {
+            return Err(SpecError::Items {
+                items: self.items,
+                max,
+            });
+        }
+        Ok(())
+    }
+
     /// The fixed size and limits of a level (rules v1, spec §3.1).
     pub fn standard(discipline: Discipline, level: Level) -> Spec {
         const MIN: u32 = 60_000;
@@ -369,9 +401,67 @@ pub struct Info {
     pub first_error: Option<u16>,
 }
 
+/// Why a spec cannot be played with this build.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecError {
+    /// Rules or content of a version this build does not have.
+    Version { rules: u16, content: u16 },
+    /// No items, or more than the discipline can serve.
+    Items { items: u8, max: u8 },
+}
+
+impl fmt::Display for SpecError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Version { rules, content } => write!(
+                f,
+                "Regeln {rules} mit Inhalt {content} kennt diese Version von Locora nicht"
+            ),
+            Self::Items { items, max } => {
+                write!(
+                    f,
+                    "{items} Einträge gibt es in dieser Disziplin nicht (1 bis {max})"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for SpecError {}
+
+impl SpecError {
+    /// The message for people, in their language.
+    pub fn text(&self, lang: Lang) -> &'static str {
+        lang.pick(match self {
+            Self::Version { .. } => [
+                "This round needs a newer version of Locora.",
+                "Für diese Runde brauchst du eine neuere Version von Locora.",
+                "Cette partie nécessite une version plus récente de Locora.",
+                "このラウンドには新しいバージョンの Locora が必要です。",
+                "这一轮需要更新版本的 Locora。",
+            ],
+            Self::Items { .. } => [
+                "This round has a size that its discipline does not allow.",
+                "Diese Runde hat eine Größe, die es in ihrer Disziplin nicht gibt.",
+                "Cette partie a une taille que sa discipline ne permet pas.",
+                "このラウンドの問題数は、この種目では使えません。",
+                "这一轮的题量不符合该项目的规定。",
+            ],
+        })
+    }
+}
+
 /// Why a recall cannot be scored. `place` counts from 1, as people see it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecallError {
+    /// The spec cannot be played with this build ([`Spec::check`]).
+    Spec(SpecError),
+    /// The task is empty or longer than its discipline allows, so no spec can
+    /// have made it.
+    Task {
+        len: usize,
+        max: u8,
+    },
     /// The recall belongs to another discipline than the task.
     Discipline,
     Length {
@@ -402,6 +492,13 @@ pub const MAX_ANSWER_BYTES: usize = 256;
 impl fmt::Display for RecallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Spec(error) => write!(f, "{error}"),
+            Self::Task { len, max } => {
+                write!(
+                    f,
+                    "Die Aufgabe hat {len} Einträge, möglich sind 1 bis {max}"
+                )
+            }
             Self::Discipline => write!(f, "Die Antworten gehören zu einer anderen Disziplin"),
             Self::Length { expected, got } => {
                 write!(f, "Erwartet waren {expected} Antworten, nicht {got}")
@@ -428,6 +525,14 @@ impl RecallError {
     /// The message for people, in their language.
     pub fn text(&self, lang: Lang) -> &'static str {
         lang.pick(match self {
+            Self::Spec(error) => return error.text(lang),
+            Self::Task { .. } => [
+                "This task is empty or too long for its discipline.",
+                "Diese Aufgabe ist leer oder zu lang für ihre Disziplin.",
+                "Cette tâche est vide ou trop longue pour sa discipline.",
+                "この課題は空か、種目に対して長すぎます。",
+                "这道题目为空，或对该项目来说太长。",
+            ],
             Self::Discipline => [
                 "These answers belong to another discipline.",
                 "Die Antworten gehören zu einer anderen Disziplin.",
@@ -527,26 +632,39 @@ pub fn daily_seed(date: Date, discipline: Discipline, level: Level) -> Seed {
     Seed::masked(rng::fnv1a64(label.as_bytes()))
 }
 
-/// The task of `spec` for `seed`, drawn with a fresh generator. Only the
-/// discipline and the number of items matter.
-pub fn generate(spec: &Spec, seed: Seed) -> Task {
+/// The task of `spec` for `seed`, drawn with a fresh generator: exactly
+/// `spec.items` items. Only the discipline and the number of items shape it; a
+/// spec this build cannot serve is refused ([`Spec::check`]).
+pub fn generate(spec: &Spec, seed: Seed) -> Result<Task, SpecError> {
+    spec.check()?;
     let mut rng = rng::SplitMix64::new(seed);
-    match spec.discipline {
+    Ok(match spec.discipline {
         Discipline::List => Task::List(list::generate(&mut rng, spec.items)),
         Discipline::Numbers => Task::Numbers(numbers::generate(&mut rng, spec.items)),
         Discipline::Cards => Task::Cards(cards::generate(&mut rng, spec.items)),
-    }
+    })
 }
 
-/// Checks a recall before it is handed in: one entry per item, texts at most
-/// 64 characters and 256 bytes, digits 0–9, cards below 52 and each card once.
+/// Checks a recall before it is handed in: a spec this build serves, one entry
+/// per item, texts at most 64 characters and 256 bytes, digits 0–9, cards below
+/// 52 and each card once.
 pub fn validate(spec: &Spec, recall: &Recall) -> Result<(), RecallError> {
+    spec.check().map_err(RecallError::Spec)?;
     check(spec.discipline, usize::from(spec.items), recall)
 }
 
 /// Scores a recall against its task (spec §3). `lang` is the language the
-/// shopping list was played in; numbers and cards ignore it.
+/// shopping list was played in; numbers and cards ignore it. A task that no
+/// spec can have made (empty, or longer than [`Discipline::max_items`]) is
+/// refused, so points and places always fit their counters.
 pub fn score(task: &Task, recall: &Recall, lang: Lang) -> Result<Score, RecallError> {
+    let max = task.discipline().max_items();
+    if task.is_empty() || task.len() > usize::from(max) {
+        return Err(RecallError::Task {
+            len: task.len(),
+            max,
+        });
+    }
     check(task.discipline(), task.len(), recall)?;
     match (task, recall) {
         (Task::List(items), Recall::List(answers)) => Ok(list::score(items, answers, lang)),
@@ -562,7 +680,7 @@ pub fn rank_key(points: u16, memorize_ms: u32) -> (Reverse<u16>, u32) {
     (Reverse(points), memorize_ms)
 }
 
-/// `points` out of `max`, with `perfect` derived.
+/// `points` out of `max`, with `perfect` derived (never for an empty task).
 pub(crate) fn finish(
     points: u16,
     marks: Vec<Mark>,
@@ -573,7 +691,7 @@ pub(crate) fn finish(
     Score {
         points,
         max,
-        perfect: points == max,
+        perfect: max > 0 && points == max,
         marks,
         matched,
         info,
@@ -807,6 +925,109 @@ mod tests {
     }
 
     #[test]
+    fn specs_this_build_cannot_serve_are_refused() {
+        let standard = Spec::standard(Discipline::List, level(1));
+        for (spec, error) in [
+            (
+                Spec {
+                    rules: 2,
+                    ..standard
+                },
+                SpecError::Version {
+                    rules: 2,
+                    content: 1,
+                },
+            ),
+            (
+                Spec {
+                    content: 2,
+                    ..standard
+                },
+                SpecError::Version {
+                    rules: 1,
+                    content: 2,
+                },
+            ),
+            (
+                Spec {
+                    items: 0,
+                    ..standard
+                },
+                SpecError::Items { items: 0, max: 30 },
+            ),
+            (
+                Spec {
+                    items: 31,
+                    ..standard
+                },
+                SpecError::Items { items: 31, max: 30 },
+            ),
+            (
+                Spec {
+                    items: 53,
+                    ..Spec::standard(Discipline::Cards, level(3))
+                },
+                SpecError::Items { items: 53, max: 52 },
+            ),
+        ] {
+            assert_eq!(spec.check(), Err(error));
+            assert_eq!(generate(&spec, Seed::masked(1)), Err(error));
+            let recall = Recall::blank(spec.discipline, spec.items);
+            assert_eq!(validate(&spec, &recall), Err(RecallError::Spec(error)));
+        }
+    }
+
+    #[test]
+    fn every_size_a_spec_allows_gives_exactly_that_many_items() {
+        let mut seeds = rng::SplitMix64::new(Seed::masked(5));
+        for discipline in Discipline::ALL {
+            for items in 1..=discipline.max_items() {
+                let spec = Spec {
+                    items,
+                    ..Spec::standard(discipline, level(1))
+                };
+                let task = generate(&spec, Seed::masked(seeds.next_u64())).unwrap();
+                assert_eq!(task.len(), usize::from(items), "{discipline:?} {items}");
+                assert_eq!(validate(&spec, &Recall::blank(discipline, items)), Ok(()));
+                let score = score(&task, &Recall::blank(discipline, items), Lang::En).unwrap();
+                assert_eq!(usize::from(score.max), task.len());
+            }
+        }
+    }
+
+    #[test]
+    fn score_refuses_a_task_no_spec_can_make() {
+        let empty = Task::Cards(Vec::new());
+        assert_eq!(
+            score(&empty, &Recall::Cards(Vec::new()), Lang::En),
+            Err(RecallError::Task { len: 0, max: 52 })
+        );
+        // So many digits that the points would wrap around in a u16.
+        let digits = 65_546;
+        assert_eq!(
+            score(
+                &Task::Numbers(vec![0; digits]),
+                &Recall::Numbers(vec![Some(0); digits]),
+                Lang::En
+            ),
+            Err(RecallError::Task {
+                len: digits,
+                max: 255
+            })
+        );
+        let list = Task::List((1..=31).collect());
+        assert_eq!(
+            score(&list, &Recall::List(vec![String::new(); 31]), Lang::En),
+            Err(RecallError::Task { len: 31, max: 30 })
+        );
+        // The longest task of each discipline still scores.
+        let digits = Task::Numbers(vec![7; 255]);
+        let s = score(&digits, &Recall::Numbers(vec![Some(7); 255]), Lang::En).unwrap();
+        assert_eq!((s.points, s.max, s.perfect), (255, 255, true));
+        assert!(!finish(0, Vec::new(), Vec::new(), Info::default()).perfect);
+    }
+
+    #[test]
     fn score_refuses_a_recall_that_does_not_fit_the_task() {
         let task = Task::Cards(vec![1, 2, 3]);
         assert_eq!(
@@ -856,6 +1077,12 @@ mod tests {
     #[test]
     fn error_texts_exist_in_every_language() {
         let errors = [
+            RecallError::Spec(SpecError::Version {
+                rules: 2,
+                content: 1,
+            }),
+            RecallError::Spec(SpecError::Items { items: 0, max: 30 }),
+            RecallError::Task { len: 0, max: 52 },
             RecallError::Discipline,
             RecallError::Length {
                 expected: 10,

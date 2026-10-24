@@ -139,11 +139,12 @@ fn the_full_deck_of_a_seed() {
         items: 52,
         ..Spec::standard(Discipline::Cards, level(3))
     };
-    let task = generate(&spec, golden.seed);
+    let task = generate(&spec, golden.seed).unwrap();
     assert_eq!(task, Task::Cards(golden.cards.clone()));
     assert_eq!(names(&golden.cards), golden.names);
     // Smaller levels take the start of the same deck.
-    let Task::Cards(first) = generate(&Spec::standard(Discipline::Cards, level(1)), golden.seed)
+    let Ok(Task::Cards(first)) =
+        generate(&Spec::standard(Discipline::Cards, level(1)), golden.seed)
     else {
         panic!("cards");
     };
@@ -153,7 +154,7 @@ fn the_full_deck_of_a_seed() {
 #[test]
 fn the_digits_of_a_seed() {
     let golden = generator().digits;
-    let task = generate(&Spec::standard(Discipline::Numbers, level(1)), golden.seed);
+    let task = generate(&Spec::standard(Discipline::Numbers, level(1)), golden.seed).unwrap();
     assert_eq!(digits(&task), golden.digits);
     assert_eq!(golden.digits, "0816007591 8455281058");
 }
@@ -179,7 +180,12 @@ fn daily_seeds_and_their_tasks() {
         );
         let spec = Spec::standard(case.discipline, case.level);
         if let Some(task) = case.task {
-            assert_eq!(generate(&spec, case.seed), task, "{}", case.date);
+            assert_eq!(
+                generate(&spec, case.seed),
+                Ok(task.clone()),
+                "{}",
+                case.date
+            );
             if let (Some(expected), Task::Cards(cards)) = (case.names, &task) {
                 assert_eq!(names(cards), expected);
             }
@@ -189,7 +195,7 @@ fn daily_seeds_and_their_tasks() {
     let date = |text| Date::parse(text).unwrap();
     let seed = daily_seed(date("2026-10-27"), Discipline::Numbers, level(1));
     assert_eq!(seed.to_string(), "906193cffb3b5ed");
-    let task = generate(&Spec::standard(Discipline::Numbers, level(1)), seed);
+    let task = generate(&Spec::standard(Discipline::Numbers, level(1)), seed).unwrap();
     assert_eq!(digits(&task), "3378122732 1509657859");
     assert_eq!(
         daily_seed(date("2026-10-26"), Discipline::List, level(1)).to_string(),
@@ -216,7 +222,7 @@ fn shopping_lists_of_a_seed() {
             items: case.items,
             ..Spec::standard(Discipline::List, case.level.unwrap_or(level(1)))
         };
-        assert_eq!(generate(&spec, case.seed), Task::List(case.ids.clone()));
+        assert_eq!(generate(&spec, case.seed), Ok(Task::List(case.ids.clone())));
         let keys: Vec<&str> = case
             .ids
             .iter()
