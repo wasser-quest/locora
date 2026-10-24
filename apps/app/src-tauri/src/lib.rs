@@ -3,6 +3,7 @@
 
 mod cloud_auto;
 mod cloud_setup;
+mod cloud_social;
 mod drops;
 mod keystore;
 pub use locora_app_core::journey;
@@ -11,6 +12,7 @@ mod media;
 #[cfg(any(mobile, test))]
 #[cfg_attr(not(mobile), allow(dead_code))]
 mod mobile_files;
+mod share;
 pub use locora_app_core::views;
 
 use std::borrow::Cow;
@@ -1378,6 +1380,18 @@ pub fn run() {
             cloud_auto::cloud_auto_disable,
             cloud_auto::cloud_auto_sync,
             cloud_auto::cloud_email_resend,
+            cloud_social::cloud_friends,
+            cloud_social::cloud_friend_ask,
+            cloud_social::cloud_friend_remove,
+            cloud_social::cloud_ranking,
+            cloud_social::cloud_report,
+            cloud_social::cloud_invite_create,
+            cloud_social::cloud_invite_revoke,
+            cloud_social::cloud_invite_preview,
+            cloud_social::cloud_invite_accept,
+            share::share_art,
+            share::share_ways,
+            share::share_send,
             ui_assets,
             gamification_status,
             game_week_goal,

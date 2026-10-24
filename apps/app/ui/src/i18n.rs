@@ -196,6 +196,7 @@ mod tests {
         ("editor.rs", include_str!("editor.rs")),
         ("first_palace.rs", include_str!("first_palace.rs")),
         ("formulas.rs", include_str!("formulas.rs")),
+        ("friends.rs", include_str!("friends.rs")),
         ("i18n.rs", include_str!("i18n.rs")),
         ("info.rs", include_str!("info.rs")),
         ("journey.rs", include_str!("journey.rs")),
@@ -207,8 +208,11 @@ mod tests {
         ("look.rs", include_str!("look.rs")),
         ("main.rs", include_str!("main.rs")),
         ("media_format.rs", include_str!("media_format.rs")),
+        ("modal.rs", include_str!("modal.rs")),
         ("palette.rs", include_str!("palette.rs")),
         ("settings.rs", include_str!("settings.rs")),
+        ("share.rs", include_str!("share.rs")),
+        ("share_card.rs", include_str!("share_card.rs")),
         ("sply.rs", include_str!("sply.rs")),
         ("startup.rs", include_str!("startup.rs")),
         ("tauri.rs", include_str!("tauri.rs")),
@@ -307,6 +311,35 @@ mod tests {
                 "empty translation: {key:?}"
             );
         }
+    }
+
+    #[test]
+    fn french_punctuation_keeps_its_narrow_space() {
+        // French puts a narrow no-break space (U+202F) before ; ? ! and before a colon that ends a
+        // clause (not in „12:30“ or a link).
+        let mut wrong = Vec::new();
+        for (key, texts) in MESSAGES {
+            let chars: Vec<char> = texts[2].chars().collect();
+            for (at, c) in chars.iter().enumerate() {
+                let before = at.checked_sub(1).map(|at| chars[at]);
+                let after = chars.get(at + 1);
+                let clause = match c {
+                    ';' | '?' | '!' => true,
+                    ':' => after.is_none_or(|next| next.is_whitespace()),
+                    _ => false,
+                };
+                if clause && before.is_some_and(|before| before == ' ' || before.is_alphanumeric())
+                {
+                    wrong.push(format!("{key:?}: {}", texts[2]));
+                    break;
+                }
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "French without its narrow space:\n{}",
+            wrong.join("\n")
+        );
     }
 
     #[test]

@@ -813,14 +813,20 @@ test('on a phone the tour brings each highlighted control to the upper third, cl
   }
 });
 
-/** A phone's on-screen keyboard as Chrome on Android shows it: while a text field has the focus it covers the lower 320 px. */
+/**
+ * A phone's on-screen keyboard as Chrome on Android shows it: while a text field (text, email, or a
+ * text area) has the focus it covers the lower 320 px, and the visible part says it was resized.
+ */
 function simulatedKeyboard() {
   const height = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'height');
   const typing = () => {
     const field = document.activeElement;
-    return field?.tagName === 'TEXTAREA' || (field?.tagName === 'INPUT' && field.type === 'text');
+    return field?.tagName === 'TEXTAREA' || (field?.tagName === 'INPUT' && ['text', 'email'].includes(field.type));
   };
   Object.defineProperty(VisualViewport.prototype, 'height', { configurable: true, get() { return height.get.call(this) - (typing() ? 320 : 0); } });
+  for (const kind of ['focusin', 'focusout']) {
+    document.addEventListener(kind, () => setTimeout(() => window.visualViewport?.dispatchEvent(new Event('resize'))), true);
+  }
 }
 
 test('with an on-screen keyboard the tour keeps the field in the part left visible, also where the keyboard resizes the window', async () => {
@@ -1837,6 +1843,907 @@ test('the settings fit a phone in French, without scrolling sideways', async () 
     await page.getByRole('button', { name: /^Supprimer la progression du jeu/ }).click();
     const heading = await page.locator('.game-reset h3').innerText();
     assert.match(heading, / \?$/, heading);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+/**
+ * A Locora Cloud with friends, invite links, rankings and reports, answered in the test. `mode`
+ * answers as for an account without access (`pay`: 402 where the server needs a subscription) or
+ * as an older server (`older`). Every request is kept with its body and whether it had a session.
+ * `failures` answers a request (`'GET /v1/ranking'`) that many times as a busy server (503), and
+ * `slow` waits that many milliseconds before answering it. Like the server, asking an address
+ * again makes no second request.
+ */
+async function socialCloud(page, setup = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  const cloud = {
+    account: { id: 'account-1', email: 'lea@example.org', display_name: 'Lea', subscription: 'active', plan: 'trial', period_end: 4102444800, email_verified: true },
+    // What `GET /v1/me` says about the address now.
+    confirmed: true,
+    mode: 'ok',
+    friends: [],
+    invites: [],
+    ranking: { friends: [], global: [] },
+    previews: {},
+    // Addresses whose request is accepted (the name of the account that asked first).
+    accepts: {},
+    requests: [],
+    created: 0,
+    failures: {},
+    slow: {},
+    asked: [],
+    ...setup,
+  };
+  const paid = ['GET /v1/friends', 'POST /v1/friends', 'GET /v1/ranking', 'POST /v1/friends/invites', 'POST /v1/friends/invites/{code}/accept'];
+  await page.route('https://api.locora.cloud/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: body === undefined ? '' : JSON.stringify(body) });
+    // Codes and ids are one percent-encoded path segment: the route names them, the value is decoded.
+    const parts = url.pathname.split('/').map(decodeURIComponent);
+    let path = url.pathname;
+    let value = null;
+    if (parts[2] === 'friends' && parts[3] === 'invites' && parts[4] !== undefined) {
+      value = parts[4];
+      path = `/v1/friends/invites/{code}${parts[5] ? `/${parts[5]}` : ''}`;
+    } else if (parts[2] === 'friends' && parts[3] !== undefined && parts[3] !== 'invites') {
+      value = parts[3];
+      path = '/v1/friends/{id}';
+    }
+    const key = `${request.method()} ${path}`;
+    const body = request.postData() ? request.postDataJSON() : null;
+    cloud.requests.push({ key, value, body, search: url.search, session: Boolean(request.headers().authorization) });
+    if (key === 'POST /v1/sessions') return json(200, { token: 'session', account: cloud.account });
+    if (key === 'GET /v1/me') return json(200, { ...cloud.account, email_verified: cloud.confirmed });
+    if (cloud.mode === 'older' && (path.startsWith('/v1/friends') || path.startsWith('/v1/ranking') || path.startsWith('/v1/reports'))) {
+      return key === 'GET /v1/friends/invites' ? json(405, { error: 'Diese Methode ist hier nicht erlaubt' }) : json(404, { error: 'Nicht gefunden' });
+    }
+    if (cloud.mode === 'pay' && paid.includes(key)) return json(402, { error: 'Für diese Funktion ist ein aktives Abo nötig' });
+    if (cloud.failures[key] > 0) {
+      cloud.failures[key] -= 1;
+      return json(503, { error: 'busy' });
+    }
+    if (cloud.slow[key]) await new Promise((resolve) => setTimeout(resolve, cloud.slow[key]));
+    switch (key) {
+      case 'GET /v1/friends':
+        return json(200, cloud.friends);
+      case 'POST /v1/friends': {
+        const name = cloud.accepts[body.email];
+        const incoming = cloud.friends.find((entry) => !entry.accepted && entry.display_name === name);
+        if (incoming) {
+          incoming.accepted = true;
+          return json(200, { display_name: name, accepted: true, id: incoming.id });
+        }
+        if (!cloud.asked.includes(body.email)) {
+          cloud.asked.push(body.email);
+          cloud.friends.push({ display_name: '', accepted: false, id: `sent-${cloud.friends.length}`, since: now });
+        }
+        return json(201, { display_name: '', accepted: false });
+      }
+      case 'DELETE /v1/friends/{id}': {
+        const at = cloud.friends.findIndex((entry) => entry.id === value);
+        if (at < 0) return json(404, { error: 'Diese Freundschaft oder Anfrage gibt es nicht' });
+        cloud.friends.splice(at, 1);
+        return route.fulfill({ status: 204 });
+      }
+      case 'GET /v1/ranking':
+        return json(200, { entries: cloud.ranking[url.searchParams.get('scope')] ?? [] });
+      case 'POST /v1/reports':
+        return route.fulfill({ status: 204 });
+      case 'GET /v1/friends/invites':
+        return json(200, cloud.invites);
+      case 'POST /v1/friends/invites': {
+        cloud.created += 1;
+        const code = ['ABCD-EFGH-JKLM-NPQR', 'BCDE-FGHJ-KLMN-PQRS', 'CDEF-GHJK-LMNP-QRST'][cloud.created - 1];
+        const invite = { code, url: `https://web.locora.cloud/einladung#${code}`, expires_at: now + 14 * 86400 };
+        cloud.invites.push(invite);
+        return json(201, invite);
+      }
+      case 'DELETE /v1/friends/invites/{code}':
+        cloud.invites = cloud.invites.filter((invite) => invite.code !== value);
+        return route.fulfill({ status: 204 });
+      case 'GET /v1/friends/invites/{code}':
+        return cloud.previews[value]
+          ? json(200, cloud.previews[value])
+          : json(404, { error: 'Diese Einladung gibt es nicht (mehr): Sie ist abgelaufen, wurde schon angenommen oder zurückgezogen.' });
+      case 'POST /v1/friends/invites/{code}/accept': {
+        const name = cloud.previews[value]?.display_name ?? 'Ada';
+        cloud.friends.push({ display_name: name, accepted: true, id: `invited-${value}` });
+        return json(200, { display_name: name, accepted: true, id: `invited-${value}` });
+      }
+      default:
+        return json(404, { error: `not in the test cloud: ${key}` });
+    }
+  });
+  return cloud;
+}
+
+/** Signs in to the social test cloud; the next screen that reads the cloud status sees the account. */
+async function signIn(page) {
+  await page.evaluate(() => window.__TAURI__.core.invoke('cloud_connect', {
+    request: { server: 'https://api.locora.cloud', email: 'lea@example.org', password: 'a long cloud password', register: false, guest: false },
+  }));
+}
+
+/** Opens the friends page from Settings → Locora Cloud. */
+async function openFriends(page) {
+  await page.getByRole('button', { name: 'Settings & statistics' }).click();
+  await page.getByRole('region', { name: 'Locora Cloud' }).getByRole('button', { name: 'Friends & rankings' }).click();
+  await page.getByRole('heading', { name: 'Friends & rankings', level: 1 }).waitFor({ timeout: 15000 });
+}
+
+/** The status texts of failed loads a test provokes on purpose (402, 405, 409) are no app errors. */
+const unprovoked = (problems) => problems.filter((problem) => !/status of 40[259]/.test(problem));
+
+/** What has the focus: its text, or its label. */
+const focusedText = (page) => page.evaluate(() => {
+  const element = document.activeElement;
+  return element?.getAttribute('aria-label') || element?.innerText || element?.value || element?.tagName;
+});
+
+test('the friends page lists requests, friends and requests sent, never an address, and names stay text', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    await socialCloud(page, {
+      friends: [
+        { display_name: 'Ada', accepted: true, id: 'f1' },
+        { display_name: '<img src=x onerror="window.__xss=1">', accepted: true, id: 'f2' },
+        { display_name: 'Ada‮evil', accepted: true, id: 'f3' },
+        { display_name: 'Ben', accepted: false, id: 'f4' },
+        { display_name: '', accepted: false, id: 'f5', since: now - 3600 },
+      ],
+    });
+    await signIn(page);
+    // The start page shows the way to friends once it reads the account (here after the settings).
+    await page.getByRole('button', { name: 'Settings & statistics' }).click();
+    await page.locator('header .back').click();
+    await page.getByRole('button', { name: 'Friends & rankings' }).click();
+    const main = page.locator('main');
+    await main.getByRole('heading', { name: 'Requests to you' }).waitFor({ timeout: 15000 });
+    const text = await main.innerText();
+    assert.match(text, /<img src=x onerror="window.__xss=1">/, 'markup in a name is shown as text');
+    assert.match(text, /Ada\\u\{202e\}evil/, 'a bidi control is a visible escape');
+    assert.match(text, /Sent on .*\d{4}/, 'a request sent shows when');
+    assert.doesNotMatch(text, /@/, 'no address anywhere');
+    assert.equal(await page.evaluate(() => window.__xss), undefined);
+    assert.equal(await main.locator('bdi', { hasText: 'Ben' }).count(), 1);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('asking, accepting by asking back, declining, withdrawing and removing keep the focus and announce the result', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    const cloud = await socialCloud(page, {
+      friends: [
+        { display_name: 'Ada', accepted: true, id: 'f1' },
+        { display_name: 'Ben', accepted: false, id: 'f2' },
+        { display_name: 'Cleo', accepted: false, id: 'f3' },
+        { display_name: 'Dan', accepted: false, id: 'f4' },
+      ],
+      accepts: { 'ben@example.org': 'Ben' },
+    });
+    await signIn(page);
+    await openFriends(page);
+    const main = page.locator('main');
+    await main.getByRole('heading', { name: 'Requests to you' }).waitFor({ timeout: 15000 });
+    // A list only where there are rows: nobody was asked yet.
+    assert.equal(await main.locator('ul.friend-rows:not(:has(li))').count(), 0, 'no empty lists');
+    // The field names its hint; an address without @ gets the app's own words, not the browser's.
+    const ask = main.getByLabel("The person's email address");
+    const hint = (field) => field.evaluate((input) => document.getElementById(input.getAttribute('aria-describedby') ?? '')?.innerText);
+    assert.match(await hint(ask), /^The person sees your display name/);
+    await ask.fill('foo');
+    await ask.press('Enter');
+    await main.getByText('Enter a valid email address').waitFor({ timeout: 5000 });
+    assert.equal(await focusedText(page), 'Enter a valid email address');
+    assert.equal(cloud.requests.filter((entry) => entry.key === 'POST /v1/friends').length, 0, 'refused before the network');
+    // Asking someone: the address is cleared and never shown again.
+    await ask.fill('friend@example.org');
+    await main.getByRole('button', { name: 'Send request' }).click();
+    await main.getByText('Request sent. You become friends once the person asks you too.').waitFor({ timeout: 10000 });
+    assert.equal(await ask.inputValue(), '');
+    assert.match(await focusedText(page), /^Request sent/);
+    await main.getByText('just sent').waitFor({ timeout: 10000 });
+    assert.doesNotMatch(await main.innerText(), /friend@example\.org/);
+    // Asking the same address again makes no new request: no row says it was just sent.
+    await ask.fill('friend@example.org');
+    await main.getByRole('button', { name: 'Send request' }).click();
+    await page.waitForFunction(() => document.activeElement?.innerText?.startsWith('Request sent') && !document.body.innerText.includes('just sent'), null, { timeout: 10000 });
+    // Accepting by asking back with the person's address.
+    await main.getByRole('button', { name: 'Accept the request from Ben' }).click();
+    const benAddress = main.getByLabel('Email address of Ben');
+    await benAddress.waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.type), 'email');
+    assert.match(await hint(benAddress), /^To accept, ask Ben back with the address/, 'the focused field says what a wrong address does');
+    await benAddress.fill('ben@example.org');
+    await main.getByRole('button', { name: 'Ask back' }).click();
+    await main.getByText('You are friends with Ben.').waitFor({ timeout: 10000 });
+    assert.match(await focusedText(page), /^You are friends with Ben/);
+    await main.getByRole('button', { name: 'Remove Ben' }).waitFor({ timeout: 10000 });
+    // An address that makes no friends says so without claiming anything about it.
+    await main.getByRole('button', { name: 'Accept the request from Cleo' }).click();
+    await main.getByLabel('Email address of Cleo').fill('typo@example.org');
+    await main.getByRole('button', { name: 'Ask back' }).click();
+    await main.getByText(/^Not friends yet\. A request to this address is waiting now\. If the address is Cleo's/).waitFor({ timeout: 10000 });
+    await main.getByRole('button', { name: 'Send an invite link instead…' }).waitFor();
+    // Only the new request says it was just sent.
+    await main.getByText('just sent').waitFor({ timeout: 10000 });
+    assert.equal(await main.getByText('just sent').count(), 1);
+    // Declining asks once; Escape gives the focus back to the button.
+    const decline = main.getByRole('button', { name: 'Decline the request from Dan' });
+    await decline.click();
+    assert.match(await focusedText(page), /^Decline the request from Dan\?/);
+    await page.keyboard.press('Escape');
+    assert.equal(await focusedText(page), 'Decline the request from Dan');
+    await decline.click();
+    await main.getByRole('button', { name: 'Yes, decline' }).click();
+    await main.getByText('Request from Dan declined.').waitFor({ timeout: 10000 });
+    assert.match(await focusedText(page), /^Request from Dan declined/);
+    // Withdrawing acts at once.
+    await main.getByRole('button', { name: /^Withdraw the request sent on / }).first().click();
+    await main.getByText(/^Request sent on .* withdrawn\.$/).waitFor({ timeout: 10000 });
+    // Ending a friendship asks once.
+    await main.getByRole('button', { name: 'Remove Ada' }).click();
+    await main.getByRole('button', { name: 'Yes, end it' }).click();
+    await main.getByText('Friendship with Ada ended.').waitFor({ timeout: 10000 });
+    const asked = cloud.requests.filter((entry) => entry.key === 'POST /v1/friends').map((entry) => entry.body.email);
+    assert.deepEqual(asked, ['friend@example.org', 'friend@example.org', 'ben@example.org', 'typo@example.org']);
+    const removed = cloud.requests.filter((entry) => entry.key === 'DELETE /v1/friends/{id}').map((entry) => entry.value);
+    assert.deepEqual(removed.slice(0, 1), ['f4']);
+    assert.ok(removed.includes('f1'));
+    // Back in the settings, the way to the friends has the focus again, in view.
+    await page.locator('header .back').click();
+    await page.waitForFunction(() => document.activeElement?.classList.contains('cloud-friends'), null, { timeout: 10000 });
+    const way = await page.locator('.cloud-friends').boundingBox();
+    assert.ok(way.y >= 0 && way.y + way.height <= 760, `the button is in view: ${JSON.stringify(way)}`);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('invite links: create, copy, list with their end date, revoke; a pasted link shows who invites before accepting', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+    const now = Math.floor(Date.now() / 1000);
+    const cloud = await socialCloud(page, {
+      previews: {
+        'ABCD-EFGH-JKMN-PQRS': { display_name: 'Ada', expires_at: now + 86400, ref: 'n-ada' },
+        'WXYZ-EFGH-JKMN-PQRS': { display_name: 'Zoe', expires_at: now + 86400, ref: 'n-zoe' },
+      },
+      slow: { 'POST /v1/friends/invites': 400 },
+    });
+    await signIn(page);
+    await openFriends(page);
+    const main = page.locator('main');
+    // A double tap on a slow network makes one link, not two.
+    await main.getByRole('button', { name: 'Create an invite link' }).dblclick();
+    const box = main.getByRole('group', { name: 'Invite link' });
+    await box.waitFor({ timeout: 10000 });
+    await page.waitForTimeout(600);
+    assert.equal(cloud.requests.filter((entry) => entry.key === 'POST /v1/friends/invites').length, 1, 'one link');
+    await main.getByText(/^Invite link created\. It works once, until .*Open invite links/).waitFor();
+    const url = 'https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR';
+    assert.equal(await box.locator('input').inputValue(), url);
+    await box.getByRole('button', { name: 'Copy link' }).click();
+    await main.getByText('Copied.').first().waitFor({ timeout: 5000 });
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), url);
+    // The open links, with their end date; revoking one is announced.
+    const row = main.locator('.friend-row', { hasText: 'ABCD-EFGH-JKLM-NPQR' });
+    await row.getByText(/valid until/).waitFor({ timeout: 10000 });
+    await row.getByRole('button', { name: 'Withdraw invite link ABCD-EFGH-JKLM-NPQR' }).click();
+    await main.getByText('Invite link ABCD-EFGH-JKLM-NPQR withdrawn. It no longer works.').waitFor({ timeout: 10000 });
+    await main.getByText('No open invite links.').waitFor({ timeout: 10000 });
+    assert.equal(await box.count(), 0, 'the new link\'s box goes with it');
+    // Closing a new link's box gives the focus back to the button that made it.
+    await main.getByRole('button', { name: 'Create an invite link' }).click();
+    await box.waitFor({ timeout: 10000 });
+    await box.getByRole('button', { name: 'Close', exact: true }).click();
+    assert.equal(await box.count(), 0);
+    assert.equal(await focusedText(page), 'Create an invite link');
+    // Junk is refused before anything is sent.
+    const field = main.getByLabel('Invite link or code');
+    const before = cloud.requests.length;
+    await field.fill('hello');
+    await main.getByRole('button', { name: 'Check' }).click();
+    await main.getByText('That is neither an invite code (like ABCD-EFGH-JKLM-NPQR) nor an invite link.').waitFor({ timeout: 5000 });
+    assert.equal(cloud.requests.length, before);
+    // A pasted link shows who invites, asked without the session.
+    await field.fill('https://web.locora.cloud/einladung#abcd-efgh-jkmn-pqrs');
+    await main.getByRole('button', { name: 'Check' }).click();
+    await main.getByText('Ada invites you.').waitFor({ timeout: 10000 });
+    assert.equal(await focusedText(page), 'Ada invites you.');
+    const preview = cloud.requests.find((entry) => entry.key === 'GET /v1/friends/invites/{code}');
+    assert.equal(preview.value, 'ABCD-EFGH-JKMN-PQRS');
+    assert.equal(preview.session, false);
+    // Cancelling the answer gives the focus back to the field, empty for another code.
+    await main.getByRole('button', { name: 'Cancel', exact: true }).click();
+    assert.equal(await main.getByText('Ada invites you.').count(), 0);
+    assert.ok(await field.evaluate((input) => input === document.activeElement), 'the field has the focus');
+    assert.equal(await field.inputValue(), '');
+    await field.fill('https://web.locora.cloud/einladung#abcd-efgh-jkmn-pqrs');
+    await main.getByRole('button', { name: 'Check' }).click();
+    await main.getByText('Ada invites you.').waitFor({ timeout: 10000 });
+    // Another text takes the answer away: nothing is accepted for a code nobody checked. The
+    // message the app sends with a code alone is read as it was received.
+    await field.fill('Let\'s be friends in Locora! Enter my invite code in Locora under “Friends & rankings” (valid until November 7, 2026): WXYZ-EFGH-JKMN-PQRS');
+    assert.equal(await main.getByRole('button', { name: 'Accept', exact: true }).count(), 0);
+    await main.getByRole('button', { name: 'Check' }).click();
+    await main.getByText('Zoe invites you.').waitFor({ timeout: 10000 });
+    await main.getByRole('button', { name: 'Accept', exact: true }).click();
+    await main.getByText('You are friends with Zoe.').waitFor({ timeout: 10000 });
+    const accepted = cloud.requests.filter((entry) => entry.key === 'POST /v1/friends/invites/{code}/accept');
+    assert.deepEqual(accepted.map((entry) => [entry.value, entry.session]), [['WXYZ-EFGH-JKMN-PQRS', true]]);
+    assert.equal(await field.inputValue(), '');
+    await main.getByRole('button', { name: 'Remove Zoe' }).waitFor({ timeout: 10000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('rankings of friends and of everyone, the own entry, and a report with a reason', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    const cloud = await socialCloud(page, {
+      friends: [{ display_name: 'Ada', accepted: true, id: 'f1' }],
+      ranking: {
+        friends: [
+          { display_name: 'Ada', xp: 120, ref: 'n-ada' },
+          { display_name: 'Lea', xp: 0, ref: 'n-lea' },
+        ],
+        // A stranger with the same name is no own entry, and can be reported.
+        global: [
+          { display_name: 'Lea', xp: 900, ref: 'n-other-lea' },
+          { display_name: 'Max', xp: 900, ref: 'n-max' },
+          { display_name: 'Ada', xp: 120, ref: 'n-ada' },
+        ],
+      },
+    });
+    cloud.account.email_verified = false;
+    cloud.confirmed = false;
+    await signIn(page);
+    await openFriends(page);
+    const card = page.locator('.ranking-card');
+    await card.getByText('120 ranking points').waitFor({ timeout: 10000 });
+    assert.match(await card.locator('.ranking-row', { hasText: 'Lea' }).innerText(), /Lea \(you\)/);
+    assert.equal(await card.locator('.ranking-row', { hasText: 'Lea' }).getByRole('button').count(), 0, 'the own name is not offered for reporting');
+    await card.getByRole('button', { name: 'Report the name “Ada”' }).waitFor();
+    assert.match(await card.innerText(), /Your journeys in the app do not count here yet/);
+    await card.getByRole('button', { name: 'Everyone' }).click();
+    await card.getByText('900 ranking points').first().waitFor({ timeout: 10000 });
+    const places = await card.locator('.ranking-place').allInnerTexts();
+    assert.deepEqual(places, ['1.', '1.', '3.'], 'equal points share a place');
+    assert.doesNotMatch(await card.innerText(), /\(you\)/);
+    await card.getByRole('button', { name: 'Report the name “Lea”' }).waitFor();
+    await card.getByRole('button', { name: 'Friends', exact: true }).click();
+    await card.getByRole('button', { name: 'Everyone' }).click();
+    const reads = cloud.requests.filter((entry) => entry.key === 'GET /v1/ranking').map((entry) => entry.search);
+    assert.deepEqual(reads, ['?scope=friends', '?scope=global'], 'each tab is read once');
+    // The report dialog: the focus is in it, Tab stays inside, Escape gives it back.
+    const report = card.getByRole('button', { name: 'Report the name “Max”' });
+    await report.click();
+    const dialog = page.getByRole('dialog', { name: 'Report a name' });
+    await dialog.waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'TEXTAREA');
+    for (let i = 0; i < 4; i += 1) {
+      await page.keyboard.press('Tab');
+      assert.ok(await page.evaluate(() => Boolean(document.activeElement?.closest('[role=dialog]'))), 'Tab stays in the dialog');
+    }
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await focusedText(page), 'Report the name “Max”');
+    await report.click();
+    await dialog.getByLabel('Reason (optional, at most 300 characters)').fill('rude');
+    await dialog.getByRole('button', { name: 'Report', exact: true }).click();
+    await card.getByText('Reported. Thank you – reported names are reviewed. Your report counts once your email address is confirmed.').waitFor({ timeout: 10000 });
+    assert.equal(await focusedText(page), 'Report the name “Max”');
+    const sent = cloud.requests.find((entry) => entry.key === 'POST /v1/reports');
+    assert.deepEqual(sent.body, { ref: 'n-max', reason: 'rude' });
+    assert.ok(cloud.requests.some((entry) => entry.key === 'GET /v1/me'));
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('signed out, without access and on an older server the page explains it calmly', async () => {
+  const forbidden = /402|404|405|Abo|subscription|Nicht gefunden|Not Found/;
+  // Signed out: the palette leads there, and the page leads to the cloud settings.
+  const signedOut = await openApp();
+  try {
+    await socialCloud(signedOut.page);
+    await signedOut.page.keyboard.press('Control+k');
+    await signedOut.page.getByRole('combobox').fill('Friends');
+    await signedOut.page.keyboard.press('Enter');
+    const main = signedOut.page.locator('main');
+    await main.getByText(/^Friends, invitations and rankings are part of Locora Cloud/).waitFor({ timeout: 10000 });
+    assert.doesNotMatch(await main.innerText(), forbidden);
+    await main.getByRole('button', { name: 'Open the settings' }).click();
+    await signedOut.page.waitForFunction(() => document.activeElement?.innerText === 'Locora Cloud', null, { timeout: 10000 });
+    assert.deepEqual(signedOut.problems, []);
+  } finally {
+    await signedOut.context.close();
+  }
+  // No access: the open links stay, to be withdrawn, and nothing says how to get access.
+  const paid = await openApp();
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const cloud = await socialCloud(paid.page, {
+      mode: 'pay',
+      invites: [{ code: 'ABCD-EFGH-JKLM-NPQR', url: 'https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR', expires_at: now + 86400 }],
+    });
+    await signIn(paid.page);
+    await openFriends(paid.page);
+    const main = paid.page.locator('main');
+    await main.getByText('Friends, invitations and rankings are not available for this account.').waitFor({ timeout: 10000 });
+    assert.doesNotMatch(await main.innerText(), forbidden);
+    assert.equal(await main.getByRole('button', { name: /Copy|Create|Check/ }).count(), 0);
+    await main.getByRole('button', { name: 'Withdraw invite link ABCD-EFGH-JKLM-NPQR' }).click();
+    await main.getByText('Invite link ABCD-EFGH-JKLM-NPQR withdrawn. It no longer works.').waitFor({ timeout: 10000 });
+    assert.ok(cloud.requests.some((entry) => entry.key === 'DELETE /v1/friends/invites/{code}'));
+    // Without open links, only the sentence.
+    await main.getByText('Friends, invitations and rankings are not available for this account.').waitFor();
+    assert.deepEqual(unprovoked(paid.problems), []);
+  } finally {
+    await paid.context.close();
+  }
+  const older = await openApp();
+  try {
+    await socialCloud(older.page, { mode: 'older' });
+    await signIn(older.page);
+    await openFriends(older.page);
+    const main = older.page.locator('main');
+    await main.getByText('This server does not know friends and rankings yet. Once it is updated, you find them here.').waitFor({ timeout: 10000 });
+    assert.doesNotMatch(await main.innerText(), forbidden);
+    assert.deepEqual(unprovoked(older.problems), []);
+  } finally {
+    await older.context.close();
+  }
+});
+
+test('a failed load is announced again on every retry, and the focus waits on its heading meanwhile', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await socialCloud(page, {
+      friends: [{ display_name: 'Ada', accepted: true, id: 'f1' }],
+      ranking: { friends: [{ display_name: 'Ada', xp: 5, ref: 'n-ada' }, { display_name: 'Lea', xp: 0, ref: 'n-lea' }], global: [] },
+      // The list fails twice, its links once more after that, the ranking once.
+      failures: { 'GET /v1/friends': 2, 'GET /v1/friends/invites': 3, 'GET /v1/ranking': 1 },
+    });
+    await signIn(page);
+    await openFriends(page);
+    const main = page.locator('main');
+    const busy = 'Locora Cloud is busy right now. Please try again later';
+    const alert = main.getByRole('alert').filter({ hasText: busy });
+    await alert.waitFor({ timeout: 15000 });
+    await alert.evaluate((line) => {
+      line.dataset.seen = 'yes';
+    });
+    // A retry shows the page loading; the same error then comes in a new line, announced again.
+    await main.getByRole('button', { name: 'Try again' }).click();
+    assert.equal(await focusedText(page), 'Friends & rankings');
+    await page.waitForFunction((busy) => [...document.querySelectorAll('main [role=alert]')]
+      .some((line) => line.innerText === busy && !line.dataset.seen), busy, { timeout: 15000 });
+    assert.equal(await focusedText(page), 'Friends & rankings');
+    await main.getByRole('button', { name: 'Try again' }).click();
+    // The page is there, but its link list and the ranking failed: each retry keeps the focus
+    // on the heading of its part, which stays while the part loads again.
+    const invites = page.locator('.invite-card');
+    await invites.getByRole('alert').filter({ hasText: busy }).waitFor({ timeout: 15000 });
+    await invites.getByRole('button', { name: 'Try again' }).click();
+    await invites.getByText('No open invite links.').waitFor({ timeout: 15000 });
+    assert.equal(await focusedText(page), 'Open invite links');
+    const ranking = page.locator('.ranking-card');
+    await ranking.getByRole('alert').filter({ hasText: busy }).waitFor({ timeout: 15000 });
+    await ranking.getByRole('button', { name: 'Try again' }).click();
+    await ranking.getByText('5 ranking points').waitFor({ timeout: 15000 });
+    assert.equal(await focusedText(page), 'Ranking');
+    assert.deepEqual(problems.filter((problem) => !/status of 503/.test(problem)), []);
+  } finally {
+    await context.close();
+  }
+});
+
+/** The bottom of an element and of the part of the window that is seen (above a keyboard). */
+const fieldAndSeen = (locator) => locator.evaluate((field) => ({
+  bottom: field.getBoundingClientRect().bottom,
+  seen: window.visualViewport.offsetTop + window.visualViewport.height,
+  bar: [...document.querySelectorAll('.palette-mobile-trigger')].map((bar) => bar.getBoundingClientRect()).find((rect) => rect.height > 0)?.top ?? Infinity,
+  foot: field.closest('.modal')?.querySelector('.modal-foot')?.getBoundingClientRect().top ?? Infinity,
+}));
+
+/** Controls narrower or lower than a finger (44 px), by their names. */
+const smallTargets = (page, selector) => page.locator(selector).evaluateAll((elements) => elements
+  .filter((element) => element.offsetParent !== null)
+  .map((element) => [element.getAttribute('aria-label') || element.innerText || element.className, element.getBoundingClientRect()])
+  .filter(([, rect]) => rect.height < 44 || rect.width < 44)
+  .map(([name, rect]) => `${name}: ${Math.round(rect.width)}×${Math.round(rect.height)}`));
+
+test('the friends page fits a phone: no sideways scrolling, finger-sized targets, fields above the keyboard', async () => {
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 760 }, initScript: simulatedKeyboard });
+  try {
+    const long = 'Wolfgang-Amadeus-Mozartstraßen12';
+    await socialCloud(page, {
+      friends: [
+        { display_name: long, accepted: true, id: 'f1' },
+        { display_name: 'Ben', accepted: false, id: 'f2' },
+      ],
+      invites: [{ code: 'ABCD-EFGH-JKLM-NPQR', url: 'https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR', expires_at: 4102444800 }],
+      ranking: { friends: [{ display_name: long, xp: 12345678, ref: 'n1' }, { display_name: 'Lea', xp: 0, ref: 'n2' }], global: [] },
+    });
+    await signIn(page);
+    await page.getByRole('button', { name: 'Settings & statistics' }).click();
+    await page.locator('.cloud-friends').waitFor({ timeout: 15000 });
+    assert.deepEqual(await smallTargets(page, '.cloud-friends'), []);
+    await page.locator('header .back').click();
+    await page.locator('#home-friends').waitFor({ timeout: 15000 });
+    assert.deepEqual(await smallTargets(page, '#home-friends, #tour-home-settings'), []);
+    // The two buttons of the title row line up and keep their distance from the row below.
+    const [friendsButton, gear, below] = await Promise.all(['#home-friends', '#tour-home-settings', '#tour-home-media']
+      .map((selector) => page.locator(selector).boundingBox()));
+    assert.equal(friendsButton.y, gear.y);
+    assert.equal(friendsButton.height, gear.height);
+    assert.ok(below.y - (gear.y + gear.height) >= 4, `the row below keeps its distance: ${JSON.stringify([gear, below])}`);
+    await page.locator('#home-friends').click();
+    const main = page.locator('main');
+    await main.getByText('12345678 ranking points').waitFor({ timeout: 15000 });
+    // Every ranking row has its points under the name and „Report“ at its end, in line from row to row.
+    const rows = await main.locator('.ranking-row').evaluateAll((items) => items.map((row) => {
+      const box = (selector) => row.querySelector(selector)?.getBoundingClientRect();
+      return { who: box('.ranking-who'), points: box('.ranking-points'), report: box('.ranking-report') };
+    }));
+    assert.equal(rows.length, 2);
+    for (const row of rows) {
+      assert.equal(row.points.left, row.who.left, 'the points start where the name does');
+      assert.ok(row.points.top >= row.who.bottom - 1, 'the points are under the name');
+    }
+    assert.equal(rows[0].who.left, rows[1].who.left, 'the names line up');
+    assert.ok(rows[0].report && rows[0].report.right <= 390 && !rows[1].report, 'a report button for the friend, none for the own entry');
+    await main.getByRole('button', { name: 'Create an invite link' }).click();
+    await main.getByRole('group', { name: 'Invite link' }).waitFor({ timeout: 10000 });
+    await main.getByRole('button', { name: 'Accept the request from Ben' }).click();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 390, 'nothing scrolls sideways');
+    assert.deepEqual(await smallTargets(page, '.friends-page button, .friends-page input, .friends-bar .back'), []);
+    // Fields at 16 px (a phone zooms into smaller ones), and above the keyboard once focused.
+    const ask = main.getByLabel("The person's email address");
+    assert.equal(await ask.evaluate((field) => getComputedStyle(field).fontSize), '16px');
+    await page.locator('header .back').focus();
+    await ask.focus();
+    await page.waitForTimeout(700);
+    let place = await fieldAndSeen(ask);
+    assert.ok(place.bottom <= place.seen && place.bottom <= place.bar, `the field stays in view: ${JSON.stringify(place)}`);
+    // Where the keyboard resizes the window instead, the commands bar does not cover the field.
+    await page.locator('header .back').focus();
+    await page.setViewportSize({ width: 390, height: 430 });
+    await ask.focus();
+    await page.waitForTimeout(700);
+    place = await fieldAndSeen(ask);
+    assert.ok(place.bottom <= place.bar, `the commands bar gives way: ${JSON.stringify(place)}`);
+    await page.setViewportSize({ width: 390, height: 760 });
+    // The report dialog: within the screen, finger-sized, its reason field at 16 px.
+    await page.locator('header .back').focus();
+    await main.getByRole('button', { name: 'Report the name “Ben”' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Report a name' });
+    await dialog.waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'report-title', 'a touch screen focuses the title, not the keyboard');
+    assert.deepEqual(await smallTargets(page, '.modal button, .modal textarea'), []);
+    const reason = dialog.getByRole('textbox');
+    assert.equal(await reason.evaluate((field) => getComputedStyle(field).fontSize), '16px');
+    // A tap beside the dialog closes it only while nothing was typed.
+    await reason.fill('rude');
+    await page.mouse.click(195, 740);
+    assert.equal(await dialog.count(), 1, 'what was typed is kept');
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 390);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+  // French keeps its narrow no-break space before a colon.
+  const french = await openApp({ language: 'fr' });
+  try {
+    await socialCloud(french.page);
+    await signIn(french.page);
+    await french.page.keyboard.press('Control+k');
+    await french.page.getByRole('combobox').fill('Amis');
+    await french.page.keyboard.press('Enter');
+    await french.page.getByRole('button', { name: 'Créer un lien d’invitation' }).click();
+    await french.page.getByText('Code\u202f: ABCD-EFGH-JKLM-NPQR').waitFor({ timeout: 10000 });
+    assert.deepEqual(french.problems, []);
+  } finally {
+    await french.context.close();
+  }
+});
+
+// ---------------------------------------------------------------- sharing
+
+/** Width and height of a PNG from its IHDR, and whether it starts like one. */
+function pngSize(bytes) {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  return {
+    png: signature.every((byte, index) => bytes[index] === byte),
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+}
+
+test('a journey’s end card becomes a picture without the palace name until it is chosen', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+    await openTutorial(page);
+    const done = await walkTutorial(page, '3');
+    const share = done.getByRole('button', { name: 'Share…' });
+    await share.click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.waitFor({ timeout: 10000 });
+    // While the picture is drawn, only the status line says so.
+    assert.equal(await dialog.locator('.share-preview').innerText(), '');
+    assert.ok(await dialog.getByText('Making the picture …').count() <= 1);
+    const choices = await dialog.getByRole('radio').evaluateAll((radios) => radios.map((radio) => radio.parentElement.innerText.trim()));
+    assert.equal(choices[0], 'This journey');
+    assert.ok(choices.includes('First journey'), `the new trophy can be shared: ${choices}`);
+    const text = dialog.getByLabel('Text with the picture');
+    const preview = dialog.locator('.share-preview img');
+    await preview.waitFor({ timeout: 20000 });
+    assert.match(await text.inputValue(), /^Journey done in Locora: \d of 9 recalled/);
+    assert.doesNotMatch(await text.inputValue(), /Learn Locora/);
+    assert.doesNotMatch(await preview.getAttribute('alt'), /Learn Locora/);
+    // The palace's name only when it is chosen, for this share.
+    await dialog.getByRole('checkbox', { name: 'Show the palace name “Learn Locora”' }).check();
+    await page.waitForFunction(() => document.querySelector('.share-preview img')?.alt.includes('Learn Locora'), null, { timeout: 10000 });
+    assert.match(await text.inputValue(), /In the palace “Learn Locora”\./);
+    await dialog.getByRole('checkbox', { name: 'Show the palace name “Learn Locora”' }).uncheck();
+    await page.waitForFunction(() => !document.querySelector('.share-preview img')?.alt.includes('Learn Locora'), null, { timeout: 10000 });
+    // Chromium on Linux shares no files: the picture is downloaded and the text copied.
+    const primary = dialog.getByRole('button', { name: 'Download picture' });
+    await page.waitForFunction(() => !document.querySelector('.share-actions .primary')?.disabled, null, { timeout: 20000 });
+    const [download] = await Promise.all([page.waitForEvent('download'), primary.click()]);
+    assert.equal(download.suggestedFilename(), 'locora-journey.png');
+    const bytes = await (await import('node:fs/promises')).readFile(await download.path());
+    assert.deepEqual(pngSize(bytes), { png: true, width: 1080, height: 1080 });
+    await dialog.getByText(/^Picture downloaded\. The text is on the clipboard\./).waitFor({ timeout: 10000 });
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Journey done in Locora/);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await focusedText(page), 'Share…');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a new trophy’s celebration offers sharing, and the achievements card shares what is unlocked', async () => {
+  const { context, page, problems } = await openApp({ reducedMotion: 'reduce' });
+  try {
+    await openTutorial(page);
+    await walkTutorial(page, '3');
+    const celebration = page.locator('.celebration', { hasText: 'First journey' });
+    await celebration.waitFor({ timeout: 20000 });
+    await celebration.getByRole('button', { name: 'Share “First journey”…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.waitFor({ timeout: 10000 });
+    assert.match(await dialog.getByLabel('Text with the picture').inputValue(), /^I earned the journey trophy “First journey” in Locora\.$/);
+    await dialog.locator('.share-preview img').waitFor({ timeout: 20000 });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+    // With the achievements („Learn mnemonics“): one way to share for the whole card, offering the
+    // unlocked ones only.
+    await page.getByRole('button', { name: 'Back to overview' }).click();
+    await page.getByRole('button', { name: 'Learn mnemonics' }).first().click();
+    const card = page.getByRole('region', { name: 'Achievements' });
+    await card.getByRole('button', { name: 'Share an achievement…' }).click();
+    await dialog.waitFor({ timeout: 10000 });
+    const offered = await dialog.locator('select option, .share-cards label').allInnerTexts();
+    assert.ok(offered.some((label) => label.includes('First journey')), `${offered}`);
+    assert.ok(!offered.some((label) => label.includes('100 XP')), `locked ones are not offered: ${offered}`);
+    await page.keyboard.press('Escape');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a share dialog opened from a celebration in the middle of a journey keeps its keys from the journey', async () => {
+  // An older install's progress at 90 XP: the next answers earn the „100 XP“ trophy mid-journey.
+  const { context, page, problems } = await openApp({
+    beforeStart: (page) => page.evaluate(async () => {
+      localStorage.setItem('locora-locus-display-v1', JSON.stringify({ quick_next: false }));
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('locora-plugins', 1);
+        request.onupgradeneeded = () => request.result.createObjectStore('plugin-storage');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('plugin-storage', 'readwrite');
+        tx.objectStore('plugin-storage').put(new Uint8Array([0x5a, 0x00, 0, 0, 0, 0, 0]), 'gamification\u0000progress');
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }),
+  });
+  try {
+    await openTutorial(page);
+    const counter = () => page.evaluate(() => (document.body.innerText.match(/\b(\d)\/9\b/) ?? [])[1]);
+    const celebration = page.locator('.celebration', { hasText: '100 XP' });
+    await page.getByRole('button', { name: /Walk the route/ }).first().click();
+    for (let n = 1; n <= 9; n += 1) {
+      await page.waitForFunction((n) => document.body.innerText.includes(`${n}/9`), n, { timeout: 20000 });
+      await answerQuestion(page, '3');
+      await page.getByRole('button', { name: 'Next (Space)' }).waitFor({ timeout: 15000 });
+      if (await celebration.waitFor({ timeout: 3000 }).then(() => true, () => false)) break;
+      await page.getByRole('button', { name: 'Next (Space)' }).click();
+    }
+    const before = await counter();
+    await celebration.getByRole('button', { name: 'Share “100 XP”…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.waitFor({ timeout: 10000 });
+    // Space on a checkbox ticks it; Enter on a button presses it; the journey stays where it is.
+    const name = dialog.getByRole('checkbox', { name: 'Show my name' });
+    await name.focus();
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(800);
+    assert.equal(await name.isChecked(), true);
+    await dialog.getByLabel('Text with the picture').focus();
+    await page.keyboard.press('1');
+    await dialog.getByRole('button', { name: 'Copy text' }).focus();
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(800);
+    assert.equal(await counter(), before, 'the journey did not move on behind the dialog');
+    assert.equal(await page.getByRole('button', { name: 'Next (Space)' }).count(), 1);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    // Without the dialog the journey's keys work again.
+    await page.keyboard.press('Space');
+    await page.waitForFunction((before) => (document.body.innerText.match(/\b(\d)\/9\b/) ?? [])[1] !== before, before, { timeout: 10000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a journey that reaches the weekly goal with its last answer offers the goal on its end card', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await page.evaluate(() => window.__TAURI__.core.invoke('game_week_goal', { days: 1 }));
+    await openTutorial(page);
+    // Sudden death and a first answer graded „again“: a journey of one answer, today's first,
+    // which makes today the learning day of the goal. Quick mode shows the end card at once.
+    const modes = page.locator('details.modes');
+    if (!(await modes.evaluate((details) => details.open))) await modes.locator('summary').click();
+    await page.getByRole('checkbox', { name: /^Sudden death/ }).check();
+    await page.locator('#tour-palace-route').click();
+    await page.waitForFunction(() => document.body.innerText.includes('1/9'), null, { timeout: 20000 });
+    assert.equal(await answerQuestion(page, '1'), 'recall');
+    const done = page.locator('.journey-done');
+    await done.waitFor({ timeout: 20000 });
+    // The numbers after that answer arrive after the end card shows; „Share…“ comes later.
+    await page.locator('.game-xp strong').filter({ hasText: /^[1-9]\d* XP$/ }).waitFor({ timeout: 10000 });
+    await done.getByRole('button', { name: 'Share…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.waitFor({ timeout: 10000 });
+    const choices = await dialog.getByRole('radio').evaluateAll((radios) => radios.map((radio) => radio.parentElement.innerText.trim()));
+    assert.ok(choices.includes('Weekly goal'), `the goal this journey reached can be shared: ${choices}`);
+    await page.keyboard.press('Escape');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('with the Web Share API an invite link and a card go to the share sheet, and cancelling says nothing', async () => {
+  const { context, page, problems } = await openApp({
+    initScript: () => {
+      window.__shared = [];
+      navigator.canShare = () => true;
+      // The sheet stays open a moment, as a real one does.
+      navigator.share = async (data) => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (window.__cancel) throw new DOMException('cancelled', 'AbortError');
+        if (window.__deny) throw new DOMException('no user activation', 'NotAllowedError');
+        window.__shared.push({ text: data.text, title: data.title, files: (data.files ?? []).map((file) => [file.name, file.type, file.size]) });
+      };
+    },
+  });
+  try {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+    await socialCloud(page);
+    await signIn(page);
+    await openFriends(page);
+    const main = page.locator('main');
+    await main.getByRole('button', { name: 'Create an invite link' }).click();
+    // A second tap while the sheet is open shares nothing more and claims no failure.
+    await main.getByRole('group', { name: 'Invite link' }).getByRole('button', { name: 'Share…' }).dblclick();
+    await main.getByText('Shared.').waitFor({ timeout: 10000 });
+    let shared = await page.evaluate(() => window.__shared);
+    assert.equal(shared.length, 1);
+    assert.equal(await main.getByText(/^Sharing is not possible here/).count(), 0);
+    assert.equal(shared[0].title, 'Invitation to Locora');
+    assert.match(shared[0].text, /^Let's be friends in Locora! Open the link to accept my invitation \(valid until .*\): https:\/\/web\.locora\.cloud\/einladung#ABCD-EFGH-JKLM-NPQR$/);
+    assert.deepEqual(shared[0].files, []);
+    // A card goes as one PNG with its text (back to the settings, then to the start page).
+    await page.evaluate(() => window.__TAURI__.core.invoke('game_week_goal', { days: 1 }));
+    await main.locator('header .back').click();
+    await page.getByRole('region', { name: 'Locora Cloud' }).waitFor({ timeout: 10000 });
+    await page.locator('header .back').click();
+    await openTutorial(page);
+    const done = await walkTutorial(page, '3');
+    await done.getByRole('button', { name: 'Share…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.locator('.share-preview img').waitFor({ timeout: 20000 });
+    await page.waitForFunction(() => !document.querySelector('.share-actions .primary')?.disabled, null, { timeout: 20000 });
+    await dialog.getByRole('button', { name: 'Share…' }).click();
+    await dialog.getByText('Shared.').waitFor({ timeout: 10000 });
+    shared = await page.evaluate(() => window.__shared);
+    assert.equal(shared.length, 2);
+    assert.equal(shared[1].files.length, 1);
+    assert.equal(shared[1].files[0][0], 'locora-journey.png');
+    assert.equal(shared[1].files[0][1], 'image/png');
+    assert.match(shared[1].text, /^Journey done in Locora/);
+    // Cancelling the sheet is no error and says nothing.
+    await page.evaluate(() => {
+      window.__cancel = true;
+    });
+    await dialog.getByRole('radio', { name: 'This journey' }).check();
+    await dialog.getByRole('button', { name: 'Share…' }).click();
+    await page.waitForTimeout(800);
+    assert.equal(await dialog.locator('.friends-said p[role=alert]').count(), 0);
+    assert.equal(await dialog.getByText('Shared.').count(), 0);
+    // A sheet that refuses (no user activation any more) gives way to a download; the text was
+    // not copied for the sheet, so it is copied now, and the line says what happened.
+    await page.evaluate(() => {
+      window.__cancel = false;
+      window.__deny = true;
+      return navigator.clipboard.writeText('');
+    });
+    const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Share…' }).click()]);
+    assert.equal(download.suggestedFilename(), 'locora-journey.png');
+    await dialog.getByText('Picture downloaded. The text is on the clipboard.').waitFor({ timeout: 10000 });
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Journey done in Locora/);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the share dialog fits a phone: its buttons stay in reach and nothing scrolls sideways', async () => {
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 667 }, initScript: simulatedKeyboard });
+  try {
+    await page.evaluate(() => localStorage.setItem('locora-locus-display-v1', JSON.stringify({ quick_next: false })));
+    await page.reload({ waitUntil: 'load' });
+    await openTutorial(page);
+    const done = await walkTutorial(page, '3');
+    // The ways there are finger-sized too.
+    await page.locator('.celebration').first().waitFor({ timeout: 20000 });
+    assert.deepEqual(await smallTargets(page, '.done-actions button, .celebration button'), []);
+    await done.getByRole('button', { name: 'Share…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.locator('.share-preview img').waitFor({ timeout: 20000 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 390, 'nothing scrolls sideways');
+    assert.deepEqual(await smallTargets(page, '.modal button'), []);
+    const box = await dialog.boundingBox();
+    const primary = await dialog.locator('.share-actions .primary').boundingBox();
+    assert.ok(primary.y + primary.height <= box.y + box.height + 1, `the main button is in reach: ${JSON.stringify(primary)} in ${JSON.stringify(box)}`);
+    // The name field stays above the keyboard.
+    await dialog.getByRole('checkbox', { name: 'Show my name' }).check();
+    const name = dialog.getByLabel('Name on the picture');
+    await name.focus();
+    await page.waitForTimeout(700);
+    const place = await fieldAndSeen(name);
+    assert.ok(place.bottom <= place.seen && place.bottom <= place.foot, `the name field stays in view, above the buttons: ${JSON.stringify(place)}`);
+    await page.screenshot({ path: process.env.LOCORA_SHOT ?? '/dev/null' }).catch(() => {});
     assert.deepEqual(problems, []);
   } finally {
     await context.close();

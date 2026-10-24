@@ -1,15 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { MemFs } from '../src/wasi-memfs.mjs';
 import { instantiateCore } from '../src/core.mjs';
 import { host } from '../../plugin-host/src/host-core.mjs';
+import { coreWasm } from './core-wasm.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const wasmPath = join(here, '..', '..', '..', '..', 'target', 'wasm32-wasip1', 'release', 'locora_web_core.wasm');
-const wasm = await readFile(wasmPath);
+const wasm = await coreWasm();
 
 async function core(fs = new MemFs()) {
   return instantiateCore(wasm, { fs });

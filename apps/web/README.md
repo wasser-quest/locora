@@ -42,6 +42,12 @@ kept in IndexedDB, wrapped by a non-extractable WebCrypto AES-GCM key; it is for
 auto-sync is turned off, on sign-out, and when the cloud data or the account is deleted. How the
 cloud works is described in [`docs/CLOUD.md`](../../docs/CLOUD.md) (German).
 
+Friends, invite links and rankings run through the same core flows as in the desktop app
+(`locora-app-core/src/social.rs`). Sharing a card or an invite link uses the Web Share API: a
+picture goes to the system's share sheet where the browser can share files, otherwise it is
+downloaded and its text copied (`shareWays` and `shareSend` in `shell/src/boot.mjs`). Nothing of
+it is sent to Locora Cloud.
+
 ## Notifications
 
 Reminders are shown by the browser, once the browser allows it (the permission is asked on the
@@ -52,5 +58,9 @@ first due message).
 - `apps/web/shell`: the core in WebAssembly with the in-memory file system, the storage, the
   plugins and the cloud client (`npm test` in `apps/web`).
 - `apps/web/e2e`: the app in Chromium (`npm test` in `apps/web/e2e`, after the build), including
-  a cloud sync against a fake cloud inside the test. `LOCORA_URL` tests a running deployment
-  instead of the local build.
+  a cloud sync and the friends page against a fake cloud inside the test. `LOCORA_URL` tests a
+  running deployment instead of the local build.
+
+The build and the shell tests read the core from `CARGO_TARGET_DIR` when it is set (else the
+repository's `target`); the shell tests prefer the copy in `dist/core`, which the build makes right
+after cargo built it. The UI is built by trunk in `apps/app`'s own target folder.

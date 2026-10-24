@@ -15,8 +15,8 @@ const repo = resolve(web, '..', '..');
 const ui = join(repo, 'apps', 'app', 'ui');
 const out = join(web, 'dist');
 
-// The core's WebAssembly module, as cargo writes it.
-const coreWasm = join(repo, 'target', 'wasm32-wasip1', 'release', 'locora_web_core.wasm');
+// The core's WebAssembly module, as cargo writes it (CARGO_TARGET_DIR moves cargo's folder).
+const coreWasm = join(process.env.CARGO_TARGET_DIR ? resolve(process.env.CARGO_TARGET_DIR) : join(repo, 'target'), 'wasm32-wasip1', 'release', 'locora_web_core.wasm');
 const pluginDist = join(web, 'plugin-host', 'dist');
 const pluginSrc = join(web, 'plugin-host', 'src');
 const shell = join(web, 'shell');
@@ -24,13 +24,16 @@ const shell = join(web, 'shell');
 const shim = join(web, 'plugin-host', 'node_modules', '@bytecodealliance', 'preview2-shim', 'dist', 'browser');
 const SHIM_MODULES = ['cli', 'clocks', 'io', 'random'];
 
-function run(command, args, cwd) {
-  execFileSync(command, args, { cwd, stdio: 'inherit' });
+function run(command, args, cwd, env = process.env) {
+  execFileSync(command, args, { cwd, stdio: 'inherit', env });
 }
 
 // 1. The UI, the core and the plugins are built by their own tools; this only assembles them.
 // TRUNK_PROFILE=debug keeps function names in the UI for diagnosing a panic; release is the default.
-run('trunk', process.env.TRUNK_PROFILE === 'debug' ? ['build'] : ['build', '--release'], ui);
+// The UI is a workspace of its own (apps/app) and builds in its own target folder, whatever
+// CARGO_TARGET_DIR says for the core.
+const { CARGO_TARGET_DIR: _core, ...uiEnv } = process.env;
+run('trunk', process.env.TRUNK_PROFILE === 'debug' ? ['build'] : ['build', '--release'], ui, uiEnv);
 // The core's SQLite is C code: it needs a clang that knows the WASI target. Where none is installed,
 // cargo-zigbuild brings one (zig, from the ziglang package), so `cargo zigbuild` is used instead.
 // LOCORA_ZIGBUILD=1 uses zig even where a clang without the WASI libraries is installed (CI).

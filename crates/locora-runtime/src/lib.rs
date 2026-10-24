@@ -49,6 +49,7 @@ pub mod journey;
 mod palace_i18n;
 pub mod publishers;
 pub mod settings;
+pub mod shown;
 mod sync_flow;
 pub mod tour_demo;
 pub mod transfer;

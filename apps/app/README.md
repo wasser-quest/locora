@@ -51,6 +51,11 @@ work, run `init` once and keep those directories if you customize native setting
 Do not regenerate over native customizations without reviewing the changes.
 The backend already has the mobile entry point and static/dynamic library targets.
 
+Sharing a card (an achievement, a journey, the weekly goal) saves the picture with the dialog
+plugin on the desktop, on Android and on iOS (`src-tauri/src/share.rs`, through
+`mobile_files::save` on the phones), and the UI copies its text; an invite link is copied. The
+apps have no share sheet of their own yet; the web app uses the browser's.
+
 ### Mobile app icons
 
 The icon sources are exports of the logo, [`assets/brand/icon.sply`](../../assets/brand/icon.sply)

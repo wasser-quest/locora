@@ -8,8 +8,10 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 
 use anyhow::{Result, anyhow, bail};
-use locora_app_api::{CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, GameResetReport};
-use locora_app_core::cloud_view;
+use locora_app_api::{
+    CloudConnect, CloudKeyCreated, CloudKeySetup, CloudStatus, GameResetReport, Social,
+};
+use locora_app_core::{cloud_view, social};
 use locora_cloud_api::api::KeyBundle;
 use locora_runtime::cloud::{self, CloudState, Connect, Refresh, RetentionStatus};
 use locora_runtime::cloud_http::{
@@ -138,6 +140,32 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
             drive(Box::new(KeysSetup::new(state, request.passphrase)), None)
         }
         "cloud_sync" => crate::cloud_auto::sync(args, data),
+        // Friends, invite links, rankings and reports: the arguments are checked by the flows
+        // (locora_app_core::social) before anything is sent. The page's cloud lane runs one
+        // command at a time, so the friends page waits while an auto-sync runs.
+        "cloud_friends" => social(&data, social::friends),
+        "cloud_friend_ask" => social(&data, |state| social::ask(state, text(args, "email"))),
+        "cloud_friend_remove" => social(&data, |state| social::remove(state, text(args, "id"))),
+        "cloud_ranking" => {
+            let friends = args.get("friends").and_then(Value::as_bool).unwrap_or(true);
+            social(&data, |state| social::ranking(state, friends))
+        }
+        "cloud_report" => {
+            let reason = args.get("reason").and_then(Value::as_str);
+            social(&data, |state| {
+                social::report(state, text(args, "reference"), reason)
+            })
+        }
+        "cloud_invite_create" => social(&data, social::create_invite),
+        "cloud_invite_revoke" => social(&data, |state| {
+            social::revoke_invite(state, text(args, "code"))
+        }),
+        "cloud_invite_preview" => social(&data, |state| {
+            social::preview_invite(state, text(args, "code"))
+        }),
+        "cloud_invite_accept" => social(&data, |state| {
+            social::accept_invite(state, text(args, "code"))
+        }),
         // Deleted here first; the rankings on the server are asked for when an account is
         // signed in, and asked again (see `cloud_status`) until the server has deleted them.
         "game_reset" => {
@@ -294,6 +322,29 @@ fn describe(call: &Call) -> Value {
         "length": length,
         "timeout": call.timeout_secs,
     })
+}
+
+/// A friends command: `SignedOut` without an account (and without the network), else its flow,
+/// whose result goes to the page as JSON.
+fn social<F>(data: &std::path::Path, make: impl FnOnce(&CloudState) -> Result<F>) -> Result<Value>
+where
+    F: Flow + 'static,
+    F::Output: serde::Serialize,
+{
+    let Some(state) = cloud::load(data)? else {
+        return Ok(json!({ "done": Social::<()>::SignedOut }));
+    };
+    drive(
+        Box::new(Map::new(make(&state)?, |output: F::Output| {
+            Ok(json!(output))
+        })),
+        None,
+    )
+}
+
+/// A text argument of the UI; a missing one is empty (and refused by the flow).
+fn text<'a>(args: &'a Value, name: &str) -> &'a str {
+    args.get(name).and_then(Value::as_str).unwrap_or_default()
 }
 
 fn saved(data: &std::path::Path) -> Result<CloudState> {

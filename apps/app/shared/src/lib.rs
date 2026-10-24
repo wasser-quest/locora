@@ -229,6 +229,220 @@ pub const CMD_CLOUD_AUTO_SYNC: &str = "cloud_auto_sync";
 pub const CMD_CLOUD_EMAIL_RESEND: &str = "cloud_email_resend";
 /// The page where a forgotten cloud password is reset.
 pub const CLOUD_FORGOT_URL: &str = "https://web.locora.cloud/forgot";
+/// The friends page: friends, requests and this account's open invite links
+/// (`Social<FriendsList>`).
+pub const CMD_CLOUD_FRIENDS: &str = "cloud_friends";
+/// Asks someone by e-mail address (`FriendAskArgs`); asking someone who asked first accepts
+/// (`Social<FriendAsked>`).
+pub const CMD_CLOUD_FRIEND_ASK: &str = "cloud_friend_ask";
+/// Ends a friendship, withdraws a request or declines one (`FriendIdArgs`, `Social<()>`).
+pub const CMD_CLOUD_FRIEND_REMOVE: &str = "cloud_friend_remove";
+/// The ranking of the friends or of everyone (`RankingArgs`, `Social<RankingList>`).
+pub const CMD_CLOUD_RANKING: &str = "cloud_ranking";
+/// Reports a name as offensive (`ReportArgs`, `Social<Reported>`).
+pub const CMD_CLOUD_REPORT: &str = "cloud_report";
+/// A new invite link (`Social<InviteLink>`).
+pub const CMD_CLOUD_INVITE_CREATE: &str = "cloud_invite_create";
+/// Revokes an open invite link (`InviteArgs` with its code, `Social<()>`).
+pub const CMD_CLOUD_INVITE_REVOKE: &str = "cloud_invite_revoke";
+/// Who invites with a pasted link or code (`InviteArgs`, `Social<InviteFrom>`).
+pub const CMD_CLOUD_INVITE_PREVIEW: &str = "cloud_invite_preview";
+/// Accepts an invite (`InviteArgs` with the previewed code, `Social<FriendEntry>`).
+pub const CMD_CLOUD_INVITE_ACCEPT: &str = "cloud_invite_accept";
+/// One of the app's own graphics (`ShareArtArgs`) as a PNG for a share card, base64.
+pub const CMD_SHARE_ART: &str = "share_art";
+/// How sharing works on this device (`ShareWays`).
+pub const CMD_SHARE_WAYS: &str = "share_ways";
+/// Shares a picture with its text, or a text alone (`ShareSendArgs`, `ShareDone`).
+pub const CMD_SHARE_SEND: &str = "share_send";
+
+/// What a Locora Cloud friends command answers: its result, or why there is none. The UI words
+/// each state itself, so no server message about subscriptions, routes or sessions ever reaches
+/// the screen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "value", rename_all = "snake_case")]
+pub enum Social<T> {
+    Ready(T),
+    /// No account on this device (no network was used).
+    SignedOut,
+    /// The session ended (401): sign in again in the settings.
+    SignInAgain,
+    /// The account has no access to this (402). Neutral: never says how to get it.
+    NotForAccount,
+    /// The server does not know this request yet (404/405 of an older server).
+    ServerTooOld,
+}
+
+/// A friend, or the sender of a request to this account. `id` answers it
+/// (`CMD_CLOUD_FRIEND_REMOVE`) and is the reference of the name for `CMD_CLOUD_REPORT`; an older
+/// server sends none. `name` is safe to show (as text).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriendEntry {
+    pub id: Option<String>,
+    pub name: String,
+}
+
+/// A request (or an invite to an address) this account sent: never a name or an address, only
+/// when (Unix seconds).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SentRequest {
+    pub id: Option<String>,
+    pub since: Option<u64>,
+}
+
+/// This account's open invite links as the friends page got them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "value", rename_all = "snake_case")]
+pub enum InviteList {
+    /// The links, oldest first.
+    Ready(Vec<InviteLink>),
+    /// The server has no invite links yet.
+    ServerTooOld,
+    /// The list could not be read (the message); the rest of the page stays.
+    Failed(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriendsList {
+    /// Whether the account may use friends and rankings. Without (402) the lists are empty and
+    /// only the open invite links are there, to be revoked.
+    pub access: bool,
+    /// Requests to this account, first: they wait for an answer.
+    pub incoming: Vec<FriendEntry>,
+    pub friends: Vec<FriendEntry>,
+    /// Oldest first.
+    pub sent: Vec<SentRequest>,
+    /// Requests an older server lists without saying who sent them.
+    pub open: usize,
+    pub invites: InviteList,
+}
+
+/// An invite link. `url` is the account site's page for it (`https://…/einladung#<code>`),
+/// `None` when the server sent something else: the code alone is shown then.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InviteLink {
+    pub code: String,
+    pub url: Option<String>,
+    pub expires_at: u64,
+}
+
+/// Who invites with a pasted code, before accepting. `name` is safe to show; `reference` reports
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InviteFrom {
+    pub code: String,
+    pub name: String,
+    pub expires_at: u64,
+    pub reference: Option<String>,
+}
+
+/// The answer to asking someone: `accepted` (with the name) when both are friends now; a
+/// request that waits names nobody.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriendAsked {
+    pub accepted: bool,
+    pub name: Option<String>,
+}
+
+/// One row of a ranking. `place` is shared by equal points (1, 1, 3).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RankingRow {
+    pub place: u32,
+    pub name: String,
+    pub points: u64,
+    /// For `CMD_CLOUD_REPORT`; `None` from an older server.
+    pub reference: Option<String>,
+    /// This account's own entry: only in the friends ranking (which always holds the account),
+    /// and only when no friend has the same name. Never in the ranking of everyone, where a name
+    /// tells nobody apart.
+    pub own: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RankingList {
+    pub entries: Vec<RankingRow>,
+    /// No entry carries this account's name: it is not in this ranking.
+    pub without_you: bool,
+}
+
+/// A name was reported. `counts_now` is false while this account's address is unconfirmed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Reported {
+    pub counts_now: bool,
+}
+
+/// How a picture is shared here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShareWay {
+    /// The system's share sheet takes the picture with its text.
+    Sheet,
+    /// Saved with a dialog; the text is copied.
+    Save,
+    /// Downloaded; the text is copied.
+    Download,
+}
+
+/// How sharing works here: a picture with its text (`card`), and whether a text alone (an invite
+/// link) can go to the system's share sheet (else it is copied).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShareWays {
+    pub card: ShareWay,
+    pub text_sheet: bool,
+}
+
+/// What became of a share.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShareDone {
+    Shared,
+    Saved,
+    Downloaded,
+    Cancelled,
+    /// No sheet for a text here: the UI copies it.
+    Copy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriendAskArgs {
+    pub email: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriendIdArgs {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RankingArgs {
+    pub friends: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReportArgs {
+    pub reference: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InviteArgs {
+    pub code: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShareArtArgs {
+    pub hash: String,
+}
+
+/// A picture (`png`, base64 without a data URL's prefix) with its text, or a text alone; `name`
+/// is the picture's file name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShareSendArgs {
+    pub name: String,
+    pub png: Option<String>,
+    pub text: String,
+    pub title: String,
+}
 
 /// What a sync does to a palace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -330,6 +544,9 @@ pub struct CloudStatus {
     /// Unix seconds of the last finished sync on this device.
     #[serde(default)]
     pub last_sync_at: Option<i64>,
+    /// This account's own display name (to put on a share card when the person chooses).
+    #[serde(default)]
+    pub display_name: Option<String>,
 }
 
 impl CloudStatus {
@@ -341,6 +558,7 @@ impl CloudStatus {
             email_verified: None,
             auto_sync: false,
             last_sync_at: None,
+            display_name: None,
         }
     }
 }

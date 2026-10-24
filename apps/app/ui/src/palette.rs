@@ -43,6 +43,13 @@ fn commands(home: &Home) -> Vec<Command> {
             hint: "⚙",
             target: Screen::Settings,
         },
+        Command {
+            label: t("Freunde & Ranglisten").into(),
+            hint: "Cloud",
+            target: Screen::Friends {
+                from_settings: false,
+            },
+        },
     ];
     for p in &home.palaces {
         list.push(Command {

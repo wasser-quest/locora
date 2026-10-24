@@ -674,3 +674,100 @@ button.big { font-size: 1.15rem; padding: .8rem 1.4rem; }
   .celebration { top: calc(.5rem + env(safe-area-inset-top)); gap: .6rem; padding: .5rem .7rem; }
   .celebration-medal { width: 48px; min-width: 48px; height: 48px; }
 }
+/* Fields beside the text fields: an address and a longer text look the same, at 16 px, so a phone
+   does not zoom into them. */
+input[type=email], textarea { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); width: 100%; }
+/* While a text field has the focus on a touch screen, the commands bar gives way: above a keyboard
+   that resizes the window it would cover the field. */
+@media (pointer: coarse) {
+  body:has(:is(main, .modal) :is(input:not([type=checkbox]):not([type=radio]), textarea):focus) .palette-mobile-trigger { display: none; }
+}
+/* Friends & rankings (friends.rs): one column on a phone, two from 900 px. */
+.friends-page { display: grid; gap: 1rem; }
+.friends-column { display: grid; gap: 1rem; align-content: start; min-width: 0; }
+@media (min-width: 900px) { .friends-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.friends-page h2, .friends-calm p { margin-top: 0; }
+.friends-page h3 { margin: 1rem 0 .4rem; font-size: 1.05rem; }
+.friends-page .card, .friends-calm { min-width: 0; }
+/* A row: the name takes what is left and wraps; the buttons drop below it on a narrow screen. */
+.friend-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.friend-row { display: grid; gap: .4rem; min-width: 0; }
+.friend-line { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.friend-name { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+.friend-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.friend-form, .friend-confirm, .invite-from { display: grid; gap: .5rem; padding: .6rem .7rem; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--bg); min-width: 0; }
+.friend-form .input, .modal .input { display: grid; gap: .25rem; }
+.friend-confirm p, .invite-from p, .friend-form p { margin: 0; }
+.friends-said p { margin: .4rem 0 0; }
+.friends-said p:focus { outline: 2px solid var(--indigo); outline-offset: 2px; border-radius: 4px; }
+.invite-box { display: grid; gap: .5rem; margin: .75rem 0 0; padding: .75rem; border: 2px solid var(--lime); border-radius: 12px; min-width: 0; }
+.invite-box p { margin: 0; }
+/* The link scrolls inside its field, never the page. */
+.invite-url { font: inherit; width: 100%; min-width: 0; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); }
+.invite-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .03em; overflow-wrap: anywhere; }
+/* The ranking: the place is its own text (equal points share one). Every row has the same
+   columns at every width: the place, the name with its points below it, and „Melden“ at the end
+   beside both lines, so the names and points line up from row to row. */
+.ranking-tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 .75rem; }
+.ranking-tabs button[aria-pressed="true"] { background: var(--indigo); color: #fff; border-color: var(--indigo); }
+.ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.ranking-row { display: grid; grid-template-columns: 4ch minmax(0, 1fr) auto; align-items: center; gap: .1rem .6rem; }
+.ranking-place { grid-column: 1; grid-row: 1; text-align: end; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ranking-who { grid-column: 2; grid-row: 1; min-width: 0; overflow-wrap: anywhere; }
+.ranking-you { color: var(--muted); }
+.ranking-points { grid-column: 2; grid-row: 2; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ranking-report { grid-column: 3; grid-row: 1 / span 2; }
+/* A dialog (modal.rs), as high as an on-screen keyboard leaves room for; on a phone at the top. */
+.modal-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 1rem;
+  background: rgba(8, 8, 24, .45); }
+.modal { width: min(520px, calc(100vw - 2rem)); max-height: calc(var(--seen-height, 100dvh) - 2rem); overflow-y: auto;
+  display: grid; gap: .75rem; box-shadow: 0 10px 32px #17183a66; }
+.modal h2 { margin: 0; font-size: 1.2rem; }
+.modal p, .modal form { margin: 0; }
+.modal form { display: grid; gap: .6rem; }
+@media (max-width: 560px) {
+  .modal-backdrop { align-items: start; padding: calc(.5rem + env(safe-area-inset-top)) .5rem .5rem; }
+  .modal { width: 100%; max-height: calc(var(--seen-height, 100dvh) - 1rem - env(safe-area-inset-top)); }
+}
+/* Finger-sized targets on the friends page, in dialogs and at the ways there. */
+.friends-page button, .friends-calm button, .modal button, .friends-bar .back, .cloud-friends,
+.friends-page input, .friends-page textarea, .modal input, .modal textarea { min-height: 44px; }
+.friends-page button, .friends-calm button, .modal button, .friends-bar .back { min-width: 44px; }
+/* The start page's way to friends: beside the gear in the title row, so the rows of actions stay. */
+.home-actions .home-friends { position: absolute; top: 0; right: calc(3rem + .5rem); min-width: 44px; min-height: 44px;
+  display: grid; place-items: center; padding: 0; }
+/* On a phone the title row is as high as the two buttons in it, which are finger-sized like the
+   gear: they line up and keep their distance from the row below. */
+@media (max-width: 560px) {
+  .home-bar h1 { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  .home-actions .icon { min-height: 44px; }
+}
+@media (min-width: 561px) { .friend-form > button, .friend-form > .friend-actions { justify-self: start; } }
+/* The share dialog (share.rs): the preview as large as the phone allows, the buttons always in
+   reach at its bottom. */
+.share-dialog { width: min(560px, calc(100vw - 2rem)); }
+.share-cards { display: grid; gap: .25rem; margin: 0; padding: .4rem .7rem; border: 1px solid var(--line); border-radius: 10px; }
+.share-cards label, .share-dialog .check { display: flex; align-items: center; gap: .5rem; min-height: 44px; }
+.share-dialog select { font: inherit; min-height: 44px; padding: .45rem .6rem; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); width: 100%; }
+.share-preview { display: grid; place-items: center; }
+.share-preview img, .share-placeholder { width: min(360px, 100%); max-width: 100%; aspect-ratio: 1; border-radius: 12px;
+  border: 1px solid var(--line); }
+.share-placeholder { background: var(--bg); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.share-actions { position: sticky; bottom: -1rem; display: flex; flex-wrap: wrap; gap: .5rem; padding: .6rem 0 1rem;
+  margin-bottom: -1rem; background: var(--surface); border-top: 1px solid var(--line); }
+@media (max-width: 560px) { .share-preview img, .share-placeholder { width: min(320px, 38dvh, 100%); } }
+/* Ways to share elsewhere: finger-sized. */
+.achievement-share, .week-share, .done-actions button, .celebration-actions button { min-height: 44px; min-width: 44px; }
+.achievement-share { margin-top: 1rem; }
+.done-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
+.celebration-actions { display: flex; gap: .4rem; }
+/* On a phone the celebration's buttons go below its medal and title, across the width. */
+@media (max-width: 560px) {
+  .celebration { display: grid; grid-template-columns: 48px minmax(0, 1fr); }
+  .celebration-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}

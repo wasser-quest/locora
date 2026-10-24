@@ -8,6 +8,8 @@ pub mod editor;
 pub mod journey;
 pub mod locus_audio;
 pub mod settings;
+pub mod share;
+pub mod social;
 pub mod sply;
 pub mod transfer;
 pub mod views;
