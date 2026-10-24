@@ -420,17 +420,30 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         });
     };
 
-    // Keyboard: Space/Enter reveal or continue, 1–4 rate a recall.
+    // Keyboard: Space/Enter reveal or continue, 1–4 rate a recall. Not for keys meant for
+    // something above the journey: the tour, the game's explanation, a celebration, and a dialog
+    // (sharing a trophy mid-journey), also when a tap in it left the focus on the page.
     let keys = window_event_listener(ev::keydown, move |e| {
         if e.target()
             .and_then(|target| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(target).ok())
             .is_some_and(|element| {
                 element
-                    .closest(".tour-panel, .game-intro")
+                    .closest(
+                        ".tour-panel, .game-intro, .celebration, .modal-backdrop, [role=dialog]",
+                    )
                     .ok()
                     .flatten()
                     .is_some()
             })
+            || web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| {
+                    document
+                        .query_selector("[aria-modal=\"true\"]")
+                        .ok()
+                        .flatten()
+                })
+                .is_some()
         {
             return;
         }
@@ -510,8 +523,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         {move || {
             if let Some(s) = summary.get() {
                 let palace = palaces.with_value(|all| (all.len() == 1).then(|| all.iter().next().cloned()).flatten());
-                let week = game.with_untracked(|game| game.as_ref().map(|game| game.week.clone()));
-                return view! { <Done summary=s screen=screen art=art palace=palace week=week /> }.into_any();
+                return view! { <Done summary=s screen=screen art=art palace=palace game=game /> }.into_any();
             }
             if let Some(list) = fields.get() {
                 return view! { <Inputs fields=list begin=begin /> }.into_any();
@@ -1431,15 +1443,14 @@ fn Done(
     art: RwSignal<Option<UiAssets>>,
     /// The palace of the walk, when it asked in one only.
     palace: Option<String>,
-    week: Option<Week>,
+    /// The game's numbers. The cards are made when „Teilen…“ is pressed: the numbers after the
+    /// last answer may still be on their way when the end card shows (quick mode moves on at
+    /// once), and only they count the day this journey made a learning day.
+    game: RwSignal<Option<GamificationStatus>>,
 ) -> impl IntoView {
     let asked = summary.asked;
     let lines = summary_lines(&summary);
-    let cards = StoredValue::new(if asked > 0 {
-        done_cards(&summary, palace, week.as_ref())
-    } else {
-        Vec::new()
-    });
+    let shared = StoredValue::new((summary.clone(), palace));
     view! {
         <section class="card panel journey-done" role="status">
             {move || {
@@ -1486,7 +1497,11 @@ fn Done(
                 </button>
                 {(asked > 0).then(|| view! {
                     <button type="button" on:click=move |event| {
-                        crate::share::open(cards.get_value(), crate::modal::opener_of(&event));
+                        let week = game.with_untracked(|game| game.as_ref().map(|game| game.week.clone()));
+                        let cards = shared.with_value(|(summary, palace)| {
+                            done_cards(summary, palace.clone(), week.as_ref())
+                        });
+                        crate::share::open(cards, crate::modal::opener_of(&event));
                     }>{t("Teilen…")}</button>
                 })}
             </div>
