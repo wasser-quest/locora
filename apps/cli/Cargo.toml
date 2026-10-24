@@ -35,5 +35,9 @@ tempfile = "3"
 toml = "1"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
+# Ctrl-C during a contest round leaves the alternate screen first (`compete.rs`).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 locora-media = { path = "../../crates/locora-media", features = ["fixtures"] }

@@ -2,10 +2,11 @@
 //! list, numbers or cards against the clock, the evening recall, challenge codes, records and the
 //! history. Rules and stored rounds are the `competition` plugin's, the same as in the app.
 //!
-//! A round needs a terminal: the task is shown on the alternate screen, so the scrollback keeps
-//! nothing of it, and Enter ends memorizing. Each phase ends at its limit, also in the middle of
-//! a line. `LOCORA_COMPETE_SCRIPTED=1` reads the input from a pipe instead and prints the task
-//! plainly (for tests).
+//! A round needs a terminal for its input and its output: the task is shown on the alternate
+//! screen, so the scrollback keeps nothing of it, and Enter ends memorizing. Ctrl-C leaves the
+//! alternate screen too. Each phase ends at its limit, also in the middle of a line.
+//! `LOCORA_COMPETE_SCRIPTED=1` reads the input from a pipe instead and prints the task plainly
+//! (for tests).
 
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
@@ -414,7 +415,13 @@ impl Input {
     }
 }
 
-/// The task on the alternate screen, which a terminal clears again; leaves it also on an error.
+/// Switches to the alternate screen.
+const ENTER: &str = "\x1b[?1049h\x1b[H\x1b[2J";
+/// Back to the screen as it was.
+const LEAVE: &str = "\x1b[?1049l";
+
+/// The task on the alternate screen, which a terminal clears again; leaves it also on an error,
+/// and on Ctrl-C or a closed terminal, which end the process without dropping it.
 struct Screen {
     alternate: bool,
 }
@@ -422,7 +429,8 @@ struct Screen {
 impl Screen {
     fn enter(scripted: bool) -> Result<Self> {
         if !scripted {
-            print!("\x1b[?1049h\x1b[H\x1b[2J");
+            leave_on_signal(true);
+            print!("{ENTER}");
             io::stdout().flush()?;
         }
         Ok(Screen {
@@ -434,10 +442,45 @@ impl Screen {
 impl Drop for Screen {
     fn drop(&mut self) {
         if self.alternate {
-            print!("\x1b[?1049l");
+            print!("{LEAVE}");
             let _ = io::stdout().flush();
+            leave_on_signal(false);
         }
     }
+}
+
+/// While `on`, a signal that ends the process (Ctrl-C, a closed terminal, `kill`) leaves the
+/// alternate screen first; then the process ends as the signal says.
+#[cfg(unix)]
+fn leave_on_signal(on: bool) {
+    extern "C" fn leave(signal: libc::c_int) {
+        // Only calls that are safe in a signal handler: write, reset, raise again.
+        unsafe {
+            libc::write(libc::STDOUT_FILENO, LEAVE.as_ptr().cast(), LEAVE.len());
+            libc::signal(signal, libc::SIG_DFL);
+            libc::raise(signal);
+        }
+    }
+    let handler = if on {
+        leave as extern "C" fn(libc::c_int) as libc::sighandler_t
+    } else {
+        libc::SIG_DFL
+    };
+    for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+        // SAFETY: `leave` makes only async-signal-safe calls.
+        unsafe {
+            libc::signal(signal, handler);
+        }
+    }
+}
+
+/// Elsewhere the terminal keeps what the round left.
+#[cfg(not(unix))]
+fn leave_on_signal(_on: bool) {}
+
+/// Input and output on a terminal: a round whose task went to a file would use up its try.
+fn terminal() -> bool {
+    io::stdin().is_terminal() && io::stdout().is_terminal()
 }
 
 fn scripted() -> bool {
@@ -601,7 +644,7 @@ impl Play {
     /// limit, hands it in and prints the result.
     fn run(self, app: &mut App) -> Result<()> {
         let scripted = scripted();
-        if !scripted && !io::stdin().is_terminal() {
+        if !scripted && !terminal() {
             bail!("`locora compete play` braucht ein Terminal");
         }
         let Play {
@@ -856,7 +899,7 @@ fn print_places(task: &Task, recall: &Recall, score: &Score, lang: Lang) {
 /// The evening recall, scored in the language of the morning round unless `lang` says another.
 fn evening(app: &mut App, round: Option<String>, lang: Option<Lang>) -> Result<()> {
     let scripted = scripted();
-    if !scripted && !io::stdin().is_terminal() {
+    if !scripted && !terminal() {
         bail!("`locora compete evening` braucht ein Terminal");
     }
     let round_id = match round {

@@ -322,3 +322,89 @@ fn a_round_needs_a_terminal_unless_it_is_scripted() {
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(err.contains("braucht ein Terminal"), "{err}");
 }
+
+/// Ctrl-C while the task is shown leaves the alternate screen before the signal ends the
+/// process. The terminal comes from util-linux `script`, so this runs on Linux only.
+#[cfg(target_os = "linux")]
+#[test]
+fn ctrl_c_during_a_round_leaves_the_alternate_screen() {
+    use std::io::Read;
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+
+    let dir = tempfile::tempdir().unwrap();
+    let command = format!(
+        "'{}' --data '{}' compete play cards",
+        env!("CARGO_BIN_EXE_locora"),
+        dir.path().display()
+    );
+    let mut child = Command::new("script")
+        .args(["-qefc", &command, "/dev/null"])
+        .env("LOCORA_NOW", T0)
+        .env_remove("LOCORA_COMPETE_SCRIPTED")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("util-linux script");
+    let mut stdout = child.stdout.take().unwrap();
+    let (sender, chunks) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut buffer = [0; 4096];
+        while let Ok(n @ 1..) = stdout.read(&mut buffer) {
+            if sender.send(buffer[..n].to_vec()).is_err() {
+                break;
+            }
+        }
+    });
+    let mut out = Vec::new();
+    let wait_for = |marker: &[u8], out: &mut Vec<u8>| {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while !out.windows(marker.len()).any(|w| w == marker) {
+            let left = deadline.saturating_duration_since(Instant::now());
+            match chunks.recv_timeout(left) {
+                Ok(chunk) => out.extend(chunk),
+                Err(_) => panic!("no {marker:?} in {}", String::from_utf8_lossy(out)),
+            }
+        }
+    };
+    wait_for("Enter: fertig".as_bytes(), &mut out);
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all(b"\x03").unwrap();
+    wait_for(b"\x1b[?1049l", &mut out);
+    let status = child.wait().unwrap();
+    assert!(!status.success(), "the signal ends the round");
+    let text = String::from_utf8_lossy(&out);
+    let entered = text.find("\x1b[?1049h").unwrap();
+    assert!(text.rfind("\x1b[?1049l").unwrap() > entered, "{text}");
+}
+
+/// A round whose output goes to a file is refused before the daily's try is used up (a
+/// terminal for the input from util-linux `script`, so Linux only).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_round_needs_a_terminal_for_its_output_too() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    let command = format!(
+        "'{}' --data '{}' compete play --daily > '{}'",
+        env!("CARGO_BIN_EXE_locora"),
+        d.display(),
+        d.join("task.txt").display()
+    );
+    let out = Command::new("script")
+        .args(["-qefc", &command, "/dev/null"])
+        .env("LOCORA_NOW", T0)
+        .env_remove("LOCORA_COMPETE_SCRIPTED")
+        .stdin(Stdio::null())
+        .output()
+        .expect("util-linux script");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "{text}");
+    assert!(text.contains("braucht ein Terminal"), "{text}");
+    let today = ok(d, &["compete", "today"], "");
+    assert!(
+        today.contains("Stufe 1 · 20 Ziffern · noch nicht gespielt"),
+        "{today}"
+    );
+}
