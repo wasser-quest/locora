@@ -8,14 +8,14 @@ review by a native speaker before the contest ships. German is reviewed by the o
 
 | Language | Status | Reviewer | Date |
 |---|---|---|---|
-| English (en) | AI review done (2026-10-24, Claude), changes below; native review open | Claude (AI) | 2026-10-24 |
-| German (de) | draft (2026-10-24, Claude), checked by Claude (2026-10-24), review open (owner) | | |
-| French (fr) | draft (2026-10-24, Claude), checked by Claude (2026-10-24), native review open | | |
-| Japanese (ja) | draft (2026-10-24, Claude), AI review (2026-10-24, Claude) done, native review open | | |
-| Chinese (zh) | AI review done (changes below); a human native speaker should confirm before the freeze | Claude (AI) | 2026-10-24 |
+| English (en) | draft and AI review (2026-10-24, Claude), changes below; native review open | | |
+| German (de) | draft and AI review (2026-10-24, Claude), changes below; review open (owner) | | |
+| French (fr) | draft and AI review (2026-10-24, Claude), changes below; native review open | | |
+| Japanese (ja) | draft and AI review (2026-10-24, Claude), changes below; native review open | | |
+| Chinese (zh) | draft and AI review (2026-10-24, Claude), changes below; native review open | | |
 
-When a review is done, put the reviewer and the date into the table and replace "review open" with
-"reviewed".
+The reviewer and the date are those of the human review. When it is done, put them into the table and
+replace "review open" with "reviewed".
 
 ## The file
 
@@ -321,7 +321,7 @@ Both cases are rare, and no typo can reach another concept of the list.
 matcher drops one leading article (le, la, les, l’, un, une, des, du, de, de la, de l’, d’), so these
 answers count as right. No French form begins with an article.
 
-## Review: Japanese (ja)
+## Japanese (ja)
 
 AI review by Claude on 2026-10-24 against the checklist. A native speaker still has to sign it off.
 
@@ -348,7 +348,7 @@ AI review by Claude on 2026-10-24 against the checklist. A native speaker still 
 - **For the owner.** Fresh coconuts are rare in Japanese supermarkets and mostly found in import shops.
   Everyone knows ココナッツ, so it can stay.
 
-## Review: Chinese (zh)
+## Chinese (zh)
 
 **Scope.** All 140 zh cells and the matcher, reviewed the way a mainland shopper typing with a pinyin
 input method would see them. This review was written by Claude, an AI, not by a human native speaker. The
