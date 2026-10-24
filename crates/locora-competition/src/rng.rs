@@ -78,6 +78,24 @@ mod tests {
     }
 
     #[test]
+    fn below_rejects_exactly_the_biased_low_products() {
+        // For n = 2^63 + 1 the threshold is 2^63 − 1, and the first two numbers
+        // of seed 0 fall below it: the draw takes the third.
+        let n = (1u64 << 63) + 1;
+        let mut stream = SplitMix64::new(Seed::masked(0));
+        let threshold = n.wrapping_neg() % n;
+        let low = |x: u64| (u128::from(x) * u128::from(n)) as u64;
+        let first = [stream.next_u64(), stream.next_u64(), stream.next_u64()];
+        assert!(low(first[0]) < threshold && low(first[1]) < threshold);
+        assert!(low(first[2]) >= threshold);
+        let mut rng = SplitMix64::new(Seed::masked(0));
+        let value = rng.below(n);
+        assert_eq!(value, ((u128::from(first[2]) * u128::from(n)) >> 64) as u64);
+        assert_eq!(value, 243_808_509_735_772_839);
+        assert_eq!(rng.next_u64(), stream.next_u64());
+    }
+
+    #[test]
     fn shuffle_keeps_every_element() {
         let mut rng = SplitMix64::new(Seed::masked(1));
         let mut items: Vec<u8> = (0..52).collect();

@@ -48,6 +48,7 @@ struct Generator {
     fnv1a64: Vec<Hash>,
     splitmix64: Vec<Stream>,
     below: Draws,
+    below_rejected: Rejected,
     deck: Deck,
     digits: Digits,
 }
@@ -74,6 +75,16 @@ struct Draws {
 struct Draw {
     n: u64,
     value: u64,
+}
+
+/// A bounded draw that rejects twice, so it takes three numbers of the stream.
+/// `n` and `value` are hex, because they do not fit a JavaScript number.
+#[derive(Deserialize)]
+struct Rejected {
+    seed: Seed,
+    n: String,
+    value: String,
+    draws: usize,
 }
 
 #[derive(Deserialize)]
@@ -129,6 +140,16 @@ fn bounded_draws() {
     let expected: Vec<_> = golden.draws.iter().map(|d| d.value).collect();
     assert_eq!(draws, expected);
     assert_eq!(draws, [4, 8, 1]);
+    // Small bounds almost never reject; this one does, twice (exact rejection, spec §8.4).
+    let golden = generator().below_rejected;
+    let mut rng = SplitMix64::new(golden.seed);
+    assert_eq!(rng.below(hex(&golden.n)), hex(&golden.value));
+    let mut stream = SplitMix64::new(golden.seed);
+    for _ in 0..golden.draws {
+        stream.next_u64();
+    }
+    assert_eq!(rng.next_u64(), stream.next_u64());
+    assert_eq!(golden.value, "03622e8c4004a2a7");
 }
 
 #[test]
