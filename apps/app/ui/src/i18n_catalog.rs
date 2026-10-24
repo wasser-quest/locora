@@ -11361,7 +11361,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Today: shopping list – not played yet",
             "Heute: Einkaufsliste – noch nicht gespielt",
-            "Aujourd'hui : liste de courses – pas encore joué",
+            "Aujourd'hui : liste de courses – pas encore joué",
             "今日：買い物リスト – まだ挑戦していません",
             "今天：购物清单 – 尚未挑战",
         ],
@@ -11371,7 +11371,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Today: numbers – not played yet",
             "Heute: Zahlen – noch nicht gespielt",
-            "Aujourd'hui : chiffres – pas encore joué",
+            "Aujourd'hui : chiffres – pas encore joué",
             "今日：数字 – まだ挑戦していません",
             "今天：数字 – 尚未挑战",
         ],
@@ -11381,7 +11381,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Today: cards – not played yet",
             "Heute: Karten – noch nicht gespielt",
-            "Aujourd'hui : cartes – pas encore joué",
+            "Aujourd'hui : cartes – pas encore joué",
             "今日：トランプ – まだ挑戦していません",
             "今天：扑克牌 – 尚未挑战",
         ],
@@ -11391,7 +11391,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Today: shopping list – {0}/{1}",
             "Heute: Einkaufsliste – {0}/{1}",
-            "Aujourd'hui : liste de courses – {0}/{1}",
+            "Aujourd'hui : liste de courses – {0}/{1}",
             "今日：買い物リスト – {0}/{1}",
             "今天：购物清单 – {0}/{1}",
         ],
@@ -11401,7 +11401,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Today: numbers – {0}/{1}",
             "Heute: Zahlen – {0}/{1}",
-            "Aujourd'hui : chiffres – {0}/{1}",
+            "Aujourd'hui : chiffres – {0}/{1}",
             "今日：数字 – {0}/{1}",
             "今天：数字 – {0}/{1}",
         ],
@@ -11411,7 +11411,7 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
         [
             "Today: cards – {0}/{1}",
             "Heute: Karten – {0}/{1}",
-            "Aujourd'hui : cartes – {0}/{1}",
+            "Aujourd'hui : cartes – {0}/{1}",
             "今日：トランプ – {0}/{1}",
             "今天：扑克牌 – {0}/{1}",
         ],
