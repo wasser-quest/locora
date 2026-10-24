@@ -151,6 +151,7 @@ jobs:
           cd apps/web/plugin-host
           npm ci
           node scripts/transpile.mjs ../../../plugins/target/wasm32-wasip2/release/{core,review,notify,tutorial,gamification,competition}.wasm
+          npm test
       - name: Build the web app
         run: |
           (cd apps/web && npm ci)
