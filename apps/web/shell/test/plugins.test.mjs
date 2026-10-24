@@ -2,10 +2,10 @@
 // JavaScript), and the page forwards what the core and the plugins publish, as the page does.
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { MemFs } from '../src/wasi-memfs.mjs';
 import { instantiateCore } from '../src/core.mjs';
 import { host } from '../../plugin-host/src/host-core.mjs';
+import { coreWasm } from './core-wasm.mjs';
 
 const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification'];
 const unwrap = (result) => {
@@ -18,7 +18,7 @@ let raw;
 let tutorialPalace;
 
 before(async () => {
-  const wasm = await readFile(new URL('../../../../target/wasm32-wasip1/release/locora_web_core.wasm', import.meta.url));
+  const wasm = await coreWasm();
   raw = await instantiateCore(wasm, { fs: new MemFs(), bridge: host.asBridge() });
   // What the page does: forward the core's events to the plugins, and the plugins' calls to the core.
   core = (command, args) => {

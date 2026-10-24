@@ -15,8 +15,8 @@ const repo = resolve(web, '..', '..');
 const ui = join(repo, 'apps', 'app', 'ui');
 const out = join(web, 'dist');
 
-// The core's WebAssembly module, as cargo writes it.
-const coreWasm = join(repo, 'target', 'wasm32-wasip1', 'release', 'locora_web_core.wasm');
+// The core's WebAssembly module, as cargo writes it (CARGO_TARGET_DIR moves cargo's folder).
+const coreWasm = join(process.env.CARGO_TARGET_DIR ? resolve(process.env.CARGO_TARGET_DIR) : join(repo, 'target'), 'wasm32-wasip1', 'release', 'locora_web_core.wasm');
 const pluginDist = join(web, 'plugin-host', 'dist');
 const pluginSrc = join(web, 'plugin-host', 'src');
 const shell = join(web, 'shell');

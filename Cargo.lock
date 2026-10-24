@@ -1494,18 +1494,22 @@ name = "locora-app-core"
 version = "0.1.6"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "infer",
  "locora-api",
  "locora-app-api",
+ "locora-cloud-api",
  "locora-format",
  "locora-formula",
  "locora-media",
  "locora-runtime",
  "locora-source",
  "locora-store",
+ "serde",
  "serde_json",
  "splinely_document",
  "tempfile",
+ "url",
 ]
 
 [[package]]

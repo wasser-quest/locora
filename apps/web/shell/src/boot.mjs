@@ -181,6 +181,10 @@ async function invoke(cmd, args = {}) {
       return exportFile('dump_file', { palaceId: args.id });
     case 'save_text_pick':
       return downloadText(args.name, args.text);
+    case 'share_ways':
+      return shareWays();
+    case 'share_send':
+      return shareSend(args);
     case 'notifications':
       return deliverNotifications();
     // Deleted here first, then the server is asked about the rankings (a cloud step).
@@ -324,6 +328,55 @@ function downloadText(name, text) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 60000);
   return 'Gespeichert.';
+}
+
+/**
+ * How sharing works in this browser: a picture goes to the system's share sheet where the Web Share
+ * API takes files, else it is downloaded (the UI copies its text); a text alone goes to the sheet
+ * where there is one.
+ */
+function shareWays() {
+  let files = false;
+  try {
+    const probe = new File([new Uint8Array(8)], 'locora.png', { type: 'image/png' });
+    files = typeof navigator.canShare === 'function' && navigator.canShare({ files: [probe] });
+  } catch {
+    files = false;
+  }
+  return { card: files ? 'sheet' : 'download', text_sheet: typeof navigator.share === 'function' };
+}
+
+/**
+ * Shares a picture with its text, or a text alone. Cancelling the sheet is no error; a sheet that
+ * fails otherwise gives way to a download. Nothing is sent to Locora Cloud.
+ */
+async function shareSend({ name, png, text, title }) {
+  if (!png) {
+    if (typeof navigator.share !== 'function') return 'copy';
+    try {
+      await navigator.share({ text, title });
+      return 'shared';
+    } catch (error) {
+      return error?.name === 'AbortError' ? 'cancelled' : 'copy';
+    }
+  }
+  const fileName = /^locora-[a-z0-9-]{1,64}\.png$/.test(name ?? '') ? name : 'locora.png';
+  const bytes = Uint8Array.from(atob(png), (c) => c.charCodeAt(0));
+  const file = new File([bytes], fileName, { type: 'image/png' });
+  if (typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], text, title });
+      return 'shared';
+    } catch (error) {
+      if (error?.name === 'AbortError') return 'cancelled';
+    }
+  }
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(file);
+  link.download = fileName;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+  return 'downloaded';
 }
 
 /**

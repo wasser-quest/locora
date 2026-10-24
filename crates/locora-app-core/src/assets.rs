@@ -108,6 +108,11 @@ impl Assets {
         Ok(Self(map))
     }
 
+    /// Whether `hash` is one of the app's own graphics (never a palace's media).
+    pub fn knows(&self, hash: &str) -> bool {
+        self.0.values().any(|known| known == hash)
+    }
+
     fn media(&self, name: &str) -> Media {
         Media {
             hash: self.0[name].clone(),

@@ -10,9 +10,11 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
+base64 = "0.22"
 locora-api.workspace = true
 locora-app-api = { path = "../../apps/app/shared" }
 infer = "0.22"
+locora-cloud-api = { path = "../locora-cloud-api" }
 locora-format = { path = "../locora-format" }
 locora-media = { path = "../locora-media" }
 locora-formula = { path = "../locora-formula" }
@@ -21,7 +23,9 @@ locora-runtime = { path = "../locora-runtime", default-features = false }
 locora-store = { path = "../locora-store" }
 serde_json = "1"
 splinely_document = { git = "https://github.com/wasser-quest/splinely", tag = "v0.5.2" }
+url = "2"
 
 [dev-dependencies]
 locora-media = { path = "../locora-media", features = ["fixtures"] }
+serde.workspace = true
 tempfile = "3"

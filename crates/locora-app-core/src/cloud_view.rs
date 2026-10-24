@@ -19,6 +19,7 @@ pub fn status(state: Option<&CloudState>) -> CloudStatus {
             email_verified: state.account.email_verified,
             auto_sync: state.auto_sync,
             last_sync_at: state.last_sync_at,
+            display_name: Some(state.account.display_name.clone()),
         },
         None => CloudStatus::signed_out(),
     }

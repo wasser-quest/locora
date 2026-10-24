@@ -240,6 +240,7 @@ pub const NAMES: &[&str] = &[
     "export_file",
     "media_file",
     "sply_svg",
+    "share_art",
     "dump_file",
     "set_plugins",
     "game_keep_own",
@@ -587,6 +588,15 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
             let bytes = std::fs::read(file)?;
             let svg = sply::to_svg(&bytes)?;
             out(svg)
+        }
+        // One of the app's graphics as a still PNG for a share card (never a palace's media).
+        "share_art" => {
+            let a: SplyArgs = take(args)?;
+            out(locora_app_core::share::art_png(
+                assets,
+                &profile.store,
+                &a.hash,
+            )?)
         }
         // The folder export: the palace's source and media, as one ZIP file for the page to save.
         // The plugins the page started: their tiles and declared blocks are shown.
