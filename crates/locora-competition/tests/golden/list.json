@@ -1,0 +1,28 @@
+[
+  {
+    "seed": "123456789abcdef",
+    "items": 10,
+    "ids": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99],
+    "keys": "matches cream plasters mince olive_oil grapes pistachios mushrooms bread_rolls juice"
+  },
+  {
+    "seed": "123456789abcdef",
+    "items": 20,
+    "ids": [126, 51, 137, 65, 83, 8, 121, 112, 30, 22, 89, 52, 55, 5, 61, 99, 68, 108, 132, 101],
+    "keys": "matches cream plasters mince olive_oil grapes bin_bags pistachios mushrooms tomato mayonnaise condensed_milk bread_rolls lemon cereal juice prawns crisps soap wine"
+  },
+  {
+    "seed": "123456789abcdef",
+    "items": 30,
+    "ids": [126, 51, 137, 65, 83, 8, 121, 112, 30, 22, 89, 52, 45, 90, 55, 5, 61, 99, 56, 68, 14, 128, 108, 132, 73, 41, 101, 98, 139, 117],
+    "keys": "matches cream plasters mince olive_oil grapes bin_bags pistachios mushrooms tomato mayonnaise condensed_milk milk mustard bread_rolls lemon cereal juice cake prawns kiwi clothes_pegs crisps soap mackerel bean_sprouts wine fizzy_water dental_floss marshmallows"
+  },
+  {
+    "date": "2026-10-26",
+    "level": 1,
+    "seed": "e8e9eb445f8a08c",
+    "items": 10,
+    "ids": [75, 121, 11, 54, 87, 132, 105, 32, 114, 52],
+    "keys": "cod bin_bags cherry sliced_bread jam soap whisky corn raisins condensed_milk"
+  }
+]

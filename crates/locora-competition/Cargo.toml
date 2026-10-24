@@ -1,0 +1,16 @@
+[package]
+name = "locora-competition"
+description = "Memory contest rules shared by the app plugins and Locora Cloud: tasks, scoring, codes and the word list"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+postcard.workspace = true
+serde_json = "1"
+sha2.workspace = true

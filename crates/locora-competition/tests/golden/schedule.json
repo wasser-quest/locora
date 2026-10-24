@@ -1,0 +1,68 @@
+[
+  {
+    "date": "2026-10-23",
+    "days": 20749,
+    "weekday": 4,
+    "daily": {"discipline": "numbers", "long_day": false}
+  },
+  {
+    "date": "2026-10-25",
+    "days": 20751,
+    "weekday": 6,
+    "daily": {"discipline": "list", "long_day": true}
+  },
+  {
+    "date": "2026-10-26",
+    "days": 20752,
+    "weekday": 0,
+    "daily": {"discipline": "list", "long_day": false}
+  },
+  {
+    "date": "2026-10-27",
+    "days": 20753,
+    "weekday": 1,
+    "daily": {"discipline": "numbers", "long_day": false}
+  },
+  {
+    "date": "2026-10-28",
+    "days": 20754,
+    "weekday": 2,
+    "daily": {"discipline": "cards", "long_day": false}
+  },
+  {
+    "date": "2026-10-29",
+    "days": 20755,
+    "weekday": 3,
+    "daily": {"discipline": "list", "long_day": false}
+  },
+  {
+    "date": "2026-10-30",
+    "days": 20756,
+    "weekday": 4,
+    "daily": {"discipline": "numbers", "long_day": false}
+  },
+  {
+    "date": "2026-10-31",
+    "days": 20757,
+    "weekday": 5,
+    "daily": {"discipline": "cards", "long_day": false}
+  },
+  {
+    "date": "2026-11-01",
+    "days": 20758,
+    "weekday": 6,
+    "daily": {"discipline": "numbers", "long_day": true}
+  },
+  {
+    "date": "2026-11-08",
+    "days": 20765,
+    "weekday": 6,
+    "daily": {"discipline": "cards", "long_day": true}
+  },
+  {
+    "date": "2026-11-15",
+    "days": 20772,
+    "weekday": 6,
+    "daily": {"discipline": "list", "long_day": true}
+  }
+]

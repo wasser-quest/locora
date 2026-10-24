@@ -1522,6 +1522,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "locora-competition"
+version = "0.1.7"
+dependencies = [
+ "postcard",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "locora-crypto"
 version = "0.1.7"
 dependencies = [

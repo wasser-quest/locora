@@ -601,7 +601,7 @@ Zusätzlich gibt es ein menschenlesbares **Quelltext-Format** (`*.locora.toml`),
 ## 10. Gamification und Bezahlung
 
 - **Gamification ist kostenlos:** XP, Tagesziel, Wochenziel, Trophäen und Palastmedaillen laufen vollständig lokal und offline, ohne Account (Regeln: 4.7).
-- **Locora Cloud kostet:** Sync von Fortschritt und Palästen über Geräte. Die Rangliste (eine öffentliche, Tag/Woche/Monat/Jahr, nur auf Wunsch) bleibt kostenlos; Freunde und gemeinsame Challenges entfallen.
+- **Locora Cloud kostet:** Sync von Fortschritt und Palästen über Geräte. Die Rangliste (eine öffentliche, Tag/Woche/Monat/Jahr, nur auf Wunsch) bleibt kostenlos; Freunde bleiben; gemeinsame Challenges der Journeys können entfallen.
 - **Preis (Entscheidung vom 22.10.2026):**
 
   | Plan | Preis | Hinweis |
@@ -698,6 +698,7 @@ Für den aktuellen Arbeitsstand gilt [`OFFEN.md`](OFFEN.md).
 | `crates/locora-host` | wasmtime-Komponenten, Hot-Reload, Fuel-Limit, Absturz-Isolation, Kompilat-Cache, Berechtigungen (`storage`, `palaces:read/write`), Filter-Ketten, native Palastdienste, austauschbarer `KvStore` |
 | `crates/locora-store` | SQLite (Migrationen 1–12), Paläste → Räume → Loci, Medien nach SHA-256, Tabellen, Bindungen, Plugin-KV, Op-Log mit HLC, Sync (Feldzeiten, Grabsteine, Anwenden von Remote-Ops), Journeys |
 | `crates/locora-scoring` | Journey-XP-Regel und Journey-Replay (Plugin `gamification` und Locora Cloud) |
+| `crates/locora-competition` | Gedächtnis-Wettkampf: Regeln, Generator, Wertung, Challenge-Codes und die Wortliste `groceries-v1` (Plugin `competition` und Locora Cloud) |
 | `crates/locora-cloud-api` | Typen der Locora-Cloud-API und signierte Entitlements (Ed25519, 14 Tage Kulanz) |
 | `crates/locora-signing` | Ed25519-Signaturen für Plugins (`<datei>.sig`) |
 | `locora-runtime`: `cloud`, `cloud_sync`, `publishers` | Sitzung und Freischaltung, Sync mit Locora Cloud, vertrauenswürdige Plugin-Herausgeber |
