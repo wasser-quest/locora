@@ -1,0 +1,74 @@
+[
+  {
+    "name": "row 1 exact, row 2 with two blanks at the end",
+    "task": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "recall": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, null, null]},
+    "lang": "en",
+    "score": {
+      "points": 18,
+      "max": 20,
+      "perfect": false,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "empty", "empty"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": 18, "first_error": null}
+    }
+  },
+  {
+    "name": "row 1 exact, row 2 with one error before two blanks",
+    "task": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "recall": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 6, 2, 8, 1, 0, null, null]},
+    "lang": "en",
+    "score": {
+      "points": 14,
+      "max": 20,
+      "perfect": false,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "wrong", "right", "right", "right", "right", "empty", "empty"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": 17, "first_error": null}
+    }
+  },
+  {
+    "name": "one error in row 1, row 2 exact",
+    "task": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "recall": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 1, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "lang": "en",
+    "score": {
+      "points": 15,
+      "max": 20,
+      "perfect": false,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "wrong", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": 19, "first_error": null}
+    }
+  },
+  {
+    "name": "two errors in row 1, row 2 empty",
+    "task": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "recall": {
+      "digits": [0, 8, 1, 6, 0, 0, 7, 5, 0, 0, null, null, null, null, null, null, null, null, null, null]
+    },
+    "lang": "en",
+    "score": {
+      "points": 0,
+      "max": 20,
+      "perfect": false,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "wrong", "wrong", "empty", "empty", "empty", "empty", "empty", "empty", "empty", "empty", "empty", "empty"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": 8, "first_error": null}
+    }
+  },
+  {
+    "name": "cards: places 2 and 3 swapped",
+    "task": {"cards": [36, 18, 7, 44, 16, 21, 25, 13, 1, 15, 5, 41, 38]},
+    "recall": {"cards": [36, 7, 18, 44, 16, 21, 25, 13, 1, 15, 5, 41, 38]},
+    "lang": "en",
+    "score": {
+      "points": 11,
+      "max": 13,
+      "perfect": false,
+      "marks": ["right", "wrong", "wrong", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": null, "first_error": 1}
+    }
+  }
+]

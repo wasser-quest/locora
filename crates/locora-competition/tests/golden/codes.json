@@ -1,0 +1,6 @@
+[
+  {"discipline": "cards", "level": 2, "seed": "123456789abcdef", "code": "C2-28T5-CY4T-QKFF-K"},
+  {"discipline": "list", "level": 1, "seed": "000000000000000", "code": "S1-0000-0000-0000-0"},
+  {"discipline": "numbers", "level": 3, "seed": "fffffffffffffff", "code": "N3-ZZZZ-ZZZZ-ZZZZ-G"},
+  {"discipline": "list", "level": 3, "seed": "080000000000000", "code": "S3-1000-0000-0000-1"}
+]
