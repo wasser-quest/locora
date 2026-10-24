@@ -1,5 +1,4 @@
-//! Matching typed shopping-list answers against the word list (spec §8.7, with
-//! the additions of the word-list reviews in addendum 1).
+//! Matching typed shopping-list answers against the word list (spec §8.7).
 //!
 //! Answers and accepted forms go through the same [`normalize`]: case,
 //! full-width and half-width forms, katakana, Latin diacritics, a leading
@@ -9,6 +8,16 @@
 //! more, less, different, or two neighbours swapped. Ideographs must match
 //! exactly; their readings are listed forms, so no IME choice costs a point.
 //! An answer that is exactly a form of another concept is never a typo.
+//!
+//! Rules v1 go beyond the text of spec §8.7 where the reviews of the word list
+//! and of the code found right answers marked wrong, before anything shipped:
+//! the fold table also takes the pinyin tone marks ǎ ě ī ǐ ǒ ǔ ǖ ǘ ǚ ǜ;
+//! half-width katakana are widened and a sound mark typed apart joins its kana;
+//! a leading article (en, de, fr) and a Chinese quantity are dropped; German
+//! reads "ae", "oe" and "ue" as umlauts; and an answer that is exactly another
+//! concept is never a typo, in [`matches`] as in the score of a list. All of it
+//! freezes with version 1, and the owner confirms it before the first release
+//! that ships the contest (`docs/OFFEN.md`).
 
 use crate::Lang;
 use crate::words::pool;
@@ -342,6 +351,24 @@ mod tests {
         assert_eq!(n("lǜchá"), "lucha");
         assert_eq!(n(" 2 Liter! "), "2liter");
         assert_eq!(n("…"), "");
+    }
+
+    #[test]
+    fn the_fold_table_is_fixed() {
+        // Exactly these characters fold, and nothing else in the Basic Multilingual
+        // Plane: spec §8.7 step 4 plus the pinyin tone marks. The table is part of
+        // rules v1 and must not grow.
+        let folded: String = (0..=0xffff)
+            .filter_map(char::from_u32)
+            .filter(|&c| fold(c).is_some())
+            .collect();
+        let mut table: Vec<char> = "àáâãäåāǎçèéêëēěìíîïīǐñòóôõöøōǒùúûüūǔǖǘǚǜýÿßæœ"
+            .chars()
+            .collect();
+        table.sort_unstable();
+        assert_eq!(folded, table.into_iter().collect::<String>());
+        // Upper case folds through step 1.
+        assert_eq!(n("ÀÉÎÕÜǍǏǓǙÝŸ"), "aeiouaiuuyy");
     }
 
     #[test]
