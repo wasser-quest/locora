@@ -14,6 +14,7 @@ use locora_app_api::{
 };
 use serde::Serialize;
 
+use crate::share::CardKind;
 use crate::sply::{Shown, Sply, TimedCommand, VideoBackdrop, fit_stage};
 use crate::tauri::{NoArgs, call};
 use crate::{Answer, Screen};
@@ -208,6 +209,15 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     };
     // Feedback animations (assets/ui); the journey works without them.
     let art = crate::art();
+    // The palaces this walk asked in: a card may name the palace when it was one only.
+    let palaces = StoredValue::new(std::collections::BTreeSet::<String>::new());
+    Effect::new(move |_| {
+        if let Some(palace) = question.with(|q| q.as_ref().map(|q| q.palace.clone())) {
+            palaces.update_value(|all| {
+                all.insert(palace);
+            });
+        }
+    });
 
     // Workbook inputs are asked first; without any, the journey starts at once.
     let fields = RwSignal::new(None::<Vec<InputField>>);
@@ -499,7 +509,9 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
         }}
         {move || {
             if let Some(s) = summary.get() {
-                return view! { <Done summary=s screen=screen art=art /> }.into_any();
+                let palace = palaces.with_value(|all| (all.len() == 1).then(|| all.iter().next().cloned()).flatten());
+                let week = game.with_untracked(|game| game.as_ref().map(|game| game.week.clone()));
+                return view! { <Done summary=s screen=screen art=art palace=palace week=week /> }.into_any();
             }
             if let Some(list) = fields.get() {
                 return view! { <Inputs fields=list begin=begin /> }.into_any();
@@ -1388,14 +1400,46 @@ fn summary_lines(summary: &Summary) -> Vec<String> {
     lines
 }
 
+/// What the end of a journey offers to share: the journey, what it earned, and the weekly goal
+/// once it is reached.
+fn done_cards(summary: &Summary, palace: Option<String>, week: Option<&Week>) -> Vec<CardKind> {
+    let mut cards = vec![CardKind::Journey {
+        correct: summary.correct,
+        asked: summary.asked,
+        xp: summary.xp_gained,
+        palace,
+    }];
+    cards.extend(
+        summary
+            .new_trophies
+            .iter()
+            .map(|id| CardKind::achievement(id, Some(crate::share::today()))),
+    );
+    if let Some(week) = week.filter(|week| week.target > 0 && week.days >= week.target) {
+        cards.push(CardKind::Week {
+            days: week.days,
+            streak: week.streak,
+        });
+    }
+    cards
+}
+
 #[component]
 fn Done(
     summary: Summary,
     screen: RwSignal<Screen>,
     art: RwSignal<Option<UiAssets>>,
+    /// The palace of the walk, when it asked in one only.
+    palace: Option<String>,
+    week: Option<Week>,
 ) -> impl IntoView {
     let asked = summary.asked;
     let lines = summary_lines(&summary);
+    let cards = StoredValue::new(if asked > 0 {
+        done_cards(&summary, palace, week.as_ref())
+    } else {
+        Vec::new()
+    });
     view! {
         <section class="card panel journey-done" role="status">
             {move || {
@@ -1436,9 +1480,16 @@ fn Done(
                 .into_iter()
                 .map(|n| view! { <p class="notes">{crate::i18n::translate_message(&n)}</p> })
                 .collect_view()}
-            <button class="primary" on:click=move |_| screen.set(crate::start_screen())>
-                {t("Zur Übersicht")}
-            </button>
+            <div class="done-actions">
+                <button class="primary" on:click=move |_| screen.set(crate::start_screen())>
+                    {t("Zur Übersicht")}
+                </button>
+                {(asked > 0).then(|| view! {
+                    <button type="button" on:click=move |event| {
+                        crate::share::open(cards.get_value(), crate::modal::opener_of(&event));
+                    }>{t("Teilen…")}</button>
+                })}
+            </div>
         </section>
     }
 }

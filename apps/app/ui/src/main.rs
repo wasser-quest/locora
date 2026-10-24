@@ -28,6 +28,7 @@ mod modal;
 mod palette;
 mod settings;
 mod share;
+mod share_card;
 mod sply;
 mod startup;
 #[cfg(test)]
@@ -271,7 +272,15 @@ fn fit_above_keyboard(field: &web_sys::HtmlElement) {
         .map(|bar| bar.get_bounding_client_rect())
         .filter(|bar| bar.height() > 0.0)
         .map_or(full, |bar| bar.top());
-    let limit = (top + height).min(bar) - 8.0;
+    // A dialog's buttons stay at its bottom (`.modal-foot`): the field goes above them too.
+    let foot = field
+        .closest(".modal")
+        .ok()
+        .flatten()
+        .and_then(|dialog| dialog.query_selector(".modal-foot").ok().flatten())
+        .map(|foot| foot.get_bounding_client_rect().top())
+        .unwrap_or(f64::INFINITY);
+    let limit = (top + height).min(bar).min(foot) - 8.0;
     let end = group.map_or(rect.bottom(), |end| end.max(rect.bottom()));
     // Up to the group's end, but never so far that the field's top leaves the visible part.
     let by = (end - limit).min(rect.top() - top - 8.0);
@@ -913,6 +922,7 @@ fn App() -> impl IntoView {
         asking: RwSignal::new(false),
     });
     provide_context(achievements::Celebration::new());
+    provide_context(share::Sharing(RwSignal::new(None)));
     provide_context(cloud_settings::SignedIn(RwSignal::new(None)));
     provide_context(cloud_settings::CloudFirst(RwSignal::new(false)));
     provide_context(first_palace::Guide(RwSignal::new(first_palace::load())));
@@ -1022,6 +1032,7 @@ fn App() -> impl IntoView {
         <TourOverlay active=tour screen=screen error=tour_error route_ready=tour_route_ready />
         <tour_gate::TourQuestion screen=screen />
         <achievements::CelebrationCard />
+        <share::ShareDialog />
         <main>
             // The first own palace: its walk ends with the guide's last word.
             {move || match screen.get() {

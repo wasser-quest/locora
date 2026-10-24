@@ -1562,6 +1562,7 @@ mod tests {
             ("friends.rs", include_str!("friends.rs")),
             ("modal.rs", include_str!("modal.rs")),
             ("share.rs", include_str!("share.rs")),
+            ("share_card.rs", include_str!("share_card.rs")),
         ] {
             for needle in needles {
                 assert!(!source.contains(needle), "{file} sets markup: {needle}");

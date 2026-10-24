@@ -16,14 +16,19 @@ use crate::learn_content::lessons;
 use crate::sply::Sply;
 use crate::tauri::{NoArgs, call};
 
-/// Title and hint of a palace medal of `level` days for the palace `name`.
-fn describe_palace(level: &str, name: &str) -> Option<(String, String)> {
-    let title = match level {
+/// The title of a palace medal of `level` days (`7`, `30`, `180`), without its palace.
+pub fn palace_level_title(level: &str) -> Option<&'static str> {
+    Some(match level {
         "7" => t("Verankert"),
         "30" => t("Gefestigt"),
         "180" => t("Dauerhaft"),
         _ => return None,
-    };
+    })
+}
+
+/// Title and hint of a palace medal of `level` days for the palace `name`.
+fn describe_palace(level: &str, name: &str) -> Option<(String, String)> {
+    let title = palace_level_title(level)?;
     Some((
         format!("{title} · {name}"),
         crate::i18n::tf(
@@ -173,33 +178,105 @@ fn celebration_heading(id: &str) -> &'static str {
     }
 }
 
-/// A short card for a new achievement: its medal, its title, and a button to close it.
+/// A short card for a new achievement: its medal, its title, a button to share it and one to
+/// close it. It goes by itself after 10 seconds, but not while a finger or the focus is on its
+/// buttons (4 seconds after they leave), and it waits while the share dialog is open.
 #[component]
 pub fn CelebrationCard() -> impl IntoView {
     let celebration = expect_context::<Celebration>();
     let art = expect_context::<Art>().0;
-    // Each goes by itself after a while.
+    let sharing = use_context::<crate::share::Sharing>().map(|sharing| sharing.0);
+    let open = move || sharing.is_some_and(|request| request.with(Option::is_some));
+    let paused = RwSignal::new(false);
+    // Each new timer makes the ones before it void.
+    let generation = StoredValue::new(0_u32);
+    // The element that had the focus before the card's buttons got it: back there after sharing.
+    let before = StoredValue::new_local(None::<web_sys::HtmlElement>);
+    let schedule = move |id: String, secs: u64| {
+        let now = generation.get_value().wrapping_add(1);
+        generation.set_value(now);
+        set_timeout(
+            move || {
+                let waiting = sharing.is_some_and(|request| {
+                    request.try_with_untracked(Option::is_some).unwrap_or(false)
+                });
+                if generation.try_get_value() == Some(now)
+                    && paused.try_get_untracked() == Some(false)
+                    && !waiting
+                {
+                    celebration.close(&id);
+                }
+            },
+            std::time::Duration::from_secs(secs),
+        );
+    };
     Effect::new(move |_| {
-        if let Some(id) = celebration.shown() {
-            set_timeout(
-                move || celebration.close(&id),
-                std::time::Duration::from_secs(10),
-            );
+        if let Some(id) = celebration.shown()
+            && !open()
+        {
+            paused.set(false);
+            schedule(id, 10);
         }
     });
+    let pause = move || {
+        paused.set(true);
+        generation.update_value(|now| *now = now.wrapping_add(1));
+    };
+    let resume = move || {
+        paused.set(false);
+        if let Some(id) = celebration.shown() {
+            schedule(id, 4);
+        }
+    };
     move || {
+        if open() {
+            return None;
+        }
         let id = celebration.shown()?;
         let (title, _) = describe(&id)?;
         let medal = art.get().and_then(|art| medal_for(&art, &id, true));
         let close = id.clone();
+        let shared = id.clone();
+        let share = move |_| {
+            let opener = before
+                .get_value()
+                .filter(|element| element.is_connected())
+                .or_else(|| {
+                    crate::modal::focused()
+                        .filter(|element| element.closest(".celebration").ok().flatten().is_none())
+                });
+            celebration.close(&shared);
+            crate::share::open(
+                vec![crate::share::CardKind::achievement(
+                    &shared,
+                    Some(crate::share::today()),
+                )],
+                opener,
+            );
+        };
         Some(view! {
-            <aside class="card celebration" role="status" aria-live="polite">
+            <aside class="card celebration" role="status" aria-live="polite"
+                on:focusin=move |event: web_sys::FocusEvent| {
+                    use wasm_bindgen::JsCast;
+                    let from = event
+                        .related_target()
+                        .and_then(|from| from.dyn_into::<web_sys::HtmlElement>().ok())
+                        .filter(|from| from.closest(".celebration").ok().flatten().is_none());
+                    if from.is_some() {
+                        before.set_value(from);
+                    }
+                }>
                 {medal.map(|m| view! { <div class="celebration-medal"><Sply media=m /></div> })}
                 <div class="text">
                     <strong>{celebration_heading(&id)}</strong>
-                    <span class="celebration-title">{title}</span>
+                    <span class="celebration-title">{title.clone()}</span>
                 </div>
-                <button on:click=move |_| celebration.close(&close)>{t("Schließen")}</button>
+                <div class="celebration-actions"
+                    on:pointerenter=move |_| pause() on:pointerleave=move |_| resume()
+                    on:focusin=move |_| pause() on:focusout=move |_| resume()>
+                    <button type="button" aria-label=tf("„{0}“ teilen…", &[&title]) on:click=share>{t("Teilen…")}</button>
+                    <button type="button" on:click=move |_| celebration.close(&close)>{t("Schließen")}</button>
+                </div>
             </aside>
         })
     }
@@ -303,6 +380,31 @@ pub fn Achievements() -> impl IntoView {
                 </details>
             }
         });
+        // Every unlocked one can be shared; the newest comes first in the choice.
+        let mut unlocked: Vec<&AchievementView> = others
+            .iter()
+            .chain(&lessons)
+            .chain(&game)
+            .chain(&palaces)
+            .filter(|a| a.unlocked)
+            .collect();
+        unlocked.sort_by(|a, b| b.day.cmp(&a.day));
+        let cards: Vec<crate::share::CardKind> = unlocked
+            .into_iter()
+            .map(|a| crate::share::CardKind::Achievement {
+                id: a.id.clone(),
+                palace: a.palace.clone(),
+                day: a.day.clone(),
+            })
+            .collect();
+        let share = (!cards.is_empty()).then(|| {
+            let cards = StoredValue::new(cards);
+            view! {
+                <button type="button" class="achievement-share" on:click=move |event| {
+                    crate::share::open(cards.get_value(), crate::modal::opener_of(&event));
+                }>{t("Erfolg teilen…")}</button>
+            }
+        });
         Some(view! {
             <section class="card panel achievements" aria-label=t("Erfolge")>
                 <h2>{t("Erfolge")}</h2>
@@ -313,6 +415,7 @@ pub fn Achievements() -> impl IntoView {
                 </details>
                 {trophies}
                 {medals}
+                {share}
             </section>
         })
     }
@@ -391,6 +494,8 @@ mod tests {
             "4 von 9 Orten halten 30+ Tage"
         );
         assert!(describe("palace-9@Küche").is_none());
+        assert_eq!(palace_level_title("180"), Some("Dauerhaft"));
+        assert_eq!(palace_level_title("9"), None);
         crate::i18n::set_current(crate::i18n::Lang::En);
         let strength = locora_app_api::Strength { loci: 9, solid: 2 };
         assert_eq!(strength_text(strength), "Consolidated: 2 of 9 loci");

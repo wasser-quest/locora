@@ -212,6 +212,7 @@ mod tests {
         ("palette.rs", include_str!("palette.rs")),
         ("settings.rs", include_str!("settings.rs")),
         ("share.rs", include_str!("share.rs")),
+        ("share_card.rs", include_str!("share_card.rs")),
         ("sply.rs", include_str!("sply.rs")),
         ("startup.rs", include_str!("startup.rs")),
         ("tauri.rs", include_str!("tauri.rs")),

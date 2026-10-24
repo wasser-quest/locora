@@ -737,3 +737,26 @@ input[type=email], textarea { font: inherit; padding: .5rem .7rem; border-radius
 .home-actions .home-friends { position: absolute; top: 0; right: calc(3rem + .5rem); min-width: 44px; min-height: 44px;
   display: grid; place-items: center; padding: 0; }
 @media (min-width: 561px) { .friend-form > button, .friend-form > .friend-actions { justify-self: start; } }
+/* The share dialog (share.rs): the preview as large as the phone allows, the buttons always in
+   reach at its bottom. */
+.share-dialog { width: min(560px, calc(100vw - 2rem)); }
+.share-cards { display: grid; gap: .25rem; margin: 0; padding: .4rem .7rem; border: 1px solid var(--line); border-radius: 10px; }
+.share-cards label, .share-dialog .check { display: flex; align-items: center; gap: .5rem; min-height: 44px; }
+.share-dialog select { font: inherit; min-height: 44px; padding: .45rem .6rem; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); width: 100%; }
+.share-preview { display: grid; place-items: center; }
+.share-preview img { width: min(360px, 100%); max-width: 100%; aspect-ratio: 1; border-radius: 12px; border: 1px solid var(--line); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.share-actions { position: sticky; bottom: -1rem; display: flex; flex-wrap: wrap; gap: .5rem; padding: .6rem 0 1rem;
+  margin-bottom: -1rem; background: var(--surface); border-top: 1px solid var(--line); }
+@media (max-width: 560px) { .share-preview img { width: min(320px, 38dvh, 100%); } }
+/* Ways to share elsewhere: finger-sized. */
+.achievement-share, .week-share, .done-actions button, .celebration-actions button { min-height: 44px; min-width: 44px; }
+.achievement-share { margin-top: 1rem; }
+.done-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
+.celebration-actions { display: flex; gap: .4rem; }
+/* On a phone the celebration's buttons go below its medal and title, across the width. */
+@media (max-width: 560px) {
+  .celebration { display: grid; grid-template-columns: 48px minmax(0, 1fr); }
+  .celebration-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}

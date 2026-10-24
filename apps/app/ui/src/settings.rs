@@ -605,6 +605,18 @@ fn GameProgress() -> impl IntoView {
                         }).collect_view()}
                     </select>
                 </label>
+                {move || status.with(|game| game.as_ref().map(|game| game.week.clone()))
+                    .filter(|week| week.target > 0 && week.days >= week.target)
+                    .map(|week| view! {
+                        <p>
+                            <button type="button" class="week-share" on:click=move |event| {
+                                crate::share::open(
+                                    vec![crate::share::CardKind::Week { days: week.days, streak: week.streak }],
+                                    crate::modal::opener_of(&event),
+                                );
+                            }>{t("Wochenziel teilen…")}</button>
+                        </p>
+                    })}
                 <label><input type="checkbox" prop:checked=move || crate::locus_display::signal().get().gamification
                     on:change=move |event| { crate::locus_display::signal().update(|p| p.gamification = event_target_checked(&event)); crate::locus_display::save(crate::locus_display::signal().get_untracked()); } />{t("Fortschrittsleiste in der Journey anzeigen")}<Info text="Zeigt beim Lernen XP, das heutige Fälligkeitsziel und deine Woche. Ausschalten blendet sie nur aus." /></label>
                 <Show

@@ -10957,4 +10957,393 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "写入文件",
         ],
     ),
+    (
+        "Erfolg teilen…",
+        [
+            "Share an achievement…",
+            "Erfolg teilen…",
+            "Partager un succès…",
+            "実績を共有…",
+            "分享成就…",
+        ],
+    ),
+    (
+        "„{0}“ teilen…",
+        [
+            "Share “{0}”…",
+            "„{0}“ teilen…",
+            "Partager « {0} »…",
+            "「{0}」を共有…",
+            "分享“{0}”…",
+        ],
+    ),
+    (
+        "Wochenziel teilen…",
+        [
+            "Share the weekly goal…",
+            "Wochenziel teilen…",
+            "Partager l’objectif hebdomadaire…",
+            "週の目標を共有…",
+            "分享每周目标…",
+        ],
+    ),
+    (
+        "+{0} XP",
+        ["+{0} XP", "+{0} XP", "+{0} XP", "+{0} XP", "+{0} XP"],
+    ),
+    (
+        "An 1 Tag gelernt",
+        [
+            "Learned on 1 day",
+            "An 1 Tag gelernt",
+            "Appris 1 jour",
+            "1 日学習",
+            "学习了 1 天",
+        ],
+    ),
+    (
+        "An {0} Tagen gelernt",
+        [
+            "Learned on {0} days",
+            "An {0} Tagen gelernt",
+            "Appris {0} jours",
+            "{0} 日学習",
+            "学习了 {0} 天",
+        ],
+    ),
+    (
+        "Bild gespeichert.",
+        [
+            "Picture saved.",
+            "Bild gespeichert.",
+            "Image enregistrée.",
+            "画像を保存しました。",
+            "图片已保存。",
+        ],
+    ),
+    (
+        "Bild heruntergeladen.",
+        [
+            "Picture downloaded.",
+            "Bild heruntergeladen.",
+            "Image téléchargée.",
+            "画像をダウンロードしました。",
+            "图片已下载。",
+        ],
+    ),
+    (
+        "Bild herunterladen",
+        [
+            "Download picture",
+            "Bild herunterladen",
+            "Télécharger l’image",
+            "画像をダウンロード",
+            "下载图片",
+        ],
+    ),
+    (
+        "Bild speichern…",
+        [
+            "Save picture…",
+            "Bild speichern…",
+            "Enregistrer l’image…",
+            "画像を保存…",
+            "保存图片…",
+        ],
+    ),
+    (
+        "Bild wird erstellt …",
+        [
+            "Making the picture …",
+            "Bild wird erstellt …",
+            "Création de l’image …",
+            "画像を作成中 …",
+            "正在生成图片 …",
+        ],
+    ),
+    (
+        "Das Bild entsteht auf diesem Gerät. Dein Name und Palastnamen stehen nur darauf, wenn du sie oben einschaltest.",
+        [
+            "The picture is made on this device. Your name and palace names appear on it only if you turn them on above.",
+            "Das Bild entsteht auf diesem Gerät. Dein Name und Palastnamen stehen nur darauf, wenn du sie oben einschaltest.",
+            "L’image est créée sur cet appareil. Ton nom et les noms de palais n’y figurent que si tu les actives ci-dessus.",
+            "画像はこの端末で作成されます。あなたの名前と宮殿名は、上でオンにしたときだけ表示されます。",
+            "图片在此设备上生成。只有在上方开启后，你的名字和宫殿名称才会出现在图片上。",
+        ],
+    ),
+    (
+        "Das Bild konnte nicht erstellt werden.",
+        [
+            "The picture could not be made.",
+            "Das Bild konnte nicht erstellt werden.",
+            "L’image n’a pas pu être créée.",
+            "画像を作成できませんでした。",
+            "无法生成图片。",
+        ],
+    ),
+    (
+        "Der Text ist in der Zwischenablage.",
+        [
+            "The text is on the clipboard.",
+            "Der Text ist in der Zwischenablage.",
+            "Le texte est dans le presse-papiers.",
+            "テキストをクリップボードにコピーしました。",
+            "文本已复制到剪贴板。",
+        ],
+    ),
+    (
+        "Diese Journey",
+        [
+            "This journey",
+            "Diese Journey",
+            "Ce parcours",
+            "このジャーニー",
+            "本次旅程",
+        ],
+    ),
+    (
+        "Einer meiner Gedächtnispaläste hat in Locora die Medaille „{0}“ bekommen.",
+        [
+            "One of my memory palaces earned the medal “{0}” in Locora.",
+            "Einer meiner Gedächtnispaläste hat in Locora die Medaille „{0}“ bekommen.",
+            "Un de mes palais de mémoire a obtenu la médaille « {0} » dans Locora.",
+            "私の記憶の宮殿のひとつが Locora でメダル「{0}」を獲得しました。",
+            "我的一座记忆宫殿在 Locora 中获得了“{0}”奖章。",
+        ],
+    ),
+    (
+        "Erfolg",
+        ["Achievement", "Erfolg", "Succès", "実績", "成就"],
+    ),
+    (
+        "Ich habe in Locora den Erfolg „{0}“ geschafft.",
+        [
+            "I unlocked the achievement “{0}” in Locora.",
+            "Ich habe in Locora den Erfolg „{0}“ geschafft.",
+            "J’ai débloqué le succès « {0} » dans Locora.",
+            "Locora で実績「{0}」を達成しました。",
+            "我在 Locora 中解锁了成就“{0}”。",
+        ],
+    ),
+    (
+        "Ich habe in Locora die Journey-Trophäe „{0}“ bekommen.",
+        [
+            "I earned the journey trophy “{0}” in Locora.",
+            "Ich habe in Locora die Journey-Trophäe „{0}“ bekommen.",
+            "J’ai obtenu le trophée de parcours « {0} » dans Locora.",
+            "Locora でジャーニーのトロフィー「{0}」を獲得しました。",
+            "我在 Locora 中获得了旅程奖杯“{0}”。",
+        ],
+    ),
+    (
+        "Im Palast „{0}“.",
+        [
+            "In the palace “{0}”.",
+            "Im Palast „{0}“.",
+            "Dans le palais « {0} ».",
+            "宮殿「{0}」で。",
+            "在宫殿“{0}”中。",
+        ],
+    ),
+    (
+        "Journey geschafft",
+        [
+            "Journey done",
+            "Journey geschafft",
+            "Parcours terminé",
+            "ジャーニー完了",
+            "旅程完成",
+        ],
+    ),
+    (
+        "Journey in Locora geschafft: {0} von {1} gewusst, +{2} XP.",
+        [
+            "Journey done in Locora: {0} of {1} recalled, +{2} XP.",
+            "Journey in Locora geschafft: {0} von {1} gewusst, +{2} XP.",
+            "Parcours terminé dans Locora : {0} sur {1} retrouvés, +{2} XP.",
+            "Locora でジャーニーを完了：{1} 問中 {0} 問正解、+{2} XP。",
+            "在 Locora 中完成了旅程：{1} 个中记住了 {0} 个，+{2} XP。",
+        ],
+    ),
+    (
+        "Journey in Locora geschafft: {0} von {1} gewusst.",
+        [
+            "Journey done in Locora: {0} of {1} recalled.",
+            "Journey in Locora geschafft: {0} von {1} gewusst.",
+            "Parcours terminé dans Locora : {0} sur {1} retrouvés.",
+            "Locora でジャーニーを完了：{1} 問中 {0} 問正解。",
+            "在 Locora 中完成了旅程：{1} 个中记住了 {0} 个。",
+        ],
+    ),
+    (
+        "Journey-Trophäe",
+        [
+            "Journey trophy",
+            "Journey-Trophäe",
+            "Trophée de parcours",
+            "ジャーニーのトロフィー",
+            "旅程奖杯",
+        ],
+    ),
+    (
+        "Mein Gedächtnispalast „{1}“ hat in Locora die Medaille „{0}“ bekommen.",
+        [
+            "My memory palace “{1}” earned the medal “{0}” in Locora.",
+            "Mein Gedächtnispalast „{1}“ hat in Locora die Medaille „{0}“ bekommen.",
+            "Mon palais de mémoire « {1} » a obtenu la médaille « {0} » dans Locora.",
+            "私の記憶の宮殿「{1}」が Locora でメダル「{0}」を獲得しました。",
+            "我的记忆宫殿“{1}”在 Locora 中获得了“{0}”奖章。",
+        ],
+    ),
+    (
+        "Mein Wochenziel in Locora: {0} Wochen in Folge erreicht.",
+        [
+            "My weekly goal in Locora: reached {0} weeks in a row.",
+            "Mein Wochenziel in Locora: {0} Wochen in Folge erreicht.",
+            "Mon objectif hebdomadaire dans Locora : atteint {0} semaines de suite.",
+            "Locora の週の目標：{0} 週連続で達成しました。",
+            "我在 Locora 的每周目标：已连续 {0} 周达成。",
+        ],
+    ),
+    (
+        "Meinen Namen zeigen",
+        [
+            "Show my name",
+            "Meinen Namen zeigen",
+            "Afficher mon nom",
+            "自分の名前を表示",
+            "显示我的名字",
+        ],
+    ),
+    (
+        "Name auf dem Bild",
+        [
+            "Name on the picture",
+            "Name auf dem Bild",
+            "Nom sur l’image",
+            "画像に表示する名前",
+            "图片上的名字",
+        ],
+    ),
+    (
+        "Palast „{0}“",
+        [
+            "Palace “{0}”",
+            "Palast „{0}“",
+            "Palais « {0} »",
+            "宮殿「{0}」",
+            "宫殿“{0}”",
+        ],
+    ),
+    (
+        "Palastmedaille",
+        [
+            "Palace medal",
+            "Palastmedaille",
+            "Médaille de palais",
+            "宮殿メダル",
+            "宫殿奖章",
+        ],
+    ),
+    (
+        "Palastnamen „{0}“ zeigen",
+        [
+            "Show the palace name “{0}”",
+            "Palastnamen „{0}“ zeigen",
+            "Afficher le nom du palais « {0} »",
+            "宮殿名「{0}」を表示",
+            "显示宫殿名称“{0}”",
+        ],
+    ),
+    ("Teilen", ["Share", "Teilen", "Partager", "共有", "分享"]),
+    (
+        "Text kopieren",
+        [
+            "Copy text",
+            "Text kopieren",
+            "Copier le texte",
+            "テキストをコピー",
+            "复制文本",
+        ],
+    ),
+    (
+        "Text zum Bild",
+        [
+            "Text with the picture",
+            "Text zum Bild",
+            "Texte de l’image",
+            "画像に添えるテキスト",
+            "配图文字",
+        ],
+    ),
+    (
+        "Was möchtest du teilen?",
+        [
+            "What would you like to share?",
+            "Was möchtest du teilen?",
+            "Que veux-tu partager ?",
+            "何を共有しますか？",
+            "你想分享什么？",
+        ],
+    ),
+    (
+        "Wochenziel in Locora erreicht: an 1 Tag gelernt.",
+        [
+            "Weekly goal reached in Locora: learned on 1 day.",
+            "Wochenziel in Locora erreicht: an 1 Tag gelernt.",
+            "Objectif hebdomadaire atteint dans Locora : appris 1 jour.",
+            "Locora で週の目標を達成：1 日学習しました。",
+            "在 Locora 中达成每周目标：学习了 1 天。",
+        ],
+    ),
+    (
+        "Wochenziel in Locora erreicht: an {0} Tagen gelernt.",
+        [
+            "Weekly goal reached in Locora: learned on {0} days.",
+            "Wochenziel in Locora erreicht: an {0} Tagen gelernt.",
+            "Objectif hebdomadaire atteint dans Locora : appris {0} jours.",
+            "Locora で週の目標を達成：{0} 日学習しました。",
+            "在 Locora 中达成每周目标：学习了 {0} 天。",
+        ],
+    ),
+    (
+        "{0} Wochen in Folge",
+        [
+            "{0} weeks in a row",
+            "{0} Wochen in Folge",
+            "{0} semaines de suite",
+            "{0} 週連続",
+            "连续 {0} 周",
+        ],
+    ),
+    (
+        "{0} von {1} gewusst",
+        [
+            "{0} of {1} recalled",
+            "{0} von {1} gewusst",
+            "{0} sur {1} retrouvés",
+            "{1} 問中 {0} 問正解",
+            "{1} 个中记住了 {0} 个",
+        ],
+    ),
+    (
+        "Grafik nicht gefunden",
+        [
+            "Graphic not found",
+            "Grafik nicht gefunden",
+            "Graphique introuvable",
+            "グラフィックが見つかりません",
+            "未找到图形",
+        ],
+    ),
+    (
+        "Das Bild ist zu groß",
+        [
+            "The picture is too large",
+            "Das Bild ist zu groß",
+            "L’image est trop grande",
+            "画像が大きすぎます",
+            "图片太大",
+        ],
+    ),
 ];
