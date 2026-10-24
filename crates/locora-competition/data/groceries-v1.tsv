@@ -1,141 +1,141 @@
 id	key	category	group	en	de	fr	ja	zh
-1	apple	fruit		apple;apples	Apfel;Äpfel	pomme;pommes	りんご;リンゴ;林檎	苹果;蘋果;pingguo
-2	banana	fruit		banana;bananas	Banane;Bananen	banane;bananes	バナナ	香蕉;xiangjiao
-3	orange	fruit	orange	orange;oranges	Orange;Orangen;Apfelsine;Apfelsinen	orange;oranges	オレンジ	橙子;橙;chengzi
-4	mandarin	fruit	orange	mandarin;mandarins;tangerine;tangerines;clementine;clementines	Mandarine;Mandarinen;Clementine;Clementinen	mandarine;mandarines;clémentine;clémentines	みかん;ミカン;蜜柑	橘子;桔子;juzi
-5	lemon	fruit	lemon	lemon;lemons	Zitrone;Zitronen	citron;citrons	レモン;檸檬	柠檬;檸檬;ningmeng
-6	lime	fruit	lemon	lime;limes	Limette;Limetten	citron vert;citrons verts	ライム	青柠;青檸;qingning
-7	strawberry	fruit		strawberry;strawberries	Erdbeere;Erdbeeren	fraise;fraises	いちご;イチゴ;苺	草莓;caomei
+1	apple	fruit		apples;apple	Apfel;Äpfel	pomme;pommes	りんご;リンゴ;林檎	苹果;蘋果;pingguo
+2	banana	fruit		bananas;banana	Banane;Bananen	banane;bananes	バナナ	香蕉;xiangjiao
+3	orange	fruit	orange	oranges;orange	Orange;Orangen;Apfelsine;Apfelsinen	orange;oranges	オレンジ	橙子;橙;chengzi;cheng
+4	mandarin	fruit	orange	mandarins;mandarin;tangerine;tangerines;clementine;clementines;satsuma;satsumas	Mandarine;Mandarinen;Clementine;Clementinen	mandarine;mandarines;clémentine;clémentines	みかん;ミカン;蜜柑	橘子;桔子;juzi
+5	lemon	fruit	lemon	lemons;lemon	Zitrone;Zitronen	citron;citrons	レモン;檸檬	柠檬;檸檬;ningmeng
+6	lime	fruit	lemon	limes;lime	Limette;Limetten	citron vert;citrons verts;lime;limes	ライム	青柠;青檸;青柠檬;青檸檬;qingning;qingningmeng
+7	strawberry	fruit		strawberries;strawberry	Erdbeeren;Erdbeere	fraise;fraises	いちご;イチゴ;苺	草莓;caomei
 8	grapes	fruit	grapes	grapes;grape	Trauben;Traube;Weintrauben;Weintraube	raisin;raisins	ぶどう;ブドウ;葡萄	葡萄;putao
-9	pear	fruit		pear;pears	Birne;Birnen	poire;poires	梨;なし;ナシ	梨;梨子;li
-10	peach	fruit		peach;peaches	Pfirsich;Pfirsiche	pêche;pêches	桃;もも;モモ	桃子;桃;taozi;tao
-11	cherry	fruit		cherry;cherries	Kirsche;Kirschen	cerise;cerises	さくらんぼ;サクランボ;チェリー	樱桃;櫻桃;yingtao
-12	watermelon	fruit	melon	watermelon;watermelons	Wassermelone;Wassermelonen	pastèque;pastèques	すいか;スイカ;西瓜	西瓜;xigua
-13	melon	fruit	melon	melon;melons	Melone;Melonen;Honigmelone	melon;melons	メロン	哈密瓜;甜瓜;香瓜;hamigua;tiangua;xianggua
-14	kiwi	fruit		kiwi;kiwis	Kiwi;Kiwis	kiwi;kiwis	キウイ;キウィ	猕猴桃;獼猴桃;奇异果;奇異果;mihoutao;qiyiguo
-15	mango	fruit	mangguo_tangguo	mango;mangoes;mangos	Mango;Mangos	mangue;mangues	マンゴー	芒果;mangguo
-16	avocado	fruit		avocado;avocados	Avocado;Avocados	avocat;avocats	アボカド	牛油果;鳄梨;鱷梨;niuyouguo;eli
+9	pear	fruit		pears;pear	Birne;Birnen	poire;poires	梨;なし;ナシ;洋梨;ようなし	梨;梨子;雪梨;li;xueli
+10	peach	fruit		peaches;peach	Pfirsich;Pfirsiche	pêche;pêches	桃;もも;モモ	桃子;桃;taozi;tao
+11	cherry	fruit		cherries;cherry	Kirschen;Kirsche	cerise;cerises	さくらんぼ;サクランボ;チェリー;桜桃	樱桃;櫻桃;车厘子;車厘子;yingtao;chelizi
+12	watermelon	fruit	melon	watermelon;watermelons	Wassermelone;Wassermelonen	pastèque;pastèques;melon d’eau	すいか;スイカ;西瓜	西瓜;xigua
+13	melon	fruit	melon	melon;melons	Melone;Melonen;Honigmelone	melon;melons	メロン	哈密瓜;甜瓜;香瓜;蜜瓜;hamigua;tiangua;xianggua;migua
+14	kiwi	fruit		kiwis;kiwi;kiwi fruit;kiwi fruits	Kiwi;Kiwis	kiwi;kiwis	キウイ;キウィ;キウイフルーツ	猕猴桃;獼猴桃;奇异果;奇異果;mihoutao;qiyiguo
+15	mango	fruit	sweets	mangoes;mango;mangos	Mango;Mangos	mangue;mangues	マンゴー	芒果;mangguo
+16	avocado	fruit		avocados;avocado	Avocado;Avocados	avocat;avocats	アボカド;アボガド	牛油果;鳄梨;鱷梨;niuyouguo;eli
 17	coconut	fruit		coconut;coconuts	Kokosnuss;Kokosnüsse	noix de coco;coco	ココナッツ;ココナツ	椰子;yezi
-18	plum	fruit		plum;plums	Pflaume;Pflaumen;Zwetschge;Zwetschgen	prune;prunes	すもも;スモモ;プラム	李子;lizi
-19	persimmon	fruit		persimmon;persimmons;sharon fruit	Kaki;Kakis;Sharonfrucht	kaki;kakis	柿;かき;カキ	柿子;shizi
-20	fig	fruit		fig;figs	Feige;Feigen	figue;figues	いちじく;イチジク;無花果	无花果;無花果;wuhuaguo
-21	potato	vegetables		potato;potatoes	Kartoffel;Kartoffeln	pomme de terre;pommes de terre;patate;patates	じゃがいも;ジャガイモ;馬鈴薯;ばれいしょ	土豆;马铃薯;馬鈴薯;tudou;malingshu
-22	tomato	vegetables		tomato;tomatoes	Tomate;Tomaten	tomate;tomates	トマト	西红柿;番茄;西紅柿;xihongshi;fanqie
-23	carrot	vegetables		carrot;carrots	Karotte;Karotten;Möhre;Möhren;Mohrrübe;Mohrrüben	carotte;carottes	にんじん;ニンジン;人参	胡萝卜;胡蘿蔔;huluobo
-24	onion	vegetables		onion;onions	Zwiebel;Zwiebeln	oignon;oignons;ognon;ognons	玉ねぎ;たまねぎ;タマネギ;玉葱	洋葱;洋蔥;yangcong
-25	garlic	vegetables		garlic	Knoblauch	ail	にんにく;ニンニク;大蒜	大蒜;蒜;dasuan;suan
+18	plum	fruit		plums;plum	Pflaume;Pflaumen;Zwetschge;Zwetschgen	prune;prunes	すもも;スモモ;プラム;李	李子;lizi
+19	persimmon	fruit		persimmons;persimmon;sharon fruit	Kaki;Kakis;Sharonfrucht	kaki;kakis	柿;かき;カキ	柿子;shizi
+20	fig	fruit		figs;fig	Feige;Feigen	figue;figues	いちじく;イチジク;無花果	无花果;無花果;wuhuaguo
+21	potato	vegetables		potatoes;potato	Kartoffel;Kartoffeln;Erdäpfel	pomme de terre;pommes de terre;patate;patates	じゃがいも;ジャガイモ;馬鈴薯;ばれいしょ;じゃが芋	土豆;马铃薯;馬鈴薯;tudou;malingshu
+22	tomato	vegetables		tomatoes;tomato	Tomate;Tomaten;Paradeiser	tomate;tomates	トマト	西红柿;番茄;西紅柿;xihongshi;fanqie
+23	carrot	vegetables		carrots;carrot	Karotte;Karotten;Möhre;Möhren;Mohrrübe;Mohrrüben;Rüebli;Gelbe Rüben	carotte;carottes	にんじん;ニンジン;人参	胡萝卜;胡蘿蔔;红萝卜;紅蘿蔔;huluobo;hongluobo
+24	onion	vegetables		onions;onion	Zwiebel;Zwiebeln	oignon;oignons;ognon;ognons	玉ねぎ;たまねぎ;タマネギ;玉葱	洋葱;洋蔥;yangcong
+25	garlic	vegetables		garlic	Knoblauch	ail	にんにく;ニンニク;大蒜	大蒜;蒜;蒜头;蒜頭;dasuan;suan;suantou
 26	cucumber	vegetables		cucumber;cucumbers	Gurke;Gurken;Salatgurke	concombre;concombres	きゅうり;キュウリ;胡瓜	黄瓜;黃瓜;huanggua
-27	lettuce	vegetables		lettuce	Salat;Kopfsalat;Blattsalat	salade;laitue	レタス	生菜;shengcai
-28	bell_pepper	vegetables		bell pepper;bell peppers;pepper;peppers;capsicum	Paprika;Paprikas;Paprikaschote	poivron;poivrons	ピーマン;パプリカ	青椒;甜椒;彩椒;qingjiao;tianjiao;caijiao
-29	cabbage	vegetables		cabbage;cabbages	Kohl;Weißkohl;Kohlkopf	chou;choux	キャベツ	卷心菜;圆白菜;捲心菜;圓白菜;juanxincai;yuanbaicai
-30	mushrooms	vegetables		mushrooms;mushroom	Pilze;Pilz;Champignons;Champignon	champignons;champignon	きのこ;キノコ;マッシュルーム	蘑菇;mogu
-31	spinach	vegetables		spinach	Spinat;Blattspinat	épinards;épinard	ほうれん草;ほうれんそう;ホウレンソウ	菠菜;bocai
-32	corn	vegetables		sweetcorn;sweet corn;corn;corn on the cob	Mais;Maiskolben	maïs;épi de maïs	コーン;とうもろこし;トウモロコシ	玉米;yumi
-33	courgette	vegetables		courgette;courgettes;zucchini;zucchinis	Zucchini;Zucchinis	courgette;courgettes	ズッキーニ	西葫芦;西葫蘆;xihulu
-34	aubergine	vegetables		aubergine;aubergines;eggplant;eggplants	Aubergine;Auberginen	aubergine;aubergines	なす;ナス;茄子	茄子;qiezi
-35	pumpkin	vegetables		pumpkin;pumpkins;squash	Kürbis;Kürbisse	potiron;potirons;citrouille;citrouilles;courge;courges	かぼちゃ;カボチャ;南瓜	南瓜;nangua
-36	leek	vegetables		leek;leeks	Lauch;Porree;Lauchstange	poireau;poireaux	長ねぎ;ねぎ;ネギ;長ネギ;ながねぎ;葱	大葱;大蔥;葱;蔥;dacong;cong
-37	celery	vegetables		celery	Sellerie;Staudensellerie;Stangensellerie	céleri;céleri branche	セロリ	芹菜;qincai
-38	sweet_potato	vegetables		sweet potato;sweet potatoes	Süßkartoffel;Süßkartoffeln	patate douce;patates douces	さつまいも;サツマイモ;薩摩芋	红薯;紅薯;地瓜;番薯;hongshu;fanshu
+27	lettuce	vegetables		lettuce	Salat;Kopfsalat;Blattsalat;Eisbergsalat	salade;salades;laitue;laitues	レタス	生菜;shengcai
+28	bell_pepper	vegetables		bell peppers;bell pepper;pepper;peppers;capsicum;capsicums;red pepper;red peppers;green pepper;green peppers;sweet pepper;sweet peppers	Paprika;Paprikas;Paprikaschote	poivron;poivrons	ピーマン;パプリカ	青椒;甜椒;彩椒;菜椒;灯笼椒;燈籠椒;qingjiao;tianjiao;caijiao;denglongjiao
+29	cabbage	vegetables	bocai_baocai	cabbage;cabbages	Kohl;Weißkohl;Kohlkopf;Weißkraut	chou;choux	キャベツ	卷心菜;圆白菜;包菜;包心菜;捲心菜;圓白菜;juanxincai;yuanbaicai;baocai;baoxincai
+30	mushrooms	vegetables		mushrooms;mushroom	Pilze;Pilz;Champignons;Champignon	champignons;champignon	きのこ;キノコ;マッシュルーム;茸	蘑菇;mogu
+31	spinach	vegetables	bocai_baocai	spinach	Spinat;Blattspinat	épinards;épinard	ほうれん草;ほうれんそう;ホウレンソウ	菠菜;bocai
+32	corn	vegetables		sweetcorn;sweet corn;corn;corn on the cob	Mais;Maiskolben	maïs;maïs doux;épi de maïs;épis de maïs;blé d’Inde	コーン;とうもろこし;トウモロコシ	玉米;yumi
+33	courgette	vegetables		courgettes;courgette;zucchini;zucchinis	Zucchini;Zucchinis;Zucchetti	courgette;courgettes	ズッキーニ	西葫芦;西葫蘆;xihulu
+34	aubergine	vegetables		aubergine;aubergines;eggplant;eggplants	Aubergine;Auberginen;Melanzani	aubergine;aubergines	なす;ナス;茄子;なすび	茄子;qiezi
+35	pumpkin	vegetables		pumpkin;pumpkins;squash;butternut squash	Kürbis;Kürbisse	potiron;potirons;citrouille;citrouilles;courge;courges	かぼちゃ;カボチャ;南瓜	南瓜;nangua
+36	leek	vegetables		leeks;leek	Lauch;Porree;Lauchstange	poireau;poireaux	長ねぎ;ねぎ;ネギ;長ネギ;ながねぎ;葱;長葱;白ねぎ;しろねぎ	大葱;大蔥;葱;蔥;dacong;cong
+37	celery	vegetables		celery	Sellerie;Staudensellerie;Stangensellerie	céleri;céleri branche	セロリ	芹菜;西芹;qincai;xiqin
+38	sweet_potato	vegetables	melon	sweet potatoes;sweet potato	Süßkartoffel;Süßkartoffeln	patate douce;patates douces	さつまいも;サツマイモ;薩摩芋;さつま芋	红薯;紅薯;地瓜;番薯;hongshu;digua;fanshu
 39	asparagus	vegetables		asparagus	Spargel	asperges;asperge	アスパラ;アスパラガス	芦笋;蘆筍;lusun
-40	green_beans	vegetables		green beans;green bean;runner beans;french beans	grüne Bohnen;Bohnen;Brechbohnen	haricots verts;haricot vert	いんげん;インゲン;さやいんげん;いんげん豆	四季豆;豆角;sijidou;doujiao
+40	green_beans	vegetables		green beans;green bean;runner beans;french beans;string beans	grüne Bohnen;Bohnen;Brechbohnen;Fisolen	haricots verts;haricot vert	いんげん;インゲン;さやいんげん;いんげん豆	四季豆;豆角;sijidou;doujiao
 41	bean_sprouts	vegetables		bean sprouts;beansprouts	Sojasprossen;Mungobohnensprossen	germes de soja;pousses de soja	もやし;モヤシ	豆芽;豆芽菜;douya;douyacai
-42	coriander	vegetables		coriander;cilantro	Koriander	coriandre	パクチー;香菜;コリアンダー	香菜;芫荽;xiangcai;yuansui
-43	parsley	vegetables		parsley	Petersilie	persil	パセリ	欧芹;歐芹;ouqin
-44	chilli	vegetables		chilli;chillies;chili;chilies;chili pepper	Chili;Chilis;Peperoni;Chilischote	piment;piments	唐辛子;とうがらし;トウガラシ	辣椒;lajiao
+42	coriander	vegetables	herbs	coriander;cilantro	Koriander	coriandre	パクチー;香菜;コリアンダー	香菜;芫荽;xiangcai;yansui;yuansui
+43	parsley	vegetables	herbs	parsley	Petersilie	persil	パセリ	欧芹;歐芹;法香;洋香菜;ouqin;faxiang;yangxiangcai
+44	chilli	vegetables		chillies;chilli;chili;chilies;chili pepper;chili peppers;chilli pepper;chilli peppers	Chili;Chilis;Peperoni;Chilischote;Pfefferoni	piment;piments;piment fort;piments forts	唐辛子;とうがらし;トウガラシ	辣椒;lajiao
 45	milk	dairy		milk	Milch	lait	牛乳;ぎゅうにゅう;ミルク	牛奶;niunai
-46	soy_milk	dairy		soya milk;soy milk;soymilk	Sojamilch;Sojadrink	lait de soja;boisson au soja	豆乳;とうにゅう	豆浆;豆奶;豆漿;doujiang;dounai
+46	soy_milk	dairy		soya milk;soy milk;soymilk	Sojamilch;Sojadrink	lait de soja;boisson au soja;boisson soja;lait de soya	豆乳;とうにゅう	豆浆;豆奶;豆漿;doujiang;dounai
 47	butter	dairy		butter	Butter	beurre	バター	黄油;黃油;huangyou
-48	cheese	dairy		cheese	Käse;Kaese	fromage	チーズ	奶酪;芝士;乳酪;nailao;zhishi
-49	yoghurt	dairy		yoghurt;yogurt;yoghurts;yogurts	Joghurt;Jogurt	yaourt;yaourts;yogourt;yoghourt	ヨーグルト	酸奶;suannai
-50	eggs	dairy	oeuf_boeuf	eggs;egg	Eier;Ei	œufs;œuf	卵;たまご;タマゴ;玉子	鸡蛋;雞蛋;蛋;jidan
-51	cream	dairy		cream;double cream;whipping cream	Sahne;Schlagsahne;Rahm	crème;crème liquide;crème fleurette	生クリーム;なまクリーム;クリーム	奶油;淡奶油;鲜奶油;鮮奶油;naiyou
-52	condensed_milk	dairy		condensed milk	Kondensmilch;Dosenmilch	lait concentré;lait concentré sucré	練乳;れんにゅう;コンデンスミルク	炼乳;煉乳;lianru
-53	bread	bakery	bread	bread;loaf	Brot	pain	パン	面包;麵包;mianbao
-54	sliced_bread	bakery	bread	sliced bread;toast;toast bread	Toastbrot;Toast	pain de mie	食パン;しょくぱん	吐司;土司;tusi
-55	bread_rolls	bakery	bread	bread rolls;bread roll;rolls;roll;buns	Brötchen;Semmeln;Semmel;Schrippen	petits pains;petit pain	ロールパン	餐包;小餐包;canbao
+48	cheese	dairy		cheese	Käse;Kaese	fromage;fromages	チーズ	奶酪;芝士;乳酪;起司;nailao;zhishi;rulao;qisi
+49	yoghurt	dairy		yoghurt;yogurt;yoghurts;yogurts	Joghurt;Jogurt	yaourt;yaourts;yogourt;yogourts;yoghourt;yoghourts	ヨーグルト	酸奶;suannai
+50	eggs	dairy	oeuf_boeuf	eggs;egg	Eier;Ei	œufs;œuf	卵;たまご;タマゴ;玉子	鸡蛋;雞蛋;蛋;jidan;dan
+51	cream	dairy		cream;double cream;single cream;whipping cream;heavy cream;whipped cream	Sahne;Schlagsahne;Rahm;Schlagobers;Obers	crème;crème fraîche;crème liquide;crème fleurette	生クリーム;なまクリーム;クリーム	淡奶油;奶油;鲜奶油;鮮奶油;dannaiyou;naiyou;xiannaiyou
+52	condensed_milk	dairy		condensed milk;sweetened condensed milk	Kondensmilch;Dosenmilch	lait concentré;lait concentré sucré	練乳;れんにゅう;コンデンスミルク	炼乳;煉乳;炼奶;煉奶;lianru;liannai
+53	bread	bakery	bread	bread;loaf;loaves;loaf of bread	Brot	pain;pains	パン	面包;麵包;mianbao
+54	sliced_bread	bakery	bread	sliced bread;toast;sliced loaf;sandwich bread	Toastbrot;Toast	pain de mie	食パン;しょくぱん	吐司;土司;tusi
+55	bread_rolls	bakery	bread	bread rolls;bread roll;rolls;roll;buns;bun	Brötchen;Semmeln;Semmel;Schrippen;Weckerl;Weggli	petits pains;petit pain;pistolets;pistolet	ロールパン	餐包;小餐包;小面包;小麵包;canbao;xiaocanbao;xiaomianbao
 56	cake	bakery		cake;cakes	Kuchen;Torte	gâteau;gâteaux	ケーキ	蛋糕;dangao
-57	doughnut	bakery	donatsu_pinatsu	doughnut;doughnuts;donut;donuts	Donut;Donuts;Doughnut	donut;donuts;beignet;beignets	ドーナツ;ドーナッツ	甜甜圈;tiantianquan
-58	waffle	bakery		waffle;waffles	Waffel;Waffeln	gaufre;gaufres	ワッフル	华夫饼;華夫餅;huafubing
-59	biscuits	bakery		biscuits;biscuit;cookies;cookie	Kekse;Keks;Plätzchen	biscuits;biscuit;gâteaux secs;cookies;cookie	クッキー;ビスケット	饼干;餅乾;binggan
-60	muffin	bakery		muffin;muffins	Muffin;Muffins	muffin;muffins	マフィン	玛芬;马芬;瑪芬;mafen
-61	cereal	bakery		cereal;cereals;cornflakes	Müsli;Cornflakes;Frühstücksflocken	céréales;céréale;corn flakes;cornflakes	シリアル;コーンフレーク	麦片;麥片;燕麦片;maipian;yanmaipian
-62	breadcrumbs	bakery		breadcrumbs;breadcrumb	Paniermehl;Semmelbrösel	chapelure	パン粉;ぱんこ	面包糠;麵包糠;面包屑;mianbaokang
-63	chicken	meat_fish		chicken	Hähnchen;Hühnchen;Hähnchenfleisch;Huhn;Hühnerfleisch	poulet	鶏肉;とりにく;鳥肉;チキン;鶏	鸡肉;雞肉;鸡;jirou
+57	doughnut	bakery	donatsu_pinatsu	doughnuts;doughnut;donut;donuts	Donut;Donuts;Doughnut	donut;donuts;beignet;beignets;beigne;beignes;doughnut;doughnuts	ドーナツ;ドーナッツ	甜甜圈;tiantianquan
+58	waffle	bakery		waffles;waffle	Waffel;Waffeln	gaufre;gaufres	ワッフル	华夫饼;華夫餅;huafubing
+59	biscuits	bakery		biscuits;biscuit;cookies;cookie	Kekse;Keks;Plätzchen	biscuits;biscuit;gâteaux secs;gâteau sec;cookies;cookie	クッキー;ビスケット	饼干;餅乾;binggan
+60	muffin	bakery		muffins;muffin	Muffin;Muffins	muffin;muffins	マフィン	玛芬;马芬;麦芬;瑪芬;馬芬;麥芬;mafen;maifen
+61	cereal	bakery		cereal;cereals;breakfast cereal;cornflakes	Müsli;Cornflakes;Frühstücksflocken;Cerealien	céréales;céréale;corn flakes;cornflakes	シリアル;コーンフレーク	麦片;麥片;燕麦片;燕麥片;maipian;yanmaipian
+62	breadcrumbs	bakery		breadcrumbs;breadcrumb	Paniermehl;Semmelbrösel	chapelure	パン粉;ぱんこ	面包糠;麵包糠;面包屑;麵包屑;mianbaokang;mianbaoxie
+63	chicken	meat_fish		chicken	Hähnchen;Hühnchen;Hähnchenfleisch;Huhn;Hühnerfleisch;Hähnchenbrust;Hendl;Poulet	poulet	鶏肉;とりにく;鳥肉;チキン;鶏;とり肉;とり	鸡肉;雞肉;鸡;雞;jirou;ji
 64	beef	meat_fish	oeuf_boeuf	beef	Rindfleisch;Rind	bœuf;viande de bœuf	牛肉;ぎゅうにく	牛肉;niurou
-65	mince	meat_fish		mince;minced meat;ground beef;ground meat	Hackfleisch;Hack;Gehacktes	viande hachée;haché;hachée	ひき肉;ひきにく;挽肉;挽き肉;ミンチ	肉馅;肉餡;肉末;绞肉;rouxian;roumo
-66	salmon	meat_fish		salmon	Lachs	saumon	鮭;さけ;しゃけ;サーモン	三文鱼;三文魚;鲑鱼;sanwenyu;guiyu
-67	tuna	meat_fish		tuna	Thunfisch	thon	まぐろ;マグロ;鮪;ツナ	金枪鱼;金槍魚;吞拿鱼;jinqiangyu
-68	prawns	meat_fish		prawns;prawn;shrimp;shrimps	Garnelen;Garnele;Shrimps;Krabben	crevettes;crevette	えび;エビ;海老	虾;蝦;虾仁;xia;xiaren
-69	sausages	meat_fish		sausages;sausage	Würstchen;Wurst;Würste	saucisses;saucisse	ソーセージ;ウインナー	香肠;香腸;腊肠;xiangchang
+65	mince	meat_fish		mince;minced meat;minced beef;beef mince;ground beef;ground meat	Hackfleisch;Hack;Gehacktes;Faschiertes	viande hachée;haché;hachée;bœuf haché	ひき肉;ひきにく;挽肉;挽き肉;ミンチ	肉馅;肉餡;肉末;绞肉;絞肉;rouxian;roumo;jiaorou
+66	salmon	meat_fish		salmon	Lachs	saumon	鮭;さけ;しゃけ;サーモン	三文鱼;三文魚;鲑鱼;鮭魚;sanwenyu;guiyu
+67	tuna	meat_fish		tuna;tinned tuna;canned tuna;tuna fish	Thunfisch;Tunfisch	thon	まぐろ;マグロ;鮪;ツナ;ツナ缶;つなかん	金枪鱼;金槍魚;吞拿鱼;吞拿魚;jinqiangyu;tunnayu
+68	prawns	meat_fish		prawns;prawn;shrimp;shrimps	Garnelen;Garnele;Shrimps;Krabben	crevettes;crevette	えび;エビ;海老	虾;蝦;虾仁;蝦仁;大虾;大蝦;xia;xiaren;daxia
+69	sausages	meat_fish		sausages;sausage	Würstchen;Wurst;Würste;Würstel	saucisses;saucisse	ソーセージ;ウインナー;ウィンナー	香肠;香腸;腊肠;臘腸;火腿肠;火腿腸;xiangchang;lachang;huotuichang
 70	ham	meat_fish		ham	Schinken	jambon	ハム	火腿;huotui
-71	bacon	meat_fish		bacon	Speck;Bacon;Frühstücksspeck	lardons;bacon;lard	ベーコン	培根;peigen
+71	bacon	meat_fish		bacon	Speck;Bacon;Frühstücksspeck	lardons;lardon;bacon;lard;poitrine fumée	ベーコン	培根;peigen
 72	tofu	meat_fish		tofu	Tofu	tofu	豆腐;とうふ;トウフ	豆腐;doufu
 73	mackerel	meat_fish		mackerel	Makrele;Makrelen	maquereau;maquereaux	さば;サバ;鯖	青花鱼;青花魚;鲭鱼;鯖魚;qinghuayu;qingyu
-74	squid	meat_fish		squid;calamari	Tintenfisch;Kalmar;Calamari	calamar;calamars;calmar;encornet	いか;イカ;烏賊	鱿鱼;魷魚;墨鱼;youyu;moyu
+74	squid	meat_fish		squid;calamari	Tintenfisch;Kalmar;Calamari	calamar;calamars;calmar;calmars;encornet;encornets	いか;イカ;烏賊	鱿鱼;魷魚;墨鱼;墨魚;youyu;moyu
 75	cod	meat_fish		cod	Kabeljau;Dorsch	cabillaud;morue	たら;タラ;鱈	鳕鱼;鱈魚;xueyu
-76	sardines	meat_fish		sardines;sardine	Sardinen;Sardine	sardines;sardine	いわし;イワシ;鰯	沙丁鱼;沙丁魚;shadingyu
+76	sardines	meat_fish		sardines;sardine	Sardinen;Sardine;Ölsardinen	sardines;sardine	いわし;イワシ;鰯	沙丁鱼;沙丁魚;shadingyu
 77	rice	pantry		rice	Reis	riz	お米;米;こめ;おこめ;ライス	大米;米;dami;mi
-78	pasta	pantry		pasta;spaghetti	Nudeln;Pasta;Spaghetti	pâtes;pasta;spaghettis;spaghetti	パスタ;スパゲッティ;スパゲティ	意面;意麵;意大利面;意大利麵;意粉;yimian;yidalimian
-79	flour	pantry		flour;plain flour	Mehl;Weizenmehl	farine	小麦粉;こむぎこ;薄力粉	面粉;麵粉;mianfen
-80	sugar	pantry		sugar	Zucker	sucre	砂糖;さとう	白糖;糖;砂糖;baitang;tang
-81	salt	pantry		salt	Salz	sel	塩;しお	盐;鹽;食盐;yan
-82	oil	pantry	oil	oil;cooking oil;vegetable oil;sunflower oil	Öl;Oel;Speiseöl;Sonnenblumenöl;Rapsöl	huile;huile de tournesol	油;あぶら;サラダ油;サラダあぶら	食用油;油;shiyongyou;you
-83	olive_oil	pantry	oil	olive oil	Olivenöl	huile d’olive	オリーブ油;オリーブオイル	橄榄油;橄欖油;ganlanyou
+78	pasta	pantry		pasta;spaghetti	Nudeln;Pasta;Spaghetti;Spagetti	pâtes;pasta;spaghettis;spaghetti	パスタ;スパゲッティ;スパゲティ	意面;意麵;意大利面;意大利麵;意粉;yimian;yidalimian;yifen
+79	flour	pantry	flour	flour;plain flour	Mehl;Weizenmehl	farine	小麦粉;こむぎこ;薄力粉;はくりきこ	面粉;麵粉;mianfen
+80	sugar	pantry	sweets	sugar	Zucker	sucre	砂糖;さとう	白糖;糖;砂糖;白砂糖;baitang;tang;shatang;baishatang
+81	salt	pantry		salt	Salz	sel	塩;しお	盐;鹽;食盐;食鹽;yan;shiyan
+82	oil	pantry	oil	oil;cooking oil;vegetable oil;sunflower oil	Öl;Oel;Speiseöl;Sonnenblumenöl;Rapsöl	huile;huile de tournesol	油;あぶら;サラダ油;サラダゆ	食用油;油;shiyongyou;you
+83	olive_oil	pantry	oil	olive oil	Olivenöl	huile d’olive	オリーブ油;オリーブオイル;オリーブゆ	橄榄油;橄欖油;ganlanyou
 84	vinegar	pantry		vinegar	Essig	vinaigre	お酢;酢;す;おす	醋;cu
-85	soy_sauce	pantry		soy sauce;soya sauce	Sojasoße;Sojasauce	sauce soja	醤油;しょうゆ;しょう油;ショウユ	酱油;醬油;jiangyou
+85	soy_sauce	pantry		soy sauce;soya sauce	Sojasoße;Sojasauce	sauce soja	醤油;しょうゆ;しょう油;ショウユ;醬油	酱油;醬油;生抽;老抽;jiangyou;shengchou;laochou
 86	honey	pantry		honey	Honig	miel	はちみつ;ハチミツ;蜂蜜	蜂蜜;fengmi
-87	jam	pantry		jam	Marmelade;Konfitüre	confiture	ジャム	果酱;果醬;guojiang
+87	jam	pantry		jam;jams	Marmelade;Konfitüre	confiture	ジャム	果酱;果醬;guojiang
 88	ketchup	pantry		ketchup;tomato ketchup	Ketchup;Tomatenketchup	ketchup	ケチャップ	番茄酱;番茄醬;fanqiejiang
-89	mayonnaise	pantry		mayonnaise;mayo	Mayonnaise;Mayo	mayonnaise;mayo	マヨネーズ;マヨ	蛋黄酱;蛋黃醬;美乃滋;danhuangjiang;meinaizi
+89	mayonnaise	pantry		mayonnaise;mayo	Mayonnaise;Mayo;Majonäse	mayonnaise;mayo	マヨネーズ;マヨ	蛋黄酱;蛋黃醬;美乃滋;沙拉酱;沙拉醬;danhuangjiang;meinaizi;shalajiang
 90	mustard	pantry		mustard	Senf	moutarde	マスタード;からし;辛子	黄芥末;黃芥末;芥末;huangjiemo;jiemo
-91	curry	pantry		curry;curry powder;curry paste	Curry;Currypulver;Currypaste	curry;cari	カレー;カレールー;カレー粉	咖喱;咖哩;gali
-92	sesame	pantry		sesame;sesame seeds	Sesam	sésame;graines de sésame	ごま;ゴマ;胡麻	芝麻;zhima
+91	curry	pantry		curry;curry powder;curry paste	Curry;Currypulver;Currypaste	curry;cari	カレー;カレールー;カレー粉;カレーこ	咖喱;咖哩;gali
+92	sesame	pantry		sesame seeds;sesame;sesame seed	Sesam	sésame;graines de sésame	ごま;ゴマ;胡麻	芝麻;zhima
 93	cinnamon	pantry		cinnamon	Zimt	cannelle	シナモン;ニッキ	肉桂;桂皮;rougui;guipi
 94	coffee	drinks		coffee	Kaffee	café	コーヒー;珈琲	咖啡;kafei
-95	tea	drinks	tea	tea;tea bags	Tee;Teebeutel	thé;sachets de thé	お茶;おちゃ;茶;紅茶;こうちゃ	茶;茶叶;茶葉;cha;chaye
+95	tea	drinks	tea	tea;tea bags	Tee;Teebeutel	thé;sachets de thé	お茶;おちゃ;茶;紅茶;こうちゃ	茶;茶叶;茶葉;红茶;紅茶;cha;chaye;hongcha
 96	green_tea	drinks	tea	green tea	grüner Tee;Grüntee	thé vert	緑茶;りょくちゃ	绿茶;綠茶;lucha;lvcha
-97	water	drinks	water	water;mineral water;bottled water	Wasser;Mineralwasser;Tafelwasser	eau;eau minérale	水;みず;ミネラルウォーター	矿泉水;水;礦泉水;kuangquanshui;shui
-98	fizzy_water	drinks	water	fizzy water;sparkling water;soda water	Sprudelwasser;Sprudel	eau gazeuse;eau pétillante	炭酸水;たんさんすい	苏打水;气泡水;蘇打水;氣泡水;sudashui;qipaoshui
-99	juice	drinks		juice;fruit juice;orange juice;apple juice	Saft;Orangensaft;Apfelsaft;Fruchtsaft	jus;jus de fruits;jus d’orange;jus de pomme	ジュース	果汁;guozhi
-100	beer	drinks		beer	Bier	bière	ビール	啤酒;pijiu
-101	wine	drinks		wine;red wine;white wine	Wein;Rotwein;Weißwein	vin;vin rouge;vin blanc	ワイン;赤ワイン;白ワイン	葡萄酒;红酒;紅酒;putaojiu;hongjiu
-102	champagne	drinks		champagne;sparkling wine	Sekt;Champagner;Schaumwein	champagne;mousseux;vin mousseux	シャンパン;スパークリングワイン	香槟;香檳;起泡酒;xiangbin;qipaojiu
-103	cola	drinks		cola	Cola	cola	コーラ	可乐;可樂;kele
-104	cocoa	drinks		cocoa;hot chocolate;drinking chocolate	Kakao;Kakaopulver;Trinkschokolade	cacao;chocolat chaud;chocolat en poudre	ココア	可可;热可可;熱可可;keke
+97	water	drinks	water	water;still water;mineral water;bottled water	Wasser;Mineralwasser;Tafelwasser;stilles Wasser	eau;eau minérale;eau plate	水;みず;ミネラルウォーター	矿泉水;水;礦泉水;纯净水;純淨水;kuangquanshui;shui;chunjingshui
+98	fizzy_water	drinks	water	fizzy water;sparkling water;soda water;carbonated water;seltzer;club soda	Sprudelwasser;Sprudel	eau gazeuse;eau pétillante	炭酸水;たんさんすい	苏打水;气泡水;蘇打水;氣泡水;sudashui;qipaoshui
+99	juice	drinks	orange	juice;fruit juice;orange juice;apple juice	Saft;Orangensaft;Apfelsaft;Fruchtsaft;O-Saft	jus;jus de fruits;jus de fruit;jus d’orange;jus de pomme	ジュース	果汁;橙汁;苹果汁;蘋果汁;guozhi;chengzhi;pingguozhi
+100	beer	drinks		beer;beers	Bier	bière	ビール	啤酒;pijiu
+101	wine	drinks	wine	wine;wines;red wine;white wine	Wein;Rotwein;Weißwein	vin;vin rouge;vin blanc;vin rosé	ワイン;赤ワイン;白ワイン;あかワイン;しろワイン	葡萄酒;红酒;紅酒;putaojiu;hongjiu
+102	champagne	drinks	wine	champagne;sparkling wine	Sekt;Champagner;Schaumwein;Prosecco	champagne;mousseux;vin mousseux	シャンパン;スパークリングワイン	香槟;香檳;起泡酒;xiangbin;qipaojiu
+103	cola	drinks		cola	Cola	cola;coca	コーラ	可乐;可樂;kele
+104	cocoa	drinks		cocoa;hot chocolate;drinking chocolate	Kakao;Kakaopulver;Trinkschokolade	cacao;chocolat chaud;chocolat en poudre	ココア	可可;热可可;熱可可;keke;rekeke
 105	whisky	drinks		whisky;whiskey	Whisky;Whiskey	whisky	ウイスキー;ウィスキー	威士忌;weishiji
-106	ice_cream	frozen_snacks		ice cream;ice-cream	Eis;Eiscreme;Speiseeis	glace;glaces;crème glacée	アイス;アイスクリーム	冰淇淋;冰激凌;雪糕;bingqilin;xuegao
-107	pizza	frozen_snacks		pizza	Pizza;Tiefkühlpizza	pizza	ピザ;ピッツァ	披萨;比萨;披薩;pisa;bisa
-108	crisps	frozen_snacks		crisps;potato chips;chips	Chips;Kartoffelchips	chips	ポテチ;ポテトチップス;ポテトチップ;チップス	薯片;shupian
-109	chocolate	frozen_snacks		chocolate;chocolate bar	Schokolade;Tafel Schokolade;Schoki	chocolat;tablette de chocolat	チョコ;チョコレート;板チョコ	巧克力;qiaokeli
+106	ice_cream	frozen_snacks		ice cream;ice-cream	Eis;Eiscreme;Speiseeis	glace;glaces;crème glacée	アイス;アイスクリーム	冰淇淋;冰激凌;雪糕;bingqilin;bingjiling;xuegao
+107	pizza	frozen_snacks		pizza	Pizza;Tiefkühlpizza;TK-Pizza	pizza	ピザ;ピッツァ	披萨;比萨;披薩;比薩;pisa;bisa
+108	crisps	frozen_snacks		crisps;potato chips;chips	Chips;Kartoffelchips	chips;croustilles	ポテチ;ポテトチップス;ポテトチップ;チップス	薯片;shupian
+109	chocolate	frozen_snacks		chocolate;chocolate bar	Schokolade;Tafel Schokolade;Schoki	chocolat;tablette de chocolat	チョコ;チョコレート;板チョコ;いたチョコ	巧克力;qiaokeli
 110	peanuts	frozen_snacks	donatsu_pinatsu	peanuts;peanut	Erdnüsse;Erdnuss	cacahuètes;cacahuète;cacahouètes;cacahouète;arachides	ピーナッツ;ピーナツ;落花生;らっかせい	花生;huasheng
 111	almonds	frozen_snacks		almonds;almond	Mandeln;Mandel	amandes;amande	アーモンド	杏仁;巴旦木;xingren;badanmu
 112	pistachios	frozen_snacks		pistachios;pistachio	Pistazien;Pistazie	pistaches;pistache	ピスタチオ	开心果;開心果;kaixinguo
-113	walnuts	frozen_snacks		walnuts;walnut	Walnüsse;Walnuss	noix	くるみ;クルミ;胡桃	核桃;hetao
-114	raisins	frozen_snacks	grapes	raisins;raisin;sultanas	Rosinen;Rosine	raisins secs;raisin sec	レーズン;干しぶどう;ほしぶどう	葡萄干;葡萄乾;putaogan
-115	sweets	frozen_snacks	mangguo_tangguo	sweets;sweet;candy	Bonbons;Bonbon	bonbons;bonbon	飴;あめ;キャンディ;キャンディー	糖果;tangguo
-116	chewing_gum	frozen_snacks		chewing gum;gum	Kaugummi	chewing-gum	ガム;チューインガム	口香糖;kouxiangtang
-117	marshmallows	frozen_snacks		marshmallows;marshmallow	Marshmallows;Marshmallow	guimauves;guimauve;marshmallows	マシュマロ	棉花糖;mianhuatang
-118	detergent	household		detergent;washing powder;laundry detergent;washing liquid	Waschmittel	lessive	洗剤;せんざい;洗濯洗剤	洗衣液;洗衣粉;xiyiye;xiyifen
-119	tissues	household		tissues;tissue;paper tissues	Taschentücher;Taschentuch	mouchoirs;mouchoir;mouchoirs en papier	ティッシュ;ティッシュペーパー	纸巾;紙巾;zhijin
+113	walnuts	frozen_snacks		walnuts;walnut	Walnüsse;Walnuss	noix;cerneaux de noix	くるみ;クルミ;胡桃	核桃;hetao
+114	raisins	frozen_snacks	grapes	raisins;raisin;sultanas	Rosinen;Rosine;Sultaninen	raisins secs;raisin sec	レーズン;干しぶどう;ほしぶどう;干し葡萄	葡萄干;葡萄乾;putaogan
+115	sweets	frozen_snacks	sweets	sweets;sweet;candy;candies	Bonbons;Bonbon	bonbons;bonbon	飴;あめ;キャンディ;キャンディー	糖果;tangguo
+116	chewing_gum	frozen_snacks		chewing gum;gum;bubble gum	Kaugummi	chewing-gum	ガム;チューインガム	口香糖;kouxiangtang
+117	marshmallows	frozen_snacks		marshmallows;marshmallow	Marshmallows;Marshmallow;Mäusespeck	guimauves;guimauve;marshmallows;marshmallow;chamallows;chamallow	マシュマロ	棉花糖;mianhuatang
+118	detergent	household		detergent;washing powder;washing liquid;laundry detergent;laundry liquid;laundry powder	Waschmittel;Waschpulver	lessive	洗剤;せんざい;洗濯洗剤;せんたくせんざい	洗衣液;洗衣粉;xiyiye;xiyifen
+119	tissues	household		tissues;tissue;paper tissues;facial tissues	Taschentücher;Taschentuch	mouchoirs;mouchoir;mouchoirs en papier	ティッシュ;ティッシュペーパー	纸巾;紙巾;抽纸;抽紙;面巾纸;面巾紙;zhijin;chouzhi;mianjinzhi
 120	sponge	household		sponge;sponges	Schwamm;Schwämme	éponge;éponges	スポンジ	海绵;海綿;haimian
-121	bin_bags	household		bin bags;bin bag;bin liners;rubbish bags;trash bags;garbage bags	Müllbeutel;Müllsäcke;Mülltüten	sacs poubelle;sac poubelle	ゴミ袋;ごみ袋;ごみぶくろ	垃圾袋;lajidai
-122	light_bulb	household		light bulb;lightbulb;bulb	Glühbirne;Glühbirnen	ampoule;ampoules	電球;でんきゅう	灯泡;燈泡;dengpao
+121	bin_bags	household		bin bags;bin bag;bin liners;rubbish bags;trash bags;garbage bags	Müllbeutel;Müllsäcke;Mülltüten	sacs poubelle;sac poubelle;sacs poubelles;sacs à ordures	ゴミ袋;ごみ袋;ごみぶくろ	垃圾袋;lajidai
+122	light_bulb	household		light bulbs;light bulb;lightbulbs;lightbulb;bulb;bulbs	Glühbirne;Glühbirnen;Glühlampe;Glühlampen	ampoule;ampoules	電球;でんきゅう	灯泡;燈泡;dengpao
 123	batteries	household		batteries;battery	Batterien;Batterie	piles;pile	電池;でんち;乾電池;かんでんち	电池;電池;dianchi
-124	candles	household		candles;candle	Kerzen;Kerze	bougies;bougie	ろうそく;ロウソク;蝋燭;キャンドル	蜡烛;蠟燭;lazhu
-125	flowers	household		flowers;flower;bunch of flowers	Blumen;Blumenstrauß	fleurs;fleur;bouquet de fleurs	花;はな;花束	鲜花;鮮花;花;xianhua;hua
-126	matches	household		matches;box of matches	Streichhölzer;Streichholz;Zündhölzer	allumettes;allumette	マッチ	火柴;huochai
+124	candles	household	sweets	candles;candle	Kerzen;Kerze	bougies;bougie	ろうそく;ロウソク;蝋燭;キャンドル	蜡烛;蠟燭;lazhu
+125	flowers	household	flour	flowers;flower;bunch of flowers	Blumen;Blumenstrauß	fleurs;fleur;bouquet de fleurs	花;はな;花束;はなたば	鲜花;鮮花;花;xianhua;hua
+126	matches	household		matches;box of matches	Streichhölzer;Streichholz;Zündhölzer;Zündholz	allumettes;allumette	マッチ	火柴;huochai
 127	lighter	household		lighter	Feuerzeug	briquet	ライター	打火机;打火機;dahuoji
-128	clothes_pegs	household		clothes pegs;clothes peg;clothespins	Wäscheklammern;Wäscheklammer	pinces à linge;pince à linge	洗濯ばさみ;せんたくばさみ	衣夹;衣夾;晾衣夹;yijia
-129	toothpaste	personal_care		toothpaste	Zahnpasta;Zahncreme	dentifrice	歯磨き粉;はみがきこ;歯みがき粉	牙膏;yagao
-130	toothbrush	personal_care		toothbrush;toothbrushes	Zahnbürste;Zahnbürsten	brosse à dents	歯ブラシ;はぶらし;ハブラシ	牙刷;yashua
-131	shampoo	personal_care		shampoo	Shampoo;Haarshampoo	shampooing;shampoing	シャンプー	洗发水;洗髮水;洗发露;xifashui
-132	soap	personal_care		soap;hand soap	Seife;Handseife	savon	石けん;石鹸;せっけん;セッケン;ハンドソープ	香皂;肥皂;xiangzao;feizao
-133	deodorant	personal_care		deodorant;deo	Deo;Deodorant;Deospray	déodorant;déo	制汗剤;せいかんざい;デオドラント	止汗露;止汗剂;除臭剂;香体露;zhihanlu;chuchouji
-134	sun_cream	personal_care		sun cream;suncream;sunscreen;sun lotion	Sonnencreme;Sonnenschutz;Sonnenmilch	crème solaire	日焼け止め;ひやけどめ;日焼止め	防晒霜;防曬霜;fangshaishuang
-135	razor	personal_care		razor;razors;razor blades	Rasierer;Rasierklingen	rasoir;rasoirs	カミソリ;かみそり;剃刀;ひげそり	剃须刀;剃鬚刀;刮胡刀;tixudao;guahudao
-136	cotton_buds	personal_care		cotton buds;cotton bud;cotton swabs	Wattestäbchen	cotons-tiges;coton-tige	綿棒;めんぼう	棉签;棉籤;mianqian
+128	clothes_pegs	household		clothes pegs;clothes peg;pegs;clothespins;clothespin	Wäscheklammern;Wäscheklammer;Wäschekluppen	pinces à linge;pince à linge;épingles à linge;épingle à linge	洗濯ばさみ;せんたくばさみ;洗濯挟み	晾衣夹;晾衣夾;衣夹;衣夾;衣服夹;衣服夾;liangyijia;yijia;yifujia
+129	toothpaste	personal_care		toothpaste	Zahnpasta;Zahncreme	dentifrice;pâte dentifrice	歯磨き粉;はみがきこ;歯みがき粉;歯磨き;はみがき	牙膏;yagao
+130	toothbrush	personal_care		toothbrush;toothbrushes	Zahnbürste;Zahnbürsten	brosse à dents;brosses à dents;brosse à dent	歯ブラシ;はぶらし;ハブラシ	牙刷;yashua
+131	shampoo	personal_care		shampoo	Shampoo;Haarshampoo	shampooing;shampoing	シャンプー	洗发水;洗髮水;洗发露;洗髮露;xifashui;xifalu
+132	soap	personal_care		soap;hand soap	Seife;Handseife	savon	石けん;石鹸;せっけん;セッケン;ハンドソープ;石鹼	香皂;肥皂;xiangzao;feizao
+133	deodorant	personal_care		deodorant;deo;antiperspirant	Deo;Deodorant;Deospray	déodorant;déo	制汗剤;せいかんざい;デオドラント	止汗露;止汗剂;止汗劑;除臭剂;除臭劑;香体露;香體露;zhihanlu;zhihanji;chuchouji;xiangtilu
+134	sun_cream	personal_care		sun cream;suncream;sunscreen;sunblock;sun lotion	Sonnencreme;Sonnenschutz;Sonnenmilch	crème solaire;écran solaire	日焼け止め;ひやけどめ;日焼止め	防晒霜;防曬霜;防晒;防曬;防晒乳;防曬乳;fangshaishuang;fangshai;fangshairu
+135	razor	personal_care		razor;razors;razor blades	Rasierer;Rasierklingen	rasoir;rasoirs	カミソリ;かみそり;剃刀;ひげそり;髭剃り;ひげ剃り	剃须刀;剃鬚刀;刮胡刀;刮鬍刀;tixudao;guahudao
+136	cotton_buds	personal_care		cotton buds;cotton bud;cotton swabs	Wattestäbchen	cotons-tiges;coton-tige	綿棒;めんぼう	棉签;棉籤;棉棒;mianqian;mianbang
 137	plasters	personal_care		plasters;plaster;bandages	Pflaster;Heftpflaster	pansements;pansement	絆創膏;ばんそうこう	创可贴;創可貼;chuangketie
-138	nappies	personal_care		nappies;nappy;diapers;diaper	Windeln;Windel	couches;couche	おむつ;オムツ;紙おむつ	纸尿裤;紙尿褲;尿布;zhiniaoku;niaobu
-139	dental_floss	personal_care		dental floss;floss	Zahnseide	fil dentaire	フロス;デンタルフロス;糸ようじ	牙线;牙線;yaxian
-140	nail_clippers	personal_care		nail clippers;nail clipper	Nagelknipser	coupe-ongles	爪切り;つめきり	指甲刀;指甲剪;zhijiadao;zhijiajian
+138	nappies	personal_care		nappies;nappy;diapers;diaper	Windeln;Windel	couches;couche	おむつ;オムツ;紙おむつ;かみおむつ	纸尿裤;紙尿褲;尿布;尿不湿;尿不濕;zhiniaoku;niaobu;niaobushi
+139	dental_floss	personal_care		dental floss;floss	Zahnseide	fil dentaire	フロス;デンタルフロス;糸ようじ;いとようじ;糸楊枝	牙线;牙線;yaxian
+140	nail_clippers	personal_care		nail clippers;nail clipper	Nagelknipser;Nagelzwicker	coupe-ongles	爪切り;つめきり	指甲刀;指甲剪;zhijiadao;zhijiajian
