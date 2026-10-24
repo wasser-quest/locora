@@ -7,6 +7,8 @@
 //!   round begins. The key alone holds the level: a marker of a kind this version does not know
 //!   (Locora Cloud's daily writes `cloud_daily` under the same keys), or one whose value does not
 //!   read, is the day's try all the same.
+//! - `g/<epoch>/t/<discipline>/<level>/<seed>/<round_id>`: [`SightingFact`], written when any
+//!   other round begins: its task was shown, also if the round is never handed in
 //! - `g/<epoch>/e/<round_id>/<evening_id>`: [`EveningFact`], written when an evening recall is
 //!   handed in
 //!
@@ -17,8 +19,11 @@
 //!
 //! Two devices may play the same daily offline: the round with the earliest start marker is the
 //! day's try, the other counts as practice. A task counts for records only the first time any
-//! device saw it (a round or a start marker with its seed); rounds without a time limit never
-//! count for records or trophies.
+//! device saw it (a round, a start marker or a sighting with its seed). Whether a task was new is
+//! decided on the device when the round begins and stored with it (`first`), so a clock set back
+//! never makes a replay the first play; the earliest start only settles tasks that two devices
+//! saw first at the same time, offline. Rounds without a time limit never count for records or
+//! trophies.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -57,6 +62,20 @@ pub fn marker_key(
     )
 }
 
+pub fn sighting_key(
+    epoch: &str,
+    discipline: Discipline,
+    level: Level,
+    seed: Seed,
+    round_id: &str,
+) -> String {
+    format!(
+        "g/{epoch}/t/{}/{}/{seed}/{round_id}",
+        discipline.as_str(),
+        level.get()
+    )
+}
+
 pub fn evening_key(epoch: &str, round_id: &str, evening_id: &str) -> String {
     format!("g/{epoch}/e/{round_id}/{evening_id}")
 }
@@ -88,6 +107,10 @@ pub struct RoundFact {
     pub points: u16,
     pub max: u16,
     pub perfect: bool,
+    /// Whether the task was new to the device when the round began, as its start marker or
+    /// sighting says; `None` when no fact says.
+    #[serde(default)]
+    pub first: Option<bool>,
 }
 
 /// The kind of the start markers this version writes.
@@ -100,6 +123,19 @@ pub struct MarkerFact {
     pub v: u16,
     pub kind: String,
     pub started_at_ms: u64,
+    /// Whether the task was new to this device when the round began.
+    #[serde(default)]
+    pub first: Option<bool>,
+}
+
+/// A round other than a daily began (the discipline, level, seed and round id are in the key).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SightingFact {
+    pub v: u16,
+    pub started_at_ms: u64,
+    /// Whether the task was new to this device when the round began.
+    #[serde(default)]
+    pub first: Option<bool>,
 }
 
 /// An evening recall as it was handed in.
@@ -149,12 +185,26 @@ impl Marker {
     }
 }
 
+/// A sighting with what its key says.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Sighting {
+    pub discipline: Discipline,
+    pub level: Level,
+    pub seed: Seed,
+    pub round_id: String,
+    pub fact: SightingFact,
+}
+
+/// A task: its discipline, level and seed.
+pub type TaskKey = (Discipline, Level, Seed);
+
 /// The readable facts of one epoch.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Facts {
     /// By round id.
     pub rounds: BTreeMap<String, RoundFact>,
     pub markers: Vec<Marker>,
+    pub sightings: Vec<Sighting>,
     /// By the id of the morning round.
     pub evenings: BTreeMap<String, Vec<EveningFact>>,
 }
@@ -194,6 +244,23 @@ pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch
                         level,
                         round_id: id.to_owned(),
                         fact: serde_json::from_slice(value).ok(),
+                    });
+                }
+            }
+            ["t", discipline, level, seed, id] => {
+                let parsed = (
+                    Discipline::parse(discipline),
+                    level.parse().ok().and_then(Level::new),
+                    Seed::from_hex(seed),
+                    serde_json::from_slice::<SightingFact>(value),
+                );
+                if let (Some(discipline), Some(level), Some(seed), Ok(fact)) = parsed {
+                    facts.sightings.push(Sighting {
+                        discipline,
+                        level,
+                        seed,
+                        round_id: id.to_owned(),
+                        fact,
                     });
                 }
             }
@@ -263,13 +330,20 @@ fn swapped(task: &[u8], recall: &[Option<u8>]) -> bool {
     })
 }
 
+/// Whether a round is the first play of its task.
+fn first_play(first: &BTreeMap<TaskKey, Seen<'_>>, round: &RoundFact) -> bool {
+    first
+        .get(&(round.discipline, round.level, round.seed))
+        .is_some_and(|(_, id)| *id == round.id)
+}
+
 /// Rounds in the order they were handed in.
 fn by_finish(round: &RoundFact) -> (u64, &str) {
     (round.finished_at_ms, round.id.as_str())
 }
 
-/// The order in which tasks were first seen: when a round or a start marker began.
-type Sighting<'a> = (u64, &'a str);
+/// The order in which tasks were seen: when a round began, then its id.
+type Seen<'a> = (u64, &'a str);
 
 impl Facts {
     /// The day's try of a daily challenge: its earliest start marker, of any kind. Once there
@@ -289,13 +363,14 @@ impl Facts {
                 .is_some_and(|first| first.round_id != round.id)
     }
 
-    /// The first sighting of every task (discipline, level and seed) on any device.
-    fn first_sightings(&self) -> BTreeMap<(Discipline, Level, Seed), Sighting<'_>> {
-        let mut first: BTreeMap<(Discipline, Level, Seed), Sighting<'_>> = BTreeMap::new();
+    /// Every time a task was shown: a round handed in, the start marker of a daily, the sighting
+    /// of another round. With when and for which round, and whether the task was new then.
+    fn shown(&self) -> impl Iterator<Item = (TaskKey, Seen<'_>, Option<bool>)> {
         let rounds = self.rounds.values().map(|round| {
             (
                 (round.discipline, round.level, round.seed),
                 (round.started_at_ms, round.id.as_str()),
+                round.first,
             )
         });
         // A marker of another kind (Locora Cloud's daily) had another task.
@@ -307,9 +382,42 @@ impl Facts {
                     daily_seed(m.date, m.discipline, m.level),
                 ),
                 m.order(),
+                m.fact.as_ref().and_then(|fact| fact.first),
             )
         });
-        for (task, seen) in rounds.chain(markers) {
+        let sightings = self.sightings.iter().map(|s| {
+            (
+                (s.discipline, s.level, s.seed),
+                (s.fact.started_at_ms, s.round_id.as_str()),
+                s.fact.first,
+            )
+        });
+        rounds.chain(markers).chain(sightings)
+    }
+
+    /// Whether the task was shown for any round but `round_id`, here or on another device.
+    pub fn seen(&self, task: TaskKey, round_id: &str) -> bool {
+        self.shown()
+            .any(|(shown, (_, id), _)| shown == task && id != round_id)
+    }
+
+    /// Whether the task was new when round `round_id` began, as its start marker or sighting
+    /// says.
+    pub fn first_when_shown(&self, task: TaskKey, round_id: &str) -> Option<bool> {
+        self.shown()
+            .find(|(shown, (_, id), _)| *shown == task && *id == round_id)
+            .and_then(|(_, _, first)| first)
+    }
+
+    /// The first play of every task on any device: of the rounds, markers and sightings whose
+    /// device had not seen the task, the earliest. One that had seen it is a replay, whatever
+    /// its clock says.
+    fn first_plays(&self) -> BTreeMap<TaskKey, Seen<'_>> {
+        let mut first: BTreeMap<TaskKey, Seen<'_>> = BTreeMap::new();
+        for (task, seen, new) in self.shown() {
+            if new == Some(false) {
+                continue;
+            }
             let slot = first.entry(task).or_insert(seen);
             if seen < *slot {
                 *slot = seen;
@@ -320,22 +428,15 @@ impl Facts {
 
     /// Whether the round's task was seen before it, here or on another device.
     pub fn repeat_seed(&self, round: &RoundFact) -> bool {
-        self.first_sightings()
-            .get(&(round.discipline, round.level, round.seed))
-            .is_some_and(|(_, id)| *id != round.id)
+        !first_play(&self.first_plays(), round)
     }
 
-    /// Rounds that count for records: with the time limit, and the first sight of their task.
+    /// Rounds that count for records: with the time limit, and the first play of their task.
     fn record_rounds(&self) -> Vec<&RoundFact> {
-        let first = self.first_sightings();
+        let first = self.first_plays();
         self.rounds
             .values()
-            .filter(|round| {
-                !round.untimed
-                    && first
-                        .get(&(round.discipline, round.level, round.seed))
-                        .is_some_and(|(_, id)| *id == round.id)
-            })
+            .filter(|round| !round.untimed && first_play(&first, round))
             .collect()
     }
 
@@ -676,6 +777,7 @@ mod tests {
             points,
             max,
             perfect: points == max,
+            first: Some(true),
         }
     }
 
@@ -694,6 +796,7 @@ mod tests {
             v: VERSION,
             kind: DAILY.into(),
             started_at_ms: 5,
+            first: Some(true),
         };
         let mut newer =
             serde_json::to_value(round("e", Kind::Code, Discipline::List, 1, 0)).unwrap();
@@ -716,6 +819,11 @@ mod tests {
                 json(&marker),
             ),
             ("g/0/s/2026-10-28/cards/4/x".into(), json(&marker)),
+            (
+                sighting_key("0", Discipline::List, level(3), Seed::new(9).unwrap(), "a"),
+                br#"{"v":1,"started_at_ms":7,"first":true}"#.to_vec(),
+            ),
+            ("g/0/t/list/3/9/b".into(), json(&marker)),
             ("legacy/x".into(), b"1".to_vec()),
         ];
         let facts = facts(&entries);
@@ -724,6 +832,8 @@ mod tests {
         assert!(!facts.rounds.contains_key("x"), "stored under another id");
         assert_eq!(facts.markers.len(), 1, "level 4 does not exist");
         assert_eq!(facts.markers[0].level, level(2));
+        assert_eq!(facts.sightings.len(), 1, "a seed is 15 hex digits");
+        assert_eq!(facts.sightings[0].fact.started_at_ms, 7);
     }
 
     #[test]
@@ -775,6 +885,7 @@ mod tests {
                 v: VERSION,
                 kind: DAILY.into(),
                 started_at_ms,
+                first: Some(true),
             }),
         }
     }
@@ -836,6 +947,7 @@ mod tests {
             v: VERSION,
             kind: DAILY.into(),
             started_at_ms: 2 * H,
+            first: Some(true),
         };
         let mut entries = vec![
             (key(1, "c"), serde_json::to_vec(&cloud).unwrap()),
@@ -927,6 +1039,34 @@ mod tests {
         let best = facts.best(Discipline::List, level(1)).unwrap();
         assert_eq!((best.round_id.as_str(), best.points), ("b", 7));
         assert!(facts.repeat_seed(&again) && !facts.repeat_seed(&first));
+        // A replay with the clock set back: its device had seen the task, whatever the time.
+        let mut back = round("f", Kind::Code, Discipline::List, 1, 10);
+        back.started_at_ms = 0;
+        back.first = Some(false);
+        facts.rounds.insert("f".into(), back.clone());
+        assert!(facts.repeat_seed(&back) && !facts.repeat_seed(&first));
+        // The same for a round that was looked at and left; one seen first takes the task.
+        let sighting = |id: &str, started_at_ms, first| Sighting {
+            discipline: Discipline::List,
+            level: level(1),
+            seed: Seed::new(0x123).unwrap(),
+            round_id: id.into(),
+            fact: SightingFact {
+                v: VERSION,
+                started_at_ms,
+                first: Some(first),
+            },
+        };
+        facts.sightings.push(sighting("g", 1, false));
+        assert_eq!(
+            facts.best(Discipline::List, level(1)).unwrap().round_id,
+            "b"
+        );
+        facts.sightings.push(sighting("h", 2, true));
+        assert_eq!(facts.best(Discipline::List, level(1)), None);
+        assert!(facts.repeat_seed(&first));
+        facts.sightings.clear();
+        facts.rounds.remove("f");
         // A faster round with the same points takes the record; a slower one does not.
         let mut faster = round("d", Kind::Practice, Discipline::List, 1, 7);
         faster.seed = Seed::new(0x789).unwrap();

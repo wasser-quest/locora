@@ -14,7 +14,7 @@ mod facts;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use facts::{EveningFact, FIRST_EPOCH, Facts, MarkerFact, RoundFact, VERSION};
+use facts::{EveningFact, FIRST_EPOCH, Facts, MarkerFact, RoundFact, SightingFact, VERSION};
 use locora_competition::{
     Date, Discipline, Lang, Level, Seed, Spec, daily_seed, generate, schedule, score, texts,
     validate,
@@ -212,7 +212,9 @@ impl Contest {
     }
 
     /// A round begins. A daily round must be the day's discipline with the day's seed, and a
-    /// learning day has one try per level: its start marker is written now.
+    /// learning day has one try per level: its start marker is written now. Any other round
+    /// writes a sighting: its task is shown now, also if it is never handed in. Both keep
+    /// whether the task was new to this device.
     fn begin(
         &mut self,
         kv: &mut impl Storage,
@@ -222,10 +224,25 @@ impl Contest {
         check_id(&request.round_id)?;
         let spec = Spec::standard(request.discipline, request.level);
         let task = generate(&spec, request.seed)?;
+        let epoch = request.epoch.as_str();
+        let shown = (request.discipline, request.level, request.seed);
+        let first = !self.facts().seen(shown, &request.round_id);
         if request.kind != Kind::Daily {
+            let sighting = SightingFact {
+                v: VERSION,
+                started_at_ms: request.now_ms,
+                first: Some(first),
+            };
+            let key = facts::sighting_key(
+                epoch,
+                request.discipline,
+                request.level,
+                request.seed,
+                &request.round_id,
+            );
+            self.write(kv, &key, json(&sighting)?)?;
             return Ok((BeginResponse { spec, task }, None));
         }
-        let epoch = request.epoch.as_str();
         check_daily(
             request.date,
             request.discipline,
@@ -246,6 +263,7 @@ impl Contest {
             v: VERSION,
             kind: facts::DAILY.into(),
             started_at_ms: request.now_ms,
+            first: Some(first),
         };
         let key = facts::marker_key(
             epoch,
@@ -309,6 +327,13 @@ impl Contest {
                     .min(spec.recall_ms.saturating_add(RECALL_GRACE_MS)),
             )
         };
+        // Whether the task was new when the round began, as its marker or sighting says: a
+        // clock set back since then changes nothing.
+        let shown = (request.discipline, request.level, request.seed);
+        let facts = self.facts();
+        let first = facts
+            .first_when_shown(shown, &request.round_id)
+            .unwrap_or_else(|| !facts.seen(shown, &request.round_id));
         let before = self.trophies();
         let fact = RoundFact {
             v: VERSION,
@@ -331,6 +356,7 @@ impl Contest {
             points: score.points,
             max: score.max,
             perfect: score.perfect,
+            first: Some(first),
         };
         self.write(kv, &key, json(&fact)?)?;
         let trophies = new_trophies(&before, self.trophies());
@@ -787,9 +813,12 @@ mod tests {
                 (fact.kind, fact.points, fact.memorize_ms),
                 (play.kind, finished.score.max, 61_000)
             );
-            // Only a daily writes a start marker, and the tile shows today's daily.
+            // A daily writes a start marker, any other round a sighting; the tile shows today's
+            // daily.
             let markers = kv.keys.keys().filter(|k| k.starts_with("g/0/s/")).count();
             assert_eq!(markers, usize::from(play.kind == Kind::Daily));
+            let sightings = kv.keys.keys().filter(|k| k.starts_with("g/0/t/")).count();
+            assert_eq!(sightings, n + 1 - markers);
             let expected = if play.kind == Kind::Daily {
                 "Heute: Karten – {0}/{1}"
             } else {
@@ -963,6 +992,44 @@ mod tests {
             );
             assert_eq!(records.daily_days, 1);
         }
+    }
+
+    #[test]
+    fn a_task_counts_for_records_once_also_when_left_or_replayed_with_the_clock_set_back() {
+        let mut contest = Contest::default();
+        let mut kv = Memory::new(5000);
+        let code = Play::new(Kind::Code, Discipline::Cards, 2, 0x123_4567_89ab_cdef);
+        // Looked at and left without a result; played again with the answers seen.
+        let task = code
+            .begin(&mut contest, &mut kv, &id(1), 2 * H)
+            .unwrap()
+            .task;
+        code.begin(&mut contest, &mut kv, &id(2), 3 * H).unwrap();
+        let replay = code.hand_in(&id(2), perfect(&task, Lang::De), 3 * H + H / 4);
+        let (finished, _) = contest.finish(&mut kv, replay).unwrap();
+        assert!(finished.repeat_seed && !finished.record.new);
+        assert_eq!(finished.record.best, None);
+        assert_eq!(stored(&kv, "0", &id(2)).first, Some(false));
+        // Played honestly first, then again with the clock an hour earlier.
+        let other = Play::new(Kind::Code, Discipline::Cards, 2, 0x42);
+        let task = other
+            .begin(&mut contest, &mut kv, &id(3), 4 * H)
+            .unwrap()
+            .task;
+        let honest = other.hand_in(&id(3), other.blank(), 4 * H + H / 4);
+        let (finished, _) = contest.finish(&mut kv, honest).unwrap();
+        assert!(finished.record.new && !finished.repeat_seed);
+        other.begin(&mut contest, &mut kv, &id(4), 3 * H).unwrap();
+        let back = other.hand_in(&id(4), perfect(&task, Lang::De), 3 * H + H / 4);
+        let (finished, _) = contest.finish(&mut kv, back).unwrap();
+        assert!(finished.repeat_seed && !finished.record.new);
+        let best = finished.record.best.unwrap();
+        assert_eq!((best.round_id, best.points), (id(3), 0));
+        // Nor does looking at it again with the clock set back take the record away.
+        other.begin(&mut contest, &mut kv, &id(5), H).unwrap();
+        let cards_2 = &records(&mut contest, &mut kv).levels[7];
+        assert_eq!(cards_2.best.as_ref().unwrap().round_id, id(3));
+        assert_eq!(cards_2.rounds, 3);
     }
 
     #[test]

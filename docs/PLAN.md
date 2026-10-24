@@ -447,6 +447,10 @@ daraus ab. Alles läuft offline, ohne Konto und kostenlos.
 - **Abendabfrage:** Jede Tagesrunde lässt sich ab sechs Stunden nach der Abgabe bis einen Tag danach noch einmal
   abrufen, ohne zweiten Blick. Sie ist persönlich und kommt in keine Rangliste.
 - **Rekorde** je Disziplin und Stufe zählen nur das erste Spiel einer Aufgabe (auf irgendeinem Gerät) mit Zeitlimit.
+  Schon das Zeigen zählt: Auch eine Runde, die nie abgegeben wird, hat ihre Aufgabe gesehen. Ob eine Aufgabe neu war,
+  entscheidet das Gerät beim Start und speichert es mit (`first`), damit eine zurückgestellte Uhr keine Wiederholung
+  zum ersten Spiel macht; die früheste Startzeit entscheidet nur zwischen Geräten, die dieselbe Aufgabe offline zum
+  ersten Mal gesehen haben.
   Acht Trophäen (`compete-*`), jede mit dem Lerntag, an dem sie zuerst verdient wurde. Gezählt werden Tage mit
   Tages-Challenge insgesamt, nie als Serie.
 - **XP fürs Mitmachen, nicht für Punkte:** 10, 15 oder 20 je Stufe der Tages-Challenge, 5 für die Abendabfrage, für
@@ -457,7 +461,8 @@ daraus ab. Alles läuft offline, ohne Konto und kostenlos.
 **Daten: Fakten statt Zähler,** wie bei `gamification`, aber als JSON mit Version `v` (eine ältere Version liest die
 Fakten einer neueren und überliest unbekannte Felder), unter der Spiel-Epoche der Laufzeit:
 `g/<epoche>/r/<runde>` (die abgegebene Runde: Seed, Antworten, Punkte, Zeiten, Lerndatum, Sprache, Route),
-`g/<epoche>/s/<datum>/<disziplin>/<stufe>/<runde>` (die Startmarke einer Tagesrunde, beim Start geschrieben) und
+`g/<epoche>/s/<datum>/<disziplin>/<stufe>/<runde>` (die Startmarke einer Tagesrunde, beim Start geschrieben),
+`g/<epoche>/t/<disziplin>/<stufe>/<seed>/<runde>` (die Sichtung jeder anderen Runde, ebenfalls beim Start) und
 `g/<epoche>/e/<runde>/<abendabfrage>`. Runden-Ids sind UUID v7 (32 Hex-Zeichen), Seeds 60 Bit aus dem Zufall des
 Systems. Jeder Schlüssel wird einmal geschrieben, der Sync vereinigt die Geräte. Haben zwei Geräte dieselbe
 Tages-Challenge offline gespielt, ist die Runde mit der frühesten Startmarke der Versuch des Tages, die andere zählt

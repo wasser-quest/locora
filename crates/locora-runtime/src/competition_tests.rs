@@ -162,7 +162,7 @@ fn deleting_the_game_progress_empties_the_contest_on_both_devices() {
             .store
             .kv_list(PLUGIN, "g/0/", 0, 1000)
             .unwrap();
-        assert_eq!(old.entries.len(), 2);
+        assert_eq!(old.entries.len(), 4, "two rounds and their sightings");
         assert!(old.entries.iter().all(|(_, value)| value.is_empty()));
     }
     // B's next round counts, on both.
