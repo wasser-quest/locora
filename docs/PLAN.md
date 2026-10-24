@@ -218,7 +218,7 @@ Ein zur Laufzeit geladenes Plugin kann keine Leptos-Komponenten in die fertig ko
 
 **Fremde Plugins auf dem Handy: Warnung, dann auf eigene Verantwortung**
 
-Die offiziellen Plugins (`core`, `review`, `notify`, `tutorial`, `gamification`) kommen mit der App.
+Die offiziellen Plugins (`core`, `review`, `notify`, `tutorial`, `gamification`, `competition`) kommen mit der App.
 Ed25519-Signaturen sind für die Plugin-Pakete vorgesehen und noch nicht umgesetzt.
 Für alle anderen Plugins gilt auf **Android und iOS** (auf Desktop in Kurzform, siehe unten):
 

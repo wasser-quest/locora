@@ -145,7 +145,7 @@ Stand: 24.10.2026
   - Offen: eine Wiederholungsrunde für heute falsch Beantwortetes („relearn“) und ein Coach für immer wieder vergessene Orte („leech“)
 - [ ] Plugin-Verzeichnis, WASM-Plugins von Dritten mit deklarativer UI, Store-Prüfung für iOS/Android
 
-## Gedächtnis-Wettkampf (0.1.7)
+## Gedächtnis-Wettkampf (0.1.8)
 
 Einkaufsliste, Zahlen und Karten in drei Stufen gegen die Uhr: Tages-Challenge, Übungsrunden, Challenge-Codes für Freunde; in Stufe 2 Duelle und Ranglisten über Locora Cloud. Grundlage sind die Spezifikation des Wettkampfs und ihr Nachtrag.
 
