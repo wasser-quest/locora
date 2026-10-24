@@ -29,6 +29,12 @@ after(async () => {
 });
 
 /** A fresh browser profile: its own IndexedDB, so each test starts with no palaces. */
+/** Reloads `page` once everything it saved is in IndexedDB (a command answers before its save is done). */
+async function reloadSaved(page) {
+  await page.evaluate(() => globalThis.locoraSaved?.());
+  await page.reload({ waitUntil: 'load' });
+}
+
 async function openApp(options = {}) {
   // `phone` is a touch screen: the commands then sit in a bar at the bottom.
   const phone = options.phone ? { hasTouch: true, isMobile: true } : {};
@@ -134,7 +140,7 @@ test('palaces and progress survive a reload: everything is kept on this device',
     await page.keyboard.press('Space');
     await page.keyboard.press('3');
     await page.waitForTimeout(1500);
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 15000 });
     assert.match(await page.locator('body').innerText(), /Learn Locora/, 'the tutorial palace is still there');
     assert.deepEqual(problems, []);
@@ -252,7 +258,7 @@ test('the app reloads and opens offline: the service worker keeps the app and th
     // The worker must control the page before the network goes away.
     await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20000 });
     await context.setOffline(true);
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.waitForFunction(() => document.body.innerText.includes('Learn Locora'), null, { timeout: 20000 });
     // A new page in the same browser profile opens offline too.
     const second = await context.newPage();
@@ -323,7 +329,7 @@ test('the app tour is shown: the tutorial plugin highlights the controls step by
     await page.locator('.tour-panel').getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('region', { name: 'App tour' }).waitFor({ state: 'detached', timeout: 15000 });
     assert.equal(await page.locator('.celebration').count(), 0, 'nothing to celebrate');
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
     await page.locator('.medal[data-achievement="tour-done"].locked').waitFor({ timeout: 15000 });
     assert.deepEqual(problems, []);
@@ -401,7 +407,7 @@ test('reminders reach the browser notifications once, and the page does not show
         };
       }
     });
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
     await page.waitForFunction(() => window.__TAURI__, null, { timeout: 15000 });
     await page.evaluate(() => window.__TAURI__.core.invoke('settings_set', {
@@ -986,14 +992,14 @@ test('the first start shows only the language choice, not a tour left from earli
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.waitForFunction(() => document.body.innerText.includes('Step 2 of 13'), null, { timeout: 15000 });
     await page.evaluate(() => localStorage.removeItem('locora-language-v1'));
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('dialog').waitFor({ timeout: 15000 });
     assert.equal(await page.getByRole('region', { name: 'App tour' }).count(), 0, 'no tour behind the choice');
     await page.getByRole('button', { name: 'English' }).click();
     await page.getByRole('button', { name: 'App tour', exact: true }).waitFor({ timeout: 15000 });
     await page.waitForTimeout(1000);
     assert.equal(await page.getByRole('region', { name: 'App tour' }).count(), 0, 'the old tour does not resume');
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('button', { name: 'App tour', exact: true }).waitFor({ timeout: 15000 });
     await page.waitForTimeout(1000);
     assert.equal(await page.getByRole('region', { name: 'App tour' }).count(), 0, 'and stays closed');
@@ -1010,7 +1016,7 @@ test('the first start asks for the language and then speaks it', async () => {
     await page.getByRole('button', { name: 'Deutsch' }).click();
     await page.getByRole('button', { name: 'App-Tour starten' }).waitFor({ timeout: 15000 });
     assert.equal(await page.getByRole('dialog').count(), 0, 'the choice is gone');
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('button', { name: 'App-Tour starten' }).waitFor({ timeout: 15000 });
     assert.equal(await page.getByRole('dialog').count(), 0, 'the choice is remembered');
     assert.deepEqual(problems, []);
@@ -1187,7 +1193,7 @@ test('a lesson opens with its character, its check unlocks an achievement, and n
     await page.getByText('1 of 17 done').waitFor();
     assert.equal(await page.locator('.learn-tile.done').count(), 1);
     // Kept in the store with the other achievements: still there after a reload.
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
     await page.getByText('1 of 17 done').waitFor({ timeout: 15000 });
     await page.locator('.medal[data-achievement="learn-basics"]:not(.locked)').waitFor({ state: 'attached', timeout: 15000 });
@@ -1321,7 +1327,7 @@ test('a journey earns XP for new loci whatever the grade, a mistake costs nothin
   try {
     // Quick mode off: the line under each answer stays until „Next“.
     await page.evaluate(() => localStorage.setItem('locora-locus-display-v1', JSON.stringify({ quick_next: false })));
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await openTutorial(page);
     const lines = [];
     const done = await walkTutorial(page, '1', async (n) => {
@@ -1432,7 +1438,7 @@ test('an install from before the sync keeps its progress: the old IndexedDB blob
     const keys = await page.evaluate(() => window.__TAURI__.core.invoke('gamification_status', { full: false }));
     assert.equal(keys.xp, 340);
     // Taken over once: a reload changes nothing.
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
     const again = await page.evaluate(() => window.__TAURI__.core.invoke('gamification_status', { full: false }));
     assert.equal(again.xp, 340);
@@ -1724,7 +1730,7 @@ test('a day with nothing due lowers the week’s target, whether the app is open
     assert.deepEqual([status.week.days, status.week.free, status.week.target], [1, 0, 4]);
     // Tuesday the app is only opened: no learning day, but nothing was due, so the week needs one day less.
     await page.clock.setSystemTime(new Date('2026-10-20T08:00:00Z'));
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('button', { name: 'Settings & statistics' }).waitFor({ timeout: 15000 });
     status = await gameStatus(page);
     assert.equal(status.learning_days, 1);
@@ -1732,7 +1738,7 @@ test('a day with nothing due lowers the week’s target, whether the app is open
     assert.deepEqual([status.week.days, status.week.free, status.week.target], [1, 1, 3]);
     // Wednesday it stays closed; Thursday morning the reviews are due (all day, though due later).
     await page.clock.setSystemTime(new Date('2026-10-22T05:00:00Z'));
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await page.getByRole('button', { name: 'Settings & statistics' }).waitFor({ timeout: 15000 });
     status = await gameStatus(page);
     assert.equal(status.learning_days, 1, 'opening the app is no learning day');
@@ -1782,7 +1788,7 @@ test('on a phone the explanation is one line, the question stays in view and a c
   const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 760 } });
   try {
     await page.evaluate(() => localStorage.setItem('locora-locus-display-v1', JSON.stringify({ quick_next: false })));
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await openTutorial(page);
     const done = await walkTutorial(page, '3', async (n) => {
       if (n !== 1) return;
@@ -2722,7 +2728,7 @@ test('the share dialog fits a phone: its buttons stay in reach and nothing scrol
   const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 667 }, initScript: simulatedKeyboard });
   try {
     await page.evaluate(() => localStorage.setItem('locora-locus-display-v1', JSON.stringify({ quick_next: false })));
-    await page.reload({ waitUntil: 'load' });
+    await reloadSaved(page);
     await openTutorial(page);
     const done = await walkTutorial(page, '3');
     // The ways there are finger-sized too.
