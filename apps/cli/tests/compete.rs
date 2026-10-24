@@ -6,16 +6,23 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
-use locora_competition::{Discipline, Lang, Level, Seed, Spec, Task, cards, code, generate, words};
+use locora_competition::{
+    Date, Discipline, Lang, Level, Seed, Spec, Task, cards, code, daily_seed, generate, words,
+};
 
 const T0: &str = "1800000000";
 
 fn run(data: &Path, args: &[&str], input: &str) -> Output {
+    run_at(data, T0, args, input)
+}
+
+/// `locora` at the time `now` (seconds since 1970).
+fn run_at(data: &Path, now: &str, args: &[&str], input: &str) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_locora"))
         .arg("--data")
         .arg(data)
         .args(args)
-        .env("LOCORA_NOW", T0)
+        .env("LOCORA_NOW", now)
         .env("LOCORA_COMPETE_SCRIPTED", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -29,7 +36,11 @@ fn run(data: &Path, args: &[&str], input: &str) -> Output {
 }
 
 fn ok(data: &Path, args: &[&str], input: &str) -> String {
-    let out = run(data, args, input);
+    ok_at(data, T0, args, input)
+}
+
+fn ok_at(data: &Path, now: &str, args: &[&str], input: &str) -> String {
+    let out = run_at(data, now, args, input);
     assert!(
         out.status.success() && out.stderr.is_empty(),
         "{args:?}\n{}\n{}",
@@ -57,11 +68,16 @@ fn task(discipline: Discipline, level: u8) -> Task {
 
 /// Enter ends memorizing, then one line per place (or per row of digits).
 fn answers(task: &Task) -> String {
+    format!("\n{}", recall(task, Lang::De))
+}
+
+/// One line per place (or per row of digits); the shopping list in `lang`.
+fn recall(task: &Task, lang: Lang) -> String {
     let lines: Vec<String> = match task {
         Task::List(items) => items
             .iter()
             .rev()
-            .map(|id| words::display(*id, Lang::De).unwrap().to_owned())
+            .map(|id| words::display(*id, lang).unwrap().to_owned())
             .collect(),
         Task::Numbers(digits) => digits
             .chunks(10)
@@ -69,7 +85,7 @@ fn answers(task: &Task) -> String {
             .collect(),
         Task::Cards(deck) => deck.iter().map(|card| typed(*card)).collect(),
     };
-    format!("\n{}\n", lines.join("\n"))
+    format!("{}\n", lines.join("\n"))
 }
 
 /// A card as typed in the terminal: `jd`, `10s`, `ah`.
@@ -235,6 +251,27 @@ fn the_daily_challenge_is_one_try_per_level() {
         evening.contains("Die Abendabfrage öffnet um 14:00"),
         "{evening}"
     );
+}
+
+#[test]
+fn the_evening_recall_is_scored_in_the_language_of_the_morning_round() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    // A Monday: the daily is a shopping list, played in English.
+    let monday = 1_800_259_200;
+    let date = Date::parse("2027-01-18").unwrap();
+    let level = Level::new(1).unwrap();
+    let spec = Spec::standard(Discipline::List, level);
+    let list = generate(&spec, daily_seed(date, Discipline::List, level)).unwrap();
+    let args = ["compete", "play", "--daily", "--lang", "en"];
+    let morning = format!("\n{}", recall(&list, Lang::En));
+    let out = ok_at(d, &monday.to_string(), &args, &morning);
+    assert!(out.contains("Einkaufsliste · Stufe 1 · 10 Dinge"), "{out}");
+    assert!(out.contains("10 von 10 Punkten"), "{out}");
+    // Seven hours later the same English answers keep all ten, without `--lang`.
+    let later = (monday + 7 * 3_600).to_string();
+    let out = ok_at(d, &later, &["compete", "evening"], &recall(&list, Lang::En));
+    assert!(out.contains("Behalten: 10 von 10 (vorhin: 10)"), "{out}");
 }
 
 #[test]

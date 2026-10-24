@@ -54,8 +54,9 @@ pub enum CompeteCommand {
     /// Abendabfrage einer Tagesrunde (ohne RUNDE: die offene von heute)
     Evening {
         round: Option<String>,
-        #[arg(long, default_value = "de")]
-        lang: String,
+        /// Sprache der Antworten: de, en, fr, ja oder zh (Standard: die der Runde am Morgen)
+        #[arg(long)]
+        lang: Option<String>,
     },
     /// Einen neuen Challenge-Code ausgeben
     Code {
@@ -127,7 +128,10 @@ pub fn run(app: &mut App, command: Option<CompeteCommand>) -> Result<()> {
             };
             play.run(app)
         }
-        CompeteCommand::Evening { round, lang } => evening(app, round, language(&lang)?),
+        CompeteCommand::Evening { round, lang } => {
+            let lang = lang.as_deref().map(language).transpose()?;
+            evening(app, round, lang)
+        }
         CompeteCommand::Code { discipline, level } => {
             let discipline = parse_discipline(&discipline)?;
             let level = Level::new(level).expect("1 bis 3, von clap geprüft");
@@ -849,7 +853,8 @@ fn print_places(task: &Task, recall: &Recall, score: &Score, lang: Lang) {
     }
 }
 
-fn evening(app: &mut App, round: Option<String>, lang: Lang) -> Result<()> {
+/// The evening recall, scored in the language of the morning round unless `lang` says another.
+fn evening(app: &mut App, round: Option<String>, lang: Option<Lang>) -> Result<()> {
     let scripted = scripted();
     if !scripted && !io::stdin().is_terminal() {
         bail!("`locora compete evening` braucht ein Terminal");
@@ -882,6 +887,7 @@ fn evening(app: &mut App, round: Option<String>, lang: Lang) -> Result<()> {
         }
     };
     let view = app.compete_evening(&round_id)?;
+    let lang = lang.unwrap_or(view.lang);
     match view.state {
         EveningState::Open => {}
         EveningState::Locked => bail!(
