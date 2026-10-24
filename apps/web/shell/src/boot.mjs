@@ -37,6 +37,9 @@ let files = null;
 let pluginDb = null;
 let fileSystem = null;
 let saving = Promise.resolve();
+// Settles once everything saved so far is in IndexedDB. A command answers before its save is done,
+// so a page reloaded right after one could miss it; the browser tests wait on this before reloading.
+globalThis.locoraSaved = () => saving;
 
 // The app works offline through its service worker, and keeps its data safe from the browser's
 // cleanup: a persistent request asks the browser not to evict the device's storage.
@@ -142,7 +145,10 @@ function persist() {
   saving = saving.then(() => saveChanges(files, changes)).catch((error) => console.error('save failed', error));
   for (const id of PLUGINS) {
     const changed = host.takeDirty(id);
-    if (changed.length > 0) saving = saving.then(() => flushPluginStorage(pluginDb, id, changed));
+    // A failed save must not stop the next ones: the chain only goes on from a settled step.
+    if (changed.length > 0) {
+      saving = saving.then(() => flushPluginStorage(pluginDb, id, changed)).catch((error) => console.error('save failed', error));
+    }
   }
 }
 
