@@ -7,6 +7,14 @@
 //! significant first) and a check character `alphabet[Σ (2i+1)·vᵢ mod 32]`. The
 //! odd weights are units modulo 32, so every single-character typo in the seed
 //! or the check character changes the sum and is caught.
+//!
+//! What the check character does not catch (format v1, spec §6): a typo in the
+//! prefix, which is not part of the sum, so `C3-…` for `C2-…` plays the same
+//! seed at another level and an unknown letter or level reads as
+//! [`CodeError::Newer`]; and two neighbouring seed characters swapped whose
+//! values differ by 16 (`H` and `1`, `Z` and `F`), about 3 % of all swaps,
+//! which plays another seed. The round shows its discipline and level before
+//! it starts.
 
 use crate::{Discipline, Lang, Level, Seed};
 use std::fmt;
@@ -103,22 +111,61 @@ fn value(c: char) -> Option<u8> {
         .map(|v| v as u8)
 }
 
-/// Reads a code as people type or paste it: case does not matter, spaces and
-/// hyphens (also dashes, the full-width forms and the Japanese long-vowel mark
-/// that a kana keyboard types for `-`) are ignored.
+/// Whether `c` separates the groups of a code or is invisible, so it is
+/// ignored: whitespace, hyphens and dashes, the Japanese long-vowel mark and
+/// middle dot that a kana keyboard types for `-`, and the format characters
+/// that copying from a messenger or web page adds (soft hyphen, zero-width
+/// space and joiners, direction marks, word joiner, byte order mark).
+fn ignored(c: char) -> bool {
+    c.is_whitespace()
+        || matches!(
+            c,
+            '-' | '‐' | '‑' | '‒' | '–' | '—' | '−' | 'ー' | 'ｰ' | '・' | '･'
+                | '\u{ad}'
+                | '\u{180e}'
+                | '\u{200b}'..='\u{200f}'
+                | '\u{202a}'..='\u{202e}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{2066}'..='\u{206f}'
+                | '\u{feff}'
+        )
+}
+
+/// Reads a code as people type or paste it: case does not matter, and spaces,
+/// hyphens and invisible characters are ignored. A pasted share text ends with
+/// its code ("… Same task for you: C2-28T5-CY4T-QKFF-K"), so when more than a
+/// code is left, the last 15 letters and digits are read; the check character
+/// still refuses anything else.
 pub fn decode(text: &str) -> Result<(Discipline, Level, Seed), CodeError> {
-    let chars: Vec<char> = text
+    let mut chars: Vec<char> = text
         .chars()
         .map(|c| match u32::from(c) {
             // Full-width ASCII, as a Japanese or Chinese keyboard may type it.
             0xff01..=0xff5e => char::from_u32(u32::from(c) - 0xfee0).unwrap_or(c),
             _ => c,
         })
-        .filter(|&c| {
-            !c.is_whitespace() && !matches!(c, '-' | '‐' | '‑' | '‒' | '–' | '—' | '−' | 'ー')
-        })
+        .filter(|&c| !ignored(c))
         .map(|c| c.to_ascii_uppercase())
         .collect();
+    let code_len = 2 + SEED_CHARS + 1;
+    if chars.len() > code_len {
+        // The code at the end of a longer text: after trailing punctuation, the
+        // run of letters and digits that ends it, if it is long enough.
+        let end = chars.len()
+            - chars
+                .iter()
+                .rev()
+                .take_while(|c| !c.is_ascii_alphanumeric())
+                .count();
+        let run = chars[..end]
+            .iter()
+            .rev()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .count();
+        if run >= code_len {
+            chars = chars[end - code_len..end].to_vec();
+        }
+    }
     let [d, l, rest @ ..] = chars.as_slice() else {
         return Err(CodeError::Invalid);
     };
@@ -215,6 +262,17 @@ mod tests {
     }
 
     #[test]
+    fn neighbours_16_apart_swap_unnoticed() {
+        // H is 17 and 1 is 1: the weights 3 and 5 move the sum by 2 · 16 ≡ 0.
+        let (d, l, seed) = decode("C1-WH1H-Z8Y8-1PR6-D").unwrap();
+        let (_, _, swapped) = decode("C1-W1HH-Z8Y8-1PR6-D").unwrap();
+        assert_eq!((d, l), (Discipline::Cards, level(1)));
+        assert_ne!(seed, swapped);
+        // Other neighbours swapped are refused.
+        assert_eq!(decode("C2-82T5-CY4T-QKFF-K"), Err(CodeError::Invalid));
+    }
+
+    #[test]
     fn case_spaces_hyphens_and_look_alikes() {
         for text in [
             "c2-28t5-cy4t-qkff-k",
@@ -223,6 +281,15 @@ mod tests {
             " C2–28T5—CY4T−QKFF‐K\n",
             "Ｃ２－２８Ｔ５－ＣＹ４Ｔ－ＱＫＦＦ－Ｋ",
             "C2ー28T5ーCY4TーQKFFーK",
+            "C2ｰ28T5ｰCY4TｰQKFFｰK",
+            "C2・28T5・CY4T・QKFF・K",
+            // Invisible characters that copying adds: zero-width space, byte order
+            // mark, direction marks, word joiner, soft hyphen.
+            "C2-28T5-CY4T-QKFF-K\u{200b}",
+            "\u{feff}C2-28T5-CY4T-QKFF-K",
+            "\u{200e}C2-28T5-CY4T-QKFF-K\u{200f}",
+            "C2\u{2060}-28T5-CY4T-QKFF-K",
+            "C2\u{ad}28T5\u{ad}CY4T\u{ad}QKFF\u{ad}K",
         ] {
             assert_eq!(decode(text), Ok(example()), "{text}");
         }
@@ -242,6 +309,30 @@ mod tests {
     }
 
     #[test]
+    fn a_pasted_share_text_gives_its_code() {
+        for text in [
+            "I scored 24/26 in the Locora memory contest. Same task for you: C2-28T5-CY4T-QKFF-K",
+            "Gleiche Aufgabe für dich: c2 28t5 cy4t qkff k.",
+            "同じ課題に挑戦してね：Ｃ２－２８Ｔ５－ＣＹ４Ｔ－ＱＫＦＦ－Ｋ。",
+            "同样的题目给你C2-28T5-CY4T-QKFF-K！",
+            "Play C2-28T5-CY4T-QKFF-K",
+            "XC2-28T5-CY4T-QKFF-K",
+        ] {
+            assert_eq!(decode(text), Ok(example()), "{text}");
+        }
+        // Only the end counts, and the check character still refuses the rest.
+        for text in [
+            "C2-28T5-CY4T-QKFF-K is my code, play it",
+            "Same task for you: C2-28T5-CY4T-QKFF-J",
+            "C2-28T5-CY4T-QKFF-KK",
+            "C2-28T5-CY4T-QKFFF-K",
+            "I scored 24/26 in the Locora memory contest.",
+        ] {
+            assert_eq!(decode(text), Err(CodeError::Invalid), "{text}");
+        }
+    }
+
+    #[test]
     fn prefixes_and_levels() {
         let rest = &EXAMPLE[2..];
         assert_eq!(
@@ -251,6 +342,11 @@ mod tests {
         assert_eq!(
             decode(&format!("S1{rest}")).map(|c| (c.0, c.1)),
             Ok((Discipline::List, level(1)))
+        );
+        // The prefix is not part of the check: a typo there plays the same seed.
+        assert_eq!(
+            decode(&format!("C3{rest}")),
+            Ok((Discipline::Cards, level(3), example().2))
         );
         // A letter or level of a later version.
         assert_eq!(decode(&format!("W2{rest}")), Err(CodeError::Newer));
