@@ -17,7 +17,9 @@ eine ältere Änderung schickt.
 
 Der Spielfortschritt verliert dabei nichts: jedes Gerät schreibt eigene Fakten unter eigenen
 Schlüsseln und ergänzt sie nur, die Summen leitet jedes Gerät daraus ab (siehe
-[`PLAN.md`](PLAN.md), 4.7). Im Browser liegt er dafür im Profil des Kerns, nicht in IndexedDB.
+[`PLAN.md`](PLAN.md), 4.7). Im Browser liegt er dafür im Profil des Kerns, nicht in IndexedDB. Den
+alten Stand aus IndexedDB (nie synchronisiert) übernimmt der Browser einmal als eigenen Fakt
+(`legacy/<gerät>/own`), der zum geteilten Stand des Desktops hinzukommt, statt ihn zu ersetzen.
 
 ## Spielfortschritt löschen
 
@@ -29,10 +31,14 @@ Schlüsseln und ergänzt sie nur, die Summen leitet jedes Gerät daraus ab (sieh
 - Ist das Gerät angemeldet, bittet es den Server, die Spielpunkte des Kontos für die Ranglisten
   zu löschen: `DELETE /v1/game/data` mit der Sitzung (204: erledigt, auch wenn nichts da war).
   Ein älterer Server kennt das nicht (404/405): die Ranglisteneinträge bleiben, bis er
-  aktualisiert ist, und die App sagt das. Ohne Antwort (Netz, 5xx) oder bei 401 merkt sich das
-  Gerät die Bitte (`game_delete_pending` in `cloud.json`, nur lokal) und stellt sie am Anfang
-  jedes Syncs erneut; Abmelden und Konto löschen vergessen sie. Nur das Gerät, das gelöscht hat,
-  fragt, damit spätere Punkte nicht von einem nachzüglerischen Gerät gelöscht werden.
+  aktualisiert ist, und die App sagt das. Solange der Server nicht 204 geantwortet hat (älterer
+  Server, Netz, 5xx, 401), merkt sich das Gerät die Bitte für dieses Konto
+  (`game-rankings-pending.json` im Profil, nur lokal, getrennt von der Sitzung in `cloud.json`,
+  die eine neue Anmeldung ersetzt) und stellt sie erneut: beim Start und bei jeder Statusabfrage
+  der App, nach dem Anmelden (auch nach abgelaufener Sitzung) und vor jedem Sync, unabhängig vom
+  Sync-Zugang (der Endpunkt braucht kein Abo). Nur das Gerät, das gelöscht hat, fragt, damit
+  spätere Punkte nicht von einem nachzüglerischen Gerät gelöscht werden; ein anderes Konto auf
+  dem Gerät erbt die Bitte nicht.
 - Die älteren verschlüsselten Änderungen bleiben im Protokoll des Servers, bis du „Daten in der
   Cloud löschen“ wählst; lesen kann sie dort niemand. Danach sendet das Gerät seinen Stand neu,
   mit der neuen Epoche: ein neues Gerät beginnt bei 0.

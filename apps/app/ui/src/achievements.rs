@@ -2,7 +2,7 @@
 //! and clicking it spins it; locked, it is grey, still, and says what unlocks it. The lessons of
 //! „Mnemotechnik lernen“ are grouped under „Mnemotechnik“, the gamification plugin's trophies
 //! under „Journey-Trophäen“ and the palace medals (from the review schedule) under
-//! „Palastmedaillen“. A new achievement is celebrated with a short card.
+//! „Palastmedaillen“. New achievements are celebrated with a short card each, one after another.
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -114,46 +114,92 @@ pub fn unlock(id: &'static str) {
             AchievementArgs { id: id.to_owned() },
         )
         .await;
-        if let (Ok(true), Some(Celebration(signal))) = (new, celebration) {
-            signal.set(Some(id.to_owned()));
+        if let (Ok(true), Some(celebration)) = (new, celebration) {
+            celebration.celebrate(id);
         }
     });
 }
 
-/// The achievement being celebrated right now.
+/// New achievements waiting to be celebrated, in the order they were earned: the first is
+/// shown, the next follows when it is closed or after a while. Nothing earned at the same
+/// moment is lost.
 #[derive(Clone, Copy)]
-pub struct Celebration(pub RwSignal<Option<String>>);
+pub struct Celebration(RwSignal<Vec<String>>);
+
+impl Celebration {
+    pub fn new() -> Self {
+        Self(RwSignal::new(Vec::new()))
+    }
+
+    /// Celebrates `id` after those waiting (once while it waits).
+    pub fn celebrate(&self, id: &str) {
+        self.0.update(|queue| {
+            if !queue.iter().any(|queued| queued == id) {
+                queue.push(id.to_owned());
+            }
+        });
+    }
+
+    /// The one shown now.
+    pub fn shown(&self) -> Option<String> {
+        self.0.with(|queue| queue.first().cloned())
+    }
+
+    /// Closes the one shown (when it is still `id`).
+    fn close(&self, id: &str) {
+        self.0.update(|queue| {
+            if queue.first().is_some_and(|first| first == id) {
+                queue.remove(0);
+            }
+        });
+    }
+}
+
+impl Default for Celebration {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// The heading of a celebration: one word per kind (trophies of the game, palace medals, the
+/// app's achievements).
+fn celebration_heading(id: &str) -> &'static str {
+    if id.starts_with("game-") {
+        t("Neue Trophäe!")
+    } else if id.starts_with("palace-") {
+        t("Neue Medaille!")
+    } else {
+        t("Neuer Erfolg!")
+    }
+}
 
 /// A short card for a new achievement: its medal, its title, and a button to close it.
 #[component]
 pub fn CelebrationCard() -> impl IntoView {
-    let Celebration(shown) = expect_context::<Celebration>();
+    let celebration = expect_context::<Celebration>();
     let art = expect_context::<Art>().0;
-    // It goes by itself after a while.
+    // Each goes by itself after a while.
     Effect::new(move |_| {
-        if let Some(id) = shown.get() {
+        if let Some(id) = celebration.shown() {
             set_timeout(
-                move || {
-                    if shown.get_untracked().as_deref() == Some(id.as_str()) {
-                        shown.set(None);
-                    }
-                },
+                move || celebration.close(&id),
                 std::time::Duration::from_secs(10),
             );
         }
     });
     move || {
-        let id = shown.get()?;
+        let id = celebration.shown()?;
         let (title, _) = describe(&id)?;
         let medal = art.get().and_then(|art| medal_for(&art, &id, true));
+        let close = id.clone();
         Some(view! {
             <aside class="card celebration" role="status" aria-live="polite">
                 {medal.map(|m| view! { <div class="celebration-medal"><Sply media=m /></div> })}
                 <div class="text">
-                    <strong>{t("Neuer Erfolg!")}</strong>
+                    <strong>{celebration_heading(&id)}</strong>
                     <span class="celebration-title">{title}</span>
                 </div>
-                <button on:click=move |_| shown.set(None)>{t("Schließen")}</button>
+                <button on:click=move |_| celebration.close(&close)>{t("Schließen")}</button>
             </aside>
         })
     }
@@ -161,10 +207,14 @@ pub fn CelebrationCard() -> impl IntoView {
 
 /// How much of a palace is consolidated, for its card (the meter shows the same).
 pub fn strength_text(strength: locora_app_api::Strength) -> String {
-    crate::i18n::tf(
-        "Gefestigt: {0} von {1} Orten",
-        &[&strength.solid, &strength.loci],
-    )
+    if strength.loci == 1 {
+        crate::i18n::tf("Gefestigt: {0} von 1 Ort", &[&strength.solid])
+    } else {
+        crate::i18n::tf(
+            "Gefestigt: {0} von {1} Orten",
+            &[&strength.solid, &strength.loci],
+        )
+    }
 }
 
 /// The progress of a palace medal: how many loci hold long enough.
@@ -248,7 +298,7 @@ pub fn Achievements() -> impl IntoView {
                 <details class="medal-group">
                     <summary>{t("Palastmedaillen")}" · "{done_palaces}</summary>
                     <p class="notes">{t("Paläste mit mindestens 5 Orten bekommen Medaillen.")}</p>
-                    <p class="notes">{t("Ehrliche Bewertungen halten das echt: die Medaillen folgen deinem Wiederholungsplan.")}</p>
+                    <p class="notes">{t("Medaillen zählen nur, was Wiederholungen an verschiedenen Tagen gezeigt haben; mehrmals am selben Tag zu üben bringt keine.")}</p>
                     <ul class="medals">{items}</ul>
                 </details>
             }
@@ -344,6 +394,11 @@ mod tests {
         crate::i18n::set_current(crate::i18n::Lang::En);
         let strength = locora_app_api::Strength { loci: 9, solid: 2 };
         assert_eq!(strength_text(strength), "Consolidated: 2 of 9 loci");
+        let one = locora_app_api::Strength { loci: 1, solid: 0 };
+        assert_eq!(strength_text(one), "Consolidated: 0 of 1 locus");
+        assert_eq!(celebration_heading("game-hundred-xp"), "New trophy!");
+        assert_eq!(celebration_heading("palace-7@Küche"), "New medal!");
+        assert_eq!(celebration_heading("tour-done"), "New achievement!");
         crate::i18n::set_current(crate::i18n::Lang::De);
     }
 }

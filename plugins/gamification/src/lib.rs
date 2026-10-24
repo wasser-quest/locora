@@ -10,7 +10,7 @@ mod ledger;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
-use ledger::{DayFact, Facts, MedalFact, OldProgress, WeekGoalPref};
+use ledger::{DayFact, Facts, Look, MedalFact, OldProgress, WeekGoalPref};
 use locora_sdk::api::core::{JourneyStarted, ReviewedAnswer, Timing};
 use locora_sdk::api::gamification::{
     Migrate, Reset, Seen, SessionView, Status, StatusResponse, StatusV2, StatusV2Request,
@@ -28,8 +28,11 @@ struct Gamification;
 struct State {
     mirror: BTreeMap<String, Vec<u8>>,
     rev: u64,
-    /// The epoch of the last request; old facts were emptied for it.
+    /// The epoch of the last request from the host (`status@2`, `reset@1`); old facts were
+    /// emptied for it. Events never change it.
     epoch: Option<String>,
+    /// The learning day that epoch began (see `StatusV2Request::epoch_day`).
+    epoch_day: Option<String>,
     /// Where the last answer was given: (epoch, day, device).
     context: Option<(String, String, String)>,
     session: Option<SessionView>,
@@ -159,22 +162,34 @@ fn change_day(ctx: &mut Ctx, key: &str, change: impl FnOnce(&mut DayFact) -> boo
     Ok(())
 }
 
+/// What the facts amount to on `day`, with the day the epoch began.
+fn derived(epoch: &str, day: &str) -> ledger::Derived {
+    let epoch_day = with(|state| state.epoch_day.clone());
+    ledger::derive(&facts(epoch), day, epoch_day.as_deref())
+}
+
 /// XP and earned trophies on `day`, to see what a change brought.
 fn standing(epoch: &str, day: &str) -> (u64, BTreeSet<String>) {
-    let derived = ledger::derive(&facts(epoch), day);
+    let derived = derived(epoch, day);
     (derived.xp, derived.earned())
 }
 
-/// After a change on this device: the XP it brought goes to this journey, and newly earned
-/// trophies of the older kinds are announced (`TrophyUnlocked`).
+/// After a change on this device: the XP it brought goes to this journey, newly earned trophies
+/// are noted for the journey (only this device's own changes, never what a sync brought: the
+/// facts were read before `before`), and those of the older kinds are announced
+/// (`TrophyUnlocked`).
 fn settle(ctx: &mut Ctx, before: (u64, BTreeSet<String>), epoch: &str, day: &str) -> Result {
     let (xp, earned) = standing(epoch, day);
+    let new: Vec<&String> = earned.difference(&before.1).collect();
     with(|state| {
         if let Some(session) = state.session.as_mut() {
             session.xp = session.xp.saturating_add(xp.saturating_sub(before.0));
+            session
+                .unlocked
+                .extend(new.iter().map(|id| format!("game-{id}")));
         }
     });
-    for id in earned.difference(&before.1) {
+    for id in new {
         if let Some(trophy) = ledger::old_trophy(id) {
             ctx.emit(&TrophyUnlocked { trophy })?;
         }
@@ -184,7 +199,16 @@ fn settle(ctx: &mut Ctx, before: (u64, BTreeSet<String>), epoch: &str, day: &str
 
 fn answered(ctx: &mut Ctx, event: ReviewedAnswer) -> Result {
     refresh(ctx)?;
-    adopt_epoch(ctx, &event.epoch)?;
+    // Only the host's own requests change the epoch: an event (which any plugin could publish)
+    // of another epoch is not counted, and never empties anything.
+    if with(|state| {
+        state
+            .epoch
+            .as_ref()
+            .is_some_and(|epoch| *epoch != event.epoch)
+    }) {
+        return Ok(());
+    }
     let before = standing(&event.epoch, &event.day);
     with(|state| {
         state.context = Some((event.epoch.clone(), event.day.clone(), event.device.clone()));
@@ -193,6 +217,7 @@ fn answered(ctx: &mut Ctx, event: ReviewedAnswer) -> Result {
             Timing::Due => session.due += 1,
             Timing::New => session.new += 1,
             Timing::Early => session.early += 1,
+            Timing::Repeat => session.repeat += 1,
         }
         // Only typed and chosen answers make a run; recall grades are the learner's own.
         if event.kind != AnswerKind::Recall {
@@ -202,8 +227,8 @@ fn answered(ctx: &mut Ctx, event: ReviewedAnswer) -> Result {
     let hash = ledger::locus_hash(&event.palace_id, &event.locus_id);
     let key = ledger::day_key(&event.epoch, &event.day, &event.device);
     match event.timing {
-        // Practising early is allowed and earns nothing.
-        Timing::Early => {}
+        // Practising early or again the same day is allowed and earns nothing.
+        Timing::Early | Timing::Repeat => {}
         Timing::Due => change_day(ctx, &key, |fact| fact.add_due(hash))?,
         Timing::New => change_day(ctx, &key, |fact| fact.add_new(hash))?,
     }
@@ -226,43 +251,58 @@ fn completed(ctx: &mut Ctx) -> Result {
     show(ctx, &epoch, &day)
 }
 
-/// The home tile: XP, this week and the medals, or how to begin.
+/// The home tile: XP, this week against its target and the trophies, or how to begin.
 fn show(ctx: &mut Ctx, epoch: &str, day: &str) -> Result {
-    let facts = facts(epoch);
-    let derived = ledger::derive(&facts, day);
-    let medals = derived.trophies.len() + facts.medals.len();
-    let text = if derived.xp == 0 && medals == 0 {
-        localized("Starte eine Journey, um XP zu sammeln.", &[])
-    } else {
-        localized(
-            "{0} XP · diese Woche {1}/{2} Tage · {3} Medaillen",
-            &[&derived.xp, &derived.week.days, &derived.week.goal, &medals],
-        )
-    };
-    ctx.tile("Fortschritt", text)
+    let derived = derived(epoch, day);
+    ctx.tile("Fortschritt", tile_text(&derived))
+}
+
+fn tile_text(derived: &ledger::Derived) -> String {
+    let trophies = derived.trophies.len();
+    let week = &derived.week;
+    // Beyond the target the week is simply reached.
+    let days = week.days.min(week.target);
+    match (derived.xp, trophies) {
+        (0, 0) => localized("Starte eine Journey, um XP zu sammeln.", &[]),
+        (_, 1) => localized(
+            "{0} XP · diese Woche {1}/{2} Tage · 1 Trophäe",
+            &[&derived.xp, &days, &week.target],
+        ),
+        _ => localized(
+            "{0} XP · diese Woche {1}/{2} Tage · {3} Trophäen",
+            &[&derived.xp, &days, &week.target, &trophies],
+        ),
+    }
 }
 
 fn status(ctx: &mut Ctx, request: StatusV2Request) -> Result<StatusV2Response> {
     refresh(ctx)?;
     adopt_epoch(ctx, &request.epoch)?;
+    with(|state| state.epoch_day = request.epoch_day.clone());
     let epoch = request.epoch.as_str();
     let before = standing(epoch, &request.day);
-    // A day with nothing (more) due is noted once it is seen.
-    if request.has_cards && request.due_open == 0 {
-        let due_today = facts(epoch)
-            .days
-            .get(&request.day)
-            .is_some_and(|day| !day.due.is_empty());
-        let key = ledger::day_key(epoch, &request.day, &request.device);
-        change_day(ctx, &key, |fact| {
-            let flag = if due_today {
-                &mut fact.cleared
-            } else {
-                &mut fact.free
-            };
-            !std::mem::replace(flag, true)
-        })?;
-    }
+    // What this device sees of the schedule today (it tells the days with nothing due), and
+    // whether every due review of the day is done; stored only when that changed.
+    let due_done = facts(epoch)
+        .days
+        .get(&request.day)
+        .map_or(0, ledger::Day::due_done);
+    let key = ledger::day_key(epoch, &request.day, &request.device);
+    change_day(ctx, &key, |fact| {
+        let mut changed = false;
+        if fact.look.as_ref().map(|look| &look.next) != Some(&request.next_due) {
+            fact.look = Some(Look {
+                at: request.at,
+                next: request.next_due.clone(),
+            });
+            changed = true;
+        }
+        if request.has_cards && request.due_open == 0 && due_done > 0 && !fact.cleared {
+            fact.cleared = true;
+            changed = true;
+        }
+        changed
+    })?;
     let mut palace_medals = Vec::new();
     if let Some(strengths) = &request.palaces {
         let (shown, new) = ledger::medals(&facts(epoch), strengths, &request.day);
@@ -272,16 +312,21 @@ fn status(ctx: &mut Ctx, request: StatusV2Request) -> Result<StatusV2Response> {
                 day: request.day.clone(),
             };
             write_value(ctx, &key, &fact)?;
+            with(|state| {
+                if let Some(session) = state.session.as_mut() {
+                    session.unlocked.push(format!("palace-{level}@{palace}"));
+                }
+            });
         }
         palace_medals = shown;
     }
     settle(ctx, before, epoch, &request.day)?;
     let facts = facts(epoch);
-    let derived = ledger::derive(&facts, &request.day);
+    let derived = derived(epoch, &request.day);
     show(ctx, epoch, &request.day)?;
     Ok(StatusV2Response {
         xp: derived.xp,
-        today: ledger::today(&facts, &request.day, request.due_open),
+        today: ledger::today(&facts, &request.day, request.due_open, request.repeat_open),
         week: derived.week,
         learning_days: derived.learning_days.len() as u32,
         trophies: derived.trophies,
@@ -289,6 +334,7 @@ fn status(ctx: &mut Ctx, request: StatusV2Request) -> Result<StatusV2Response> {
         palace_medals,
         session: with(|state| state.session.clone()),
         intro_seen: facts.seen.contains("game-intro"),
+        legacy: facts.legacy_xp > 0 || !facts.legacy_trophies.is_empty(),
     })
 }
 
@@ -308,7 +354,7 @@ fn status_v1(ctx: &mut Ctx, streak: u32) -> Result<StatusResponse> {
         (epoch, day)
     });
     let facts = facts(&epoch);
-    let derived = ledger::derive(&facts, &day);
+    let derived = derived(&epoch, &day);
     let today = facts.days.get(&day).cloned().unwrap_or_default();
     Ok(StatusResponse {
         xp: derived.xp,
@@ -354,10 +400,19 @@ impl Plugin for Gamification {
                     .get(ledger::PROGRESS)
                     .and_then(|bytes| locora_sdk::api::decode::<OldProgress>(bytes).ok())
             });
-            match ledger::legacy(progress.as_ref(), request.days) {
-                Some(fact) => write_value(ctx, &ledger::legacy_key(&request.device), &fact),
-                None => Ok(false),
+            let mut wrote = match ledger::legacy(progress.as_ref(), request.days) {
+                Some(fact) => write_value(ctx, &ledger::legacy_key(&request.device), &fact)?,
+                None => false,
+            };
+            // What this device kept for itself counts on top of the shared progress.
+            let own = request
+                .own
+                .as_deref()
+                .and_then(|bytes| locora_sdk::api::decode::<OldProgress>(bytes).ok());
+            if let Some(fact) = own.as_ref().and_then(ledger::own_legacy) {
+                wrote |= write_value(ctx, &ledger::own_legacy_key(&request.device), &fact)?;
             }
+            Ok(wrote)
         })?;
         ctx.provide::<Reset>(|ctx, request| {
             refresh(ctx)?;
@@ -382,4 +437,39 @@ fn localized(template: &str, args: &[&dyn std::fmt::Display]) -> String {
     args.iter().fold(format!("@@{template}"), |text, arg| {
         format!("{text}\u{1f}{arg}")
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn derived(xp: u64, trophies: usize, days: u32, target: u32) -> ledger::Derived {
+        let mut derived = ledger::derive(&Facts::default(), "2026-10-20", None);
+        derived.xp = xp;
+        derived.trophies = (0..trophies)
+            .map(|n| locora_sdk::api::gamification::Earned {
+                id: format!("t{n}"),
+                day: None,
+            })
+            .collect();
+        derived.week.days = days;
+        derived.week.target = target;
+        derived
+    }
+
+    #[test]
+    fn the_tile_counts_trophies_in_the_singular_and_stops_at_the_target() {
+        assert_eq!(
+            tile_text(&derived(0, 0, 0, 4)),
+            "@@Starte eine Journey, um XP zu sammeln."
+        );
+        assert_eq!(
+            tile_text(&derived(16, 1, 1, 4)),
+            "@@{0} XP · diese Woche {1}/{2} Tage · 1 Trophäe\u{1f}16\u{1f}1\u{1f}4"
+        );
+        assert_eq!(
+            tile_text(&derived(160, 3, 5, 4)),
+            "@@{0} XP · diese Woche {1}/{2} Tage · {3} Trophäen\u{1f}160\u{1f}4\u{1f}4\u{1f}3"
+        );
+    }
 }

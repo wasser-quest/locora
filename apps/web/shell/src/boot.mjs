@@ -92,20 +92,23 @@ async function start() {
 }
 
 /**
- * The first start after the update: a synced plugin's keys from IndexedDB go into the core's store,
- * only those the store does not have. The IndexedDB copy stays as it is, as a backup, and is not
- * read again.
+ * The first start after the update. The browser kept the game's progress for itself (IndexedDB),
+ * never synced, while the desktop's synced `progress` may already be in the core's store: two
+ * independent values. So the browser's blob is not written to the synced store, where it would
+ * replace (or be replaced by) the other; the core keeps it for this device, and the migration
+ * adds it on top of the synced progress, once. The IndexedDB copy stays as it is, as a backup.
  */
 async function takeOverStorage(id) {
-  const marker = `locora-synced-storage-${id}-v1`;
+  const marker = `locora-synced-storage-${id}-v2`;
   try {
     if (localStorage.getItem(marker)) return;
   } catch (_) {
-    // Without localStorage the takeover runs again; it never overwrites a key.
+    // Without localStorage the takeover runs again; the core takes it only before the migration.
   }
-  const storage = core.syncedStorage(id);
-  for (const [key, value] of await loadPluginStorage(pluginDb, id)) {
-    if (storage.get(key) === undefined) storage.set(key, value);
+  const progress = (await loadPluginStorage(pluginDb, id)).get('progress');
+  if (progress?.length) {
+    const kept = core('game_keep_own', { progress: Array.from(progress) });
+    if (kept.err) console.warn(`the game progress of this browser was not taken over: ${kept.err}`);
   }
   try {
     localStorage.setItem(marker, '1');

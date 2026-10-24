@@ -137,6 +137,21 @@ impl DayClock {
         self.day_start(day_start.saturating_sub(1))
     }
 
+    /// Start of the learning day after the one starting at `day_start` (a day is shorter or
+    /// longer than 24 hours when the offset changes).
+    pub fn next_day(&self, day_start: u64) -> u64 {
+        let mut probe = day_start + DAY / 2;
+        // Hour by hour up to two and a half days: no offset change makes a day longer.
+        for _ in 0..48 {
+            let start = self.day_start(probe);
+            if start > day_start {
+                return start;
+            }
+            probe += 3_600;
+        }
+        day_start + DAY
+    }
+
     /// „4:00 (UTC+2)“
     pub fn describe(&self) -> String {
         let m = self.utc_offset_minutes();
@@ -369,26 +384,36 @@ pub fn parse_retention(text: &str) -> Result<f64> {
     Ok(v)
 }
 
+fn store_setting<T: serde::de::DeserializeOwned>(
+    store: &locora_store::Store,
+    key: &str,
+) -> Result<Option<T>> {
+    match store.kv_get("host", key)? {
+        Some(bytes) => {
+            Ok(Some(serde_json::from_slice(&bytes).with_context(|| {
+                format!("Einstellung {key} ist beschädigt")
+            })?))
+        }
+        None => Ok(None),
+    }
+}
+
+/// When learning days begin in the profile of `store` (see [`DayClock`]).
+pub fn day_clock(store: &locora_store::Store) -> Result<DayClock> {
+    Ok(DayClock {
+        start_hour: store_setting(store, DAY_START_HOUR)?.unwrap_or(DEFAULT_DAY_START_HOUR),
+        offsets: store_setting(store, UTC_OFFSETS)?.unwrap_or_default(),
+    })
+}
+
 impl Profile {
     fn setting<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
-        match self.store.kv_get("host", key)? {
-            Some(bytes) => {
-                Ok(Some(serde_json::from_slice(&bytes).with_context(|| {
-                    format!("Einstellung {key} ist beschädigt")
-                })?))
-            }
-            None => Ok(None),
-        }
+        store_setting(&self.store, key)
     }
 
     /// When learning days begin (see [`DayClock`]).
     pub fn day_clock(&self) -> Result<DayClock> {
-        Ok(DayClock {
-            start_hour: self
-                .setting(DAY_START_HOUR)?
-                .unwrap_or(DEFAULT_DAY_START_HOUR),
-            offsets: self.setting(UTC_OFFSETS)?.unwrap_or_default(),
-        })
+        day_clock(&self.store)
     }
 
     pub fn set_day_start_hour(&self, hour: u8) -> Result<()> {
@@ -931,6 +956,22 @@ mod tests {
         assert_eq!(night.date(night.day_start(1_792_461_600)), "2026-10-19");
         assert_eq!(civil_date(0), (1970, 1, 1));
         assert_eq!(civil_date(-1), (1969, 12, 31));
+        let start = berlin.day_start(t);
+        assert_eq!(berlin.next_day(start), start + DAY);
+        // A day with a clock change is an hour shorter or longer.
+        let clock = |before: i32, after: i32| {
+            let start = DayClock::fixed(before, 4).day_start(t);
+            let changed = DayClock {
+                start_hour: 4,
+                offsets: vec![(0, before), (start + 10 * 3_600, after)],
+            };
+            assert_eq!(changed.day_start(t), start);
+            (changed, start)
+        };
+        let (summer, start) = clock(60, 120);
+        assert_eq!(summer.next_day(start), start + DAY - 3_600);
+        let (winter, start) = clock(120, 60);
+        assert_eq!(winter.next_day(start), start + DAY + 3_600);
     }
 
     #[test]

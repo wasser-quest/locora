@@ -193,7 +193,50 @@ fn due_reviews_earn_new_loci_less_early_practice_nothing_whatever_the_grade() {
     let status = status(&mut a);
     assert_eq!(status.xp, 26);
     let session = status.session.unwrap();
-    assert_eq!((session.xp, session.early), (0, 2));
+    assert_eq!((session.xp, session.repeat, session.early), (0, 2, 0));
+}
+
+#[test]
+fn a_review_due_later_today_is_due_all_day() {
+    let mut a = device();
+    let day = a.profile.due_day().unwrap();
+    let later = (day.end - 60).max(now() + 30);
+    if later >= day.end {
+        return; // A minute before the day turns: nothing to tell apart.
+    }
+    let cards = [("l0".to_owned(), card(later))].into_iter().collect();
+    a.profile
+        .host
+        .call::<Restore>(&RestoreRequest {
+            palace_id: "p".into(),
+            cards,
+        })
+        .unwrap();
+    let before = status(&mut a);
+    assert_eq!(before.today.due_open, 1, "due today, though later");
+    assert_eq!(before.today.goal, locora_api::gamification::Goal::Open);
+    answer(&mut a, "l0", Grade::Good);
+    let after = status(&mut a);
+    assert_eq!(after.xp, 10 + 20, "a due review, and all due done");
+    assert_eq!(after.today.goal, locora_api::gamification::Goal::AllDone);
+}
+
+#[test]
+fn opening_the_app_on_a_day_with_nothing_due_adds_no_learning_day() {
+    let mut a = device();
+    plan(&mut a, 0..3, true);
+    for _ in 0..3 {
+        let status = status(&mut a);
+        assert_eq!(status.learning_days, 0);
+        assert_eq!(status.week.days, 0);
+        assert_eq!(status.today.goal, locora_api::gamification::Goal::Free);
+        assert!(status.trophies.is_empty());
+        // Nothing is due today: the week needs one learning day less.
+        assert_eq!(status.week.free, 1);
+        assert_eq!(status.week.target, 3);
+    }
+    let xp = status(&mut a).xp;
+    assert_eq!(xp, 0);
 }
 
 #[test]
@@ -315,6 +358,75 @@ fn existing_progress_is_taken_over_once_without_double_counting() {
     assert_eq!(self::status(&mut b).xp, 340);
 }
 
+/// A browser from before the sync: its own progress (never synced) and the desktop's synced blob
+/// in the same store, the browser's kept for the migration (see `keep_own_game_progress`).
+fn old_browser(own: u64, synced: u64) -> Device {
+    let dir = TempDir::new().unwrap();
+    let blob = |xp| OldProgress {
+        xp,
+        max_combo: 0,
+        trophies: vec![Trophy::FirstJourney],
+        sessions: BTreeMap::new(),
+        last_palace: None,
+        daily_day: None,
+        daily_correct: 0,
+    };
+    {
+        let store = locora_store::Store::open(dir.path()).unwrap();
+        store
+            .kv_set(
+                "gamification",
+                "progress",
+                &locora_api::encode(&blob(synced)).unwrap(),
+            )
+            .unwrap();
+        let bytes = locora_api::encode(&blob(own)).unwrap();
+        let profile = Profile::from_parts(
+            std::sync::Arc::new(store),
+            dir.path().to_owned(),
+            locora_host::PluginHost::new(None).unwrap(),
+        );
+        assert!(profile.keep_own_game_progress(&bytes).unwrap());
+    }
+    let profile = Profile::open(Some(dir.path())).unwrap();
+    Device {
+        _dir: dir,
+        profile,
+        seen: 0,
+    }
+}
+
+#[test]
+fn a_browsers_own_progress_is_added_to_the_synced_one_once() {
+    // The browser had 300 XP of its own; the desktop's synced blob (500) had already arrived.
+    let mut web = old_browser(300, 500);
+    assert_eq!(status(&mut web).xp, 800);
+    let mut desktop = old_device(500);
+    assert_eq!(status(&mut desktop).xp, 500);
+    exchange(&mut web, &mut desktop);
+    assert_eq!(status(&mut web).xp, 800, "nothing lost, nothing twice");
+    assert_eq!(status(&mut desktop).xp, 800);
+    // The desktop's blob never changed: an older desktop still reads its own numbers.
+    let blob = desktop
+        .profile
+        .store
+        .kv_get("gamification", "progress")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        locora_api::decode::<OldProgressRead>(&blob).unwrap().xp,
+        500
+    );
+    // Kept only before the migration.
+    assert!(!web.profile.keep_own_game_progress(&[1, 2]).unwrap());
+}
+
+/// The first field of the old blob, enough to read its XP back.
+#[derive(serde::Deserialize)]
+struct OldProgressRead {
+    xp: u64,
+}
+
 #[test]
 fn deleting_the_progress_wins_against_old_facts_that_arrive_later() {
     let mut a = device();
@@ -323,10 +435,7 @@ fn deleting_the_progress_wins_against_old_facts_that_arrive_later() {
     for n in 0..3 {
         answer(&mut a, &format!("l{n}"), Grade::Good);
     }
-    a.profile
-        .store
-        .kv_set(APP_MEDALS, "tour-done", b"1")
-        .unwrap();
+    unlock_app_medal(&a.profile.store, "tour-done", "2026-10-20").unwrap();
     exchange(&mut a, &mut b);
     assert_eq!(status(&mut b).xp, 30);
     let due_before = due_now(&mut a);
@@ -336,11 +445,17 @@ fn deleting_the_progress_wins_against_old_facts_that_arrive_later() {
         answer(&mut b, &format!("l{n}"), Grade::Good);
     }
     let reset = standing(&mut a);
-    assert_eq!(reset, (0, 0, (0, 4, 0), Vec::new()));
-    assert_eq!(due_now(&mut a), due_before, "the review schedule stays");
     assert_eq!(
-        app_medal(&a.profile.store, "tour-done", &epoch.id).unwrap(),
-        None
+        reset,
+        (0, 0, (0, 4, 0), Vec::new()),
+        "the day of the deletion is no free learning day"
+    );
+    assert_eq!(due_now(&mut a), due_before, "the review schedule stays");
+    assert!(
+        app_medals(&a.profile.store)
+            .unwrap()
+            .contains_key("tour-done"),
+        "the tour, the lessons and the tutorial are learning progress: they stay"
     );
     // B's old facts arrive first, then B gets the reset: both end with A's state.
     ship(&b, &mut a);
@@ -359,15 +474,6 @@ fn deleting_the_progress_wins_against_old_facts_that_arrive_later() {
         assert!(!old.entries.is_empty());
         assert!(old.entries.iter().all(|(_, value)| value.is_empty()));
     }
-    // A late `1` of an old version does not bring the medal back.
-    b.profile
-        .store
-        .kv_set(APP_MEDALS, "tour-done", b"1")
-        .unwrap();
-    assert_eq!(
-        app_medal(&b.profile.store, "tour-done", &epoch.id).unwrap(),
-        None
-    );
     // B's next answer counts, on both.
     answer(&mut b, "l8", Grade::Good);
     exchange(&mut a, &mut b);
@@ -406,7 +512,6 @@ fn deletions_on_two_devices_at_once_end_in_one_epoch() {
 #[test]
 fn after_a_deletion_and_erasing_the_cloud_a_new_device_starts_at_zero() {
     let mut a = device();
-    // One stays due: a day with nothing due would count as a free learning day.
     plan(&mut a, 0..5, false);
     for n in 0..4 {
         answer(&mut a, &format!("l{n}"), Grade::Good);

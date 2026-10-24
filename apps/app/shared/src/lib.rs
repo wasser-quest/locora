@@ -1031,12 +1031,25 @@ pub struct Summary {
     /// Due reviews still open today; `None` without the gamification plugin.
     #[serde(default)]
     pub due_left_today: Option<u32>,
-    /// The next learning day with reviews (`YYYY-MM-DD`) and how many are due then.
+    /// Today's due goal after the journey; `None` without the gamification plugin.
+    #[serde(default)]
+    pub goal: Option<Goal>,
+    /// Loci answered again on the same learning day in this journey (practice, no XP).
+    #[serde(default)]
+    pub repeat: u32,
+    /// Loci answered today that come back later today for practice (after „Again“).
+    #[serde(default)]
+    pub repeat_later: u32,
+    /// The next learning day after today with reviews (`YYYY-MM-DD`) and how many are due then.
     #[serde(default)]
     pub next_due: Option<(String, u32)>,
-    /// Learning days from today to `next_due` (0 today, 1 tomorrow).
+    /// Learning days from today to `next_due` (1 tomorrow).
     #[serde(default)]
     pub next_due_in: Option<u32>,
+    /// When the loci practised early in this journey come back first (`YYYY-MM-DD`), and in how
+    /// many learning days.
+    #[serde(default)]
+    pub early_next: Option<(String, u32)>,
 }
 
 #[cfg(test)]

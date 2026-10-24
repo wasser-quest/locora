@@ -405,6 +405,11 @@ pub fn tour_target_in(tour: Option<TourStep>, palace_id: &str) -> Option<String>
         .then_some(target)
 }
 
+/// Whether `palace_id` is Simo's example palace from the tour.
+pub fn is_tour_demo(palace_id: &str) -> bool {
+    TOUR_DEMO.with(|demo| demo.borrow().as_deref() == Some(palace_id))
+}
+
 /// What Simo writes into the example's locus: place, content and memory aid.
 pub fn tour_demo_locus() -> (&'static str, &'static str, &'static str) {
     (
@@ -836,7 +841,8 @@ fn App() -> impl IntoView {
         busy: RwSignal::new(false),
         asking: RwSignal::new(false),
     });
-    provide_context(achievements::Celebration(RwSignal::new(None)));
+    provide_context(achievements::Celebration::new());
+    provide_context(cloud_settings::SignedIn(RwSignal::new(None)));
     provide_context(first_palace::Guide(RwSignal::new(first_palace::load())));
     // The first start shows only the language choice and then the welcome page; the tour starts
     // from its button.
@@ -1685,7 +1691,7 @@ fn PalaceTile(palace: PalaceCard, screen: RwSignal<Screen>, busy: RwSignal<bool>
                 let text = crate::achievements::strength_text(s);
                 view! {
                     <div class="strength">
-                        <span class="meta">{text.clone()}<Info text="Ein Ort gilt als gefestigt, wenn er mindestens 30 Tage hält. Dahin bringen ihn nur Wiederholungen, die über mehrere Tage verteilt sind." /></span>
+                        <span class="meta">{text.clone()}<Info text="Ein Ort gilt als gefestigt, wenn er gezeigt hat, dass er mindestens 30 Tage hält: Es zählen nur Wiederholungen an verschiedenen Tagen, und ein Ort braucht dafür eine richtige Antwort an einem späteren Tag als dem ersten. Mehrmals am selben Tag zu üben bringt ihn nicht dorthin." /></span>
                         <meter min="0" max=s.loci.to_string() value=s.solid.to_string() aria-label=text></meter>
                     </div>
                 }

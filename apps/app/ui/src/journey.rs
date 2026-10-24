@@ -71,48 +71,43 @@ struct VideoPosition(RwSignal<f64>);
 #[derive(Clone, Copy)]
 struct LastFrame(StoredValue<Option<String>>);
 
-/// Reads the game's numbers again. A trophy that is new since the last reading was earned with
-/// this device's answer or journey and is celebrated; the first reading celebrates nothing.
-fn refresh_game(
-    status: RwSignal<Option<GamificationStatus>>,
-    celebration: Option<crate::achievements::Celebration>,
-) {
+/// Reads the game's numbers again, and celebrates the trophies this device's answers and journey
+/// just earned (`session.unlocked`; never what a sync brought). Palace medals are celebrated
+/// with the end card, which knows their palace's name.
+fn refresh_game(status: RwSignal<Option<GamificationStatus>>, celebrate: impl Fn(&str) + 'static) {
     spawn_local(async move {
         let args = GameStatusArgs { full: false };
         if let Ok(value) = call::<Option<GamificationStatus>>(CMD_GAMIFICATION_STATUS, args).await {
-            let before = status.with_untracked(|old| old.as_ref().map(trophy_ids));
-            if let (Some(before), Some(after)) = (before, value.as_ref().map(trophy_ids))
-                && let Some(new) = after.into_iter().find(|id| !before.contains(id))
-                && let Some(crate::achievements::Celebration(shown)) = celebration
-            {
-                shown.set(Some(new));
+            if let Some(session) = value.as_ref().and_then(|game| game.session.as_ref()) {
+                for id in session.unlocked.iter().filter(|id| id.starts_with("game-")) {
+                    celebrate(id);
+                }
             }
             status.set(value);
         }
     });
 }
 
-/// The earned journey trophies as achievement ids (`game-<id>`).
-fn trophy_ids(status: &GamificationStatus) -> Vec<String> {
-    status
-        .trophies
-        .iter()
-        .map(|trophy| format!("game-{}", trophy.id))
-        .collect()
-}
-
-/// Today's due goal in words.
+/// Today's due goal in words, and the loci back for practice.
 pub fn today_text(today: &Today) -> String {
-    match today.goal {
+    let goal = match today.goal {
         Goal::Open => crate::i18n::tf(
             "Heute fällig: {0} von {1} erledigt",
             &[&today.due_done, &(today.due_done + today.due_open)],
         ),
         Goal::AllDone => t("Alle fälligen Wiederholungen erledigt").to_owned(),
-        Goal::Free => t("Heute ist nichts fällig – ein freier Tag").to_owned(),
+        Goal::Free => t("Heute ist nichts fällig").to_owned(),
         Goal::Enough => crate::i18n::tf(
             "{0} fällige Wiederholungen erledigt – der Rest kann warten",
             &[&today.due_done],
+        ),
+    };
+    match today.repeat_open {
+        0 => goal,
+        1 => format!("{goal} · {}", t("1 Ort zum Nachüben (ohne XP)")),
+        repeat => format!(
+            "{goal} · {}",
+            crate::i18n::tf("{0} Orte zum Nachüben (ohne XP)", &[&repeat])
         ),
     }
 }
@@ -120,6 +115,9 @@ pub fn today_text(today: &Today) -> String {
 /// The weekly run, when there is something to say: never what was lost.
 pub fn week_run_text(week: &Week) -> Option<String> {
     match (week.streak, week.missed_last) {
+        (0, true) if week.best == 1 => {
+            Some(t("Neue Woche, neues Ziel. Dein Bestwert: 1 Woche in Folge.").to_owned())
+        }
         (0, true) => Some(crate::i18n::tf(
             "Neue Woche, neues Ziel. Dein Bestwert: {0} Wochen in Folge.",
             &[&week.best],
@@ -133,12 +131,23 @@ pub fn week_run_text(week: &Week) -> Option<String> {
     }
 }
 
-/// This week's learning days against the goal.
+/// This week's learning days against its target (beyond it the week is simply reached), and the
+/// days with nothing due that lowered the target.
 pub fn week_text(week: &Week) -> String {
-    crate::i18n::tf(
-        "Diese Woche: {0} von {1} Lerntagen",
-        &[&week.days, &week.goal],
-    )
+    let days = week.days.min(week.target);
+    let main = if days == 1 {
+        crate::i18n::tf("Diese Woche: 1 von {0} Lerntagen", &[&week.target])
+    } else {
+        crate::i18n::tf("Diese Woche: {0} von {1} Lerntagen", &[&days, &week.target])
+    };
+    match week.free {
+        0 => main,
+        1 => format!("{main} · {}", t("1 Tag ohne Fälliges")),
+        free => format!(
+            "{main} · {}",
+            crate::i18n::tf("{0} Tage ohne Fälliges", &[&free])
+        ),
+    }
 }
 
 /// Where a reverse question was answered, as room fractions, and whether it was within the radius.
@@ -185,8 +194,18 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     let error = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
     let game = RwSignal::new(None::<GamificationStatus>);
-    // New trophies and medals are celebrated (looked up here: a task after an await has no owner).
+    // New trophies and medals are celebrated once each, in the order earned (looked up here: a
+    // task after an await has no owner).
     let celebration = use_context::<crate::achievements::Celebration>();
+    let celebrated = StoredValue::new(std::collections::BTreeSet::<String>::new());
+    let celebrate = move |id: &str| {
+        let new = celebrated
+            .try_update_value(|seen| seen.insert(id.to_owned()))
+            .unwrap_or(false);
+        if let (true, Some(celebration)) = (new, celebration) {
+            celebration.celebrate(id);
+        }
+    };
     // Feedback animations (assets/ui); the journey works without them.
     let art = crate::art();
 
@@ -219,11 +238,11 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             match call::<Step>(CMD_JOURNEY_START, StartArgs { start }).await {
                 Ok(Step::Question(q)) => {
                     question.set(Some(q));
-                    refresh_game(game, celebration);
+                    refresh_game(game, celebrate);
                 }
                 Ok(Step::Done(s)) => {
                     summary.set(Some(s));
-                    refresh_game(game, celebration);
+                    refresh_game(game, celebrate);
                 }
                 Err(e) => {
                     fields.set(retry);
@@ -245,14 +264,11 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
 
     // Quick mode: continue straight to the next question after reveal or answer.
     let prefs = crate::locus_display::signal();
-    // The end card; a medal this journey earned is celebrated (trophies of single answers are
-    // celebrated when the bar reads the numbers again).
+    // The end card; what this journey earned and was not celebrated yet is (trophies of single
+    // answers were when the bar read the numbers again).
     let finished = move |s: Summary| {
-        if let (Some(crate::achievements::Celebration(shown)), Some(medal)) = (
-            celebration,
-            s.new_trophies.iter().find(|id| id.starts_with("palace-")),
-        ) {
-            shown.set(Some(medal.clone()));
+        for id in &s.new_trophies {
+            celebrate(id);
         }
         summary.set(Some(s));
     };
@@ -282,7 +298,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
             match call::<Feedback>(CMD_JOURNEY_ANSWER, ReplyArgs { reply }).await {
                 Ok(f) => {
                     phase.set(Phase::Judged(Box::new(f)));
-                    refresh_game(game, celebration);
+                    refresh_game(game, celebrate);
                     judged = true;
                 }
                 Err(e) => error.set(Some(e)),
@@ -313,6 +329,10 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     // The app tour's grading step needs the answer shown: on Simo's example it reveals it.
     let tour = use_context::<crate::TourStep>();
     let tour_palace = start.get_value().palace_id.clone().unwrap_or_default();
+    // The game's explanation waits until the tour is over, and never shows in Simo's example.
+    let demo = crate::is_tour_demo(&tour_palace);
+    let explain =
+        Signal::derive(move || !demo && tour.is_none_or(|tour| tour.0.with(Option::is_none)));
     Effect::new(move |_| {
         if crate::tour_target_in(tour, &tour_palace).as_deref() == Some("tour-journey-grade")
             && phase.get() == Phase::Asking
@@ -454,7 +474,7 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
                 }}
             </span>
         </header>
-        <GameStatus status=game art=art />
+        <GameStatus status=game art=art explain=explain />
         {move || {
             // Restarts with every question: the bar is rebuilt when the step changes.
             let step = stage_step.get()?;
@@ -553,12 +573,24 @@ pub fn JourneyView(start: JourneyStart, screen: RwSignal<Screen>) -> impl IntoVi
     }
 }
 
+/// Whether the screen is narrow (a phone): the explanation starts folded there.
+fn narrow() -> bool {
+    web_sys::window()
+        .and_then(|window| window.inner_width().ok())
+        .and_then(|width| width.as_f64())
+        .is_some_and(|width| width <= 560.0)
+}
+
+/// The journey bar: XP, the week, today's due goal and the weekly run. `explain` says whether
+/// the one-time explanation may show (not during the app tour or in its example palace).
 #[component]
 fn GameStatus(
     status: RwSignal<Option<GamificationStatus>>,
     art: RwSignal<Option<UiAssets>>,
+    #[prop(into)] explain: Signal<bool>,
 ) -> impl IntoView {
     let display = crate::locus_display::signal();
+    let folded = narrow();
     // Answers only change the numbers: the icons are built once per artwork, not once per answer,
     // so the animated frames (and the video next to them) are not rebuilt.
     let read = move |f: fn(&GamificationStatus) -> String| {
@@ -596,28 +628,47 @@ fn GameStatus(
                 </div>
                 <div class="game-daily">
                     <label for="game-daily-progress">{read(|game| today_text(&game.today))}</label>
-                    <progress
-                        id="game-daily-progress"
-                        max=move || status.with(|game| game.as_ref().map_or(1, |game| (game.today.due_done + game.today.due_open).max(1)))
-                        value=move || status.with(|game| game.as_ref().map_or(0, |game| match game.today.goal {
-                            Goal::AllDone | Goal::Free => (game.today.due_done + game.today.due_open).max(1),
-                            _ => game.today.due_done,
-                        }))
-                    ></progress>
+                    // Nothing due: no bar that looks full (or empty) for a day without a goal.
+                    <Show when=move || status.with(|game| game.as_ref().is_some_and(|game| game.today.goal != Goal::Free))>
+                        <progress
+                            id="game-daily-progress"
+                            max=move || status.with(|game| game.as_ref().map_or(1, |game| (game.today.due_done + game.today.due_open).max(1)))
+                            value=move || status.with(|game| game.as_ref().map_or(0, |game| match game.today.goal {
+                                Goal::AllDone => (game.today.due_done + game.today.due_open).max(1),
+                                _ => game.today.due_done,
+                            }))
+                        ></progress>
+                    </Show>
                 </div>
                 {move || status.with(|game| game.as_ref().and_then(|game| week_run_text(&game.week))).map(|text| view! {
                     <p class="game-run">{text}</p>
                 })}
             </aside>
-            {move || status.with(|game| game.as_ref().is_some_and(|game| !game.intro_seen)).then(|| view! {
+            // Folded to one line on a phone, so the question stays in view.
+            {move || (explain.get() && status.with(|game| game.as_ref().is_some_and(|game| !game.intro_seen))).then(|| view! {
                 <aside class="game-intro card" role="note" aria-labelledby="game-intro-title">
-                    <h2 id="game-intro-title">{t("So funktionieren XP jetzt")}</h2>
-                    <p>{t("XP: 10 für jede fällige Wiederholung, 6 für jeden neuen Ort – egal, wie du bewertest.")}</p>
-                    <p>{t("Früheres Üben bringt keine XP; dein Wiederholungsplan entscheidet, was fällig ist.")}</p>
-                    <p>{move || crate::i18n::tf(
-                        "Wochenziel: an {0} Tagen pro Woche lernen. Ein verpasster Tag kostet nichts.",
-                        &[&status.with(|game| game.as_ref().map_or(4, |game| game.week.goal))],
-                    )}</p>
+                    <details open=!folded>
+                        <summary>
+                            <h2 id="game-intro-title">{move || if status.with(|game| game.as_ref().is_some_and(|game| game.legacy)) {
+                                t("So funktionieren XP jetzt")
+                            } else {
+                                t("So funktionieren XP")
+                            }}</h2>
+                        </summary>
+                        <p>{t("XP: 10 für jede fällige Wiederholung, 6 für jeden neuen Ort – egal, wie du bewertest.")}</p>
+                        <p>{t("Früheres Üben bringt keine XP; dein Wiederholungsplan entscheidet, was fällig ist.")}</p>
+                        <p>{move || {
+                            let goal = status.with(|game| game.as_ref().map_or(4, |game| game.week.goal));
+                            if goal == 1 {
+                                t("Wochenziel: an 1 Tag pro Woche lernen. Ein verpasster Tag kostet nichts.").to_owned()
+                            } else {
+                                crate::i18n::tf(
+                                    "Wochenziel: an {0} Tagen pro Woche lernen. Ein verpasster Tag kostet nichts.",
+                                    &[&goal],
+                                )
+                            }
+                        }}</p>
+                    </details>
                     <div class="actions">
                         <button class="primary" on:click=move |_| dismiss(false)>{t("Verstanden")}</button>
                         <button on:click=move |_| dismiss(true)>{t("Leiste ausblenden")}</button>
@@ -1231,8 +1282,9 @@ fn game_line(game: GameView, correct: bool) -> Option<String> {
     if !correct {
         return Some(t("Kommt bald wieder – so bleibt es hängen.").to_owned());
     }
+    // A run starts at two.
     game.combo
-        .filter(|combo| *combo > 0)
+        .filter(|combo| *combo > 1)
         .map(|combo| crate::i18n::tf("{0} in Folge", &[&combo]))
 }
 
@@ -1245,6 +1297,21 @@ fn next_day(date: &str, days: Option<u32>) -> String {
     }
 }
 
+/// „1 fällige Wiederholung · 3 neue Orte“, each in the singular where it is one.
+fn done_counts(due: u32, new: u32) -> String {
+    let due = if due == 1 {
+        t("1 fällige Wiederholung").to_owned()
+    } else {
+        crate::i18n::tf("{0} fällige Wiederholungen", &[&due])
+    };
+    let new = if new == 1 {
+        t("1 neuer Ort").to_owned()
+    } else {
+        crate::i18n::tf("{0} neue Orte", &[&new])
+    };
+    format!("{due} · {new}")
+}
+
 /// What the journey earned and what comes next, one line each.
 fn summary_lines(summary: &Summary) -> Vec<String> {
     let mut lines = Vec::new();
@@ -1254,47 +1321,68 @@ fn summary_lines(summary: &Summary) -> Vec<String> {
     if summary.points != u64::from(summary.correct) {
         lines.push(crate::i18n::tf("Punkte: {0}", &[&summary.points]));
     }
-    lines.push(crate::i18n::tf(
-        "{0} fällige Wiederholungen · {1} neue Orte",
-        &[&summary.due_done, &summary.new_done],
-    ));
-    let next = summary
-        .next_due
-        .as_ref()
-        .map(|(date, count)| (next_day(date, summary.next_due_in), *count));
+    lines.push(done_counts(summary.due_done, summary.new_done));
     if summary.early > 0 {
-        let when = next
+        let when = summary
+            .early_next
             .as_ref()
-            .map(|(day, _)| day.clone())
-            .unwrap_or_default();
-        lines.push(if summary.early == 1 {
-            crate::i18n::tf(
+            .map(|(date, days)| next_day(date, Some(*days)));
+        lines.push(match (summary.early, when) {
+            (1, Some(when)) => crate::i18n::tf(
                 "1 Ort war noch nicht fällig und brachte deshalb keine XP. Seine nächste Wiederholung: {0}.",
                 &[&when],
-            )
-        } else {
-            crate::i18n::tf(
+            ),
+            (early, Some(when)) => crate::i18n::tf(
                 "{0} Orte waren noch nicht fällig und brachten deshalb keine XP. Ihre nächste Wiederholung: {1}.",
-                &[&summary.early, &when],
-            )
+                &[&early, &when],
+            ),
+            (1, None) => t("1 Ort war noch nicht fällig und brachte deshalb keine XP.").to_owned(),
+            (early, None) => crate::i18n::tf(
+                "{0} Orte waren noch nicht fällig und brachten deshalb keine XP.",
+                &[&early],
+            ),
         });
     }
-    match summary.due_left_today {
-        Some(0) => lines.push(t("Alle fälligen Wiederholungen für heute erledigt").to_owned()),
-        Some(1) => lines.push(t("Heute noch fällig: 1 Ort").to_owned()),
-        Some(left) => lines.push(crate::i18n::tf("Heute noch fällig: {0} Orte", &[&left])),
-        None => {}
+    match summary.repeat {
+        0 => {}
+        1 => lines
+            .push(t("1 Ort hattest du heute schon; noch einmal üben bringt keine XP.").to_owned()),
+        repeat => lines.push(crate::i18n::tf(
+            "{0} Orte hattest du heute schon; noch einmal üben bringt keine XP.",
+            &[&repeat],
+        )),
+    }
+    // Today's goal, in the words of the bar.
+    match (summary.goal, summary.due_left_today) {
+        (Some(Goal::Free), _) => lines.push(t("Heute ist nichts fällig").to_owned()),
+        (_, Some(0)) => lines.push(t("Alle fälligen Wiederholungen für heute erledigt").to_owned()),
+        (_, Some(1)) => lines.push(t("Heute noch fällig: 1 Ort").to_owned()),
+        (_, Some(left)) => lines.push(crate::i18n::tf("Heute noch fällig: {0} Orte", &[&left])),
+        (_, None) => {}
+    }
+    match summary.repeat_later {
+        0 => {}
+        1 => lines.push(t("Kommt heute noch einmal zum Üben (ohne XP): 1 Ort").to_owned()),
+        later => lines.push(crate::i18n::tf(
+            "Kommt heute noch einmal zum Üben (ohne XP): {0} Orte",
+            &[&later],
+        )),
     }
     for id in &summary.new_trophies {
         if let Some((title, _)) = crate::achievements::describe(id) {
-            lines.push(crate::i18n::tf("Neue Medaille: {0}", &[&title]));
+            lines.push(if id.starts_with("palace-") {
+                crate::i18n::tf("Neue Medaille: {0}", &[&title])
+            } else {
+                crate::i18n::tf("Neue Trophäe: {0}", &[&title])
+            });
         }
     }
-    if let Some((day, count)) = next {
-        lines.push(if count == 1 {
+    if let Some((date, count)) = &summary.next_due {
+        let day = next_day(date, summary.next_due_in);
+        lines.push(if *count == 1 {
             crate::i18n::tf("Nächste Wiederholung: {0} · 1 Ort", &[&day])
         } else {
-            crate::i18n::tf("Nächste Wiederholung: {0} · {1} Orte", &[&day, &count])
+            crate::i18n::tf("Nächste Wiederholung: {0} · {1} Orte", &[&day, count])
         });
     }
     lines
@@ -1370,6 +1458,11 @@ mod tests {
         );
         assert_eq!(game_line(GameView { combo: None }, true), None, "recall");
         assert_eq!(game_line(GameView { combo: Some(0) }, true), None);
+        assert_eq!(
+            game_line(GameView { combo: Some(1) }, true),
+            None,
+            "a run starts at two"
+        );
         let missed = game_line(GameView { combo: None }, false).unwrap();
         assert_eq!(missed, "Kommt bald wieder – so bleibt es hängen.");
         assert!(!missed.contains('♥') && !missed.contains("Herz"));
@@ -1381,6 +1474,8 @@ mod tests {
         let week = |streak, best, missed_last| Week {
             days: 2,
             goal: 4,
+            free: 0,
+            target: 4,
             streak,
             best,
             missed_last,
@@ -1408,6 +1503,7 @@ mod tests {
                     due_done: 0,
                     due_open: 0,
                     new_done: 0,
+                    repeat_open: 0,
                     goal: Goal::Free,
                 }),
             ];
@@ -1418,6 +1514,47 @@ mod tests {
                 }
             }
         }
+        crate::i18n::set_current(crate::i18n::Lang::De);
+    }
+
+    #[test]
+    fn the_week_counts_days_with_nothing_due_and_reads_in_the_singular() {
+        crate::i18n::set_current(crate::i18n::Lang::De);
+        let week = Week {
+            days: 1,
+            goal: 4,
+            free: 2,
+            target: 2,
+            streak: 0,
+            best: 1,
+            missed_last: true,
+        };
+        assert_eq!(
+            week_text(&week),
+            "Diese Woche: 1 von 2 Lerntagen · 2 Tage ohne Fälliges"
+        );
+        assert_eq!(
+            week_run_text(&week).unwrap(),
+            "Neue Woche, neues Ziel. Dein Bestwert: 1 Woche in Folge."
+        );
+        let beyond = Week {
+            days: 5,
+            free: 0,
+            target: 4,
+            ..week.clone()
+        };
+        assert_eq!(week_text(&beyond), "Diese Woche: 4 von 4 Lerntagen");
+        crate::i18n::set_current(crate::i18n::Lang::Fr);
+        let one = Week {
+            days: 1,
+            free: 0,
+            target: 4,
+            ..week
+        };
+        assert_eq!(
+            week_text(&one),
+            "Cette semaine\u{202f}: 1 jour d’apprentissage sur 4"
+        );
         crate::i18n::set_current(crate::i18n::Lang::De);
     }
 
@@ -1445,9 +1582,9 @@ mod tests {
         assert_eq!(
             lines,
             [
-                "2 fällige Wiederholungen · 1 neue Orte",
+                "2 fällige Wiederholungen · 1 neuer Ort",
                 "Alle fälligen Wiederholungen für heute erledigt",
-                "Neue Medaille: Erste Journey",
+                "Neue Trophäe: Erste Journey",
                 "Nächste Wiederholung: morgen · 6 Orte",
             ]
         );
@@ -1460,6 +1597,71 @@ mod tests {
             summary_lines(&Summary::default()).is_empty(),
             "no plugin, no lines"
         );
+    }
+
+    #[test]
+    fn the_end_card_says_the_early_loci_own_date_and_what_comes_back_today() {
+        crate::i18n::set_current(crate::i18n::Lang::De);
+        // A new learner: two loci forgotten, nothing was due.
+        let first = Summary {
+            asked: 9,
+            correct: 7,
+            points: 7,
+            xp_gained: Some(54),
+            due_done: 0,
+            new_done: 9,
+            due_left_today: Some(0),
+            goal: Some(Goal::Free),
+            repeat_later: 2,
+            next_due: Some(("2026-10-24".into(), 7)),
+            next_due_in: Some(1),
+            new_trophies: vec!["palace-7@Küche".into()],
+            ..Summary::default()
+        };
+        assert_eq!(
+            summary_lines(&first),
+            [
+                "0 fällige Wiederholungen · 9 neue Orte",
+                "Heute ist nichts fällig",
+                "Kommt heute noch einmal zum Üben (ohne XP): 2 Orte",
+                "Neue Medaille: Verankert · Küche",
+                "Nächste Wiederholung: morgen · 7 Orte",
+            ]
+        );
+        // Practised early: their own next review, not the palace's.
+        let early = Summary {
+            asked: 8,
+            correct: 8,
+            points: 8,
+            xp_gained: Some(10),
+            due_done: 1,
+            new_done: 0,
+            early: 7,
+            repeat: 1,
+            due_left_today: Some(0),
+            goal: Some(Goal::AllDone),
+            early_next: Some(("2026-11-02".into(), 10)),
+            next_due: Some(("2026-10-24".into(), 1)),
+            next_due_in: Some(1),
+            ..Summary::default()
+        };
+        let lines = summary_lines(&early);
+        assert_eq!(lines[0], "1 fällige Wiederholung · 0 neue Orte");
+        assert_eq!(
+            lines[1],
+            "7 Orte waren noch nicht fällig und brachten deshalb keine XP. Ihre nächste Wiederholung: 2026-11-02."
+        );
+        assert_eq!(
+            lines[2],
+            "1 Ort hattest du heute schon; noch einmal üben bringt keine XP."
+        );
+        crate::i18n::set_current(crate::i18n::Lang::En);
+        assert_eq!(
+            done_counts(1, 1),
+            "1 due review · 1 new locus",
+            "singular in English too"
+        );
+        crate::i18n::set_current(crate::i18n::Lang::De);
     }
 
     #[test]

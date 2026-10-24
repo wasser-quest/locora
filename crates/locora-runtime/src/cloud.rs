@@ -49,10 +49,6 @@ pub struct CloudState {
     /// (or the browser's), never in this file.
     #[serde(default)]
     pub auto_sync: bool,
-    /// The game progress was deleted here, and the server has not confirmed yet that the
-    /// account's game scores (rankings) are gone: retried at the start of each sync.
-    #[serde(default)]
-    pub game_delete_pending: bool,
 }
 
 /// What became of the account's game scores on the server (the rankings) when the game progress
@@ -63,19 +59,62 @@ pub enum RankingsDeletion {
     /// No account on this device: nothing on the server was touched.
     NotSignedIn,
     Deleted,
-    /// The server does not know the request yet: the entries stay until it is updated.
+    /// The server does not know the request yet: the entries stay until it is updated (asked
+    /// again at every start and sync until then).
     ServerTooOld,
-    /// No answer: asked again at the next sync.
+    /// No answer: asked again at the next start, status check and sync.
     Pending,
-    /// The session ended: asked again after signing in.
+    /// The session ended: asked again once the same account signs in again.
     SignInAgain,
 }
 
 impl RankingsDeletion {
     /// Whether the server still has to be asked.
     pub fn pending(self) -> bool {
-        matches!(self, Self::Pending | Self::SignInAgain)
+        matches!(self, Self::Pending | Self::SignInAgain | Self::ServerTooOld)
     }
+}
+
+/// Accounts whose game scores the server still has to delete. Kept apart from the session
+/// (`cloud.json`), which signing in again replaces, so the request outlives an expired session
+/// and does not depend on sync access.
+const RANKINGS_PENDING: &str = "game-rankings-pending.json";
+
+fn pending_accounts(data: &Path) -> Result<Vec<String>> {
+    match fs::read_to_string(data.join(RANKINGS_PENDING)) {
+        Ok(text) => Ok(serde_json::from_str(&text).unwrap_or_default()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(err) => Err(err).context("Ausstehende Löschung der Ranglisten lesen"),
+    }
+}
+
+/// Whether the game scores of `account` still wait to be deleted on the server.
+pub fn rankings_pending(data: &Path, account: &str) -> Result<bool> {
+    Ok(pending_accounts(data)?.iter().any(|id| id == account))
+}
+
+/// Notes whether the game scores of `account` still wait to be deleted on the server.
+pub fn set_rankings_pending(data: &Path, account: &str, pending: bool) -> Result<()> {
+    let mut accounts = pending_accounts(data)?;
+    let had = accounts.iter().any(|id| id == account);
+    if had == pending {
+        return Ok(());
+    }
+    accounts.retain(|id| id != account);
+    if pending {
+        accounts.push(account.to_owned());
+    }
+    fs::create_dir_all(data)?;
+    fs::write(
+        data.join(RANKINGS_PENDING),
+        serde_json::to_string(&accounts)?,
+    )
+    .context("Ausstehende Löschung der Ranglisten speichern")
+}
+
+/// After asking the server: keeps the request for `state`'s account while it is pending.
+pub fn note_rankings(data: &Path, state: &CloudState, outcome: RankingsDeletion) -> Result<()> {
+    set_rankings_pending(data, &state.account.id, outcome.pending())
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -218,7 +257,6 @@ fn state_from_session(server: String, session: Session) -> CloudState {
         entitlement: None,
         last_sync_at: None,
         auto_sync: false,
-        game_delete_pending: false,
     }
 }
 
@@ -734,16 +772,30 @@ mod blocking {
     }
 
     /// After the game progress was deleted on this device: asks the server to delete the
-    /// rankings too when an account is signed in, and keeps the request for the next sync
-    /// when the server could not be asked.
+    /// rankings too when an account is signed in, and keeps the request (for this account)
+    /// while the server has not done it.
     pub fn delete_rankings(data: &Path) -> Result<RankingsDeletion> {
-        let Some(mut state) = load(data)? else {
+        let Some(state) = load(data)? else {
             return Ok(RankingsDeletion::NotSignedIn);
         };
         let outcome = erase_game(&state);
-        state.game_delete_pending = outcome.pending();
-        save(data, &state)?;
+        note_rankings(data, &state, outcome)?;
         Ok(outcome)
+    }
+
+    /// Asks the server again to delete the game scores when a request waits for the signed-in
+    /// account: at the start, after signing in, on a status check and before a sync, with or
+    /// without sync access. `None` when nothing waits.
+    pub fn retry_rankings(data: &Path) -> Result<Option<RankingsDeletion>> {
+        let Some(state) = load(data)? else {
+            return Ok(None);
+        };
+        if !rankings_pending(data, &state.account.id)? {
+            return Ok(None);
+        }
+        let outcome = erase_game(&state);
+        note_rankings(data, &state, outcome)?;
+        Ok(Some(outcome))
     }
 
     /// Deletes the account on the server; the caller then removes the local session.
@@ -929,7 +981,6 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
-            game_delete_pending: false,
             account: Account {
                 id: "local".into(),
                 email: "test@example.invalid".into(),
@@ -999,7 +1050,11 @@ mod tests {
         state.server = "http://127.0.0.1:9".into();
         assert_eq!(erase_game(&state), RankingsDeletion::Pending);
         assert!(RankingsDeletion::Pending.pending() && RankingsDeletion::SignInAgain.pending());
-        assert!(!RankingsDeletion::ServerTooOld.pending());
+        assert!(
+            RankingsDeletion::ServerTooOld.pending(),
+            "asked again until it is updated"
+        );
+        assert!(!RankingsDeletion::Deleted.pending() && !RankingsDeletion::NotSignedIn.pending());
     }
 
     #[test]
@@ -1009,6 +1064,7 @@ mod tests {
             delete_rankings(dir.path()).unwrap(),
             RankingsDeletion::NotSignedIn
         );
+        assert_eq!(retry_rankings(dir.path()).unwrap(), None);
         let (state, worker) = fixture(status(503, "Service Unavailable"));
         save(dir.path(), &state).unwrap();
         assert_eq!(
@@ -1016,16 +1072,49 @@ mod tests {
             RankingsDeletion::Pending
         );
         worker.join().unwrap();
-        assert!(load(dir.path()).unwrap().unwrap().game_delete_pending);
-        let (mut state, worker) = fixture(status(204, "No Content"));
-        state.game_delete_pending = true;
+        assert!(rankings_pending(dir.path(), &state.account.id).unwrap());
+        let (state, worker) = fixture(status(204, "No Content"));
+        save(dir.path(), &state).unwrap();
+        assert_eq!(
+            retry_rankings(dir.path()).unwrap(),
+            Some(RankingsDeletion::Deleted)
+        );
+        worker.join().unwrap();
+        assert!(!rankings_pending(dir.path(), &state.account.id).unwrap());
+        // Nothing waits: nothing is asked (no server listens here).
+        assert_eq!(retry_rankings(dir.path()).unwrap(), None);
+    }
+
+    #[test]
+    fn a_pending_rankings_deletion_outlives_signing_in_again_and_needs_no_sync_access() {
+        let dir = tempfile::tempdir().unwrap();
+        // The session had ended: the server answered 401.
+        let (state, worker) = fixture(status(401, "Unauthorized"));
         save(dir.path(), &state).unwrap();
         assert_eq!(
             delete_rankings(dir.path()).unwrap(),
-            RankingsDeletion::Deleted
+            RankingsDeletion::SignInAgain
         );
         worker.join().unwrap();
-        assert!(!load(dir.path()).unwrap().unwrap().game_delete_pending);
+        // Signing in again writes a new session for the same account (without sync access:
+        // no entitlement, no trial).
+        let (mut fresh, worker) = fixture(status(204, "No Content"));
+        fresh.entitlement = None;
+        fresh.account.id = state.account.id.clone();
+        remove(dir.path()).unwrap();
+        save(dir.path(), &fresh).unwrap();
+        assert!(!can_sync(&fresh, now_secs()));
+        assert_eq!(
+            retry_rankings(dir.path()).unwrap(),
+            Some(RankingsDeletion::Deleted)
+        );
+        assert_eq!(worker.join().unwrap(), "DELETE /v1/game/data HTTP/1.1\r\n");
+        // Another account signed in later is not asked about the first one's scores.
+        let (mut other, _) = fixture(status(204, "No Content"));
+        other.account.id = "someone-else".into();
+        set_rankings_pending(dir.path(), &state.account.id, true).unwrap();
+        save(dir.path(), &other).unwrap();
+        assert_eq!(retry_rankings(dir.path()).unwrap(), None);
     }
 
     #[test]
@@ -1087,7 +1176,6 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
-            game_delete_pending: false,
             account: account.clone(),
         };
         assert!(can_sync(&state, 1_000));
@@ -1174,7 +1262,6 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
-            game_delete_pending: false,
             account: Account {
                 id: "a".into(),
                 email: "e@x.invalid".into(),

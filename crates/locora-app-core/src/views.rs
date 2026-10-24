@@ -8,7 +8,8 @@ use locora_app_api::{
     Home, LocusView, Media, MediaKind, PalaceCard, PalaceView, PluginBlock, PluginPage, RoomView,
     Status, Strength, TileView,
 };
-use locora_runtime::{Profile, count_due, now};
+use locora_runtime::game::DueDay;
+use locora_runtime::{Profile, count_due};
 use locora_store::{PalaceTree, SPLINELY, Store};
 
 /// A stored file as the UI sees it; `None` when the hash is unknown.
@@ -29,10 +30,11 @@ pub fn media(store: &Store, hash: &str) -> Option<Media> {
     })
 }
 
-pub fn status(cards: &HashMap<String, CardState>, locus_id: &str, now: u64) -> Status {
+/// A locus's marker state: due when a due journey would ask it today (see `DueDay::asks`).
+pub fn status(cards: &HashMap<String, CardState>, locus_id: &str, day: &DueDay) -> Status {
     match cards.get(locus_id) {
         None => Status::Neu,
-        Some(card) if card.due <= now => Status::Faellig,
+        Some(card) if day.asks(card) => Status::Faellig,
         Some(_) => Status::Gewusst,
     }
 }
@@ -59,7 +61,13 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
             .push(format!("Fortschritt nicht verfügbar: {error:#}"));
     }
     let has_review = profile.has_review();
-    let now = now();
+    let day = profile.due_day()?;
+    // What spaced reviews have shown of each locus, for the palaces' strength.
+    let shown = if has_review {
+        profile.spaced_stability()?
+    } else {
+        HashMap::new()
+    };
     // Tiles published while scheduling are stored before they are read.
     let reported = profile.report();
     let (blocks, pages) = declared(profile.ui_declarations()?);
@@ -84,11 +92,11 @@ pub fn home(profile: &mut Profile) -> Result<Home> {
     let mut fresh_total = 0;
     for summary in profile.store.palaces()? {
         let tree = profile.store.palace(&summary.id)?;
-        let (due, fresh) = count_due(&tree, &cards, now);
+        let (due, fresh) = count_due(&tree, &cards, &day);
         home.due += due as u32;
         fresh_total += fresh;
         home.palaces.push(PalaceCard {
-            strength: has_review.then(|| strength(&tree, &cards)),
+            strength: has_review.then(|| strength(&tree, &cards, &shown)),
             built_in: locora_runtime::built_in_kind(&summary.id).map(str::to_owned),
             id: summary.id,
             name: summary.name,
@@ -123,13 +131,21 @@ pub fn palace(profile: &mut Profile, id: &str, default_marker: &str) -> Result<P
     let tree = profile.store.palace(id)?;
     let cards = profile.schedule(Some(&tree.palace.id))?;
     let mut view = palace_view(&profile.store, &tree, &cards, default_marker);
-    view.strength = profile.has_review().then(|| strength(&tree, &cards));
+    if profile.has_review() {
+        let shown = profile.spaced_stability()?;
+        view.strength = Some(strength(&tree, &cards, &shown));
+    }
     Ok(view)
 }
 
-/// How many loci of a palace are consolidated: they hold for 30 days or more.
-pub fn strength(tree: &PalaceTree, cards: &HashMap<String, CardState>) -> Strength {
-    let strength = locora_runtime::game::strength(tree, cards);
+/// How many loci of a palace are consolidated: they have shown in spaced reviews that they hold
+/// for 30 days or more.
+pub fn strength(
+    tree: &PalaceTree,
+    cards: &HashMap<String, CardState>,
+    shown: &HashMap<String, f64>,
+) -> Strength {
+    let strength = locora_runtime::game::strength(tree, cards, shown);
     Strength {
         loci: strength.loci,
         solid: strength.hold_30,
@@ -143,7 +159,8 @@ pub fn palace_view(
     cards: &HashMap<String, CardState>,
     default_marker: &str,
 ) -> PalaceView {
-    let now = now();
+    let clock = locora_runtime::settings::day_clock(store).unwrap_or_default();
+    let day = DueDay::at(&clock, locora_runtime::now());
     let mut number = 0;
     let rooms = tree
         .rooms
@@ -174,7 +191,7 @@ pub fn palace_view(
                         item: l.item.clone(),
                         x: l.x,
                         y: l.y,
-                        status: status(cards, &l.id, now),
+                        status: status(cards, &l.id, &day),
                         picture: l.image.as_deref().and_then(|h| media(store, h)),
                         image_size: l.image_size,
                         zoom: l.zoom,

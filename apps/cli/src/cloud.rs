@@ -116,6 +116,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
             cloud::save(&data, &state)?;
             println!("✓ Angemeldet als {}.", state.account.email);
             print_status(&state);
+            retry_rankings(&data);
             Ok(())
         }
         CloudCommand::Password => {
@@ -139,6 +140,7 @@ pub fn run(cmd: CloudCommand, data: Option<&Path>) -> Result<()> {
                 return Ok(());
             };
             print_status(&state);
+            retry_rankings(&data);
             Ok(())
         }
         CloudCommand::Refresh => {
@@ -538,6 +540,14 @@ fn date(unix: u64) -> String {
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
     format!("{year:04}-{month:02}-{day:02}")
+}
+
+/// Asks the server again to delete the game scores when that still waits (see `locora game
+/// reset`), and says what happened.
+fn retry_rankings(data: &std::path::Path) {
+    if let Ok(Some(outcome)) = cloud::retry_rankings(data) {
+        println!("{}", crate::game::rankings_text(outcome));
+    }
 }
 
 #[cfg(test)]

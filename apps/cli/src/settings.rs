@@ -177,8 +177,8 @@ pub fn stats(app: &mut App) -> Result<()> {
         );
         println!("{}", crate::game::today_line(&game.today));
         println!(
-            "Diese Woche:           {} von {} Lerntagen",
-            game.week.days, game.week.goal
+            "Diese Woche:           {}",
+            crate::game::week_line(&game.week)
         );
     }
     let (usable, worth) = app.optimize_hint()?;

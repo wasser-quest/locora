@@ -945,11 +945,28 @@ async fn settings(state: State<'_, Shared>) -> Result<SettingsView, String> {
     settings::view(&mut b.profile).map_err(err)
 }
 
+/// The app reads the status at the start, after signing in and on the settings: a deletion of
+/// the game scores that still waits for the server is asked again then, in the background.
 #[tauri::command]
 async fn cloud_status(state: State<'_, Shared>) -> Result<locora_app_api::CloudStatus, String> {
     let data = lock(&state)?.data.clone();
     let saved = locora_runtime::cloud::load(&data).map_err(err)?;
+    if saved.is_some() {
+        retry_rankings_later(data.clone());
+    }
     Ok(locora_app_core::cloud_view::status(saved.as_ref()))
+}
+
+/// Asks the server again to delete the game scores when that waits (never twice at once).
+fn retry_rankings_later(data: std::path::PathBuf) {
+    static RUNNING: AtomicBool = AtomicBool::new(false);
+    if RUNNING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = locora_runtime::cloud::retry_rankings(&data);
+        RUNNING.store(false, Ordering::Release);
+    });
 }
 
 /// Argon2 and network I/O run off the UI thread. Only one sync may mutate the

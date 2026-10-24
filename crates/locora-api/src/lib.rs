@@ -272,6 +272,9 @@ pub mod core {
         New,
         /// Answered before its review was due (practice).
         Early,
+        /// Answered before on the same learning day, e.g. again after „Again“ (practice: a locus
+        /// counts once per learning day).
+        Repeat,
     }
 
     /// An answer with what the runtime knows about it: the review state before the answer,
@@ -399,7 +402,9 @@ pub mod gamification {
     }
 
     /// Strength of one palace from its review cards: how many of its loci hold for at least
-    /// 7, 30 and 180 days (FSRS stability). Computed by the runtime.
+    /// 7, 30 and 180 days (FSRS stability). Computed by the runtime, which counts a locus only
+    /// with a right answer on a later learning day than its first, and only the stability that
+    /// the first answer of each learning day built: answers in one sitting earn no medal.
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct PalaceStrength {
         pub palace_id: String,
@@ -420,12 +425,24 @@ pub mod gamification {
         /// The game epoch (see `ReviewedAnswer`) and this device's id.
         pub epoch: String,
         pub device: String,
-        /// Reviews due now that were not reviewed yet today, over all palaces.
+        /// Reviews due on this learning day that were not reviewed yet today, over all palaces.
         pub due_open: u32,
+        /// Loci answered earlier today that are back for practice now (after „Again“); they are
+        /// not part of the day's goal.
+        pub repeat_open: u32,
         /// Whether any locus has a review schedule (a day with nothing due counts only then).
         pub has_cards: bool,
         /// Strength per palace; `None` when the caller does not need palace medals.
         pub palaces: Option<Vec<PalaceStrength>>,
+        /// Now, seconds since the Unix epoch (orders what devices saw of the schedule).
+        pub at: u64,
+        /// The next learning day (`YYYY-MM-DD`) on which a review is due as the schedule stands
+        /// (today while reviews are open); `None` without any card. Days before it have nothing
+        /// due, so the weekly goal can tell them without the app being opened.
+        pub next_due: Option<String>,
+        /// The learning day the current epoch began (the day the progress was deleted): reviews
+        /// before the deletion are gone, so it is never taken for a day with nothing due.
+        pub epoch_day: Option<String>,
     }
 
     /// Today's goal: the due reviews.
@@ -449,15 +466,25 @@ pub mod gamification {
         pub due_done: u32,
         pub due_open: u32,
         pub new_done: u32,
+        /// Loci back for practice today (see `StatusV2Request::repeat_open`), not in the goal.
+        pub repeat_open: u32,
         pub goal: Goal,
     }
 
-    /// The weekly rhythm: learning days this ISO week against the chosen goal.
+    /// The weekly rhythm: learning days this ISO week against the chosen goal. A learning day
+    /// has a due or new answer on some device; a day on which nothing was due lowers the week's
+    /// target instead (to at least one learning day). A week with no learning day whose free
+    /// days alone cover the goal neither counts nor breaks a run.
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Week {
         pub days: u32,
+        /// The chosen goal (learning days per week).
         pub goal: u8,
-        /// Weeks in a row that reached their goal (the current week counts once reached, and
+        /// Days of this week so far on which nothing was due (and nothing was learned).
+        pub free: u32,
+        /// Learning days this week needs: the goal less the free days, at least one.
+        pub target: u32,
+        /// Weeks in a row that reached their target (the current week counts once reached, and
         /// does not break the run before it ends).
         pub streak: u32,
         pub best: u32,
@@ -492,8 +519,14 @@ pub mod gamification {
         pub due: u32,
         pub new: u32,
         pub early: u32,
+        /// Loci answered again on the same learning day (practice).
+        pub repeat: u32,
         /// Right Quiz and Guess answers in a row.
         pub combo: u32,
+        /// What this device's own answers and journeys earned since the journey began, in the
+        /// order earned: trophies as `game-<id>`, palace medals as `palace-<level>@<palace id>`.
+        /// Progress that arrives through a sync is never in here.
+        pub unlocked: Vec<String>,
     }
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -509,6 +542,8 @@ pub mod gamification {
         pub session: Option<SessionView>,
         /// The one-time explanation was dismissed (on any device).
         pub intro_seen: bool,
+        /// Progress from before the sync was taken over (the XP rules changed for this person).
+        pub legacy: bool,
     }
 
     impl Service for StatusV2 {
@@ -540,6 +575,10 @@ pub mod gamification {
     pub struct MigrateRequest {
         pub device: String,
         pub days: Vec<String>,
+        /// The progress blob this device kept for itself and never synced (the web app kept the
+        /// game in the browser): postcard bytes as the plugin wrote them. It is added to the
+        /// shared progress instead of being merged with it.
+        pub own: Option<Vec<u8>>,
     }
 
     impl Service for Migrate {

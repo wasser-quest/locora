@@ -15,8 +15,8 @@ use crate::app::App;
 pub enum GameCommand {
     /// Spielfortschritt anzeigen: XP, heute fällig, Woche, Trophäen
     Status,
-    /// Spielfortschritt auf allen Geräten löschen (XP, Trophäen, Medaillen, Lerntage, Wochenserien).
-    /// Paläste, Wiederholungsplan, Statistik und Einstellungen bleiben.
+    /// Spielfortschritt auf allen Geräten löschen (XP, Trophäen, Palastmedaillen, Lerntage,
+    /// Wochenserien). Paläste, Wiederholungsplan, Lektionen, Tour und Einstellungen bleiben.
     Reset {
         /// Nicht nachfragen
         #[arg(long)]
@@ -47,8 +47,9 @@ fn status(app: &mut App) -> Result<()> {
     println!("XP:                    {}", game.xp);
     println!("{}", today_line(&game.today));
     println!(
-        "Diese Woche:           {} von {} Lerntagen · {} Lerntage insgesamt",
-        game.week.days, game.week.goal, game.learning_days
+        "Diese Woche:           {} · {} Lerntage insgesamt",
+        week_line(&game.week),
+        game.learning_days
     );
     if game.week.streak > 0 {
         println!(
@@ -59,6 +60,12 @@ fn status(app: &mut App) -> Result<()> {
         println!(
             "Wochenziel:            Neue Woche, neues Ziel. Dein Bestwert: {} Wochen in Folge.",
             game.week.best
+        );
+    }
+    if game.today.repeat_open > 0 {
+        println!(
+            "Zum Nachüben:          {} Orte (heute schon gelernt, ohne XP)",
+            game.today.repeat_open
         );
     }
     let trophies: Vec<String> = game.trophies.iter().map(|t| t.id.clone()).collect();
@@ -79,6 +86,18 @@ fn status(app: &mut App) -> Result<()> {
     Ok(())
 }
 
+/// This week's learning days against its target, and the days with nothing due.
+pub fn week_line(week: &locora_api::gamification::Week) -> String {
+    let days = week.days.min(week.target);
+    match week.free {
+        0 => format!("{days} von {} Lerntagen", week.target),
+        free => format!(
+            "{days} von {} Lerntagen (Ziel {}, {free} Tage ohne Fälliges)",
+            week.target, week.goal
+        ),
+    }
+}
+
 /// Today's due goal in one line.
 pub fn today_line(today: &locora_api::gamification::Today) -> String {
     let text = match today.goal {
@@ -88,7 +107,7 @@ pub fn today_line(today: &locora_api::gamification::Today) -> String {
             today.due_done + today.due_open
         ),
         Goal::AllDone => "alle fälligen Wiederholungen erledigt".to_owned(),
-        Goal::Free => "nichts fällig – ein freier Tag".to_owned(),
+        Goal::Free => "nichts".to_owned(),
         Goal::Enough => format!(
             "{} fällige Wiederholungen erledigt – der Rest kann warten",
             today.due_done
@@ -126,13 +145,13 @@ pub fn rankings_text(outcome: RankingsDeletion) -> &'static str {
         }
         RankingsDeletion::Deleted => "Ranglisteneinträge vom Server gelöscht.",
         RankingsDeletion::ServerTooOld => {
-            "Der Server kann Ranglisteneinträge noch nicht löschen; sie bleiben, bis er aktualisiert ist. Dein Spielfortschritt ist trotzdem gelöscht."
+            "Der Server kann Ranglisteneinträge noch nicht löschen; sie bleiben, bis er aktualisiert ist. Locora fragt beim Start, bei der Anmeldung und beim Sync wieder nach."
         }
         RankingsDeletion::Pending => {
-            "Der Server war nicht erreichbar. Die Ranglisteneinträge werden beim nächsten Sync gelöscht."
+            "Der Server war nicht erreichbar. Locora fragt beim Start, bei der Anmeldung und beim Sync wieder nach; bis dahin bleiben die Ranglisteneinträge."
         }
         RankingsDeletion::SignInAgain => {
-            "Melde dich wieder bei Locora Cloud an, um deine Ranglisteneinträge zu löschen."
+            "Deine Anmeldung bei Locora Cloud ist abgelaufen. Sobald du dich mit diesem Konto wieder anmeldest, werden die Ranglisteneinträge gelöscht."
         }
     }
 }

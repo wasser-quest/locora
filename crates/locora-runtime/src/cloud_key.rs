@@ -131,7 +131,6 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
-            game_delete_pending: false,
         };
         cloud::save(data, &state).unwrap();
     }

@@ -25,8 +25,6 @@ struct Cloud {
     asked: Vec<Vec<String>>,
     /// A smaller body limit for pushes (0: none but the 4 MiB every server takes).
     push_limit: usize,
-    /// The answer to `DELETE /v1/game/data` (0: 204).
-    game_status: u16,
 }
 
 fn respond(socket: &mut TcpStream, status: u16, body: &[u8]) {
@@ -131,10 +129,6 @@ fn handle(cloud: &Mutex<Cloud>, mut socket: TcpStream) {
             (200, reply)
         }
         ("POST", "/v1/media/missing") => (404, Vec::new()),
-        ("DELETE", "/v1/game/data") => match cloud.game_status {
-            0 => (204, Vec::new()),
-            status => (status, br#"{"error":"no"}"#.to_vec()),
-        },
         ("POST", "/v1/sync/complete") => (
             200,
             json!({"state": "active", "last_successful_sync_at": 1, "expires_at": 99, "generation": 0})
@@ -204,7 +198,6 @@ fn cloud(knows_missing: bool) -> (CloudState, Arc<Mutex<Cloud>>) {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
-            game_delete_pending: false,
         },
         state,
     )
@@ -400,42 +393,4 @@ fn a_batch_the_server_finds_too_large_is_sent_in_halves() {
         .map(|(_, _, op)| op["op_id"].as_str().unwrap())
         .collect();
     assert_eq!(ids.len(), logged - 2, "every operation arrived once");
-}
-
-#[test]
-fn a_pending_deletion_of_the_game_scores_is_asked_first_and_kept_only_while_unanswered() {
-    for (status, outcome, pending) in [
-        (0, cloud::RankingsDeletion::Deleted, false),
-        (405, cloud::RankingsDeletion::ServerTooOld, false),
-        (503, cloud::RankingsDeletion::Pending, true),
-    ] {
-        let dir = tempfile::tempdir().unwrap();
-        let store = Store::open(dir.path()).unwrap();
-        let (mut state, cloud) = cloud(true);
-        cloud.lock().unwrap().game_status = status;
-        state.game_delete_pending = true;
-        let report = cloud_http::run(SyncFlow::new(state.clone(), &store, dek()).unwrap()).unwrap();
-        assert_eq!(report.rankings, Some(outcome), "{status}");
-        let first = cloud.lock().unwrap().requests[0].clone();
-        assert_eq!(
-            (first.0.as_str(), first.1.as_str()),
-            ("DELETE", "/v1/game/data")
-        );
-        crate::cloud_sync::keep(&mut state, &report);
-        assert_eq!(state.game_delete_pending, pending, "{status}");
-        // Nothing pending: the sync does not ask.
-        if !pending {
-            let report =
-                cloud_http::run(SyncFlow::new(state.clone(), &store, dek()).unwrap()).unwrap();
-            assert_eq!(report.rankings, None);
-            let asked = cloud
-                .lock()
-                .unwrap()
-                .requests
-                .iter()
-                .filter(|(_, path, _)| path == "/v1/game/data")
-                .count();
-            assert_eq!(asked, 1);
-        }
-    }
 }

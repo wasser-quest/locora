@@ -181,6 +181,9 @@ pub struct Profile {
     pub highlight: Option<HighlightRequest>,
     /// Review cards per palace as the running journey found them (see `answer_timing`).
     review_cache: HashMap<String, HashMap<String, CardState>>,
+    /// The game epoch the gamification plugin was last told by a request of the host (it takes
+    /// no epoch from an event, see `ReviewedAnswer`).
+    pub(crate) game_epoch_told: Option<String>,
 }
 
 impl Profile {
@@ -193,6 +196,7 @@ impl Profile {
             notes: Vec::new(),
             highlight: None,
             review_cache: HashMap::new(),
+            game_epoch_told: None,
         }
     }
 
@@ -548,8 +552,12 @@ impl Profile {
         let answered_at = now();
         // Before `LocusAnswered`: the review plugin moves the card on that one.
         let target = (request.palace_id, request.locus_id, request.answer.kind);
+        let mut timing = None;
         match self.reviewed(target, &evaluation, answered_at) {
-            Ok(reviewed) => notes.extend(self.publish(&reviewed)?),
+            Ok(reviewed) => {
+                timing = Some(reviewed.timing);
+                notes.extend(self.publish(&reviewed)?);
+            }
             Err(error) => notes.push(format!(
                 "Antwort nicht für den Fortschritt gezählt: {error:#}"
             )),
@@ -584,6 +592,7 @@ impl Profile {
             correct: evaluation.correct,
             grade: evaluation.grade,
             points: score.points,
+            timing,
             notes,
         })
     }
@@ -598,6 +607,10 @@ impl Profile {
         let clock = self.day_clock()?;
         let day_start = clock.day_start(answered_at);
         let epoch = self.game_epoch()?;
+        // A deletion that came with a sync: the plugin hears of the new epoch from the host first.
+        if self.has_game() && self.game_epoch_told.as_deref() != Some(epoch.id.as_str()) {
+            self.gamification_status(false)?;
+        }
         Ok(ReviewedAnswer {
             palace_id: palace_id.to_owned(),
             locus_id: locus_id.to_owned(),
@@ -630,19 +643,22 @@ pub struct Answered {
     pub correct: bool,
     pub grade: Grade,
     pub points: u64,
+    /// How the answer related to the locus's review (due, new, early, a repeat).
+    pub timing: Option<locora_api::core::Timing>,
     /// Plugin problems that came up.
     pub notes: Vec<String>,
 }
 
-/// Due and new (never answered) loci of a palace at `now`.
+/// Loci a due journey asks on the learning day `day` (see `DueDay::asks`), and new (never
+/// answered) loci of a palace.
 pub fn count_due(
     tree: &PalaceTree,
     cards: &HashMap<String, CardState>,
-    now: u64,
+    day: &game::DueDay,
 ) -> (usize, usize) {
     tree.route()
         .fold((0, 0), |(due, fresh), l| match cards.get(&l.id) {
-            Some(card) if card.due <= now => (due + 1, fresh),
+            Some(card) if day.asks(card) => (due + 1, fresh),
             Some(_) => (due, fresh),
             None => (due, fresh + 1),
         })

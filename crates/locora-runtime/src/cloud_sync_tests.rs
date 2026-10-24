@@ -41,7 +41,6 @@ fn responses(replies: Vec<(u16, Value)>) -> (CloudState, thread::JoinHandle<Vec<
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
-            game_delete_pending: false,
             account: Account {
                 id: "local".into(),
                 email: "test@example.invalid".into(),
@@ -323,7 +322,6 @@ fn app_sync_checks_access_before_fetching_keys() {
         entitlement: None,
         last_sync_at: None,
         auto_sync: false,
-        game_delete_pending: false,
     };
     cloud::save(data.path(), &state).unwrap();
     let error = sync_with_passphrase(data.path(), &store, "unused passphrase")

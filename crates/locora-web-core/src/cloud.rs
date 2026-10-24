@@ -48,9 +48,26 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
         };
     }
     match name {
+        // A deletion of the game scores that still waits for the server is asked again here
+        // (the app reads the status at the start, after signing in and on the settings).
         "cloud_status" => {
             let state = cloud::load(&data)?;
-            Ok(json!({ "done": status(state.as_ref()) }))
+            match state {
+                Some(state) if cloud::rankings_pending(&data, &state.account.id)? => {
+                    let call = cloud::erase_game_call(&state)?;
+                    drive(
+                        Box::new(Map::new(
+                            Exchange::new(call, cloud::erase_game_reply),
+                            move |outcome: cloud::RankingsDeletion| {
+                                cloud::note_rankings(&data, &state, outcome)?;
+                                Ok(json!(status(Some(&state))))
+                            },
+                        )),
+                        None,
+                    )
+                }
+                state => Ok(json!({ "done": status(state.as_ref()) })),
+            }
         }
         "cloud_refresh" => {
             let state = saved(&data)?;
@@ -122,7 +139,7 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
         }
         "cloud_sync" => crate::cloud_auto::sync(args, data),
         // Deleted here first; the rankings on the server are asked for when an account is
-        // signed in, and kept for the next sync when the server cannot be reached.
+        // signed in, and asked again (see `cloud_status`) until the server has deleted them.
         "game_reset" => {
             crate::with_backend(|backend| backend.profile.reset_game().map(drop))?;
             let report = |outcome| {
@@ -138,10 +155,7 @@ pub fn command(name: &str, args: &Value) -> Result<Value> {
                 Box::new(Map::new(
                     Exchange::new(call, cloud::erase_game_reply),
                     move |outcome: cloud::RankingsDeletion| {
-                        if let Some(mut state) = cloud::load(&data)? {
-                            state.game_delete_pending = outcome.pending();
-                            cloud::save(&data, &state)?;
-                        }
+                        cloud::note_rankings(&data, &state, outcome)?;
                         Ok(report(outcome))
                     },
                 )),

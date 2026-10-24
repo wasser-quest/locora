@@ -389,29 +389,46 @@ pub fn rankings_note(signed_in: bool) -> &'static str {
     }
 }
 
-/// What happened, after the game progress was deleted.
-pub fn reset_message(report: GameResetReport) -> String {
-    let rankings = match report.rankings {
-        RankingsDeletion::NotSignedIn => None,
-        RankingsDeletion::Deleted => Some(t("Ranglisteneinträge vom Server gelöscht.")),
-        RankingsDeletion::ServerTooOld => Some(t(
-            "Der Server kann Ranglisteneinträge noch nicht löschen; sie bleiben, bis er aktualisiert ist. Dein Spielfortschritt ist trotzdem gelöscht.",
-        )),
-        RankingsDeletion::Pending => Some(t(
-            "Der Server war nicht erreichbar. Die Ranglisteneinträge werden beim nächsten Sync gelöscht.",
-        )),
-        RankingsDeletion::SignInAgain => Some(t(
-            "Melde dich wieder bei Locora Cloud an, um deine Ranglisteneinträge zu löschen.",
-        )),
+/// What happened, after the game progress was deleted, and whether all of it is done (the
+/// rankings on the server too): only then is it shown as a success.
+pub fn reset_message(report: GameResetReport) -> (String, bool) {
+    let (rankings, done) = match report.rankings {
+        RankingsDeletion::NotSignedIn => (None, true),
+        RankingsDeletion::Deleted => (Some(t("Ranglisteneinträge vom Server gelöscht.")), true),
+        RankingsDeletion::ServerTooOld => (
+            Some(t(
+                "Der Server kann Ranglisteneinträge noch nicht löschen; sie bleiben, bis er aktualisiert ist. Locora fragt beim Start, bei der Anmeldung und beim Sync wieder nach.",
+            )),
+            false,
+        ),
+        RankingsDeletion::Pending => (
+            Some(t(
+                "Der Server war nicht erreichbar. Locora fragt beim Start, bei der Anmeldung und beim Sync wieder nach; bis dahin bleiben die Ranglisteneinträge.",
+            )),
+            false,
+        ),
+        RankingsDeletion::SignInAgain => (
+            Some(t(
+                "Deine Anmeldung bei Locora Cloud ist abgelaufen. Sobald du dich mit diesem Konto wieder anmeldest, werden die Ranglisteneinträge gelöscht.",
+            )),
+            false,
+        ),
     };
-    match rankings {
+    let text = match rankings {
         Some(rankings) => format!("{} {rankings}", t("Spielfortschritt gelöscht.")),
         None => t("Spielfortschritt gelöscht.").to_owned(),
-    }
+    };
+    (text, done)
 }
 
-/// The game's numbers in one line, with "1 medal" and "1 learning day" in the singular.
-pub fn progress_line(xp: u64, medals: usize, days: u32) -> String {
+/// The game's numbers in one line, each kind with its own word and in the singular where it is
+/// one: „54 XP · 1 Trophäe · 2 Medaillen · 1 Lerntag“.
+pub fn progress_line(xp: u64, trophies: usize, medals: usize, days: u32) -> String {
+    let trophies = if trophies == 1 {
+        t("1 Trophäe").to_owned()
+    } else {
+        crate::i18n::tf("{0} Trophäen", &[&trophies])
+    };
     let medals = if medals == 1 {
         t("1 Medaille").to_owned()
     } else {
@@ -422,7 +439,28 @@ pub fn progress_line(xp: u64, medals: usize, days: u32) -> String {
     } else {
         crate::i18n::tf("{0} Lerntage", &[&days])
     };
-    format!("{} · {medals} · {days}", crate::i18n::tf("{0} XP", &[&xp]))
+    format!(
+        "{} · {trophies} · {medals} · {days}",
+        crate::i18n::tf("{0} XP", &[&xp])
+    )
+}
+
+/// An option of the weekly goal.
+pub fn week_goal_option(days: u8) -> String {
+    if days == 1 {
+        t("An 1 Tag pro Woche lernen").to_owned()
+    } else {
+        crate::i18n::tf("An {0} Tagen pro Woche lernen", &[&days])
+    }
+}
+
+/// Where the focus goes once the confirmation closes.
+#[derive(Clone, Copy, PartialEq)]
+enum Focus {
+    /// Back to „Delete game progress…“ (cancelled).
+    Button,
+    /// To the message that says what happened.
+    Message,
 }
 
 /// The game: its numbers, the weekly goal, the journey bar, and deleting the progress on every
@@ -433,10 +471,23 @@ fn GameProgress() -> impl IntoView {
     let signed_in = RwSignal::new(false);
     let confirming = RwSignal::new(false);
     let busy = RwSignal::new(false);
-    let message = RwSignal::new(None::<Result<String, String>>);
+    let message = RwSignal::new(None::<Result<(String, bool), String>>);
     let warning = NodeRef::<leptos::html::P>::new();
+    let open_button = NodeRef::<leptos::html::Button>::new();
+    let message_ref = NodeRef::<leptos::html::P>::new();
+    let refocus = RwSignal::new(None::<Focus>);
     // Looked up here: a task after an await has no owner to ask.
     let auto_sync = crate::auto_sync::use_auto_sync();
+    // Signing in or out in the cloud settings on this page shows here at once.
+    if let Some(crate::cloud_settings::SignedIn(cloud)) =
+        use_context::<crate::cloud_settings::SignedIn>()
+    {
+        Effect::new(move |_| {
+            if let Some(now) = cloud.get() {
+                signed_in.set(now);
+            }
+        });
+    }
     // The numbers, and whether an account is signed in (it may have changed on this page).
     let reload = move || {
         spawn_local(async move {
@@ -460,13 +511,29 @@ fn GameProgress() -> impl IntoView {
             let _ = element.focus();
         }
     });
+    // Closed: back to the button, or to what happened, once it is there again.
+    Effect::new(move |_| {
+        let target = refocus.get();
+        let focused = match target {
+            Some(Focus::Button) => open_button.get().map(|button| button.focus().is_ok()),
+            Some(Focus::Message) => message_ref.get().map(|text| text.focus().is_ok()),
+            None => None,
+        };
+        if focused.is_some() {
+            refocus.set(None);
+        }
+    });
+    let close = move || {
+        confirming.set(false);
+        refocus.set(Some(Focus::Button));
+    };
     let set_goal = move |days: u8| {
         busy.set(true);
         message.set(None);
         spawn_local(async move {
             match call::<u8>(CMD_GAME_WEEK_GOAL, WeekGoalArgs { days }).await {
                 Ok(_) => {
-                    message.set(Some(Ok(t("Wochenziel gespeichert.").into())));
+                    message.set(Some(Ok((t("Wochenziel gespeichert.").into(), true))));
                     reload();
                 }
                 Err(error) => message.set(Some(Err(error))),
@@ -496,33 +563,34 @@ fn GameProgress() -> impl IntoView {
                 )))),
             }
             confirming.set(false);
+            refocus.set(Some(Focus::Message));
             busy.set(false);
         });
     };
-    let medals = |game: &GamificationStatus| {
-        game.trophies.len()
-            + game
-                .palace_medals
+    let counts = |game: &GamificationStatus| {
+        (
+            game.trophies.len(),
+            game.palace_medals
                 .iter()
                 .filter(|medal| medal.unlocked.is_some())
-                .count()
+                .count(),
+        )
     };
     view! {
         <Show when=move || status.with(Option::is_some)>
             <section class="card panel game-progress" aria-label=t("Spielfortschritt & Erfolge")>
                 <h2>{t("Spielfortschritt & Erfolge")}</h2>
-                <p class="progress">{move || status.with(|game| game.as_ref().map(|game| progress_line(
-                    game.xp,
-                    medals(game),
-                    game.learning_days,
-                )).unwrap_or_default())}</p>
+                <p class="progress">{move || status.with(|game| game.as_ref().map(|game| {
+                    let (trophies, medals) = counts(game);
+                    progress_line(game.xp, trophies, medals, game.learning_days)
+                }).unwrap_or_default())}</p>
                 <p class="notes">{move || if signed_in.get() {
                     t("Wird über Locora Cloud mit deinen Geräten abgeglichen.")
                 } else {
                     t("Nur auf diesem Gerät gespeichert.")
                 }}</p>
                 <label class="info-head">{t("Wochenziel")}
-                    <Info text="Ein Lerntag zählt, wenn du auf einem deiner Geräte etwas wiederholst oder neu lernst, oder wenn nichts fällig ist. Ein verpasster Tag kostet nichts." />
+                    <Info text="Ein Lerntag ist ein Tag, an dem du auf einem deiner Geräte etwas Fälliges wiederholst oder Neues lernst; die App nur zu öffnen zählt nicht. Ein Tag, an dem nichts fällig war, senkt das Ziel dieser Woche um einen Tag (auf mindestens einen). Locora erkennt ihn am Wiederholungsplan, auch wenn du die App an dem Tag nicht öffnest. Ein verpasster Tag kostet nichts." />
                     <select disabled=move || busy.get()
                         on:change=move |event| {
                             if let Ok(days) = event_target_value(&event).parse::<u8>() {
@@ -532,7 +600,7 @@ fn GameProgress() -> impl IntoView {
                         {(1..=7u8).map(|days| view! {
                             <option value=days.to_string()
                                 prop:selected=move || status.with(|game| game.as_ref().map_or(4, |game| game.week.goal)) == days>
-                                {crate::i18n::tf("An {0} Tagen pro Woche lernen", &[&days])}
+                                {week_goal_option(days)}
                             </option>
                         }).collect_view()}
                     </select>
@@ -542,8 +610,9 @@ fn GameProgress() -> impl IntoView {
                 <Show
                     when=move || confirming.get()
                     fallback=move || view! {
-                        <button type="button" class="danger" disabled=move || busy.get() on:click=move |_| {
+                        <button type="button" class="danger" node_ref=open_button disabled=move || busy.get() on:click=move |_| {
                             reload();
+                            message.set(None);
                             confirming.set(true);
                         }>
                             {t("Spielfortschritt löschen …")}
@@ -553,29 +622,34 @@ fn GameProgress() -> impl IntoView {
                     <div class="game-reset" on:keydown=move |event| {
                         if event.key() == "Escape" {
                             event.prevent_default();
-                            confirming.set(false);
+                            close();
                         }
                     }>
                         <h3>{t("Spielfortschritt löschen?")}</h3>
-                        <p role="alert" tabindex="-1" node_ref=warning>{t("Gelöscht werden: XP, Trophäen und Medaillen (die Schritte von „Dein Weg in Locora“ sind wieder offen), Lerntage und Wochenserien, das Tagesziel und der Fortschritt in Challenges.")}</p>
-                        <p>{t("Erhalten bleiben: deine Paläste, Orte und Medien, der Wiederholungsplan und -verlauf (wann ein Ort fällig ist, ändert sich nicht), die Statistik, deine Einstellungen samt Wochenziel und dein Cloud-Konto.")}</p>
+                        <p role="alert" tabindex="-1" node_ref=warning>{t("Gelöscht werden: XP, Journey-Trophäen und Palastmedaillen, Lerntage und Wochenziel-Serien, das Tagesziel und der Fortschritt in Challenges.")}</p>
+                        <p>{t("Erhalten bleiben: deine Paläste, Orte und Medien, der Wiederholungsplan und -verlauf (wann ein Ort fällig ist, ändert sich nicht), deine Lektionen, App-Tour und Tutorial („Dein Weg in Locora“), die Antworten in der Statistik, deine Einstellungen samt Wochenziel und dein Cloud-Konto.")}</p>
                         <p>{t("Palastmedaillen kommen von selbst zurück, wo deine Paläste sie noch erfüllen, denn der Wiederholungsplan bleibt.")}</p>
-                        <p>{t("Auf deinen anderen Geräten wird der Spielfortschritt beim nächsten Sync gelöscht. Was ein Gerät bis dahin offline sammelt, verfällt. Geräte mit einer älteren Locora-Version zeigen ihre alten Zahlen, bis sie aktualisiert sind.")}</p>
                         {move || signed_in.get().then(|| view! {
+                            <p>{t("Auf deinen anderen Geräten wird der Spielfortschritt beim nächsten Sync gelöscht. Was ein Gerät bis dahin offline sammelt, verfällt. Geräte mit einer älteren Locora-Version zeigen ihre alten Zahlen, bis sie aktualisiert sind.")}</p>
                             <p>{t("Frühere verschlüsselte Kopien bleiben im Änderungsprotokoll des Servers, bis du „Cloud-Daten löschen“ verwendest; dort kann sie niemand lesen.")}</p>
                         })}
                         <p class="game-rankings">{move || rankings_note(signed_in.get())}</p>
                         <button type="button" class="danger" disabled=move || busy.get() on:click=move |_| reset()>
-                            {t("Ja, Spielfortschritt auf allen Geräten löschen")}
+                            {move || if signed_in.get() {
+                                t("Ja, Spielfortschritt auf allen Geräten löschen")
+                            } else {
+                                t("Ja, Spielfortschritt auf diesem Gerät löschen")
+                            }}
                         </button>
-                        <button type="button" disabled=move || busy.get() on:click=move |_| confirming.set(false)>
+                        <button type="button" disabled=move || busy.get() on:click=move |_| close()>
                             {t("Abbrechen")}
                         </button>
                     </div>
                 </Show>
                 {move || message.get().map(|m| match m {
-                    Ok(text) => view! { <p class="verdict ok" role="status">{text}</p> }.into_any(),
-                    Err(text) => view! { <p class="notes" role="alert">{text}</p> }.into_any(),
+                    Ok((text, true)) => view! { <p class="verdict ok" role="status" tabindex="-1" node_ref=message_ref>{text}</p> }.into_any(),
+                    Ok((text, false)) => view! { <p class="notes game-pending" role="status" tabindex="-1" node_ref=message_ref>{text}</p> }.into_any(),
+                    Err(text) => view! { <p class="notes" role="alert" tabindex="-1" node_ref=message_ref>{text}</p> }.into_any(),
                 })}
             </section>
         </Show>
@@ -671,29 +745,53 @@ mod tests {
             rankings_note(false),
             "This device is not signed in to Locora Cloud, so ranking entries on the server are not touched."
         );
-        let older = reset_message(GameResetReport {
+        let (older, done) = reset_message(GameResetReport {
             rankings: RankingsDeletion::ServerTooOld,
         });
+        assert!(!done, "not shown as a success");
         assert!(older.starts_with("Game progress deleted."), "{older}");
         assert!(
             older.contains("cannot delete ranking entries yet"),
             "{older}"
         );
         assert_eq!(
+            older.matches("deleted").count(),
+            1,
+            "it says once that the progress is deleted: {older}"
+        );
+        assert_eq!(
             reset_message(GameResetReport {
                 rankings: RankingsDeletion::NotSignedIn
             }),
-            "Game progress deleted."
+            ("Game progress deleted.".to_owned(), true)
         );
+        for pending in [RankingsDeletion::Pending, RankingsDeletion::SignInAgain] {
+            let (text, done) = reset_message(GameResetReport { rankings: pending });
+            assert!(!done && text.contains("ranking"), "{text}");
+        }
         crate::i18n::set_current(crate::i18n::Lang::De);
     }
 
     #[test]
-    fn one_medal_and_one_learning_day_are_singular() {
+    fn trophies_medals_learning_days_and_goals_are_singular_where_one() {
         crate::i18n::set_current(crate::i18n::Lang::En);
-        assert_eq!(progress_line(54, 1, 1), "54 XP · 1 medal · 1 learning day");
-        assert_eq!(progress_line(0, 0, 3), "0 XP · 0 medals · 3 learning days");
+        assert_eq!(
+            progress_line(54, 1, 1, 1),
+            "54 XP · 1 trophy · 1 medal · 1 learning day"
+        );
+        assert_eq!(
+            progress_line(0, 0, 0, 3),
+            "0 XP · 0 trophies · 0 medals · 3 learning days"
+        );
+        assert_eq!(week_goal_option(1), "Learn on 1 day a week");
+        assert_eq!(week_goal_option(4), "Learn on 4 days a week");
+        crate::i18n::set_current(crate::i18n::Lang::Fr);
+        assert_eq!(week_goal_option(1), "Apprendre 1 jour par semaine");
         crate::i18n::set_current(crate::i18n::Lang::De);
-        assert_eq!(progress_line(54, 2, 1), "54 XP · 2 Medaillen · 1 Lerntag");
+        assert_eq!(
+            progress_line(54, 3, 2, 1),
+            "54 XP · 3 Trophäen · 2 Medaillen · 1 Lerntag"
+        );
+        assert_eq!(week_goal_option(1), "An 1 Tag pro Woche lernen");
     }
 }

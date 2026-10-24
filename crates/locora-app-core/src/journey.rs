@@ -5,6 +5,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
+use locora_api::core::Timing;
 use locora_api::core::{Grade, JourneyCompleted, JourneyStarted};
 use locora_api::journey::{Answer, AnswerKind as Kind, Submission};
 use locora_app_api::{
@@ -12,7 +13,7 @@ use locora_app_api::{
     Media, NearbyLocus, Question, Reply, Revealed, Step, Summary, VideoPreviewItem,
 };
 use locora_formula::workbook::{ActionOutcome, Run};
-use locora_runtime::game::{app_medal, unlock_app_medal};
+use locora_runtime::game::{DueDay, app_medals, unlock_app_medal};
 use locora_runtime::journey::{PlanOptions, Stop, plan, resolve_text};
 use locora_runtime::settings::DAY;
 use locora_runtime::{AnswerRequest, Profile, now};
@@ -52,12 +53,12 @@ const GAME_TROPHIES: [&str; 6] = [
 
 /// The built-in achievements and whether each is unlocked: the built-in palaces, the tour, the
 /// lessons (`learn-<lesson>`, in order), all lessons and the first own palace. `learn-all`
-/// follows from the lessons, so it is unlocked on every device as soon as they are. With the
-/// gamification plugin, the journey trophies (`game-<id>`) and the palace medals
-/// (`palace-<level>`, one per palace and level) follow. Only medals of the current game epoch
-/// count: deleting the game progress locks them all.
+/// follows from the lessons, so it is unlocked on every device as soon as they are. These are
+/// learning progress: deleting the game progress keeps them. With the gamification plugin, the
+/// journey trophies (`game-<id>`) and the palace medals (`palace-<level>`, one per palace and
+/// level) follow; when the plugin fails, the list comes without them (and a note).
 pub fn achievements(profile: &mut Profile) -> Result<Vec<locora_app_api::AchievementView>> {
-    let epoch = profile.game_epoch()?.id;
+    let earned_medals = app_medals(&profile.store)?;
     let lessons: Vec<String> = locora_app_api::LEARN_LESSONS
         .iter()
         .map(|lesson| format!("learn-{lesson}"))
@@ -69,11 +70,11 @@ pub fn achievements(profile: &mut Profile) -> Result<Vec<locora_app_api::Achieve
         .map(|id| id.to_string())
         .chain(lessons.iter().cloned())
     {
-        let earned = app_medal(&profile.store, &id, &epoch)?;
+        let earned = earned_medals.get(&id);
         views.push(locora_app_api::AchievementView {
             id,
             unlocked: earned.is_some(),
-            day: earned.flatten(),
+            day: earned.cloned().flatten(),
             palace: None,
             progress: None,
         });
@@ -85,8 +86,13 @@ pub fn achievements(profile: &mut Profile) -> Result<Vec<locora_app_api::Achieve
     if let Some(view) = views.iter_mut().find(|view| view.id == "learn-all") {
         view.unlocked |= all;
     }
-    if let Some(status) = profile.gamification_status(true)? {
-        views.extend(game_achievements(profile, &status)?);
+    // The game must not take the lessons, the tour and the learning path with it.
+    match profile.gamification_status(true) {
+        Ok(Some(status)) => views.extend(game_achievements(profile, &status)?),
+        Ok(None) => {}
+        Err(error) => profile
+            .notes
+            .push(format!("Spielfortschritt nicht verfügbar: {error:#}")),
     }
     Ok(views)
 }
@@ -132,23 +138,6 @@ fn game_achievements(
     Ok(views)
 }
 
-/// What a status counts as earned: trophies (`game-<id>`) and palace medals
-/// (`palace-<level>@<palace id>`), to see what a journey added.
-fn earned(status: &GamificationStatus) -> BTreeSet<String> {
-    status
-        .trophies
-        .iter()
-        .map(|t| format!("game-{}", t.id))
-        .chain(
-            status
-                .palace_medals
-                .iter()
-                .filter(|m| m.unlocked.is_some())
-                .map(|m| format!("palace-{}@{}", m.level, m.palace_id)),
-        )
-        .collect()
-}
-
 /// Unlock an achievement the UI earned (a lesson or the finished tour); other ids are refused,
 /// so the UI cannot hand out the rest. Returns whether it was new.
 pub fn unlock(profile: &Profile, id: &str) -> Result<bool> {
@@ -159,11 +148,10 @@ pub fn unlock(profile: &Profile, id: &str) -> Result<bool> {
     unlock_medal(profile, id)
 }
 
-/// Unlocks an app medal in the current game epoch, on today's learning day.
+/// Unlocks an app medal on today's learning day.
 fn unlock_medal(profile: &Profile, id: &str) -> Result<bool> {
-    let epoch = profile.game_epoch()?.id;
     let (_, day) = profile.learning_day()?;
-    unlock_app_medal(&profile.store, id, &epoch, &day)
+    unlock_app_medal(&profile.store, id, &day)
 }
 
 /// The achievement a finished journey through `palace_id` unlocks: the built-in palaces their
@@ -198,8 +186,10 @@ pub struct Journey {
     /// Time per palace, only at its own loci.
     spent: HashMap<String, Duration>,
     notes: Vec<String>,
-    /// XP and earned trophies when the journey began (with the gamification plugin).
-    game_start: Option<(u64, BTreeSet<String>)>,
+    /// XP when the journey began (with the gamification plugin).
+    game_start: Option<u64>,
+    /// Loci (palace, locus) practised before they were due.
+    early: Vec<(String, String)>,
 }
 
 /// The palaces of a journey and one workbook run per palace.
@@ -273,7 +263,7 @@ impl Journey {
             &trees,
             &runs,
             &cards,
-            seed,
+            &profile.due_day()?,
             &PlanOptions {
                 due_only: options.due_only,
                 new,
@@ -291,15 +281,17 @@ impl Journey {
                 palace_ids.push(id.clone());
             }
         }
-        let start_notes = profile.publish(&JourneyStarted { palace_ids })?;
-        // The game must not stop a journey: without its numbers the summary is as before.
+        // The game must not stop a journey: without its numbers the summary is as before. Read
+        // before the journey starts, so medals that were due anyway are not this journey's.
         let game_start = profile
             .gamification_status(true)
             .ok()
             .flatten()
-            .map(|status| (status.xp, earned(&status)));
+            .map(|status| status.xp);
+        let start_notes = profile.publish(&JourneyStarted { palace_ids })?;
         let mut journey = Self {
             game_start,
+            early: Vec::new(),
             trees,
             runs,
             stops: planned.stops,
@@ -644,6 +636,9 @@ impl Journey {
                     elapsed_ms: elapsed.as_millis().min(u64::MAX as u128) as u64,
                 })?;
                 self.notes.extend(answered.notes);
+                if answered.timing == Some(Timing::Early) {
+                    self.early.push((palace_id.clone(), locus.id.clone()));
+                }
                 self.transcripts
                     .entry(palace_id.clone())
                     .or_default()
@@ -741,7 +736,7 @@ impl Journey {
             notes: std::mem::take(&mut self.notes),
             ..Summary::default()
         };
-        if let Some(start) = &self.game_start {
+        if let Some(start) = self.game_start {
             // If the plugin fails, the summary still shows.
             if let Ok(Some(status)) = profile.gamification_status(true) {
                 self.game_summary(profile, &mut summary, start, &status)?;
@@ -751,54 +746,79 @@ impl Journey {
         Ok(summary)
     }
 
-    /// What the journey earned and what comes next, for the end card.
+    /// What the journey earned and what comes next, for the end card. Only what this device's
+    /// answers and journey earned is listed, never what a sync brought meanwhile.
     fn game_summary(
         &self,
         profile: &mut Profile,
         summary: &mut Summary,
-        (xp_before, earned_before): &(u64, BTreeSet<String>),
+        xp_before: u64,
         status: &GamificationStatus,
     ) -> Result<()> {
-        match &status.session {
-            Some(session) => {
-                summary.xp_gained = Some(session.xp);
-                summary.due_done = session.due;
-                summary.new_done = session.new;
-                summary.early = session.early;
-            }
-            None => summary.xp_gained = Some(status.xp.saturating_sub(*xp_before)),
-        }
         let names: HashMap<String, String> = profile
             .store
             .palaces()?
             .into_iter()
             .map(|p| (p.id, p.name))
             .collect();
-        summary.new_trophies = earned(status)
-            .difference(earned_before)
-            .map(|id| match id.split_once('@') {
-                Some((medal, palace)) => format!(
-                    "{medal}@{}",
-                    names.get(palace).map_or(palace, String::as_str)
-                ),
-                None => id.clone(),
-            })
-            .collect();
+        match &status.session {
+            Some(session) => {
+                summary.xp_gained = Some(session.xp);
+                summary.due_done = session.due;
+                summary.new_done = session.new;
+                summary.early = session.early;
+                summary.repeat = session.repeat;
+                let mut seen = BTreeSet::new();
+                summary.new_trophies = session
+                    .unlocked
+                    .iter()
+                    .filter(|id| seen.insert(id.as_str()))
+                    .map(|id| match id.split_once('@') {
+                        Some((medal, palace)) => format!(
+                            "{medal}@{}",
+                            names.get(palace).map_or(palace, String::as_str)
+                        ),
+                        None => id.clone(),
+                    })
+                    .collect();
+            }
+            None => summary.xp_gained = Some(status.xp.saturating_sub(xp_before)),
+        }
         summary.due_left_today = Some(status.today.due_open);
-        // The next learning day with reviews, and how many are due on it.
-        let now = now();
+        summary.goal = Some(status.today.goal);
         let clock = profile.day_clock()?;
+        let today = DueDay::at(&clock, now());
         let cards = profile.schedule(None)?;
-        if let Some(next) = cards.values().map(|c| c.due).filter(|due| *due > now).min() {
-            let day = clock.day_start(next);
-            let count = cards
-                .values()
-                .filter(|c| c.due > now && clock.day_start(c.due) == day)
-                .count() as u32;
+        // Loci answered today that come back later today: practice, not a review day.
+        summary.repeat_later = cards
+            .values()
+            .filter(|c| today.answered_today(c) && c.due < today.end)
+            .count() as u32;
+        // The next learning day after today with reviews, and how many are due on it (what is
+        // still due today, or back for practice today, is said above).
+        let in_days = |day: u64| {
+            let days = (day.saturating_sub(today.start) + DAY / 2) / DAY;
+            u32::try_from(days).unwrap_or(u32::MAX)
+        };
+        let later: Vec<u64> = cards
+            .values()
+            .filter(|c| c.due >= today.end)
+            .map(|c| clock.day_start(c.due))
+            .collect();
+        if let Some(&day) = later.iter().min() {
+            let count = later.iter().filter(|start| **start == day).count() as u32;
             summary.next_due = Some((clock.date(day), count));
-            let today = clock.day_start(now);
-            let days = (day.saturating_sub(today) + DAY / 2) / DAY;
-            summary.next_due_in = Some(u32::try_from(days).unwrap_or(u32::MAX));
+            summary.next_due_in = Some(in_days(day));
+        }
+        // When the loci practised early come back.
+        if let Some(day) = self
+            .early
+            .iter()
+            .filter_map(|(_, locus)| cards.get(locus))
+            .map(|c| clock.day_start(c.due).max(today.start))
+            .min()
+        {
+            summary.early_next = Some((clock.date(day), in_days(day)));
         }
         Ok(())
     }
@@ -1273,7 +1293,12 @@ mod tests {
 
     /// A palace „Küche“ with `count` recall loci.
     fn kitchen(profile: &mut Profile, count: usize) -> String {
-        let p = profile.store.create_palace("Küche").unwrap();
+        palace_named(profile, "Küche", count)
+    }
+
+    /// A palace `name` with `count` recall loci.
+    fn palace_named(profile: &mut Profile, name: &str, count: usize) -> String {
+        let p = profile.store.create_palace(name).unwrap();
         let r = profile
             .store
             .add_room(&p.id, "R", RoomKind::Blank, None)
@@ -1341,18 +1366,122 @@ mod tests {
         );
         assert_eq!(summary.new_trophies, ["game-first-journey"]);
         assert_eq!(summary.due_left_today, Some(0));
-        let (date, count) = summary.next_due.clone().expect("the loci come back");
-        assert_eq!(count, 3, "all three are due on the same learning day");
-        assert!(date.len() == 10, "{date}");
-        assert!(
-            summary.next_due_in.is_some_and(|days| days <= 1),
-            "{summary:?}"
-        );
+        // Only new loci: nothing was due, and the bonus for all due reviews is not earned.
+        assert_eq!(summary.goal, Some(locora_app_api::Goal::Free));
+        // After „Again“ they come back later today for practice, not on a later day.
+        assert_eq!(summary.repeat_later, 3);
+        assert_eq!(summary.next_due, None, "{summary:?}");
         // Walking the same palace again the same day: practice, no XP, no new trophy.
         let again = walk(&mut profile, &palace, 3);
         assert_eq!(again.xp_gained, Some(0));
-        assert_eq!(again.early, 3);
+        assert_eq!((again.due_done, again.repeat, again.early), (0, 3, 0));
         assert!(again.new_trophies.is_empty());
+        assert_eq!(again.repeat_later, 0);
+        let (date, count) = again.next_due.clone().expect("the loci come back");
+        assert_eq!(count, 3, "all three are due on the same learning day");
+        assert!(date.len() == 10, "{date}");
+        assert_eq!(again.next_due_in, Some(1), "{again:?}");
+        assert!(
+            !achievements(&mut profile)
+                .unwrap()
+                .iter()
+                .any(|view| view.id == "game-due-cleared" && view.unlocked)
+        );
+    }
+
+    /// The palace medals of `palace` that are unlocked.
+    fn palace_medals(profile: &mut Profile) -> Vec<String> {
+        achievements(profile)
+            .unwrap()
+            .into_iter()
+            .filter(|view| view.id.starts_with("palace-") && view.unlocked)
+            .map(|view| view.id)
+            .collect()
+    }
+
+    #[test]
+    fn walking_a_new_palace_again_and_again_in_one_sitting_earns_no_medal() {
+        for grade in [4, 3] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut profile = Profile::open(Some(dir.path())).unwrap();
+            let palace = kitchen(&mut profile, 5);
+            let first = walk(&mut profile, &palace, grade);
+            let interval = |profile: &mut Profile| {
+                let cards = profile.schedule(Some(&palace)).unwrap();
+                let card = *cards.values().next().unwrap();
+                card.due - card.last_review
+            };
+            let after_first = interval(&mut profile);
+            assert!(
+                first
+                    .new_trophies
+                    .iter()
+                    .all(|id| !id.starts_with("palace-"))
+            );
+            for _ in 0..12 {
+                let summary = walk(&mut profile, &palace, grade);
+                assert!(
+                    summary.new_trophies.is_empty(),
+                    "grade {grade}: {:?}",
+                    summary.new_trophies
+                );
+            }
+            assert!(palace_medals(&mut profile).is_empty(), "grade {grade}");
+            assert_eq!(
+                interval(&mut profile),
+                after_first,
+                "grade {grade}: practice the same day does not push the review away"
+            );
+            let views = achievements(&mut profile).unwrap();
+            let anchored = views.iter().find(|view| view.id == "palace-7").unwrap();
+            assert_eq!(anchored.progress, Some((0, 5)), "nothing shown yet");
+        }
+    }
+
+    #[test]
+    fn the_end_card_gives_the_early_loci_their_own_next_review() {
+        use locora_api::review::{CardState, Restore, RestoreRequest};
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        let early = kitchen(&mut profile, 2);
+        let other = palace_named(&mut profile, "Flur", 1);
+        let now = now();
+        let restore = |profile: &mut Profile, palace: &str, due: u64| {
+            let cards = profile
+                .store
+                .palace(palace)
+                .unwrap()
+                .route()
+                .map(|locus| {
+                    let card = CardState {
+                        stability: 20.0,
+                        difficulty: 5.0,
+                        last_review: now - 20 * DAY,
+                        due,
+                        reps: 3,
+                        lapses: 0,
+                    };
+                    (locus.id.clone(), card)
+                })
+                .collect();
+            profile
+                .host
+                .call::<Restore>(&RestoreRequest {
+                    palace_id: palace.to_owned(),
+                    cards,
+                })
+                .unwrap();
+        };
+        restore(&mut profile, &early, now + 10 * DAY);
+        restore(&mut profile, &other, now + DAY + 3_600);
+        let summary = walk(&mut profile, &early, 3);
+        assert_eq!(summary.early, 2);
+        let (_, days) = summary.early_next.clone().unwrap();
+        assert!(days >= 10, "{summary:?}");
+        assert!(
+            summary.next_due_in.is_some_and(|days| days <= 2),
+            "{summary:?}"
+        );
     }
 
     #[test]
@@ -1387,7 +1516,7 @@ mod tests {
     }
 
     #[test]
-    fn deleting_the_game_progress_locks_every_medal() {
+    fn deleting_the_game_progress_keeps_lessons_and_the_tour_but_locks_the_trophies() {
         let dir = tempfile::tempdir().unwrap();
         let mut profile = Profile::open(Some(dir.path())).unwrap();
         let palace = kitchen(&mut profile, 1);
@@ -1410,15 +1539,50 @@ mod tests {
         );
         profile.reset_game().unwrap();
         let after = achievements(&mut profile).unwrap();
-        assert!(after.iter().all(|view| !view.unlocked), "{after:?}");
-        // An older version on another device marks a medal the old way: it does not count.
+        assert!(
+            after
+                .iter()
+                .filter(|view| view.id.starts_with("game-") || view.id.starts_with("palace-"))
+                .all(|view| !view.unlocked),
+            "{after:?}"
+        );
+        // Learning progress stays: the tour, the first own palace, with their days.
+        for id in ["tour-done", "first-palace"] {
+            let view = after.iter().find(|view| view.id == id).unwrap();
+            assert!(view.unlocked && view.day.is_some(), "{view:?}");
+        }
+        // An older version on another device marks a lesson the old way: it counts.
         profile
             .store
-            .kv_set(ACHIEVEMENTS, "first-palace", b"1")
+            .kv_set(ACHIEVEMENTS, "learn-motion", b"1")
             .unwrap();
-        assert!(!unlocked(&mut profile, "first-palace"));
-        // Earned again in the new epoch.
-        walk(&mut profile, &palace, 3);
-        assert!(unlocked(&mut profile, "first-palace"));
+        assert!(unlocked(&mut profile, "learn-motion"));
+    }
+
+    #[test]
+    fn the_achievements_load_without_the_game_when_it_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut profile = Profile::open(Some(dir.path())).unwrap();
+        super::unlock(&profile, "tour-done").unwrap();
+        // A broken epoch makes the game's status fail.
+        profile
+            .store
+            .kv_set("host", locora_runtime::game::EPOCH_KEY, b"{broken")
+            .unwrap();
+        let views = achievements(&mut profile).unwrap();
+        assert!(
+            views
+                .iter()
+                .any(|view| view.id == "tour-done" && view.unlocked)
+        );
+        assert!(views.iter().all(|view| !view.id.starts_with("game-")));
+        assert!(
+            profile
+                .notes
+                .iter()
+                .any(|note| note.contains("Spielfortschritt")),
+            "{:?}",
+            profile.notes
+        );
     }
 }

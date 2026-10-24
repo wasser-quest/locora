@@ -8,7 +8,9 @@
 //! Keys (in the plugin's namespace):
 //! - `g/<epoch>/day/<YYYY-MM-DD>/<device>`: [`DayFact`]
 //! - `g/<epoch>/medal/<palace>/<level>/<device>`: [`MedalFact`]
-//! - `legacy/<device>`: [`LegacyFact`], the progress from before the sync
+//! - `legacy/<device>`: [`LegacyFact`], the progress from before the sync (the shared blob)
+//! - `legacy/<device>/own`: [`LegacyFact`], progress a device kept for itself and never synced
+//!   (the web app's), added on top of the shared blob
 //! - `progress`: the blob of older versions ([`OldProgress`])
 //! - `pref/week-goal/<YYYY-Www>`: [`WeekGoalPref`]
 //! - `seen/<hint>`: a dismissed hint
@@ -45,7 +47,7 @@ pub const PERFECT: &str = "perfect-journey";
 pub const TROPHIES: [&str; 5] = [FIRST_JOURNEY, HUNDRED_XP, SEVEN_DAYS, DUE_CLEARED, RHYTHM_4];
 
 /// What one device did on one learning day. Its owner only ever adds: sets gain members, the
-/// counter rises, flags go from false to true.
+/// counter rises, flags go from false to true; only `look` is replaced by a newer one.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DayFact {
     pub v: u8,
@@ -53,10 +55,19 @@ pub struct DayFact {
     pub due: Vec<u64>,
     pub new: Vec<u64>,
     pub journeys: u32,
-    /// Every due review of the day was done.
+    /// Every due review of the day was done (and there was at least one).
     pub cleared: bool,
-    /// Nothing was due: a free day.
-    pub free: bool,
+    /// What this device last saw of the schedule that day.
+    pub look: Option<Look>,
+}
+
+/// The schedule as a device saw it: as of `at` (seconds since the Unix epoch), the next learning
+/// day with a due review (`None`: no review cards at all). Learning days before `next` have
+/// nothing due, which the weekly goal counts without the app being opened on them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Look {
+    pub at: u64,
+    pub next: Option<String>,
 }
 
 impl DayFact {
@@ -101,6 +112,9 @@ pub struct LegacyFact {
     pub trophies: Vec<String>,
     /// Learning dates from the review log.
     pub days: Vec<String>,
+    /// Progress only this device ever had (never synced before): added to the others, where
+    /// the shared blob counts with its largest value.
+    pub independent: bool,
 }
 
 /// Learning days per week the learner aims for, from that week on.
@@ -140,6 +154,11 @@ pub fn legacy_key(device: &str) -> String {
     format!("legacy/{device}")
 }
 
+/// The key of the progress a device kept for itself (see [`LegacyFact::independent`]).
+pub fn own_legacy_key(device: &str) -> String {
+    format!("legacy/{device}/own")
+}
+
 pub fn goal_key(week: &str) -> String {
     format!("pref/week-goal/{week}")
 }
@@ -165,7 +184,8 @@ pub struct Day {
     pub new: BTreeSet<u64>,
     pub journeys: u32,
     pub cleared: bool,
-    pub free: bool,
+    /// The latest look at the schedule of any device that day (the earlier `next` on a tie).
+    pub look: Option<Look>,
 }
 
 impl Day {
@@ -174,15 +194,21 @@ impl Day {
         self.due.difference(&self.new).count() as u32
     }
 
+    /// The bonus counts only on a day with due reviews done.
     pub fn xp(&self) -> u64 {
-        DUE_XP * u64::from(self.due_done())
+        let done = self.due_done();
+        DUE_XP * u64::from(done)
             + NEW_XP * self.new.len() as u64
-            + if self.cleared { CLEARED_XP } else { 0 }
+            + if self.cleared && done > 0 {
+                CLEARED_XP
+            } else {
+                0
+            }
     }
 
-    /// Something was reviewed or learned, or nothing was due.
+    /// Something due was reviewed or something new learned (opening the app is not learning).
     pub fn learned(&self) -> bool {
-        !self.due.is_empty() || !self.new.is_empty() || self.free
+        !self.due.is_empty() || !self.new.is_empty()
     }
 
     fn merge(&mut self, fact: &DayFact) {
@@ -190,7 +216,17 @@ impl Day {
         self.new.extend(fact.new.iter().copied());
         self.journeys = self.journeys.saturating_add(fact.journeys);
         self.cleared |= fact.cleared;
-        self.free |= fact.free;
+        if let Some(look) = &fact.look {
+            let newer = match &self.look {
+                None => true,
+                Some(current) => {
+                    look.at > current.at || (look.at == current.at && look.next < current.next)
+                }
+            };
+            if newer {
+                self.look = Some(look.clone());
+            }
+        }
     }
 }
 
@@ -198,6 +234,7 @@ impl Day {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Facts {
     pub days: BTreeMap<String, Day>,
+    /// XP from before the sync: the largest shared value plus what devices kept for themselves.
     pub legacy_xp: u64,
     pub legacy_trophies: BTreeSet<String>,
     pub legacy_days: BTreeSet<String>,
@@ -213,6 +250,9 @@ pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch
     let mut facts = Facts::default();
     let current = format!("g/{epoch}/");
     let before_any_reset = epoch == FIRST_EPOCH;
+    // Every device had the same synced blob: the largest counts, never the sum. Progress a
+    // device kept for itself is added once per device.
+    let (mut shared_xp, mut own_xp) = (0u64, 0u64);
     for (key, bytes) in entries {
         if bytes.is_empty() {
             continue;
@@ -257,8 +297,11 @@ pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch
             facts.seen.insert(hint.to_owned());
         } else if before_any_reset && key.starts_with("legacy/") {
             if let Ok(legacy) = locora_sdk::api::decode::<LegacyFact>(bytes) {
-                // Every device had the same synced blob: the largest, never the sum.
-                facts.legacy_xp = facts.legacy_xp.max(legacy.xp);
+                if legacy.independent {
+                    own_xp = own_xp.saturating_add(legacy.xp);
+                } else {
+                    shared_xp = shared_xp.max(legacy.xp);
+                }
                 facts.legacy_trophies.extend(legacy.trophies);
                 facts.legacy_days.extend(legacy.days);
             }
@@ -266,12 +309,13 @@ pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch
             && key == PROGRESS
             && let Ok(progress) = locora_sdk::api::decode::<OldProgress>(bytes)
         {
-            facts.legacy_xp = facts.legacy_xp.max(progress.xp);
+            shared_xp = shared_xp.max(progress.xp);
             facts
                 .legacy_trophies
                 .extend(progress.trophies.iter().map(|t| t.id().to_owned()));
         }
     }
+    facts.legacy_xp = shared_xp.saturating_add(own_xp);
     facts
 }
 
@@ -280,6 +324,8 @@ pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch
 pub struct Derived {
     pub xp: u64,
     pub learning_days: BTreeSet<String>,
+    /// Days with nothing due and nothing learned (they lower their week's target).
+    pub free_days: BTreeSet<String>,
     /// Earned trophies with the day each was earned (`None`: earned before the sync).
     pub trophies: Vec<Earned>,
     pub locked: Vec<String>,
@@ -292,7 +338,8 @@ impl Derived {
     }
 }
 
-pub fn derive(facts: &Facts, today: &str) -> Derived {
+/// `epoch_day` is the day the progress was last deleted, which is never a free day.
+pub fn derive(facts: &Facts, today: &str, epoch_day: Option<&str>) -> Derived {
     let xp = facts
         .days
         .values()
@@ -304,7 +351,8 @@ pub fn derive(facts: &Facts, today: &str) -> Derived {
         .map(|(date, _)| date.clone())
         .chain(facts.legacy_days.iter().cloned())
         .collect();
-    let weeks = Weeks::new(&learning_days, &facts.goals);
+    let free_days = free_days(facts, &learning_days, today, epoch_day);
+    let weeks = Weeks::new(&learning_days, &free_days, &facts.goals, today);
     let legacy = |id: &str| facts.legacy_trophies.contains(id);
     let earned = |id: &str, day: Option<String>| -> Option<Earned> {
         if legacy(id) {
@@ -369,19 +417,76 @@ pub fn derive(facts: &Facts, today: &str) -> Derived {
         .collect();
     Derived {
         xp,
-        week: weeks.at(today),
+        week: weeks.at(),
         learning_days,
+        free_days,
         trophies,
         locked,
     }
 }
 
-/// Today's due goal. `due_open` counts reviews due now that were not done today.
-pub fn today(facts: &Facts, today: &str, due_open: u32) -> Today {
+/// Days up to `today` on which nothing was due and nothing was learned. A day counts when the
+/// latest look at the schedule on or before it saw the next due review after it, and no
+/// learning day came between that look and the day (it may have changed the schedule).
+fn free_days(
+    facts: &Facts,
+    learning_days: &BTreeSet<String>,
+    today: &str,
+    epoch_day: Option<&str>,
+) -> BTreeSet<String> {
+    let mut free = BTreeSet::new();
+    let looks: Vec<(i64, &Look)> = facts
+        .days
+        .iter()
+        .filter_map(|(date, day)| Some((day_number(date)?, day.look.as_ref()?)))
+        .collect();
+    let (Some(&(first, _)), Some(end)) = (looks.first(), day_number(today)) else {
+        return free;
+    };
+    let learned: BTreeSet<i64> = learning_days
+        .iter()
+        .filter_map(|date| day_number(date))
+        .collect();
+    let deleted = epoch_day.and_then(day_number);
+    let mut next_look = looks.iter().peekable();
+    let mut latest: Option<(i64, &Look)> = None;
+    for day in first..=end {
+        while let Some(&&(date, look)) = next_look.peek() {
+            if date > day {
+                break;
+            }
+            latest = Some((date, look));
+            next_look.next();
+        }
+        let Some((seen, look)) = latest else {
+            continue;
+        };
+        if learned.contains(&day) || deleted == Some(day) {
+            continue;
+        }
+        if day > seen + 1 && learned.range(seen + 1..day).next().is_some() {
+            continue;
+        }
+        if look
+            .next
+            .as_deref()
+            .and_then(day_number)
+            .is_some_and(|next| next > day)
+        {
+            free.insert(date_name(day));
+        }
+    }
+    free
+}
+
+/// Today's due goal. `due_open` counts reviews due today that were not done today;
+/// `repeat_open` the loci back for practice (not part of the goal).
+pub fn today(facts: &Facts, today: &str, due_open: u32, repeat_open: u32) -> Today {
     let day = facts.days.get(today).cloned().unwrap_or_default();
     let due_done = day.due_done();
     let goal = if due_open == 0 {
-        if due_done > 0 || day.cleared {
+        // Learning only new loci is no due review done: nothing was due.
+        if due_done > 0 {
             Goal::AllDone
         } else {
             Goal::Free
@@ -395,6 +500,7 @@ pub fn today(facts: &Facts, today: &str, due_open: u32) -> Today {
         due_done,
         due_open,
         new_done: day.new.len() as u32,
+        repeat_open,
         goal,
     }
 }
@@ -447,8 +553,18 @@ pub fn legacy(progress: Option<&OldProgress>, mut days: Vec<String>) -> Option<L
             .map(|p| p.trophies.iter().map(|t| t.id().to_owned()).collect())
             .unwrap_or_default(),
         days,
+        independent: false,
     };
     (fact.xp > 0 || !fact.trophies.is_empty() || !fact.days.is_empty()).then_some(fact)
+}
+
+/// The progress a device kept for itself, for `legacy/<device>/own`; `None` when there is none.
+pub fn own_legacy(progress: &OldProgress) -> Option<LegacyFact> {
+    let fact = LegacyFact {
+        independent: true,
+        ..legacy(Some(progress), Vec::new())?
+    };
+    (fact.xp > 0 || !fact.trophies.is_empty()).then_some(fact)
 }
 
 /// A trophy id as the old enum, for `gamification.status@1` and `TrophyUnlocked`.
@@ -497,6 +613,12 @@ fn civil(days: i64) -> (i64, i64, i64) {
     (year, month, day)
 }
 
+/// `YYYY-MM-DD` of a day number.
+fn date_name(days: i64) -> String {
+    let (year, month, day) = civil(days);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
 /// The Monday (day number) of the ISO week of a day number.
 fn monday(days: i64) -> i64 {
     // 1970-01-01 was a Thursday.
@@ -531,24 +653,38 @@ pub fn week_of(date: &str) -> Option<String> {
     day_number(date).map(|days| week_name(monday(days)))
 }
 
-/// Learning days per ISO week, and the goal of each week.
+/// Learning days and free days per ISO week, and the goal of each week.
 struct Weeks {
     /// Monday → learning dates of that week, sorted.
     days: BTreeMap<i64, Vec<String>>,
+    /// Monday → free dates of that week, sorted.
+    free: BTreeMap<i64, Vec<String>>,
     goals: BTreeMap<String, u8>,
+    /// The Monday of the current week.
+    current: Option<i64>,
 }
 
 impl Weeks {
-    fn new(learning_days: &BTreeSet<String>, goals: &BTreeMap<String, u8>) -> Self {
-        let mut days: BTreeMap<i64, Vec<String>> = BTreeMap::new();
-        for date in learning_days {
-            if let Some(number) = day_number(date) {
-                days.entry(monday(number)).or_default().push(date.clone());
+    fn new(
+        learning_days: &BTreeSet<String>,
+        free_days: &BTreeSet<String>,
+        goals: &BTreeMap<String, u8>,
+        today: &str,
+    ) -> Self {
+        let by_week = |dates: &BTreeSet<String>| {
+            let mut weeks: BTreeMap<i64, Vec<String>> = BTreeMap::new();
+            for date in dates {
+                if let Some(number) = day_number(date) {
+                    weeks.entry(monday(number)).or_default().push(date.clone());
+                }
             }
-        }
+            weeks
+        };
         Self {
-            days,
+            days: by_week(learning_days),
+            free: by_week(free_days),
             goals: goals.clone(),
+            current: day_number(today).map(monday),
         }
     }
 
@@ -565,56 +701,105 @@ impl Weeks {
         self.days.get(&monday).map_or(0, |days| days.len() as u32)
     }
 
+    fn free(&self, monday: i64) -> u32 {
+        self.free.get(&monday).map_or(0, |days| days.len() as u32)
+    }
+
+    /// Learning days the week needs: its goal less its free days, at least one.
+    fn target(&self, monday: i64) -> u32 {
+        u32::from(self.goal(monday))
+            .saturating_sub(self.free(monday))
+            .max(1)
+    }
+
     fn reached(&self, monday: i64) -> bool {
-        self.count(monday) >= u32::from(self.goal(monday))
+        self.count(monday) >= self.target(monday)
     }
 
-    /// The day on which the `n`-th week that reached its goal reached it.
+    /// Nothing was learned, and the days with nothing due cover the goal: the week neither
+    /// counts nor breaks a run.
+    fn neutral(&self, monday: i64) -> bool {
+        self.count(monday) == 0 && self.free(monday) >= u32::from(self.goal(monday))
+    }
+
+    /// The day on which the `n`-th week that reached its target reached it.
     fn nth_reached(&self, n: usize) -> Option<String> {
-        let (monday, days) = self
+        let monday = *self
             .days
-            .iter()
-            .filter(|(monday, _)| self.reached(**monday))
+            .keys()
+            .filter(|monday| self.reached(**monday))
             .nth(n.checked_sub(1)?)?;
-        days.get(usize::from(self.goal(*monday)).saturating_sub(1))
-            .cloned()
+        let goal = u32::from(self.goal(monday));
+        let learned = self.days.get(&monday)?;
+        let free = self
+            .free
+            .get(&monday)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let mut dates: Vec<&String> = learned.iter().chain(free).collect();
+        dates.sort();
+        let (mut count, mut seen_free) = (0, 0);
+        for date in dates {
+            if learned.contains(date) {
+                count += 1;
+            } else {
+                seen_free += 1;
+            }
+            if count >= goal.saturating_sub(seen_free).max(1) {
+                return Some(date.clone());
+            }
+        }
+        None
     }
 
-    fn at(&self, today: &str) -> Week {
-        let Some(current) = day_number(today).map(monday) else {
+    fn at(&self) -> Week {
+        let Some(current) = self.current else {
             return Week {
                 days: 0,
                 goal: DEFAULT_WEEK_GOAL,
+                free: 0,
+                target: u32::from(DEFAULT_WEEK_GOAL),
                 streak: 0,
                 best: 0,
                 missed_last: false,
             };
         };
-        // An unfinished week does not break the run before it.
+        // An unfinished week does not break the run before it; neutral weeks are skipped.
+        let first = self
+            .days
+            .keys()
+            .chain(self.free.keys())
+            .min()
+            .copied()
+            .unwrap_or(current);
         let mut week = if self.reached(current) {
             current
         } else {
             current - 7
         };
         let mut streak = 0;
-        while self.reached(week) {
-            streak += 1;
+        while week >= first {
+            if self.reached(week) {
+                streak += 1;
+            } else if !self.neutral(week) {
+                break;
+            }
             week -= 7;
         }
-        let first = self.days.keys().next().copied().unwrap_or(current);
         let (mut best, mut run) = (0, 0);
         let mut week = first;
         while week <= current {
             if self.reached(week) {
                 run += 1;
                 best = best.max(run);
-            } else if week < current {
+            } else if week < current && !self.neutral(week) {
                 run = 0;
             }
             week += 7;
         }
         let previous = current - 7;
         let missed_last = !self.reached(previous)
+            && !self.neutral(previous)
             && self
                 .days
                 .keys()
@@ -622,6 +807,8 @@ impl Weeks {
         Week {
             days: self.count(current),
             goal: self.goal(current),
+            free: self.free(current),
+            target: self.target(current),
             streak,
             best,
             missed_last,
@@ -668,7 +855,7 @@ mod tests {
             )
         }
         fn derive(&self, epoch: &str, today: &str) -> Derived {
-            derive(&self.facts(epoch), today)
+            derive(&self.facts(epoch), today, None)
         }
     }
 
@@ -723,7 +910,7 @@ mod tests {
         let day = &facts.days["2026-10-20"];
         // 1 and 2 due (1 on both devices), 9 new on A and due on B: new only.
         assert_eq!(day.due_done(), 2);
-        assert_eq!(derive(&facts, "2026-10-20").xp, 2 * DUE_XP + NEW_XP);
+        assert_eq!(derive(&facts, "2026-10-20", None).xp, 2 * DUE_XP + NEW_XP);
         // Another day counts again.
         kv.set(&day_key("0", "2026-10-21", "A"), &fact(&[1], &[]));
         assert_eq!(kv.derive("0", "2026-10-21").xp, 3 * DUE_XP + NEW_XP);
@@ -749,6 +936,17 @@ mod tests {
         kv.set(&day_key("0", "2026-10-20", "A"), &day);
         kv.set(&day_key("0", "2026-10-20", "B"), &day);
         assert_eq!(kv.derive("0", "2026-10-20").xp, DUE_XP + CLEARED_XP);
+        // Only new loci (relearned later that day) are no due review: no bonus, no trophy.
+        let mut new_only = fact(&[5], &[5]);
+        new_only.cleared = true;
+        kv.set(&day_key("0", "2026-10-21", "A"), &new_only);
+        let derived = kv.derive("0", "2026-10-21");
+        assert_eq!(derived.xp, DUE_XP + CLEARED_XP + NEW_XP);
+        assert_eq!(
+            today(&kv.facts("0"), "2026-10-21", 0, 2).goal,
+            Goal::Free,
+            "nothing was due"
+        );
     }
 
     #[test]
@@ -763,6 +961,19 @@ mod tests {
         );
         let derived = kv.derive("0", "2026-10-20");
         assert_eq!(derived.xp, 340, "the same synced blob is not added up");
+        let mut web = kv.clone();
+        web.set(
+            &own_legacy_key("W"),
+            &own_legacy(&progress(300, vec![Trophy::HundredXp])).unwrap(),
+        );
+        assert_eq!(
+            web.derive("0", "2026-10-20").xp,
+            640,
+            "a browser's own progress, never synced before, is added"
+        );
+        web.merge(&web.clone());
+        assert_eq!(web.derive("0", "2026-10-20").xp, 640, "once");
+        assert!(own_legacy(&progress(0, vec![])).is_none());
         assert_eq!(derived.learning_days.len(), 1);
         let ids: Vec<&str> = derived.trophies.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, [FIRST_JOURNEY, HUNDRED_XP, PERFECT]);
@@ -820,7 +1031,7 @@ mod tests {
     }
 
     #[test]
-    fn seven_learning_days_need_not_be_in_a_row_and_free_days_count() {
+    fn seven_learning_days_need_not_be_in_a_row_and_free_days_do_not_count() {
         let mut kv = Kv::default();
         for (i, date) in [
             "2026-09-01",
@@ -836,9 +1047,16 @@ mod tests {
             kv.set(&day_key("0", date, "A"), &fact(&[i as u64], &[]));
         }
         assert!(!kv.derive("0", "2026-10-20").earned().contains(SEVEN_DAYS));
-        let mut free = DayFact::empty();
-        free.free = true;
-        kv.set(&day_key("0", "2026-10-20", "B"), &free);
+        // Opening the app on a day with nothing due is no learning day.
+        kv.set(
+            &day_key("0", "2026-10-19", "B"),
+            &looked(1, Some("2026-10-30")),
+        );
+        let derived = kv.derive("0", "2026-10-19");
+        assert_eq!(derived.learning_days.len(), 6);
+        assert_eq!(derived.free_days.len(), 1);
+        assert!(!derived.earned().contains(SEVEN_DAYS));
+        kv.set(&day_key("0", "2026-10-20", "B"), &fact(&[99], &[]));
         let derived = kv.derive("0", "2026-10-20");
         assert_eq!(derived.learning_days.len(), 7);
         assert!(derived.trophies.contains(&Earned {
@@ -862,6 +1080,113 @@ mod tests {
         assert_eq!(week_of("kein Datum"), None);
         assert!(is_week_name("2026-W43"));
         assert!(!is_week_name("2026-W54") && !is_week_name("26-W43") && !is_week_name("2026-43"));
+    }
+
+    /// A device's look at the schedule, and nothing learned.
+    fn looked(at: u64, next: Option<&str>) -> DayFact {
+        DayFact {
+            look: Some(Look {
+                at,
+                next: next.map(str::to_owned),
+            }),
+            ..DayFact::empty()
+        }
+    }
+
+    #[test]
+    fn days_with_nothing_due_lower_the_weeks_target_without_the_app_being_opened() {
+        let mut kv = Kv::default();
+        // Monday 2026-10-19: everything due done; the next review is on Thursday.
+        let mut monday = fact(&[1, 2], &[]);
+        monday.look = Some(Look {
+            at: 10,
+            next: Some("2026-10-22".into()),
+        });
+        kv.set(&day_key("0", "2026-10-19", "A"), &monday);
+        // Wednesday: Tuesday and Wednesday had nothing due, though the app was never opened.
+        let derived = kv.derive("0", "2026-10-21");
+        assert_eq!(derived.learning_days.len(), 1);
+        assert_eq!(
+            derived.free_days,
+            BTreeSet::from(["2026-10-20".to_owned(), "2026-10-21".to_owned()])
+        );
+        assert!(!derived.earned().contains(RHYTHM_4));
+        let week = derived.week;
+        assert_eq!((week.days, week.free, week.goal, week.target), (1, 2, 4, 2));
+        // Thursday the review is due; learning on it reaches the target of two.
+        kv.set(&day_key("0", "2026-10-22", "A"), &fact(&[3], &[]));
+        let week = kv.derive("0", "2026-10-22").week;
+        assert_eq!(
+            (week.days, week.free, week.target, week.streak),
+            (2, 2, 2, 1)
+        );
+        // Opening the app on a free day changes nothing.
+        let mut opened = kv.clone();
+        opened.set(
+            &day_key("0", "2026-10-20", "B"),
+            &looked(20, Some("2026-10-22")),
+        );
+        assert_eq!(
+            opened.derive("0", "2026-10-22").week,
+            kv.derive("0", "2026-10-22").week
+        );
+    }
+
+    #[test]
+    fn a_free_day_needs_a_look_at_the_schedule_that_is_not_out_of_date() {
+        let mut kv = Kv::default();
+        // No look at all: nothing is known about the days.
+        learned_on(&mut kv, &["2026-10-19"]);
+        assert!(kv.derive("0", "2026-10-21").free_days.is_empty());
+        // A look that saw reviews due today: not free.
+        kv.set(
+            &day_key("0", "2026-10-20", "A"),
+            &looked(5, Some("2026-10-20")),
+        );
+        assert!(kv.derive("0", "2026-10-20").free_days.is_empty());
+        // The later look of another device that day wins.
+        kv.set(
+            &day_key("0", "2026-10-20", "B"),
+            &looked(9, Some("2026-10-25")),
+        );
+        let derived = kv.derive("0", "2026-10-22");
+        assert_eq!(derived.free_days.len(), 3, "{:?}", derived.free_days);
+        // A learning day after the look (new loci, say) makes the days after it unknown.
+        kv.set(&day_key("0", "2026-10-21", "A"), &fact(&[], &[7]));
+        let derived = kv.derive("0", "2026-10-22");
+        assert_eq!(
+            derived.free_days,
+            BTreeSet::from(["2026-10-20".to_owned()]),
+            "Tuesday stays free, Thursday is not known"
+        );
+        // The day the progress was deleted is never free: its reviews are gone.
+        let derived = derive(&kv.facts("0"), "2026-10-22", Some("2026-10-20"));
+        assert!(derived.free_days.is_empty());
+        // No cards at all: no free days.
+        let mut empty = Kv::default();
+        empty.set(&day_key("0", "2026-10-20", "A"), &looked(5, None));
+        assert!(empty.derive("0", "2026-10-22").free_days.is_empty());
+    }
+
+    #[test]
+    fn a_week_with_nothing_due_neither_counts_nor_breaks_the_run() {
+        let mut kv = Kv::default();
+        kv.set(&goal_key("2026-W01"), &WeekGoalPref { days: 2 });
+        // W41 and W42 reached; W43 nothing due all week (the look of its Monday says so).
+        learned_on(
+            &mut kv,
+            &["2026-10-05", "2026-10-06", "2026-10-12", "2026-10-13"],
+        );
+        let mut last = fact(&[9], &[]);
+        last.look = Some(Look {
+            at: 1,
+            next: Some("2026-10-26".into()),
+        });
+        kv.set(&day_key("0", "2026-10-13", "A"), &last);
+        let week = kv.derive("0", "2026-10-28").week;
+        assert_eq!((week.streak, week.best), (2, 2), "{week:?}");
+        assert!(!week.missed_last);
+        assert!(!kv.derive("0", "2026-10-28").earned().contains(RHYTHM_4));
     }
 
     fn learned_on(kv: &mut Kv, dates: &[&str]) {
@@ -889,6 +1214,7 @@ mod tests {
         );
         let week = kv.derive("0", "2026-10-21").week;
         assert_eq!((week.days, week.goal, week.streak, week.best), (2, 2, 1, 2));
+        assert_eq!((week.free, week.target), (0, 2));
         assert!(week.missed_last);
         // The next week has just begun: the run of one goes on, nothing is lost yet.
         let week = kv.derive("0", "2026-10-26").week;
@@ -936,17 +1262,20 @@ mod tests {
     #[test]
     fn todays_goal_is_the_due_work_with_a_backlog_cap() {
         let mut kv = Kv::default();
-        assert_eq!(today(&kv.facts("0"), "2026-10-20", 0).goal, Goal::Free);
-        assert_eq!(today(&kv.facts("0"), "2026-10-20", 3).goal, Goal::Open);
+        assert_eq!(today(&kv.facts("0"), "2026-10-20", 0, 0).goal, Goal::Free);
+        assert_eq!(today(&kv.facts("0"), "2026-10-20", 3, 0).goal, Goal::Open);
         kv.set(&day_key("0", "2026-10-20", "A"), &fact(&[1, 2], &[3]));
-        let done = today(&kv.facts("0"), "2026-10-20", 0);
+        let done = today(&kv.facts("0"), "2026-10-20", 0, 1);
         assert_eq!(
-            (done.due_done, done.new_done, done.goal),
-            (2, 1, Goal::AllDone)
+            (done.due_done, done.new_done, done.repeat_open, done.goal),
+            (2, 1, 1, Goal::AllDone)
         );
         let many: Vec<u64> = (100..100 + u64::from(ENOUGH)).collect();
         kv.set(&day_key("0", "2026-10-20", "B"), &fact(&many, &[]));
-        assert_eq!(today(&kv.facts("0"), "2026-10-20", 80).goal, Goal::Enough);
+        assert_eq!(
+            today(&kv.facts("0"), "2026-10-20", 80, 0).goal,
+            Goal::Enough
+        );
     }
 
     fn strength(palace: &str, loci: u32, hold: [u32; 3]) -> PalaceStrength {

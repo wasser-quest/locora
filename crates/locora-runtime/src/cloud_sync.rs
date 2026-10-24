@@ -45,20 +45,14 @@ pub struct SyncReport {
     pub too_large: usize,
     /// What the operations from other devices changed here.
     pub received: ChangeSummary,
-    /// The answer when this sync asked again to delete the game scores on the server.
-    pub rankings: Option<cloud::RankingsDeletion>,
 }
 
-/// What a finished sync means for the next one: a new generation, when it ran, and whether the
-/// game scores still wait to be deleted on the server.
+/// What a finished sync means for the next one: a new generation, and when it ran.
 pub fn keep(state: &mut CloudState, report: &SyncReport) {
     if let Some(generation) = report.new_generation {
         state.sync_generation = generation;
     }
     state.last_sync_at = Some(cloud::now_secs() as i64);
-    if let Some(rankings) = report.rankings {
-        state.game_delete_pending = rankings.pending();
-    }
 }
 
 /// How a sync may run.
@@ -134,6 +128,8 @@ pub fn sync_with(
     options: SyncOptions,
 ) -> Result<SyncReport> {
     let state = cloud::load(data)?.ok_or_else(|| anyhow!("Nicht bei Locora Cloud angemeldet"))?;
+    // A deletion of the game scores that waits needs no sync access; the sync never waits for it.
+    let _ = cloud::retry_rankings(data);
     if !cloud::can_sync(&state, cloud::now_secs()) {
         bail!("Keine gültige Cloud-Freischaltung. Abo prüfen und Freischaltung aktualisieren");
     }

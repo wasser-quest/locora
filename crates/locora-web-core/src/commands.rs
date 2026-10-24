@@ -142,6 +142,11 @@ struct PluginsArgs {
 }
 
 #[derive(Deserialize)]
+struct OwnProgressArgs {
+    progress: Vec<u8>,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NotificationArgs {
     notification: NotificationView,
@@ -237,6 +242,7 @@ pub const NAMES: &[&str] = &[
     "sply_svg",
     "dump_file",
     "set_plugins",
+    "game_keep_own",
 ];
 
 /// Whether a command name is known, before any backend is needed to answer it.
@@ -584,6 +590,13 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
         }
         // The folder export: the palace's source and media, as one ZIP file for the page to save.
         // The plugins the page started: their tiles and declared blocks are shown.
+        // The game progress this browser kept for itself before the sync (the plugin's old
+        // `progress` from IndexedDB): taken over by the migration on top of the synced progress,
+        // never written over it.
+        "game_keep_own" => {
+            let a: OwnProgressArgs = take(args)?;
+            out(profile.keep_own_game_progress(&a.progress)?)
+        }
         "set_plugins" => {
             let a: PluginsArgs = take(args)?;
             tell_host_plugins(profile, a.plugins);

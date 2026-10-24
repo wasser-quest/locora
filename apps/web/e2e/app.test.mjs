@@ -39,9 +39,12 @@ async function openApp(options = {}) {
   // The language is chosen on the very first start; the tests speak English unless they ask for that choice
   // (or for German, the app's own language).
   const german = options.language === 'de';
-  if (!options.chooseLanguage) await context.addInitScript((language) => localStorage.setItem('locora-language-v1', language), german ? 'de' : 'en');
+  const language = options.language ?? 'en';
+  if (!options.chooseLanguage) await context.addInitScript((language) => localStorage.setItem('locora-language-v1', language), language);
   if (options.initScript) await context.addInitScript(options.initScript);
   const page = await context.newPage();
+  // A fixed clock for the days of the game (it still runs; `page.clock.setSystemTime` moves it).
+  if (options.clock) await page.clock.install({ time: options.clock });
   const problems = [];
   const requests = [];
   page.on('pageerror', (error) => problems.push(`page error: ${error.message}`));
@@ -58,8 +61,14 @@ async function openApp(options = {}) {
     if (/Content Security Policy/.test(text)) problems.push(`policy: ${text.slice(0, 200)}`);
   });
   page.on('request', (request) => requests.push(request.url()));
+  // Something in the origin's storage before the app first starts (an older install's data).
+  if (options.beforeStart) {
+    await page.goto(origin + '/manifest.webmanifest', { waitUntil: 'load' });
+    await options.beforeStart(page);
+  }
   await page.goto(origin + '/', { waitUntil: 'load' });
-  if (!options.chooseLanguage) await page.getByRole('button', { name: german ? 'App-Tour starten' : 'Start the app tour' }).waitFor({ timeout: 15000 });
+  const start = { de: 'App-Tour starten', fr: "Lancer la visite de l'app", en: 'Start the app tour' };
+  if (!options.chooseLanguage) await page.getByRole('button', { name: start[language] ?? start.en }).first().waitFor({ timeout: 15000 });
   return { context, page, problems, requests };
 }
 
@@ -1314,35 +1323,43 @@ test('a journey earns XP for new loci whatever the grade, a mistake costs nothin
         assert.doesNotMatch(await page.locator('body').innerText(), /♥|hearts?\b/i, 'no hearts');
         assert.equal(await page.locator('.game-hearts').count(), 0);
         lines.push(await page.locator('.game-line').innerText());
-        // The one-time explanation sits under the bar; its buttons keep Space and Enter to themselves.
-        await page.getByRole('note').getByText('How XP works now').waitFor({ timeout: 5000 });
+        // The one-time explanation sits under the bar (for a new learner without „now“); its buttons
+        // keep Space and Enter to themselves.
+        await page.getByRole('note').getByText('How XP works', { exact: true }).waitFor({ timeout: 5000 });
       }
     });
     assert.equal(lines[0], 'Comes back soon – that is how it sticks.');
     const card = await done.innerText();
     assert.match(card, /of 9 recalled · \+54 XP/, card);
     assert.match(card, /0 due reviews · 9 new loci/, card);
-    assert.match(card, /Next review: (today|tomorrow|\d{4}-\d\d-\d\d) · \d+ loc/, card);
+    // Nothing was due: no „all due done“ on a day with nothing due, and what was forgotten comes back
+    // later today as practice, not as „next review: today“.
+    assert.match(card, /Nothing due today/, card);
+    assert.doesNotMatch(card, /All due reviews|Next review: today/, card);
+    assert.match(card, /Back later today for practice \(no XP\): \d+ loc/, card);
+    assert.match(card, /New trophy: First journey/, card);
     assert.equal(await done.getAttribute('role'), 'status');
     // The first finished journey is celebrated as a trophy.
     const celebration = page.locator('.celebration', { hasText: 'First journey' });
     await celebration.waitFor({ timeout: 20000 });
     assert.equal(await celebration.getAttribute('role'), 'status');
+    await celebration.getByRole('button', { name: 'Close' }).click();
     await page.getByRole('button', { name: 'Back to overview' }).click();
 
     // The palace card says how much is consolidated (nothing yet: that takes reviews over days).
     await page.getByText('Consolidated: 0 of 9 loci').first().waitFor({ timeout: 15000 });
-    // The same walk again today: practice before the loci are due earns nothing.
+    // The same walk again today: practice, the loci had their turn today, it earns nothing.
     await page.getByRole('button', { name: /^Learn Locora/ }).first().click();
     const again = await walkTutorial(page, '3');
     const second = await again.innerText();
     assert.match(second, /\+0 XP/, second);
-    assert.match(second, /9 loci were not due yet, so they earned no XP\./, second);
+    assert.match(second, /You had 9 loci today already; practising them again earns no XP\./, second);
+    assert.equal(await page.locator('.celebration').count(), 0, `nothing new to celebrate: ${await page.locator('.celebration').allInnerTexts()}`);
     await page.getByRole('button', { name: 'Back to overview' }).click();
 
-    // „Progress“: the tile and the trophy with the day it was earned.
+    // „Progress“: the tile (trophies in the singular) and the trophy with the day it was earned.
     await page.locator('nav.pages button', { hasText: 'Progress' }).click();
-    await page.locator('.tile', { hasText: '54 XP · this week 1/4 days' }).waitFor({ timeout: 15000 });
+    await page.locator('.tile', { hasText: '54 XP · this week 1/4 days · 1 trophy' }).waitFor({ timeout: 15000 });
     const trophy = page.locator('.medal[data-achievement="game-first-journey"]');
     await trophy.waitFor({ timeout: 15000 });
     assert.match(await trophy.innerText(), /First journey\s+Since \d{4}-\d\d-\d\d/);
@@ -1378,10 +1395,10 @@ test('with reduced motion a new medal is still; without, it moves', async () => 
 });
 
 test('an install from before the sync keeps its progress: the old IndexedDB blob is taken over', async () => {
-  const { context, page, problems } = await openApp();
-  try {
-    // The plugin storage of an older version: { xp: 340, trophies: [FirstJourney], … } as postcard.
-    await page.evaluate(async () => {
+  // The plugin storage of an older version: { xp: 340, trophies: [FirstJourney], … } as postcard,
+  // there before the new version starts for the first time.
+  const { context, page, problems } = await openApp({
+    beforeStart: (page) => page.evaluate(async () => {
       const db = await new Promise((resolve, reject) => {
         const request = indexedDB.open('locora-plugins', 1);
         request.onupgradeneeded = () => request.result.createObjectStore('plugin-storage');
@@ -1395,13 +1412,17 @@ test('an install from before the sync keeps its progress: the old IndexedDB blob
         tx.onerror = () => reject(tx.error);
       });
       db.close();
-      localStorage.removeItem('locora-synced-storage-gamification-v1');
-    });
-    await page.reload({ waitUntil: 'load' });
-    await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
+    }),
+  });
+  try {
     const status = await page.evaluate(() => window.__TAURI__.core.invoke('gamification_status', { full: true }));
     assert.equal(status.xp, 340);
     assert.deepEqual(status.trophies.map((t) => t.id), ['first-journey', 'hundred-xp']);
+    assert.equal(status.legacy, true, 'the explanation says the rules changed');
+    // The browser's own progress is a fact of its own, never the shared `progress` blob, which
+    // another device's synced progress may hold (they are added, not overwritten).
+    const keys = await page.evaluate(() => window.__TAURI__.core.invoke('gamification_status', { full: false }));
+    assert.equal(keys.xp, 340);
     // Taken over once: a reload changes nothing.
     await page.reload({ waitUntil: 'load' });
     await page.getByRole('button', { name: 'Start the app tour' }).waitFor({ timeout: 15000 });
@@ -1505,7 +1526,7 @@ async function syncNow(panel) {
   await panel.getByText('Sync finished.').waitFor({ timeout: 60000 });
 }
 
-/** The game's line in the settings: „N XP · N medals · N learning days“. */
+/** The game's line in the settings: „N XP · N trophies · N medals · N learning days“. */
 async function gameLine(page) {
   const line = page.getByRole('region', { name: 'Game progress & achievements' }).locator('p.progress');
   await line.waitFor({ timeout: 15000 });
@@ -1526,7 +1547,10 @@ test('game progress is the same on two devices, and deleting it reaches both and
     const panelA = await joinCloud(a.page, true);
     await syncNow(panelA);
     const learned = await gameLine(a.page);
-    assert.match(learned, /^54 XP · 1 medal · 1 learning day$/, learned);
+    assert.match(learned, /^54 XP · 1 trophy · 0 medals · 1 learning day$/, learned);
+    // Signed in on this page: the game's section says so at once.
+    await a.page.getByRole('region', { name: 'Game progress & achievements' })
+      .getByText('Synced with your devices through Locora Cloud.').waitFor({ timeout: 15000 });
     // Device B signs in to the same account and syncs: the same numbers.
     const panelB = await joinCloud(b.page, false);
     await syncNow(panelB);
@@ -1543,26 +1567,46 @@ test('game progress is the same on two devices, and deleting it reaches both and
     await warning.waitFor({ timeout: 5000 });
     assert.equal(await a.page.evaluate(() => document.activeElement?.getAttribute('role')), 'alert', 'the warning has the focus');
     assert.match(await game.innerText(), /Your ranking entries are also deleted from the Locora Cloud server\./);
+    assert.match(await game.innerText(), /On your other devices the game progress is deleted at their next sync\./);
     await a.page.keyboard.press('Escape');
     await game.getByRole('button', { name: 'Delete game progress…' }).waitFor({ timeout: 5000 });
+    // The focus goes back to the button that opened the confirmation.
+    await a.page.waitForFunction(() => document.activeElement?.textContent === 'Delete game progress…', null, { timeout: 5000 });
     assert.equal(cloud.gameDeletes.length, 0, 'Escape deleted nothing');
     await game.getByRole('button', { name: 'Delete game progress…' }).click();
     await game.getByRole('button', { name: 'Yes, delete game progress on all devices' }).click();
-    await game.getByText('Game progress deleted. Ranking entries deleted from the server.').waitFor({ timeout: 15000 });
+    const deleted = game.getByText('Game progress deleted. Ranking entries deleted from the server.');
+    await deleted.waitFor({ timeout: 15000 });
+    // The focus goes to what happened.
+    await a.page.waitForFunction(() => document.activeElement?.textContent?.startsWith('Game progress deleted.'), null, { timeout: 5000 });
     assert.deepEqual(cloud.gameDeletes, ['Bearer session']);
-    assert.match(await gameLine(a.page), /^0 XP · 0 medals · /);
+    // Everything is gone, the learning days too: deleting is no free learning day.
+    await a.page.waitForFunction(() => {
+      const line = [...document.querySelectorAll('.game-progress p.progress')][0]?.innerText ?? '';
+      return line === '0 XP · 0 trophies · 0 medals · 0 learning days';
+    }, null, { timeout: 15000 });
     await syncNow(panelA);
     // B gets the deletion with its next sync, and later facts of the old progress never count.
     await syncNow(panelB);
     await b.page.getByRole('button', { name: '←' }).first().click();
     await b.page.getByRole('button', { name: 'Settings & statistics' }).click();
-    assert.match(await gameLine(b.page), /^0 XP · 0 medals · /);
+    assert.match(await gameLine(b.page), /^0 XP · 0 trophies · 0 medals · 0 learning days$/);
 
-    // An older server does not know the request: the progress is deleted anyway, and it says so.
+    // An older server does not know the request: the progress is deleted anyway, it says so once,
+    // not as a success, and asks again later.
     cloud.gameDeleteStatus = 404;
     await game.getByRole('button', { name: 'Delete game progress…' }).click();
     await game.getByRole('button', { name: 'Yes, delete game progress on all devices' }).click();
-    await game.getByText(/The server cannot delete ranking entries yet; they stay until it is updated\./).waitFor({ timeout: 15000 });
+    const older = game.getByText(/The server cannot delete ranking entries yet; they stay until it is updated\./);
+    await older.waitFor({ timeout: 15000 });
+    assert.equal(await older.evaluate((p) => p.classList.contains('ok')), false, 'not shown as a success');
+    assert.equal((await older.innerText()).match(/deleted/g).length, 1, await older.innerText());
+    const asked = cloud.gameDeletes.length;
+    // The app asks again on its own: the settings read the cloud status.
+    await a.page.getByRole('button', { name: '←' }).first().click();
+    await a.page.getByRole('button', { name: 'Settings & statistics' }).click();
+    for (let tries = 0; tries < 30 && cloud.gameDeletes.length <= asked; tries += 1) await a.page.waitForTimeout(200);
+    assert.ok(cloud.gameDeletes.length > asked, 'asked again');
     assert.deepEqual(a.problems, []);
     assert.deepEqual(b.problems, []);
   } finally {
@@ -1574,6 +1618,15 @@ test('game progress is the same on two devices, and deleting it reaches both and
 test('without an account, deleting the game progress stays on this device and says so', async () => {
   const { context, page, problems, requests } = await openApp();
   try {
+    // A lesson passed first: learning progress, which deleting the game keeps.
+    await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
+    await page.getByRole('button', { name: /What is the method of loci\?/ }).click();
+    await page.getByRole('button', { name: 'Putting pictures at familiar places and walking past them in order' }).click();
+    await page.getByText('Right! The exercise is done.').waitFor();
+    await page.locator('.celebration').getByRole('button', { name: 'Close' }).click();
+    await page.getByRole('button', { name: '← All lessons' }).click();
+    await page.getByText('1 of 17 done').waitFor();
+    await page.getByRole('button', { name: '← Start page' }).click();
     await openTutorial(page);
     await walkTutorial(page, '3');
     await page.getByRole('button', { name: 'Back to overview' }).click();
@@ -1581,15 +1634,208 @@ test('without an account, deleting the game progress stays on this device and sa
     const game = page.getByRole('region', { name: 'Game progress & achievements' });
     assert.match(await gameLine(page), /^54 XP/);
     assert.match(await game.innerText(), /Stored on this device only\./);
+    // A message from before goes when the confirmation opens.
+    await game.getByRole('combobox').selectOption('3');
+    await game.getByText('Weekly goal saved.').waitFor({ timeout: 15000 });
     await game.getByRole('button', { name: 'Delete game progress…' }).click();
-    assert.match(await game.innerText(), /This device is not signed in to Locora Cloud, so ranking entries on the server are not touched\./);
-    await game.getByRole('button', { name: 'Yes, delete game progress on all devices' }).click();
+    assert.equal(await game.getByText('Weekly goal saved.').count(), 0);
+    const confirmation = await game.innerText();
+    assert.match(confirmation, /This device is not signed in to Locora Cloud, so ranking entries on the server are not touched\./);
+    assert.doesNotMatch(confirmation, /other devices/, 'no other devices without an account');
+    assert.match(confirmation, /your lessons, app tour and tutorial/);
+    await game.getByRole('button', { name: 'Yes, delete game progress on this device' }).click();
     await game.getByText('Game progress deleted.', { exact: true }).waitFor({ timeout: 15000 });
-    assert.match(await gameLine(page), /^0 XP · 0 medals · /);
+    await page.waitForFunction(() => {
+      const line = [...document.querySelectorAll('.game-progress p.progress')][0]?.innerText ?? '';
+      return line === '0 XP · 0 trophies · 0 medals · 0 learning days';
+    }, null, { timeout: 15000 });
+    // The lesson is still done.
+    await page.getByRole('button', { name: '←' }).first().click();
+    await page.getByRole('button', { name: 'Learn mnemonics', exact: true }).click();
+    await page.getByText('1 of 17 done').waitFor({ timeout: 15000 });
     // The review schedule stays: the palace still has its cards (nothing is new again).
     const home = await page.evaluate(() => window.__TAURI__.core.invoke('home'));
     assert.equal(home.palaces.find((p) => p.name === 'Learn Locora').fresh, 0);
     assert.deepEqual(requests.filter((url) => url.includes('api.locora.cloud')), []);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+/** The first own palace from the welcome page: a photo and five places with a shopping list (recall loci). */
+async function ownPalace(page) {
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Choose a photo…' }).click(),
+  ]);
+  await chooser.setFiles({ name: 'Kitchen.png', mimeType: 'image/png', buffer: png });
+  const guide = page.getByRole('region', { name: 'Your first own palace' });
+  await guide.getByText('Step 1 of 3: set places').waitFor({ timeout: 15000 });
+  const stage = page.locator('#tour-editor-stage');
+  for (const [i, item] of ['Milk', 'Bread', 'Apples', 'Cheese', 'Coffee'].entries()) {
+    const box = await stage.boundingBox();
+    await stage.click({ position: { x: box.width * (0.12 + i * 0.18), y: box.height * 0.5 } });
+    await guide.getByText(`${i + 1} of 5 places set`).or(guide.getByText('Step 2 of 3: put down the shopping list')).waitFor({ timeout: 15000 });
+    await page.locator('#tour-editor-content input').fill(item);
+    await page.waitForTimeout(700);
+  }
+  await guide.getByText('Step 3 of 3: walk the route').waitFor({ timeout: 15000 });
+  return guide;
+}
+
+/** Walks the five loci of the own palace from the guide, grading each recall with `grade`. */
+async function walkOwnPalace(page, guide, grade) {
+  await guide.getByRole('button', { name: 'Walk the route now ▶' }).click();
+  await page.waitForFunction(() => document.body.innerText.includes('1/5'), null, { timeout: 15000 });
+  for (let n = 2; n <= 6; n += 1) {
+    await page.keyboard.press('Space');
+    await page.keyboard.press(grade);
+    if (n <= 5) await page.waitForFunction((n) => document.body.innerText.includes(`${n}/5`), n, { timeout: 15000 });
+  }
+  const done = page.locator('.journey-done');
+  await done.waitFor({ timeout: 20000 });
+  return done;
+}
+
+const gameStatus = (page) => page.evaluate(() => window.__TAURI__.core.invoke('gamification_status', { full: true }));
+
+test('a day with nothing due lowers the week’s target, whether the app is opened or not, and is no learning day', async () => {
+  // Monday, 2026-10-19: five new loci, all „Good“: they come back on Thursday.
+  const { context, page, problems } = await openApp({ clock: new Date('2026-10-19T07:00:00Z') });
+  try {
+    const guide = await ownPalace(page);
+    const done = await walkOwnPalace(page, guide, '3');
+    assert.match(await done.innerText(), /Next review: 2026-10-22 · 5 loci/);
+    let status = await gameStatus(page);
+    assert.equal(status.learning_days, 1);
+    assert.deepEqual([status.week.days, status.week.free, status.week.target], [1, 0, 4]);
+    // Tuesday the app is only opened: no learning day, but nothing was due, so the week needs one day less.
+    await page.clock.setSystemTime(new Date('2026-10-20T08:00:00Z'));
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'Settings & statistics' }).waitFor({ timeout: 15000 });
+    status = await gameStatus(page);
+    assert.equal(status.learning_days, 1);
+    assert.equal(status.today.goal, 'Free');
+    assert.deepEqual([status.week.days, status.week.free, status.week.target], [1, 1, 3]);
+    // Wednesday it stays closed; Thursday morning the reviews are due (all day, though due later).
+    await page.clock.setSystemTime(new Date('2026-10-22T05:00:00Z'));
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'Settings & statistics' }).waitFor({ timeout: 15000 });
+    status = await gameStatus(page);
+    assert.equal(status.learning_days, 1, 'opening the app is no learning day');
+    assert.deepEqual([status.week.days, status.week.free, status.week.target], [1, 2, 2], 'Wednesday counts without a visit');
+    assert.equal(status.today.goal, 'Open');
+    assert.equal(status.today.due_open, 5);
+    assert.ok(status.trophies.every((t) => t.id !== 'seven-day-streak' && t.id !== 'due-cleared'));
+    // Nothing was earned by a sitting: the palace has no medal, not even on day one with „Easy“.
+    assert.ok(status.palace_medals.every((m) => m.unlocked === null), JSON.stringify(status.palace_medals));
+    await page.locator('nav.pages button', { hasText: 'Progress' }).click();
+    await page.locator('.tile', { hasText: 'this week 1/2 days' }).waitFor({ timeout: 15000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('grading every locus „Easy“ in one sitting earns no palace medal, and walking it again neither', async () => {
+  const { context, page, problems } = await openApp({ clock: new Date('2026-10-19T07:00:00Z') });
+  try {
+    const guide = await ownPalace(page);
+    const first = await walkOwnPalace(page, guide, '4');
+    assert.doesNotMatch(await first.innerText(), /New medal/, await first.innerText());
+    for (let walk = 0; walk < 2; walk += 1) {
+      await page.getByRole('button', { name: 'Back to overview' }).click();
+      await page.getByRole('button', { name: 'Kitchen', exact: true }).click();
+      await page.getByRole('button', { name: /Walk the route/ }).first().click();
+      await page.waitForFunction(() => document.body.innerText.includes('1/5'), null, { timeout: 15000 });
+      for (let n = 2; n <= 6; n += 1) {
+        await page.keyboard.press('Space');
+        await page.keyboard.press('4');
+        if (n <= 5) await page.waitForFunction((n) => document.body.innerText.includes(`${n}/5`), n, { timeout: 15000 });
+      }
+      const again = page.locator('.journey-done');
+      await again.waitFor({ timeout: 20000 });
+      assert.doesNotMatch(await again.innerText(), /New medal/, await again.innerText());
+    }
+    const status = await gameStatus(page);
+    assert.ok(status.palace_medals.every((m) => m.unlocked === null && m.hold === 0), JSON.stringify(status.palace_medals));
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('on a phone the explanation is one line, the question stays in view and a celebration never covers the end card', async () => {
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 760 } });
+  try {
+    await page.evaluate(() => localStorage.setItem('locora-locus-display-v1', JSON.stringify({ quick_next: false })));
+    await page.reload({ waitUntil: 'load' });
+    await openTutorial(page);
+    const done = await walkTutorial(page, '3', async (n) => {
+      if (n !== 1) return;
+      const intro = page.locator('.game-intro');
+      await intro.waitFor({ timeout: 15000 });
+      assert.equal(await intro.locator('details').evaluate((details) => details.open), false, 'folded');
+      const box = await intro.boundingBox();
+      assert.ok(box.height < 110, `the explanation is short: ${box.height}`);
+      // The next step is in view, above the commands bar.
+      const next = await page.getByRole('button', { name: 'Next (Space)' }).boundingBox();
+      const bar = await page.locator('.palette-mobile-trigger').boundingBox();
+      assert.ok(next.y + next.height <= (bar?.y ?? 760), `Next ${JSON.stringify(next)} above the bar ${JSON.stringify(bar)}`);
+    });
+    const celebration = page.locator('.celebration', { hasText: 'First journey' });
+    await celebration.waitFor({ timeout: 20000 });
+    const back = page.getByRole('button', { name: 'Back to overview' });
+    const covered = await back.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return !button.contains(hit);
+    });
+    assert.equal(covered, false, 'the celebration leaves the end card’s button free');
+    await back.click({ timeout: 5000 });
+    assert.ok(done);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the app tour’s example journey shows no game explanation', async () => {
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 760 } });
+  try {
+    await startTour(page);
+    const region = page.getByRole('region', { name: 'App tour' });
+    // Through the tour until its example journey is on screen.
+    for (let step = 0; step < 14; step += 1) {
+      if (await page.locator('.game-status').isVisible().catch(() => false)) break;
+      await region.getByRole('button', { name: /^Next/ }).click();
+      await page.waitForTimeout(600);
+    }
+    await page.locator('.game-status').waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('.game-intro').count(), 0, 'no explanation during the tour');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the settings fit a phone in French, without scrolling sideways', async () => {
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 760 }, language: 'fr' });
+  try {
+    await page.getByRole('button', { name: 'Réglages et statistiques' }).click();
+    await page.getByRole('region', { name: /Progression du jeu/ }).waitFor({ timeout: 15000 });
+    await page.locator('dl.stats').waitFor({ timeout: 15000 });
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(width <= 390, `scrollWidth ${width}`);
+    // French punctuation keeps its narrow no-break space: „?“ never starts a line on its own.
+    await page.getByRole('button', { name: /^Supprimer la progression du jeu/ }).click();
+    const heading = await page.locator('.game-reset h3').innerText();
+    assert.match(heading, / \?$/, heading);
     assert.deepEqual(problems, []);
   } finally {
     await context.close();
