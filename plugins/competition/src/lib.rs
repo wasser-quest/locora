@@ -365,7 +365,6 @@ impl Contest {
         let trophies = new_trophies(&before, self.trophies(request.date));
         let facts = self.facts();
         let best = facts.best(fact.discipline, fact.level, fact.date);
-        let round = &facts.rounds[&fact.id];
         let finished = FinishResponse {
             record: RecordLine {
                 new: best.as_ref().is_some_and(|best| best.round_id == fact.id),
@@ -373,8 +372,8 @@ impl Contest {
             },
             trophies,
             hint: facts::hint(&task, &request.recall, &score),
-            counted_as_practice: facts.counted_as_practice(round),
-            repeat_seed: facts.repeat_seed(round),
+            counted_as_practice: facts.counted_as_practice(&fact),
+            repeat_seed: facts.repeat_seed(&fact),
             score,
         };
         let tile = self.tile(request.date, request.now_ms);

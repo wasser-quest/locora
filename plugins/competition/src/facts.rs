@@ -16,8 +16,7 @@
 //! devices as a union. Values are JSON with a version `v`, so an older version reads the facts of
 //! a newer one and leaves out the fields it does not know. Only facts of the current epoch count;
 //! empty values are keys that were blanked. A round or an evening recall from the sync counts only
-//! as this build scores it again from its seed, never with the points stored (see
-//! [`RoundFact::checked`]).
+//! as this build scores it again from its seed, never with the points stored (see [`collect`]).
 //!
 //! Two devices may play the same daily offline: the round with the earliest start marker is the
 //! day's try, the other counts as practice. A task counts for records only the first time any
