@@ -190,9 +190,9 @@ impl Contest {
         })
     }
 
-    /// The earned trophies, in the order of [`TROPHIES`].
-    fn trophies(&mut self) -> Vec<&'static str> {
-        let earned = self.facts().trophies();
+    /// The trophies earned up to the learning date `date`, in the order of [`TROPHIES`].
+    fn trophies(&mut self, date: Date) -> Vec<&'static str> {
+        let earned = self.facts().trophies(date);
         TROPHIES
             .into_iter()
             .filter(|id| earned.contains_key(id))
@@ -337,7 +337,7 @@ impl Contest {
         let first = facts
             .first_when_shown(shown, &request.round_id)
             .unwrap_or_else(|| !facts.seen(shown, &request.round_id));
-        let before = self.trophies();
+        let before = self.trophies(request.date);
         let fact = RoundFact {
             v: VERSION,
             id: request.round_id.clone(),
@@ -362,9 +362,9 @@ impl Contest {
             first: Some(first),
         };
         self.write(kv, &key, json(&fact)?)?;
-        let trophies = new_trophies(&before, self.trophies());
+        let trophies = new_trophies(&before, self.trophies(request.date));
         let facts = self.facts();
-        let best = facts.best(fact.discipline, fact.level);
+        let best = facts.best(fact.discipline, fact.level, fact.date);
         let round = &facts.rounds[&fact.id];
         let finished = FinishResponse {
             record: RecordLine {
@@ -441,7 +441,7 @@ impl Contest {
         let task = generate(&spec, round.seed)?;
         validate(&spec, &request.recall)?;
         let score = score(&task, &request.recall, request.lang)?;
-        let before = self.trophies();
+        let before = self.trophies(request.date);
         let evening = EveningFact {
             v: VERSION,
             round_id: round.id.clone(),
@@ -456,7 +456,7 @@ impl Contest {
         let epoch = self.epoch.clone().unwrap_or_else(|| FIRST_EPOCH.to_owned());
         let key = facts::evening_key(&epoch, &round.id, &request.evening_id);
         self.write(kv, &key, json(&evening)?)?;
-        let trophies = new_trophies(&before, self.trophies());
+        let trophies = new_trophies(&before, self.trophies(request.date));
         let tile = self.tile(request.date, request.now_ms);
         Ok((
             EveningFinishResponse {
@@ -474,7 +474,7 @@ impl Contest {
         request: RecordsRequest,
     ) -> Result<RecordsResponse> {
         self.enter(kv, &request.epoch)?;
-        Ok(self.facts().records())
+        Ok(self.facts().records(request.date))
     }
 
     fn history(
@@ -772,7 +772,10 @@ mod tests {
     }
 
     fn records(contest: &mut Contest, kv: &mut Memory) -> RecordsResponse {
-        let request = RecordsRequest { epoch: "0".into() };
+        let request = RecordsRequest {
+            epoch: "0".into(),
+            date: wednesday(),
+        };
         contest.records(kv, request).unwrap()
     }
 
@@ -1225,7 +1228,8 @@ mod tests {
                 .records(
                     &mut kv,
                     RecordsRequest {
-                        epoch: String::new()
+                        epoch: String::new(),
+                        date: wednesday(),
                     }
                 )
                 .is_err()

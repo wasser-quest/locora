@@ -25,7 +25,8 @@
 //! decided on the device when the round begins and stored with it (`first`), so a clock set back
 //! never makes a replay the first play; the earliest start only settles tasks that two devices
 //! saw first at the same time, offline. Rounds without a time limit never count for records or
-//! trophies.
+//! trophies. A round dated after the learning date of a request (from a device whose clock ran
+//! ahead) counts for records, trophies and the days with a daily only from its date on.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -526,19 +527,25 @@ impl Facts {
         !first_play(&self.first_plays(), round)
     }
 
-    /// Rounds that count for records: with the time limit, and the first play of their task.
-    fn record_rounds(&self) -> Vec<&RoundFact> {
+    /// The rounds of learning dates up to `date`: a round from a device whose clock ran ahead
+    /// waits for its date.
+    fn rounds_until(&self, date: Date) -> impl Iterator<Item = &RoundFact> {
+        self.rounds.values().filter(move |round| round.date <= date)
+    }
+
+    /// Rounds that count for records on `date`: with the time limit, and the first play of
+    /// their task.
+    fn record_rounds(&self, date: Date) -> Vec<&RoundFact> {
         let first = self.first_plays();
-        self.rounds
-            .values()
+        self.rounds_until(date)
             .filter(|round| !round.untimed && first_play(&first, round))
             .collect()
     }
 
-    /// The record of a discipline and level: most points, then the shortest memorizing time;
-    /// at equal results the earlier round keeps it.
-    pub fn best(&self, discipline: Discipline, level: Level) -> Option<Best> {
-        self.record_rounds()
+    /// The record of a discipline and level on `date`: most points, then the shortest
+    /// memorizing time; at equal results the earlier round keeps it.
+    pub fn best(&self, discipline: Discipline, level: Level, date: Date) -> Option<Best> {
+        self.record_rounds(date)
             .into_iter()
             .filter(|round| round.discipline == discipline && round.level == level)
             .min_by_key(|round| {
@@ -556,26 +563,26 @@ impl Facts {
             })
     }
 
-    pub fn records(&self) -> RecordsResponse {
+    /// Records, counts and trophies on the learning date `date`.
+    pub fn records(&self, date: Date) -> RecordsResponse {
         let mut levels = Vec::new();
         for discipline in Discipline::ALL {
             for level in Level::ALL {
                 levels.push(LevelRecord {
                     discipline,
                     level,
-                    best: self.best(discipline, level),
+                    best: self.best(discipline, level, date),
                     rounds: self
-                        .rounds
-                        .values()
+                        .rounds_until(date)
                         .filter(|r| r.discipline == discipline && r.level == level)
                         .count() as u32,
                 });
             }
         }
-        let earned = self.trophies();
+        let earned = self.trophies(date);
         RecordsResponse {
             levels,
-            daily_days: self.daily_dates().len() as u32,
+            daily_days: self.daily_dates(date).len() as u32,
             trophies: TROPHIES
                 .iter()
                 .map(|id| Trophy {
@@ -586,10 +593,9 @@ impl Facts {
         }
     }
 
-    /// Learning dates with a daily round handed in.
-    fn daily_dates(&self) -> BTreeSet<Date> {
-        self.rounds
-            .values()
+    /// Learning dates up to `date` with a daily round handed in.
+    fn daily_dates(&self, date: Date) -> BTreeSet<Date> {
+        self.rounds_until(date)
             .filter(|round| round.kind == Kind::Daily)
             .map(|round| round.date)
             .collect()
@@ -616,10 +622,10 @@ impl Facts {
         }
     }
 
-    /// Earned trophies and the learning date each was earned on. Only rounds with the time limit
-    /// count, in the order they were handed in.
-    pub fn trophies(&self) -> BTreeMap<&'static str, Date> {
-        let mut rounds: Vec<&RoundFact> = self.rounds.values().filter(|r| !r.untimed).collect();
+    /// Trophies earned up to the learning date `date`, and the date each was earned on. Only
+    /// rounds with the time limit count, in the order they were handed in.
+    pub fn trophies(&self, date: Date) -> BTreeMap<&'static str, Date> {
+        let mut rounds: Vec<&RoundFact> = self.rounds_until(date).filter(|r| !r.untimed).collect();
         rounds.sort_by_key(|round| by_finish(round));
         let mut earned = BTreeMap::new();
         let first = |earned: &mut BTreeMap<&'static str, Date>, id: &'static str, date: Date| {
@@ -660,7 +666,7 @@ impl Facts {
             .evenings
             .values()
             .flatten()
-            .filter(|e| e.max >= 10 && e.points == e.max)
+            .filter(|e| e.max >= 10 && e.points == e.max && e.date <= date)
             .filter(|e| self.rounds.get(&e.round_id).is_some_and(|r| !r.untimed))
             .min_by_key(|e| (e.finished_at_ms, e.id.as_str()));
         if let Some(evening) = kept {
@@ -770,7 +776,11 @@ impl Facts {
             .rounds
             .values()
             .filter(|r| r.kind == Kind::Daily)
-            .filter(|r| r.date == date || now_ms < evening_window(r).1)
+            // Today's, and those handed in before now whose recall is not closed yet: a round
+            // from a device whose clock ran ahead is no evening recall of today.
+            .filter(|r| {
+                r.date == date || (r.finished_at_ms <= now_ms && now_ms < evening_window(r).1)
+            })
             .collect();
         dailies.sort_by_key(|round| by_finish(round));
         let evenings = dailies
@@ -845,6 +855,11 @@ mod tests {
 
     fn level(n: u8) -> Level {
         Level::new(n).unwrap()
+    }
+
+    /// A learning date after every round of these tests.
+    fn later() -> Date {
+        date("2027-12-31")
     }
 
     /// A round handed in: `points` of the spec's items, `started` and `finished` in hours.
@@ -1053,11 +1068,13 @@ mod tests {
         // Only the recall within the window counts, with its own points.
         assert_eq!(facts.evenings["d"].len(), 1);
         assert_eq!(facts.evening("d").map(|e| (e.points, e.max)), Some((0, 13)));
-        let earned = facts.trophies();
+        let earned = facts.trophies(later());
         assert!(!earned.contains_key("compete-deck"));
         assert!(!earned.contains_key("compete-evening"));
         assert_eq!(
-            facts.best(Discipline::Cards, level(3)).map(|b| b.points),
+            facts
+                .best(Discipline::Cards, level(3), later())
+                .map(|b| b.points),
             Some(0)
         );
         // Each value is scored once; other bytes under the same key are scored anew.
@@ -1122,7 +1139,10 @@ mod tests {
         // The later round saw a task seen before: it is no record.
         assert!(facts.repeat_seed(&late));
         assert_eq!(
-            facts.best(Discipline::Cards, level(1)).unwrap().round_id,
+            facts
+                .best(Discipline::Cards, level(1), later())
+                .unwrap()
+                .round_id,
             "b"
         );
         let history = facts.history(0, None);
@@ -1216,7 +1236,7 @@ mod tests {
         ));
         // A marker seen first counts as a sighting of the task.
         assert!(facts.repeat_seed(&facts.rounds["b"]));
-        assert_eq!(facts.best(Discipline::Cards, level(2)), None);
+        assert_eq!(facts.best(Discipline::Cards, level(2), later()), None);
     }
 
     #[test]
@@ -1234,7 +1254,7 @@ mod tests {
         for fact in [&first, &again, &untimed] {
             facts.rounds.insert(fact.id.clone(), fact.clone());
         }
-        let best = facts.best(Discipline::List, level(1)).unwrap();
+        let best = facts.best(Discipline::List, level(1), later()).unwrap();
         assert_eq!((best.round_id.as_str(), best.points), ("b", 7));
         assert!(facts.repeat_seed(&again) && !facts.repeat_seed(&first));
         // A replay with the clock set back: its device had seen the task, whatever the time.
@@ -1257,11 +1277,14 @@ mod tests {
         };
         facts.sightings.push(sighting("g", 1, false));
         assert_eq!(
-            facts.best(Discipline::List, level(1)).unwrap().round_id,
+            facts
+                .best(Discipline::List, level(1), later())
+                .unwrap()
+                .round_id,
             "b"
         );
         facts.sightings.push(sighting("h", 2, true));
-        assert_eq!(facts.best(Discipline::List, level(1)), None);
+        assert_eq!(facts.best(Discipline::List, level(1), later()), None);
         assert!(facts.repeat_seed(&first));
         facts.sightings.clear();
         facts.rounds.remove("f");
@@ -1271,10 +1294,13 @@ mod tests {
         faster.memorize_ms = 30_000;
         facts.rounds.insert("d".into(), faster.clone());
         assert_eq!(
-            facts.best(Discipline::List, level(1)).unwrap().round_id,
+            facts
+                .best(Discipline::List, level(1), later())
+                .unwrap()
+                .round_id,
             "d"
         );
-        let records = facts.records();
+        let records = facts.records(later());
         let list_1 = &records.levels[0];
         assert_eq!(
             (list_1.discipline, list_1.level, list_1.rounds),
@@ -1373,6 +1399,41 @@ mod tests {
     }
 
     #[test]
+    fn a_round_from_a_clock_that_ran_ahead_waits_for_its_date() {
+        let mut facts = Facts::default();
+        let day = date("2026-10-28");
+        // A daily played on a device a year ahead (a Thursday: a list).
+        let ahead = finished_daily("2027-10-28", 10, 9_000 * H);
+        facts.rounds.insert(ahead.id.clone(), ahead.clone());
+        // Today, tomorrow and months later its evening recall is none of today's.
+        for (n, now) in [(0, 10 * H), (1, 34 * H), (120, 2_900 * H)] {
+            assert!(facts.today(day.add_days(n), now).evenings.is_empty(), "{n}");
+        }
+        assert!(facts.trophies(day).is_empty());
+        let records = facts.records(day);
+        assert_eq!(records.daily_days, 0);
+        assert!(
+            records
+                .levels
+                .iter()
+                .all(|l| l.best.is_none() && l.rounds == 0)
+        );
+        // From its date on it counts.
+        assert_eq!(
+            facts.trophies(ahead.date)["compete-first"],
+            date("2027-10-28")
+        );
+        assert_eq!(facts.records(ahead.date).daily_days, 1);
+        assert!(facts.best(Discipline::List, level(1), ahead.date).is_some());
+        // A round of today handed in an hour ahead of this clock: its recall is today's.
+        let soon = finished_daily("2026-10-28", 13, 11 * H);
+        facts.rounds.insert(soon.id.clone(), soon);
+        let evenings = facts.today(day, 10 * H).evenings;
+        assert_eq!(evenings.len(), 1);
+        assert_eq!(evenings[0].state, EveningState::Locked);
+    }
+
+    #[test]
     fn today_shows_the_week_ahead_and_behind_and_the_tile_follows_it() {
         let mut facts = Facts::default();
         // 2026-10-28 is a Wednesday: cards; Thursday a list; Sunday 2026-10-25 a list too.
@@ -1409,7 +1470,7 @@ mod tests {
     #[test]
     fn trophies_follow_the_rounds_with_the_time_limit_and_keep_their_first_date() {
         let mut facts = Facts::default();
-        assert!(facts.trophies().is_empty());
+        assert!(facts.trophies(later()).is_empty());
         // Six daily days, then an untimed perfect deck: neither the 7th day nor the deck.
         for day in 0..6 {
             let mut fact = finished_daily(
@@ -1424,7 +1485,7 @@ mod tests {
         deck.untimed = true;
         deck.finished_at_ms = 200 * H;
         facts.rounds.insert("deck".into(), deck.clone());
-        let earned = facts.trophies();
+        let earned = facts.trophies(later());
         assert_eq!(
             earned.keys().copied().collect::<Vec<_>>(),
             ["compete-first"]
@@ -1446,7 +1507,7 @@ mod tests {
         digits.finished_at_ms = 303 * H;
         digits.date = date("2026-10-23");
         facts.rounds.insert("digits".into(), digits);
-        let earned = facts.trophies();
+        let earned = facts.trophies(later());
         assert_eq!(earned["compete-daily-7"], date("2026-10-20"));
         assert_eq!(earned["compete-deck"], date("2026-10-21"));
         assert_eq!(earned["compete-numbers-40"], date("2026-10-23"));
@@ -1476,8 +1537,11 @@ mod tests {
                 points: 10,
                 max: 10,
             });
-        assert_eq!(facts.trophies()["compete-evening"], date("2026-10-24"));
-        let records = facts.records();
+        assert_eq!(
+            facts.trophies(later())["compete-evening"],
+            date("2026-10-24")
+        );
+        let records = facts.records(later());
         assert_eq!(records.trophies.len(), TROPHIES.len());
         assert_eq!(
             records

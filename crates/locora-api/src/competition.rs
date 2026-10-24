@@ -332,6 +332,9 @@ pub struct Records;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordsRequest {
     pub epoch: String,
+    /// The learning date now: a round dated later (a device whose clock ran ahead) counts
+    /// from its date on.
+    pub date: Date,
 }
 
 /// The record of one discipline and level, and how many rounds were handed in.

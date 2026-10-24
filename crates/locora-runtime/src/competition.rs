@@ -239,6 +239,7 @@ impl Profile {
     pub fn compete_records(&mut self) -> Result<RecordsResponse> {
         let request = RecordsRequest {
             epoch: self.contest_epoch()?,
+            date: self.learning_date()?,
         };
         self.contest::<Records>(&request)
     }
