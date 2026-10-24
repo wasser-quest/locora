@@ -94,12 +94,20 @@ fn checked(text: &str) -> Result<String> {
     Ok(text.to_owned())
 }
 
-/// The invite code in a pasted link or code, read before anything is sent.
+/// The invite code in a pasted link or code, read before anything is sent. A whole message as the
+/// app shares a code without a link („… (gilt bis …): ABCD-…“, in any language) is read too: its
+/// code is the last word that reads as one.
 fn pasted_code(text: &str) -> Result<String> {
     if text.chars().count() > PASTED_MAX {
         bail!(NO_CODE);
     }
-    parse_invite_code(text).ok_or_else(|| anyhow!(NO_CODE))
+    parse_invite_code(text)
+        .or_else(|| {
+            text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+                .rev()
+                .find_map(parse_invite_code)
+        })
+        .ok_or_else(|| anyhow!(NO_CODE))
 }
 
 /// The friends page: the friend list and the open invite links, asked side by side.
@@ -997,6 +1005,23 @@ mod tests {
                 "{junk}"
             );
             assert!(accept_invite(&me, junk).is_err());
+        }
+        // The message the app shares with a code but no link is read as it was received, in
+        // every language and with a full stop a messenger may add.
+        for message in [
+            "Lass uns in Locora Freunde sein! Gib meinen Einladungscode in Locora unter „Freunde & Ranglisten“ ein (gilt bis 7. November 2026): ABCD-EFGH-JKMN-PQRS",
+            "Let's be friends in Locora! Enter my invite code in Locora under “Friends & rankings” (valid until November 7, 2026): abcd-efgh-jkmn-pqrs.",
+            "Soyons amis dans Locora ! Saisis mon code d’invitation dans Locora, sous « Amis et classements » (valable jusqu’au 7 novembre 2026)\u{202f}: ABCD-EFGH-JKMN-PQRS",
+            "Locora でフレンドになろう！Locora の「フレンドとランキング」で私の招待コードを入力してね（2026年11月7日 まで有効）：ABCD-EFGH-JKMN-PQRS",
+            "我们在 Locora 里做好友吧！请在 Locora 的“好友与排行榜”中输入我的邀请码（有效期至 2026年11月7日）：ABCD-EFGH-JKMN-PQRS",
+        ] {
+            let mut flow = preview_invite(&me, message).unwrap();
+            assert_eq!(
+                first(&mut flow).url,
+                "https://api.example.com/v1/friends/invites/ABCD%2DEFGH%2DJKMN%2DPQRS",
+                "{message}"
+            );
+            assert!(accept_invite(&me, message).is_ok());
         }
         // A shared link with a long query is still read (its code is the fragment).
         let tracked = format!(
