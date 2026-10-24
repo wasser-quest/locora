@@ -2256,6 +2256,7 @@ const fieldAndSeen = (locator) => locator.evaluate((field) => ({
   bottom: field.getBoundingClientRect().bottom,
   seen: window.visualViewport.offsetTop + window.visualViewport.height,
   bar: [...document.querySelectorAll('.palette-mobile-trigger')].map((bar) => bar.getBoundingClientRect()).find((rect) => rect.height > 0)?.top ?? Infinity,
+  foot: field.closest('.modal')?.querySelector('.modal-foot')?.getBoundingClientRect().top ?? Infinity,
 }));
 
 /** Controls narrower or lower than a finger (44 px), by their names. */
@@ -2341,5 +2342,178 @@ test('the friends page fits a phone: no sideways scrolling, finger-sized targets
     assert.deepEqual(french.problems, []);
   } finally {
     await french.context.close();
+  }
+});
+
+// ---------------------------------------------------------------- sharing
+
+/** Width and height of a PNG from its IHDR, and whether it starts like one. */
+function pngSize(bytes) {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  return {
+    png: signature.every((byte, index) => bytes[index] === byte),
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+}
+
+test('a journey’s end card becomes a picture without the palace name until it is chosen', async () => {
+  const { context, page, problems } = await openApp();
+  try {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+    await openTutorial(page);
+    const done = await walkTutorial(page, '3');
+    const share = done.getByRole('button', { name: 'Share…' });
+    await share.click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.waitFor({ timeout: 10000 });
+    const choices = await dialog.getByRole('radio').evaluateAll((radios) => radios.map((radio) => radio.parentElement.innerText.trim()));
+    assert.equal(choices[0], 'This journey');
+    assert.ok(choices.includes('First journey'), `the new trophy can be shared: ${choices}`);
+    const text = dialog.getByLabel('Text with the picture');
+    const preview = dialog.locator('.share-preview img');
+    await preview.waitFor({ timeout: 20000 });
+    assert.match(await text.inputValue(), /^Journey done in Locora: \d of 9 recalled/);
+    assert.doesNotMatch(await text.inputValue(), /Learn Locora/);
+    assert.doesNotMatch(await preview.getAttribute('alt'), /Learn Locora/);
+    // The palace's name only when it is chosen, for this share.
+    await dialog.getByRole('checkbox', { name: 'Show the palace name “Learn Locora”' }).check();
+    await page.waitForFunction(() => document.querySelector('.share-preview img')?.alt.includes('Learn Locora'), null, { timeout: 10000 });
+    assert.match(await text.inputValue(), /In the palace “Learn Locora”\./);
+    await dialog.getByRole('checkbox', { name: 'Show the palace name “Learn Locora”' }).uncheck();
+    await page.waitForFunction(() => !document.querySelector('.share-preview img')?.alt.includes('Learn Locora'), null, { timeout: 10000 });
+    // Chromium on Linux shares no files: the picture is downloaded and the text copied.
+    const primary = dialog.getByRole('button', { name: 'Download picture' });
+    await page.waitForFunction(() => !document.querySelector('.share-actions .primary')?.disabled, null, { timeout: 20000 });
+    const [download] = await Promise.all([page.waitForEvent('download'), primary.click()]);
+    assert.equal(download.suggestedFilename(), 'locora-journey.png');
+    const bytes = await (await import('node:fs/promises')).readFile(await download.path());
+    assert.deepEqual(pngSize(bytes), { png: true, width: 1080, height: 1080 });
+    await dialog.getByText(/^Picture downloaded\. The text is on the clipboard\./).waitFor({ timeout: 10000 });
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Journey done in Locora/);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await focusedText(page), 'Share…');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a new trophy’s celebration offers sharing, and the achievements card shares what is unlocked', async () => {
+  const { context, page, problems } = await openApp({ reducedMotion: 'reduce' });
+  try {
+    await openTutorial(page);
+    await walkTutorial(page, '3');
+    const celebration = page.locator('.celebration', { hasText: 'First journey' });
+    await celebration.waitFor({ timeout: 20000 });
+    await celebration.getByRole('button', { name: 'Share “First journey”…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.waitFor({ timeout: 10000 });
+    assert.match(await dialog.getByLabel('Text with the picture').inputValue(), /^I earned the journey trophy “First journey” in Locora\.$/);
+    await dialog.locator('.share-preview img').waitFor({ timeout: 20000 });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+    // With the achievements („Learn mnemonics“): one way to share for the whole card, offering the
+    // unlocked ones only.
+    await page.getByRole('button', { name: 'Back to overview' }).click();
+    await page.getByRole('button', { name: 'Learn mnemonics' }).first().click();
+    const card = page.getByRole('region', { name: 'Achievements' });
+    await card.getByRole('button', { name: 'Share an achievement…' }).click();
+    await dialog.waitFor({ timeout: 10000 });
+    const offered = await dialog.locator('select option, .share-cards label').allInnerTexts();
+    assert.ok(offered.some((label) => label.includes('First journey')), `${offered}`);
+    assert.ok(!offered.some((label) => label.includes('100 XP')), `locked ones are not offered: ${offered}`);
+    await page.keyboard.press('Escape');
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('with the Web Share API an invite link and a card go to the share sheet, and cancelling says nothing', async () => {
+  const { context, page, problems } = await openApp({
+    initScript: () => {
+      window.__shared = [];
+      navigator.canShare = () => true;
+      navigator.share = async (data) => {
+        if (window.__cancel) throw new DOMException('cancelled', 'AbortError');
+        window.__shared.push({ text: data.text, title: data.title, files: (data.files ?? []).map((file) => [file.name, file.type, file.size]) });
+      };
+    },
+  });
+  try {
+    await socialCloud(page);
+    await signIn(page);
+    await openFriends(page);
+    const main = page.locator('main');
+    await main.getByRole('button', { name: 'Create an invite link' }).click();
+    await main.getByRole('group', { name: 'Invite link' }).getByRole('button', { name: 'Share…' }).click();
+    await main.getByText('Shared.').waitFor({ timeout: 10000 });
+    let shared = await page.evaluate(() => window.__shared);
+    assert.equal(shared.length, 1);
+    assert.equal(shared[0].title, 'Invitation to Locora');
+    assert.match(shared[0].text, /^Let's be friends in Locora! Open the link to accept my invitation \(valid until .*\): https:\/\/web\.locora\.cloud\/einladung#ABCD-EFGH-JKLM-NPQR$/);
+    assert.deepEqual(shared[0].files, []);
+    // A card goes as one PNG with its text (back to the settings, then to the start page).
+    await page.evaluate(() => window.__TAURI__.core.invoke('game_week_goal', { days: 1 }));
+    await main.locator('header .back').click();
+    await page.getByRole('region', { name: 'Locora Cloud' }).waitFor({ timeout: 10000 });
+    await page.locator('header .back').click();
+    await openTutorial(page);
+    const done = await walkTutorial(page, '3');
+    await done.getByRole('button', { name: 'Share…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.locator('.share-preview img').waitFor({ timeout: 20000 });
+    await page.waitForFunction(() => !document.querySelector('.share-actions .primary')?.disabled, null, { timeout: 20000 });
+    await dialog.getByRole('button', { name: 'Share…' }).click();
+    await dialog.getByText('Shared.').waitFor({ timeout: 10000 });
+    shared = await page.evaluate(() => window.__shared);
+    assert.equal(shared.length, 2);
+    assert.equal(shared[1].files.length, 1);
+    assert.equal(shared[1].files[0][0], 'locora-journey.png');
+    assert.equal(shared[1].files[0][1], 'image/png');
+    assert.match(shared[1].text, /^Journey done in Locora/);
+    // Cancelling the sheet is no error and says nothing.
+    await page.evaluate(() => {
+      window.__cancel = true;
+    });
+    await dialog.getByRole('radio', { name: 'This journey' }).check();
+    await dialog.getByRole('button', { name: 'Share…' }).click();
+    await page.waitForTimeout(500);
+    assert.equal(await dialog.locator('.friends-said p[role=alert]').count(), 0);
+    assert.equal(await dialog.getByText('Shared.').count(), 0);
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the share dialog fits a phone: its buttons stay in reach and nothing scrolls sideways', async () => {
+  const { context, page, problems } = await openApp({ phone: true, viewport: { width: 390, height: 667 }, initScript: simulatedKeyboard });
+  try {
+    await page.evaluate(() => localStorage.setItem('locora-locus-display-v1', JSON.stringify({ quick_next: false })));
+    await page.reload({ waitUntil: 'load' });
+    await openTutorial(page);
+    const done = await walkTutorial(page, '3');
+    await done.getByRole('button', { name: 'Share…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share' });
+    await dialog.locator('.share-preview img').waitFor({ timeout: 20000 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 390, 'nothing scrolls sideways');
+    assert.deepEqual(await smallTargets(page, '.modal button'), []);
+    const box = await dialog.boundingBox();
+    const primary = await dialog.locator('.share-actions .primary').boundingBox();
+    assert.ok(primary.y + primary.height <= box.y + box.height + 1, `the main button is in reach: ${JSON.stringify(primary)} in ${JSON.stringify(box)}`);
+    // The name field stays above the keyboard.
+    await dialog.getByRole('checkbox', { name: 'Show my name' }).check();
+    const name = dialog.getByLabel('Name on the picture');
+    await name.focus();
+    await page.waitForTimeout(700);
+    const place = await fieldAndSeen(name);
+    assert.ok(place.bottom <= place.seen && place.bottom <= place.foot, `the name field stays in view, above the buttons: ${JSON.stringify(place)}`);
+    await page.screenshot({ path: process.env.LOCORA_SHOT ?? '/dev/null' }).catch(() => {});
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
   }
 });
