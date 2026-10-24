@@ -256,10 +256,51 @@ mod tests {
             &answers(&["Eier", "Spinat", "Sellerie", "Suesskartoffel"]),
             Lang::De,
         );
+        // "ue" is how ü is typed without it, so it is not a typo.
+        assert_eq!(s.marks, [Mark::Right; 4]);
+        let s = score(
+            &task,
+            &answers(&["die Eier", "Spinnat", "Selerie", "Suesskartofel"]),
+            Lang::De,
+        );
         assert_eq!(
             s.marks,
-            [Mark::Right, Mark::Right, Mark::Right, Mark::Tolerated]
+            [
+                Mark::Right,
+                Mark::Tolerated,
+                Mark::Tolerated,
+                Mark::Tolerated
+            ]
         );
+    }
+
+    #[test]
+    fn articles_quantities_and_half_width_kana() {
+        let task = task(&["milk", "apple", "garlic", "eggs"]);
+        let s = score(
+            &task,
+            &answers(&["some milk", "an apple", "the garlic", "eggs"]),
+            Lang::En,
+        );
+        assert_eq!(s.marks, [Mark::Right; 4]);
+        let s = score(
+            &task,
+            &answers(&["du lait", "des pommes", "l’ail", "les œufs"]),
+            Lang::Fr,
+        );
+        assert_eq!(s.marks, [Mark::Right; 4]);
+        let s = score(
+            &task,
+            &answers(&["一瓶牛奶", "3个苹果", "一头大蒜", "鸡蛋两盒"]),
+            Lang::Zh,
+        );
+        assert_eq!(s.marks, [Mark::Right; 4]);
+        let s = score(
+            &task,
+            &answers(&["ｷﾞｭｳﾆｭｳ", "り\u{3093}こ\u{3099}", "にんにく", "ﾀﾏｺﾞ"]),
+            Lang::Ja,
+        );
+        assert_eq!(s.marks, [Mark::Right; 4]);
     }
 
     #[test]

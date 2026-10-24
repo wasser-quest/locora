@@ -72,17 +72,17 @@
     }
   },
   {
-    "name": "shopping list in German, any order, one typo",
+    "name": "shopping list in German: any order, an article, ae for ä and one typo",
     "task": {"items": [75, 121, 11, 54, 87, 132, 105, 32, 114, 52]},
     "recall": {
-      "items": ["Whisky", "Kabeljau", "Kirschen", "Toastbrot", "Marmelade", "Seife", "Muellbeutel", "Mais", "Rosinen", "Kondensmilch"]
+      "items": ["Whisky", "der Kabeljau", "Kirschen", "Toastbrot", "Marmelade", "Seife", "Muellbeutel", "Mais", "Rosinen", "Kondensmlch"]
     },
     "lang": "de",
     "score": {
       "points": 10,
       "max": 10,
       "perfect": true,
-      "marks": ["right", "right", "right", "right", "right", "right", "tolerated", "right", "right", "right"],
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "tolerated"],
       "matched": [6, 0, 2, 3, 4, 5, 1, 7, 8, 9],
       "info": {"in_order": 7, "digits_right": null, "first_error": null}
     }
@@ -123,6 +123,52 @@
     "recall": {
       "items": ["火柴", "naiyou", "創可貼", "肉馅", "ganlanyou", "putao", "kaixinguo", "mogu", "canbao", "guozhi"]
     },
+    "lang": "zh",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "info": {"in_order": 10, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in French: articles",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {
+      "items": ["des allumettes", "de la crème", "les pansements", "de la viande hachée", "l’huile d’olive", "du raisin", "des pistaches", "les champignons", "des petits pains", "du jus"]
+    },
+    "lang": "fr",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "info": {"in_order": 10, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in Japanese: half-width katakana and decomposed kana",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {
+      "items": ["ﾏｯﾁ", "ﾅﾏｸﾘｰﾑ", "ﾊﾞﾝｿｳｺｳ", "ひき肉", "ｵﾘｰﾌﾞｵｲﾙ", "ふ\u3099と\u3099う", "ﾋﾟｽﾀﾁｵ", "きのこ", "ﾛｰﾙﾊﾟﾝ", "ｼﾞｭｰｽ"]
+    },
+    "lang": "ja",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "info": {"in_order": 10, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in Chinese: quantities before and after the item",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {"items": ["一盒火柴", "两盒奶油", "一包创可贴", "一斤肉馅", "一瓶橄榄油", "葡萄两串", "一袋开心果", "蘑菇x2", "六个餐包", "一瓶果汁"]},
     "lang": "zh",
     "score": {
       "points": 10,

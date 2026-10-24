@@ -37,11 +37,15 @@ pineapple, blueberries, croissants and toilet paper fail the Japanese limit, por
 
 ## How an answer is matched
 
-Answers and forms are compared after normalization: case, full-width letters, katakana versus hiragana and
-Latin accents do not matter, and spaces, hyphens and apostrophes are dropped. A Latin form (pinyin too) of
-at least 5 letters, or a kana form of at least 4, also accepts one typo. Chinese characters and kanji must
-be exact; that is why every Japanese concept lists its reading in kana and every Chinese concept its
-pinyin. There is no autocomplete, so what a person types is what counts.
+Answers and forms are compared after normalization: case, full-width letters, half-width katakana,
+katakana versus hiragana and Latin accents do not matter, and spaces, hyphens and apostrophes are dropped.
+A kana typed apart from its sound mark (か and ゛) is joined with it. In English, German and French one
+leading article is dropped ("an apple", "die Milch", "l’huile", "de la farine"); in German "ae", "oe" and
+"ue" count as "ä", "ö" and "ü"; in Chinese a quantity before or after the item is dropped ("一瓶牛奶",
+"鸡蛋两盒", "牛奶x2"). A Latin form (pinyin too) of at least 5 letters, or a kana form of at least 4, also
+accepts one typo. Chinese characters and kanji must be exact; that is why every Japanese concept lists its
+reading in kana and every Chinese concept its pinyin. An answer that is exactly a form of another concept
+counts as that concept, never as a typo. There is no autocomplete, so what a person types is what counts.
 
 ## Checklist for each language
 

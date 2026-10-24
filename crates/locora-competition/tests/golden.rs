@@ -285,7 +285,7 @@ struct ScoreCase {
 #[test]
 fn scoring_examples() {
     let cases: Vec<ScoreCase> = serde_json::from_str(include_str!("golden/scoring.json")).unwrap();
-    assert_eq!(cases.len(), 12);
+    assert_eq!(cases.len(), 15);
     for case in cases {
         assert_eq!(
             score(&case.task, &case.recall, case.lang).as_ref(),
