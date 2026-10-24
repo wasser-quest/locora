@@ -1296,8 +1296,17 @@ mod tests {
         palace_named(profile, "Küche", count)
     }
 
-    /// A palace `name` with `count` recall loci.
+    /// A palace `name` with `count` recall loci. Learning days begin twelve hours from now, so
+    /// a test never runs across the start of the next one: what comes back after „Again“ stays
+    /// on today's learning day at any time of day.
     fn palace_named(profile: &mut Profile, name: &str, count: usize) -> String {
+        let clock = profile.day_clock().unwrap();
+        let offset = clock
+            .offsets
+            .last()
+            .map_or(0, |(_, minutes)| i64::from(*minutes) * 60);
+        let hour = ((locora_runtime::now() as i64 + offset).div_euclid(3_600) + 12).rem_euclid(24);
+        profile.set_day_start_hour(hour as u8).unwrap();
         let p = profile.store.create_palace(name).unwrap();
         let r = profile
             .store
