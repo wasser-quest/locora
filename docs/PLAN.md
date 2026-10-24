@@ -450,31 +450,33 @@ daraus ab. Alles läuft offline, ohne Konto und kostenlos.
   Schon das Zeigen zählt: Auch eine Runde, die nie abgegeben wird, hat ihre Aufgabe gesehen. Ob eine Aufgabe neu war,
   entscheidet das Gerät beim Start und speichert es mit (`first`), damit eine zurückgestellte Uhr keine Wiederholung
   zum ersten Spiel macht; die früheste Startzeit entscheidet nur zwischen Geräten, die dieselbe Aufgabe offline zum
-  ersten Mal gesehen haben.
-  Acht Trophäen (`compete-*`), jede mit dem Lerntag, an dem sie zuerst verdient wurde. Gezählt werden Tage mit
-  Tages-Challenge insgesamt, nie als Serie.
+  ersten Mal gesehen haben. Acht Trophäen (`compete-*`), jede mit dem Lerntag, an dem sie zuerst verdient wurde.
+  Gezählt werden Tage mit Tages-Challenge insgesamt, nie als Serie.
 - **XP fürs Mitmachen, nicht für Punkte:** 10, 15 oder 20 je Stufe der Tages-Challenge, 5 für die Abendabfrage, für
   Übung und Codes nichts, und nur für eine Abgabe mit mindestens einer Antwort (`locora_competition::xp`). Die
   Laufzeit meldet sie an `gamification` (`gamification.contest@1`, noch offen); ein Lerntag entsteht dadurch
   nicht.
 
 **Daten: Fakten statt Zähler,** wie bei `gamification`, aber als JSON mit Version `v` (eine ältere Version liest die
-Fakten einer neueren und überliest unbekannte Felder), unter der Spiel-Epoche der Laufzeit:
-`g/<epoche>/r/<runde>` (die abgegebene Runde: Seed, Antworten, Punkte, Zeiten, Lerndatum, Sprache, Route),
+Fakten einer neueren und überliest unbekannte Felder), unter der Spiel-Epoche der Laufzeit: `g/<epoche>/r/<runde>`
+(die abgegebene Runde: Seed, Antworten, Punkte, Zeiten, Lerndatum, Sprache, Route),
 `g/<epoche>/s/<datum>/<disziplin>/<stufe>/<runde>` (die Startmarke einer Tagesrunde, beim Start geschrieben),
 `g/<epoche>/t/<disziplin>/<stufe>/<seed>/<runde>` (die Sichtung jeder anderen Runde, ebenfalls beim Start) und
 `g/<epoche>/e/<runde>/<abendabfrage>`. Runden-Ids sind UUID v7 (32 Hex-Zeichen), Seeds 60 Bit aus dem Zufall des
-Systems. Jeder Schlüssel wird einmal geschrieben, der Sync vereinigt die Geräte. Haben zwei Geräte dieselbe
+Systems. Jeder Schlüssel wird einmal geschrieben, der Sync vereinigt die Geräte. Runden und Abendabfragen zählen nur
+so, wie das Plugin sie aus dem Seed neu wertet, nie mit den gespeicherten Punkten; was kein Gerät dieser Version
+geschrieben haben kann (andere Regeln, Zeiten über dem Limit, eine Tagesrunde mit fremder Aufgabe, Antworten, die
+nicht zur Aufgabe passen, eine Abendabfrage außerhalb ihres Fensters), bleibt außen vor. Haben zwei Geräte dieselbe
 Tages-Challenge offline gespielt, ist die Runde mit der frühesten Startmarke der Versuch des Tages, die andere zählt
 als Übung, auf beiden Geräten gleich. Eine Startmarke zählt allein durch ihren Schlüssel: Auch eine Marke einer Art,
 die diese Version nicht kennt (Locora Clouds Tages-Challenge schreibt `cloud_daily` unter dieselben Schlüssel), oder
 eine, deren Wert sich nicht lesen lässt, ist ein Versuch und belegt die Stufe; `today@1` und `begin@1` lesen dieselben
 Marken. Runden einer Art, die 0.1.8 nicht kennt (`cloud_daily`, `duel`), überliest es dagegen absichtlich und zeigt
-ihre Stufe als „begonnen, nicht beendet“; Locora Cloud muss damit rechnen. Eine begonnene und nie abgegebene Tagesrunde bleibt „begonnen, nicht beendet“:
-Dieselbe Aufgabe ein zweites Mal zu sehen, wäre kein Versuch mehr. Das Plugin hält die Fakten in einem Speicherabbild,
-das es über `storage.list@1` nachführt, und berechnet daraus den Stand von heute, Rekorde, Trophäen und den Verlauf
-(`plugins/competition/src/facts.rs`). Die laufende Runde liegt nur im App-Kern; nichts Halbfertiges wird
-synchronisiert.
+ihre Stufe als „begonnen, nicht beendet“; Locora Cloud muss damit rechnen. Eine begonnene und nie abgegebene
+Tagesrunde bleibt „begonnen, nicht beendet“: Dieselbe Aufgabe ein zweites Mal zu sehen, wäre kein Versuch mehr. Das
+Plugin hält die Fakten in einem Speicherabbild, das es über `storage.list@1` nachführt, und berechnet daraus den Stand
+von heute, Rekorde, Trophäen und den Verlauf (`plugins/competition/src/facts.rs`). Die laufende Runde liegt nur im
+App-Kern; nichts Halbfertiges wird synchronisiert.
 
 **Epoche und Löschen:** Jede Anfrage bringt Epoche, Lerndatum und Uhrzeit der Laufzeit mit. Das Plugin hat keine Uhr
 und übernimmt eine Epoche nur aus diesen Anfragen. „Spielfortschritt löschen“ ruft auch `competition.reset@1` auf:

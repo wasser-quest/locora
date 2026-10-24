@@ -15,7 +15,9 @@
 //! Every key is written once and never changed, so the sync (last writer wins per key) merges the
 //! devices as a union. Values are JSON with a version `v`, so an older version reads the facts of
 //! a newer one and leaves out the fields it does not know. Only facts of the current epoch count;
-//! empty values are keys that were blanked.
+//! empty values are keys that were blanked. A round or an evening recall from the sync counts only
+//! as this build scores it again from its seed, never with the points stored (see
+//! [`RoundFact::checked`]).
 //!
 //! Two devices may play the same daily offline: the round with the earliest start marker is the
 //! day's try, the other counts as practice. A task counts for records only the first time any
@@ -26,8 +28,9 @@
 //! trophies.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
-use locora_competition::{daily_seed, schedule};
+use locora_competition::{daily_seed, generate, schedule, score};
 use locora_sdk::api::competition::{
     Best, Counted, DayPlan, EveningScore, EveningState, EveningToday, HISTORY_LIMIT, Hint,
     HistoryEntry, Kind, LevelRecord, LevelState, LevelToday, RECALL_GRACE_MS, RecordsResponse,
@@ -113,6 +116,26 @@ pub struct RoundFact {
     pub first: Option<bool>,
 }
 
+impl RoundFact {
+    /// Whether a device of this version can have stored the round: a spec this build serves,
+    /// times within the limits, and for a daily the date's discipline and task. Its points come
+    /// from scoring the recall again ([`collect`]), never from the fact.
+    fn plausible(&self) -> bool {
+        let spec = Spec::standard(self.discipline, self.level);
+        if (self.rules, self.content) != (spec.rules, spec.content) {
+            return false;
+        }
+        let within = self.memorize_ms <= spec.memorize_ms
+            && self.recall_ms <= spec.recall_ms.saturating_add(RECALL_GRACE_MS);
+        if !self.untimed && !within {
+            return false;
+        }
+        let daily = schedule::daily(self.date).discipline == self.discipline
+            && self.seed == daily_seed(self.date, self.discipline, self.level);
+        self.kind != Kind::Daily || (!self.untimed && daily)
+    }
+}
+
 /// The kind of the start markers this version writes.
 pub const DAILY: &str = "daily";
 
@@ -151,6 +174,52 @@ pub struct EveningFact {
     pub lang: Lang,
     pub points: u16,
     pub max: u16,
+}
+
+impl EveningFact {
+    /// Whether this can be the evening recall of `morning`: a daily round, handed in within
+    /// its window. Its points come from scoring the recall again against the morning's task.
+    fn plausible(&self, morning: &RoundFact) -> bool {
+        let (opens, closes) = evening_window(morning);
+        morning.kind == Kind::Daily && (opens..closes).contains(&self.finished_at_ms)
+    }
+}
+
+/// Points, the most points and whether all are right: a recall scored again.
+type Points = (u16, u16, bool);
+
+/// Scores `recall` against the task of `spec` and `seed`; `None` when it does not fit.
+fn rescore(spec: &Spec, seed: Seed, recall: &Recall, lang: Lang) -> Option<Points> {
+    let task = generate(spec, seed).ok()?;
+    let score = score(&task, recall, lang).ok()?;
+    Some((score.points, score.max, score.perfect))
+}
+
+/// The scores of stored recalls, by key and value: every key is written once, so a plugin
+/// instance scores a round or an evening recall once, not each time the facts are read again.
+#[derive(Debug, Default)]
+pub struct Rescored(BTreeMap<String, (u64, Option<Points>)>);
+
+impl Rescored {
+    /// The points of the recall stored under `key`, from `score` unless this value was scored.
+    fn get(
+        &mut self,
+        key: &str,
+        value: &[u8],
+        score: impl FnOnce() -> Option<Points>,
+    ) -> Option<Points> {
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        let hash = hasher.finish();
+        if let Some((scored, points)) = self.0.get(key)
+            && *scored == hash
+        {
+            return *points;
+        }
+        let points = score();
+        self.0.insert(key.to_owned(), (hash, points));
+        points
+    }
 }
 
 /// A start marker with what its key says.
@@ -211,10 +280,17 @@ pub struct Facts {
 
 /// Reads the facts of `epoch` from the stored keys. Blanked keys, keys of other epochs and
 /// values that do not read (a kind or a level of a newer version) are left out, except start
-/// markers: every one under a valid key counts.
-pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch: &str) -> Facts {
+/// markers: every one under a valid key counts. Rounds and evening recalls count as scored again
+/// here (once per value, see [`Rescored`]); those that cannot be scored are left out too.
+pub fn collect<'a>(
+    entries: impl IntoIterator<Item = (&'a str, &'a [u8])>,
+    epoch: &str,
+    rescored: &mut Rescored,
+) -> Facts {
     let mut facts = Facts::default();
+    let mut evenings = Vec::new();
     let prefix = format!("g/{epoch}/");
+    rescored.0.retain(|key, _| key.starts_with(&prefix));
     for (key, value) in entries {
         let Some(rest) = key.strip_prefix(&prefix) else {
             continue;
@@ -225,9 +301,15 @@ pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch
         let parts: Vec<&str> = rest.split('/').collect();
         match parts[..] {
             ["r", id] => {
-                if let Ok(round) = serde_json::from_slice::<RoundFact>(value)
+                if let Ok(mut round) = serde_json::from_slice::<RoundFact>(value)
                     && round.id == id
+                    && round.plausible()
+                    && let Some(points) = rescored.get(key, value, || {
+                        let spec = Spec::standard(round.discipline, round.level);
+                        rescore(&spec, round.seed, &round.recall, round.lang)
+                    })
                 {
+                    (round.points, round.max, round.perfect) = points;
                     facts.rounds.insert(round.id.clone(), round);
                 }
             }
@@ -269,14 +351,27 @@ pub fn collect<'a>(entries: impl IntoIterator<Item = (&'a str, &'a [u8])>, epoch
                     && evening.round_id == round_id
                     && evening.id == id
                 {
-                    facts
-                        .evenings
-                        .entry(evening.round_id.clone())
-                        .or_default()
-                        .push(evening);
+                    evenings.push((key, value, evening));
                 }
             }
             _ => {}
+        }
+    }
+    // An evening recall counts once its round is here, scored against the morning's task.
+    for (key, value, mut evening) in evenings {
+        if let Some(morning) = facts.rounds.get(&evening.round_id)
+            && evening.plausible(morning)
+            && let Some((points, max, _)) = rescored.get(key, value, || {
+                let spec = Spec::standard(morning.discipline, morning.level);
+                rescore(&spec, morning.seed, &evening.recall, evening.lang)
+            })
+        {
+            (evening.points, evening.max) = (points, max);
+            facts
+                .evenings
+                .entry(evening.round_id.clone())
+                .or_default()
+                .push(evening);
         }
     }
     facts
@@ -781,17 +876,37 @@ mod tests {
         }
     }
 
+    /// The recall that gets every place of the round's task right.
+    fn all_right(round: &RoundFact) -> Recall {
+        let spec = Spec::standard(round.discipline, round.level);
+        match generate(&spec, round.seed).unwrap() {
+            Task::List(items) => Recall::List(
+                items
+                    .iter()
+                    .map(|id| {
+                        locora_competition::words::display(*id, round.lang)
+                            .unwrap()
+                            .into()
+                    })
+                    .collect(),
+            ),
+            Task::Numbers(digits) => Recall::Numbers(digits.into_iter().map(Some).collect()),
+            Task::Cards(cards) => Recall::Cards(cards.into_iter().map(Some).collect()),
+        }
+    }
+
     fn json<T: Serialize>(value: &T) -> Vec<u8> {
         serde_json::to_vec(value).unwrap()
     }
 
     fn facts(entries: &[(String, Vec<u8>)]) -> Facts {
-        collect(entries.iter().map(|(k, v)| (k.as_str(), v.as_slice())), "0")
+        let entries = entries.iter().map(|(k, v)| (k.as_str(), v.as_slice()));
+        collect(entries, "0", &mut Rescored::default())
     }
 
     #[test]
     fn only_readable_facts_of_the_epoch_are_collected() {
-        let fact = round("a", Kind::Practice, Discipline::Cards, 1, 13);
+        let fact = round("a", Kind::Practice, Discipline::Cards, 1, 0);
         let marker = MarkerFact {
             v: VERSION,
             kind: DAILY.into(),
@@ -839,7 +954,12 @@ mod tests {
     #[test]
     fn facts_with_unknown_fields_still_load() {
         let fact = round("a", Kind::Daily, Discipline::Numbers, 1, 20);
-        let mut value: serde_json::Value = serde_json::to_value(&fact).unwrap();
+        // The daily of Tuesday 2026-10-27 (numbers), every digit right.
+        let mut daily = fact.clone();
+        daily.date = date("2026-10-27");
+        daily.seed = daily_seed(daily.date, Discipline::Numbers, level(1));
+        daily.recall = all_right(&daily);
+        let mut value: serde_json::Value = serde_json::to_value(&daily).unwrap();
         value["server"] = serde_json::json!({"round_id": "gr_1"});
         value["v"] = serde_json::json!(2);
         // A round from before `route` was written.
@@ -873,6 +993,84 @@ mod tests {
         assert!(text.contains(r#""seed":"000000000000123""#), "{text}");
         assert!(text.contains(r#""recall":{"digits":[null"#), "{text}");
         assert!(text.contains(r#""kind":"daily""#), "{text}");
+    }
+
+    #[test]
+    fn rounds_and_evening_recalls_count_only_as_scored_again() {
+        let day = date("2026-10-28");
+        let mut daily = round("d", Kind::Daily, Discipline::Cards, 1, 0);
+        daily.seed = daily_seed(day, Discipline::Cards, level(1));
+        daily.recall = all_right(&daily);
+        // A deck that claims more points than it has places, with every place empty.
+        let mut inflated = round("i", Kind::Practice, Discipline::Cards, 3, 0);
+        (inflated.points, inflated.max, inflated.perfect) = (60_000, 1, true);
+        // No recall at all; a timed round slower than its limit; a daily that is not the
+        // date's task; rules this build does not know.
+        let mut empty = round("e", Kind::Practice, Discipline::Cards, 3, 52);
+        empty.recall = Recall::Cards(Vec::new());
+        let mut slow = round("s", Kind::Practice, Discipline::Cards, 1, 0);
+        slow.memorize_ms = 9_000_000;
+        let mut untimed = slow.clone();
+        (untimed.id, untimed.untimed) = ("u".into(), true);
+        let mut wrong = round("w", Kind::Daily, Discipline::Cards, 2, 0);
+        wrong.seed = daily_seed(day, Discipline::Cards, level(1));
+        let mut newer = round("n", Kind::Practice, Discipline::Cards, 1, 0);
+        newer.rules = 2;
+        let evening = |id: &str, finished_at_ms, recall| EveningFact {
+            v: VERSION,
+            round_id: "d".into(),
+            id: id.into(),
+            date: day,
+            finished_at_ms,
+            recall,
+            lang: Lang::De,
+            points: 13,
+            max: 13,
+        };
+        let blank = Recall::blank(Discipline::Cards, 13);
+        let mut entries: Vec<(String, Vec<u8>)> = [&daily, &inflated, &empty, &slow, &untimed]
+            .into_iter()
+            .chain([&wrong, &newer])
+            .map(|fact| (round_key("0", &fact.id), json(fact)))
+            .collect();
+        for fact in [
+            evening("x", 9 * H, blank.clone()),
+            evening("y", 7 * H, all_right(&daily)),
+        ] {
+            entries.push((evening_key("0", "d", &fact.id), json(&fact)));
+        }
+        let facts = facts(&entries);
+        assert_eq!(
+            facts.rounds.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["d", "i", "u"]
+        );
+        let inflated = &facts.rounds["i"];
+        assert_eq!(
+            (inflated.points, inflated.max, inflated.perfect),
+            (0, 52, false)
+        );
+        assert_eq!(facts.rounds["d"].points, 13);
+        // Only the recall within the window counts, with its own points.
+        assert_eq!(facts.evenings["d"].len(), 1);
+        assert_eq!(facts.evening("d").map(|e| (e.points, e.max)), Some((0, 13)));
+        let earned = facts.trophies();
+        assert!(!earned.contains_key("compete-deck"));
+        assert!(!earned.contains_key("compete-evening"));
+        assert_eq!(
+            facts.best(Discipline::Cards, level(3)).map(|b| b.points),
+            Some(0)
+        );
+        // Each value is scored once; other bytes under the same key are scored anew.
+        let mut rescored = Rescored::default();
+        let read = |entries: &[(String, Vec<u8>)], rescored: &mut Rescored| {
+            let entries = entries.iter().map(|(k, v)| (k.as_str(), v.as_slice()));
+            collect(entries, "0", rescored)
+        };
+        assert_eq!(read(&entries, &mut rescored), facts);
+        assert_eq!(read(&entries, &mut rescored), facts);
+        daily.recall = blank;
+        entries[0].1 = json(&daily);
+        assert_eq!(read(&entries, &mut rescored).rounds["d"].points, 0);
     }
 
     fn marker(day: &str, n: u8, id: &str, started_at_ms: u64) -> Marker {

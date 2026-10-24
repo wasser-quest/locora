@@ -61,6 +61,8 @@ struct Contest {
     epoch: Option<String>,
     /// The facts of `epoch` as read from the mirror; `None` once the mirror changed.
     facts: Option<Facts>,
+    /// The rounds and evening recalls of the mirror as scored again.
+    rescored: facts::Rescored,
 }
 
 thread_local! {
@@ -176,13 +178,14 @@ impl Contest {
     /// The facts of the current epoch, read once per change of the mirror.
     fn facts(&mut self) -> &Facts {
         let epoch = self.epoch.clone().unwrap_or_else(|| FIRST_EPOCH.to_owned());
-        let mirror = &self.mirror;
+        let (mirror, rescored) = (&self.mirror, &mut self.rescored);
         self.facts.get_or_insert_with(|| {
             facts::collect(
                 mirror
                     .iter()
                     .map(|(key, value)| (key.as_str(), value.as_slice())),
                 &epoch,
+                rescored,
             )
         })
     }
@@ -1145,6 +1148,43 @@ mod tests {
         contest.finish(&mut kv, slow).unwrap();
         let fact = stored(&kv, "0", &id(9));
         assert_eq!((fact.memorize_ms, fact.recall_ms), (180_000, 310_000));
+    }
+
+    #[test]
+    fn a_round_from_the_sync_counts_as_scored_again() {
+        let mut contest = Contest::default();
+        let mut kv = Memory::new(5000);
+        let fact = |id: &str, recall: serde_json::Value| {
+            serde_json::json!({
+                "v": 1, "id": id, "kind": "practice", "discipline": "cards", "level": 3,
+                "rules": 1, "content": 1, "seed": "000000000000001", "date": "2026-10-28",
+                "lang": "de", "untimed": false, "started_at_ms": H, "finished_at_ms": 2 * H,
+                "memorize_ms": 0, "recall_ms": 0, "recall": recall,
+                "points": 60_000, "max": 1, "perfect": true
+            })
+        };
+        let empty = fact(&id(1), serde_json::json!({"cards": []}));
+        let blank = fact(
+            &id(2),
+            serde_json::json!({"cards": vec![serde_json::Value::Null; 52]}),
+        );
+        for (n, value) in [(1, empty), (2, blank)] {
+            let key = facts::round_key("0", &id(n));
+            kv.set(&key, &serde_json::to_vec(&value).unwrap()).unwrap();
+        }
+        let entries = history(&mut contest, &mut kv, "0");
+        assert_eq!(entries.len(), 1, "a recall without its places is no round");
+        assert_eq!((entries[0].points, entries[0].max), (0, 52));
+        let records = records(&mut contest, &mut kv);
+        let deck = records.levels[8].best.clone().unwrap();
+        assert_eq!((deck.points, deck.max), (0, 52));
+        let earned: Vec<&str> = records
+            .trophies
+            .iter()
+            .filter(|t| t.unlocked.is_some())
+            .map(|t| t.id.as_str())
+            .collect();
+        assert_eq!(earned, ["compete-first"], "no full deck");
     }
 
     /// A practice round handed in by another device (its own plugin, the same storage).
