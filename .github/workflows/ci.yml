@@ -48,6 +48,19 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: plugins
         run: cargo test --target x86_64-unknown-linux-gnu -p core -p review -p notify -p gamification
+      # The contest rules also run in plugins and the browser core, so their tests run on
+      # wasm32-wasip2 as well, under a pinned wasmtime.
+      - name: Test (contest rules on wasm32-wasip2)
+        if: runner.os == 'Linux'
+        env:
+          WASMTIME_VERSION: 49.0.4
+          CARGO_TARGET_WASM32_WASIP2_RUNNER: wasmtime
+        run: |
+          curl -fsSL "https://github.com/bytecodealliance/wasmtime/releases/download/v$WASMTIME_VERSION/wasmtime-v$WASMTIME_VERSION-x86_64-linux.tar.xz" \
+            | tar -xJ -C "$RUNNER_TEMP"
+          export PATH="$RUNNER_TEMP/wasmtime-v$WASMTIME_VERSION-x86_64-linux:$PATH"
+          wasmtime --version
+          cargo test -p locora-competition --target wasm32-wasip2
       - name: Test
         run: cargo test
       - name: Plugin round trip

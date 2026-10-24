@@ -1,0 +1,14 @@
+[
+  {"what": "daily level 2, 24 of 26", "level": 2, "evening": false, "answered": true, "xp": 15},
+  {"what": "daily level 3, perfect", "level": 3, "evening": false, "answered": true, "xp": 20},
+  {"what": "daily level 1", "level": 1, "evening": false, "answered": true, "xp": 10},
+  {"what": "evening recall, 18 of 20", "level": 2, "evening": true, "answered": true, "xp": 5},
+  {"what": "daily handed in empty", "level": 3, "evening": false, "answered": false, "xp": 0},
+  {
+    "what": "evening recall handed in empty",
+    "level": 1,
+    "evening": true,
+    "answered": false,
+    "xp": 0
+  }
+]

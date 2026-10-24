@@ -1,0 +1,224 @@
+[
+  {
+    "name": "row 1 exact, row 2 with two blanks at the end",
+    "task": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "recall": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, null, null]},
+    "lang": "en",
+    "score": {
+      "points": 18,
+      "max": 20,
+      "perfect": false,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "empty", "empty"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": 18, "first_error": null}
+    }
+  },
+  {
+    "name": "row 1 exact, row 2 with one error before two blanks",
+    "task": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "recall": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 6, 2, 8, 1, 0, null, null]},
+    "lang": "en",
+    "score": {
+      "points": 14,
+      "max": 20,
+      "perfect": false,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "wrong", "right", "right", "right", "right", "empty", "empty"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": 17, "first_error": null}
+    }
+  },
+  {
+    "name": "one error in row 1, row 2 exact",
+    "task": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "recall": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 1, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "lang": "en",
+    "score": {
+      "points": 15,
+      "max": 20,
+      "perfect": false,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "wrong", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": 19, "first_error": null}
+    }
+  },
+  {
+    "name": "two errors in row 1, row 2 empty",
+    "task": {"digits": [0, 8, 1, 6, 0, 0, 7, 5, 9, 1, 8, 4, 5, 5, 2, 8, 1, 0, 5, 8]},
+    "recall": {
+      "digits": [0, 8, 1, 6, 0, 0, 7, 5, 0, 0, null, null, null, null, null, null, null, null, null, null]
+    },
+    "lang": "en",
+    "score": {
+      "points": 0,
+      "max": 20,
+      "perfect": false,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "wrong", "wrong", "empty", "empty", "empty", "empty", "empty", "empty", "empty", "empty", "empty", "empty"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": 8, "first_error": null}
+    }
+  },
+  {
+    "name": "cards: places 2 and 3 swapped",
+    "task": {"cards": [36, 18, 7, 44, 16, 21, 25, 13, 1, 15, 5, 41, 38]},
+    "recall": {"cards": [36, 7, 18, 44, 16, 21, 25, 13, 1, 15, 5, 41, 38]},
+    "lang": "en",
+    "score": {
+      "points": 11,
+      "max": 13,
+      "perfect": false,
+      "marks": ["right", "wrong", "wrong", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [],
+      "info": {"in_order": null, "digits_right": null, "first_error": 1}
+    }
+  },
+  {
+    "name": "shopping list in German: any order, an article, ae for ä and one typo",
+    "task": {"items": [75, 121, 11, 54, 87, 132, 105, 32, 114, 52]},
+    "recall": {
+      "items": ["Whisky", "der Kabeljau", "Kirschen", "Toastbrot", "Marmelade", "Seife", "Muellbeutel", "Mais", "Rosinen", "Kondensmlch"]
+    },
+    "lang": "de",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "tolerated"],
+      "matched": [6, 0, 2, 3, 4, 5, 1, 7, 8, 9],
+      "info": {"in_order": 7, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in English: duplicate, empty, typo, wrong",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {
+      "items": ["matches", "matches", "", "plasters", "mince", "olive oil", "grape", "pistacios", "bicycle", "juice"]
+    },
+    "lang": "en",
+    "score": {
+      "points": 7,
+      "max": 10,
+      "perfect": false,
+      "marks": ["right", "duplicate", "empty", "right", "right", "right", "right", "tolerated", "wrong", "right"],
+      "matched": [0, null, null, 2, 3, 4, 5, 6, null, 9],
+      "info": {"in_order": 2, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in Japanese: katakana, hiragana and kanji",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {"items": ["マッチ", "生クリーム", "ばんそうこう", "ひき肉", "オリーブオイル", "ブドウ", "ピスタチオ", "キノコ", "ロールパン", "じゅーす"]},
+    "lang": "ja",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "info": {"in_order": 10, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in Chinese: characters, traditional characters and pinyin",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {
+      "items": ["火柴", "naiyou", "創可貼", "肉馅", "ganlanyou", "putao", "kaixinguo", "mogu", "canbao", "guozhi"]
+    },
+    "lang": "zh",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "info": {"in_order": 10, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in French: articles",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {
+      "items": ["des allumettes", "de la crème", "les pansements", "de la viande hachée", "l’huile d’olive", "du raisin", "des pistaches", "les champignons", "des petits pains", "du jus"]
+    },
+    "lang": "fr",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "info": {"in_order": 10, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in Japanese: half-width katakana and decomposed kana",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {
+      "items": ["ﾏｯﾁ", "ﾅﾏｸﾘｰﾑ", "ﾊﾞﾝｿｳｺｳ", "ひき肉", "ｵﾘｰﾌﾞｵｲﾙ", "ふ\u3099と\u3099う", "ﾋﾟｽﾀﾁｵ", "きのこ", "ﾛｰﾙﾊﾟﾝ", "ｼﾞｭｰｽ"]
+    },
+    "lang": "ja",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "info": {"in_order": 10, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "shopping list in Chinese: quantities before and after the item",
+    "task": {"items": [126, 51, 137, 65, 83, 8, 112, 30, 55, 99]},
+    "recall": {"items": ["一盒火柴", "两盒奶油", "一包创可贴", "一斤肉馅", "一瓶橄榄油", "葡萄两串", "一袋开心果", "蘑菇x2", "六个餐包", "一瓶果汁"]},
+    "lang": "zh",
+    "score": {
+      "points": 10,
+      "max": 10,
+      "perfect": true,
+      "marks": ["right", "right", "right", "right", "right", "right", "right", "right", "right", "right"],
+      "matched": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "info": {"in_order": 10, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "a typo between two items goes to the one left",
+    "task": {"items": [5, 13]},
+    "recall": {"items": ["lelon", "lemon"]},
+    "lang": "en",
+    "score": {
+      "points": 2,
+      "max": 2,
+      "perfect": true,
+      "marks": ["tolerated", "right"],
+      "matched": [1, 0],
+      "info": {"in_order": 0, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "a typo between two items that are both left is wrong",
+    "task": {"items": [5, 13]},
+    "recall": {"items": ["lelon", ""]},
+    "lang": "en",
+    "score": {
+      "points": 0,
+      "max": 2,
+      "perfect": false,
+      "marks": ["wrong", "empty"],
+      "matched": [null, null],
+      "info": {"in_order": 0, "digits_right": null, "first_error": null}
+    }
+  },
+  {
+    "name": "another concept of the list is not a typo",
+    "task": {"items": [110, 45]},
+    "recall": {"items": ["ドーナツ", "牛乳"]},
+    "lang": "ja",
+    "score": {
+      "points": 1,
+      "max": 2,
+      "perfect": false,
+      "marks": ["wrong", "right"],
+      "matched": [null, 1],
+      "info": {"in_order": 1, "digits_right": null, "first_error": null}
+    }
+  }
+]

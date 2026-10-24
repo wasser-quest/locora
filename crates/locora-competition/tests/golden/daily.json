@@ -1,0 +1,20 @@
+[
+  {"date": "2026-10-26", "discipline": "list", "level": 1, "seed": "e8e9eb445f8a08c"},
+  {
+    "date": "2026-10-27",
+    "discipline": "numbers",
+    "level": 1,
+    "seed": "906193cffb3b5ed",
+    "task": {"digits": [3, 3, 7, 8, 1, 2, 2, 7, 3, 2, 1, 5, 0, 9, 6, 5, 7, 8, 5, 9]}
+  },
+  {"date": "2026-10-27", "discipline": "numbers", "level": 2, "seed": "906163cffb3b0d4"},
+  {
+    "date": "2026-10-28",
+    "discipline": "cards",
+    "level": 1,
+    "seed": "e1b6350bfd62689",
+    "task": {"cards": [32, 22, 16, 35, 9, 43, 51, 39, 18, 3, 29, 11, 46]},
+    "names": "7D 10H 4H 10D 10S 5C KC AC 6H 4S 4D QS 8C"
+  },
+  {"date": "2026-10-28", "discipline": "cards", "level": 3, "seed": "e1b6150bfd62323"}
+]
