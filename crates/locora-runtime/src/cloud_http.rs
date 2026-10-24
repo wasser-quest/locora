@@ -86,16 +86,43 @@ pub trait Flow {
 }
 
 /// Runs a flow with the desktop HTTP client until it is done. All its calls share one client, so a
-/// connection (and its TLS session) is reused from call to call.
+/// connection (and its TLS session) is reused from call to call. A call that gets no reply ends
+/// the flow with that error.
 #[cfg(feature = "cloud")]
-pub fn run<F: Flow>(mut flow: F) -> Result<F::Output> {
+pub fn run<F: Flow>(flow: F) -> Result<F::Output> {
+    drive(flow, |reply| reply)
+}
+
+/// Runs a flow like `run`, but a call that gets no reply at all (the server is not reached, the
+/// connection drops) is answered with status 0, as the browser's `fetch` answers it. A flow that
+/// can do without that reply (a second call that only words the result, one of two calls side by
+/// side) then ends on the desktop as it does in the browser; `failure` words status 0 as
+/// "Locora Cloud nicht erreichbar" where it cannot.
+#[cfg(feature = "cloud")]
+pub fn run_answering<F: Flow>(flow: F) -> Result<F::Output> {
+    drive(flow, |reply| {
+        Ok(reply.unwrap_or_else(|_| Reply {
+            status: 0,
+            body: Vec::new(),
+        }))
+    })
+}
+
+/// The loop of `run` and `run_answering`; `answer` decides what a call without a reply becomes.
+#[cfg(feature = "cloud")]
+fn drive<F: Flow>(mut flow: F, answer: fn(Result<Reply>) -> Result<Reply>) -> Result<F::Output> {
     let agent = native::agent();
     let mut step = flow.step(None)?;
     loop {
         step = match step {
             Step::Done(output) => return Ok(output),
-            Step::Call(call) => flow.step(Some(native::perform(&agent, &call)?))?,
-            Step::Calls(calls) => flow.step_many(native::perform_all(&agent, &calls)?)?,
+            Step::Call(call) => flow.step(Some(answer(native::perform(&agent, &call))?))?,
+            Step::Calls(calls) => flow.step_many(
+                native::perform_all(&agent, &calls)
+                    .into_iter()
+                    .map(answer)
+                    .collect::<Result<_>>()?,
+            )?,
         };
     }
 }
@@ -233,8 +260,9 @@ mod native {
             .into()
     }
 
-    /// Sends calls side by side, one thread each; the replies come in the order of the calls.
-    pub fn perform_all(agent: &ureq::Agent, calls: &[Call]) -> Result<Vec<Reply>> {
+    /// Sends calls side by side, one thread each; the replies (or why there is none) come in the
+    /// order of the calls.
+    pub fn perform_all(agent: &ureq::Agent, calls: &[Call]) -> Vec<Result<Reply>> {
         std::thread::scope(|scope| {
             let running: Vec<_> = calls
                 .iter()
@@ -398,6 +426,107 @@ mod tests {
                 Some(reply) => Ok(Step::Done(reply.status)),
             }
         }
+    }
+
+    /// A call, two calls side by side, one more call; it ends with the statuses it got.
+    #[cfg(feature = "cloud")]
+    struct Dropped {
+        server: String,
+        statuses: Vec<u16>,
+    }
+
+    #[cfg(feature = "cloud")]
+    impl Dropped {
+        fn get(&self, path: &str) -> Call {
+            Call {
+                method: Method::Get,
+                url: format!("{}{path}", self.server),
+                token: None,
+                body: None,
+                timeout_secs: 5,
+            }
+        }
+    }
+
+    #[cfg(feature = "cloud")]
+    impl Flow for Dropped {
+        type Output = Vec<u16>;
+
+        fn step(&mut self, reply: Option<Reply>) -> Result<Step<Vec<u16>>> {
+            match reply {
+                None => Ok(Step::Call(self.get("/first"))),
+                Some(reply) => {
+                    self.statuses.push(reply.status);
+                    if self.statuses.len() == 1 {
+                        Ok(Step::Calls(vec![self.get("/kept"), self.get("/dropped")]))
+                    } else {
+                        Ok(Step::Done(std::mem::take(&mut self.statuses)))
+                    }
+                }
+            }
+        }
+
+        fn step_many(&mut self, replies: Vec<Reply>) -> Result<Step<Vec<u16>>> {
+            self.statuses
+                .extend(replies.iter().map(|reply| reply.status));
+            Ok(Step::Call(self.get("/dropped")))
+        }
+    }
+
+    /// A server on a local port that answers every path with 200, except `/dropped`: there the
+    /// connection closes without a reply (a lost network, a server that went away).
+    #[cfg(feature = "cloud")]
+    fn dropping_server() -> String {
+        use std::io::{BufRead, BufReader, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let server = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for mut socket in listener.incoming().flatten() {
+                std::thread::spawn(move || {
+                    let mut reader = BufReader::new(&socket);
+                    let mut request = String::new();
+                    reader.read_line(&mut request).unwrap();
+                    loop {
+                        let mut line = String::new();
+                        reader.read_line(&mut line).unwrap();
+                        if line == "\r\n" || line.is_empty() {
+                            break;
+                        }
+                    }
+                    if !request.contains("/dropped") {
+                        socket
+                            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                            .unwrap();
+                    }
+                });
+            }
+        });
+        server
+    }
+
+    #[cfg(feature = "cloud")]
+    #[test]
+    fn a_call_without_a_reply_is_status_0_where_the_flow_answers_it_like_the_browser() {
+        let flow = |server: &str| Dropped {
+            server: server.to_owned(),
+            statuses: Vec::new(),
+        };
+        let server = dropping_server();
+        // As the browser's fetch: one of two calls side by side and a later call get status 0,
+        // and the flow decides what that means.
+        assert_eq!(run_answering(flow(&server)).unwrap(), [200, 200, 0, 0]);
+        // `run` ends the flow at the first call without a reply.
+        let error = run(flow(&server)).unwrap_err();
+        assert_eq!(error.to_string(), "Locora Cloud nicht erreichbar");
+        // Status 0 is worded as a server out of reach.
+        assert_eq!(
+            failure(&Reply {
+                status: 0,
+                body: Vec::new()
+            })
+            .to_string(),
+            "Locora Cloud nicht erreichbar"
+        );
     }
 
     #[test]

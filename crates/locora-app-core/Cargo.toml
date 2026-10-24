@@ -27,5 +27,7 @@ url = "2"
 
 [dev-dependencies]
 locora-media = { path = "../locora-media", features = ["fixtures"] }
+# The desktop's HTTP runner, for the tests that run the friends flows against a local server.
+locora-runtime = { path = "../locora-runtime", features = ["cloud"] }
 serde.workspace = true
 tempfile = "3"

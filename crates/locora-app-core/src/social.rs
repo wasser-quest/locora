@@ -1,10 +1,11 @@
 //! Friends, invite links, rankings and name reports as the UI sees them, the same for the desktop
 //! and the browser. Each command is a flow (see `locora_runtime::cloud_http`): the desktop runs it
-//! with `cloud_http::run`, the browser with `fetch`. Its replies are read here, so that an expired
-//! session (401), an account without access (402) and an older server (404/405) come out as
-//! `Social` states that the UI words itself, never as a server's message. Names chosen by other
-//! people are made safe to show (`locora_runtime::shown`), and an invite link from the server is
-//! kept only when it is the account site's invite page for its code.
+//! with `cloud_http::run_answering`, the browser with `fetch`; in both a call without a reply comes
+//! back as status 0. Its replies are read here, so that an expired session (401), an account
+//! without access (402) and an older server (404/405) come out as `Social` states that the UI
+//! words itself, never as a server's message. Names chosen by other people are made safe to show
+//! (`locora_runtime::shown`), and an invite link from the server is kept only when it is the
+//! account site's invite page for its code.
 //!
 //! The arguments are checked here, before anything is sent, so both hosts refuse the same.
 
@@ -607,6 +608,21 @@ mod tests {
             matches!(&busy.invites, InviteList::Failed(text) if text.starts_with("Locora Cloud ist gerade ausgelastet"))
         );
         assert!(page(reply(503, "{}"), reply(200, "[]")).is_err());
+        // A link list that got no reply at all (status 0, on the desktop as in the browser) leaves
+        // the rest of the page too; a list without a reply is an error.
+        let Social::Ready(lost) = page(reply(200, "[]"), reply(0, "")).unwrap() else {
+            panic!("ready")
+        };
+        assert_eq!(
+            lost.invites,
+            InviteList::Failed("Locora Cloud nicht erreichbar".into())
+        );
+        assert_eq!(
+            page(reply(0, ""), reply(200, "[]"))
+                .unwrap_err()
+                .to_string(),
+            "Locora Cloud nicht erreichbar"
+        );
     }
 
     #[test]
@@ -860,6 +876,11 @@ mod tests {
             run(Some(false), vec![reply(204, ""), reply(503, "")]),
             (ready(false), 2)
         );
+        // The account check got no reply (status 0): the report is done all the same.
+        assert_eq!(
+            run(Some(false), vec![reply(204, ""), reply(0, "")]),
+            (ready(false), 2)
+        );
         assert_eq!(
             run(Some(true), vec![reply(405, "")]),
             (Social::ServerTooOld, 1)
@@ -875,6 +896,86 @@ mod tests {
         assert_eq!(
             first(&mut with).body,
             Some(Body::Json(br#"{"ref":"n1","reason":"rude"}"#.to_vec()))
+        );
+    }
+
+    /// A server on a local port that answers each request with `answer(request line)` (an empty
+    /// body is a 204), or closes the connection without a reply where that is `None` (a lost
+    /// network, a server gone away).
+    fn local_server(answer: fn(&str) -> Option<&'static str>) -> String {
+        use std::io::{BufRead, BufReader, Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let server = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for mut socket in listener.incoming().flatten() {
+                std::thread::spawn(move || {
+                    let mut reader = BufReader::new(&socket);
+                    let mut request = String::new();
+                    reader.read_line(&mut request).unwrap();
+                    let mut length = 0;
+                    loop {
+                        let mut line = String::new();
+                        reader.read_line(&mut line).unwrap();
+                        if line == "\r\n" || line.is_empty() {
+                            break;
+                        }
+                        if let Some((name, value)) = line.split_once(':')
+                            && name.eq_ignore_ascii_case("content-length")
+                        {
+                            length = value.trim().parse().unwrap();
+                        }
+                    }
+                    reader.read_exact(&mut vec![0; length]).unwrap();
+                    if let Some(body) = answer(&request) {
+                        let status = if body.is_empty() {
+                            "204 No Content"
+                        } else {
+                            "200 OK"
+                        };
+                        let reply = format!(
+                            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        );
+                        socket.write_all(reply.as_bytes()).unwrap();
+                    }
+                });
+            }
+        });
+        server
+    }
+
+    #[test]
+    fn on_the_desktop_a_lost_second_call_ends_as_in_the_browser() {
+        // The report goes through; the account check after it gets no reply. The report is done
+        // and counts once the address is confirmed.
+        let mut me = state(Some(false));
+        me.server = local_server(|request| (!request.starts_with("GET /v1/me ")).then_some(""));
+        assert_eq!(
+            cloud_http::run_answering(report(&me, "n1", None).unwrap()).unwrap(),
+            Social::Ready(Reported { counts_now: false })
+        );
+        // The friend list comes, the link list does not: the page shows the friends.
+        let mut me = state(Some(true));
+        me.server = local_server(|request| {
+            (!request.starts_with("GET /v1/friends/invites "))
+                .then_some(r#"[{"display_name":"Ada","accepted":true,"id":"f1"}]"#)
+        });
+        let Social::Ready(page) = cloud_http::run_answering(friends(&me).unwrap()).unwrap() else {
+            panic!("ready")
+        };
+        assert_eq!(page.friends.len(), 1);
+        assert_eq!(
+            page.invites,
+            InviteList::Failed("Locora Cloud nicht erreichbar".into())
+        );
+        // Without the friend list there is no page.
+        me.server =
+            local_server(|request| (!request.starts_with("GET /v1/friends ")).then_some("[]"));
+        assert_eq!(
+            cloud_http::run_answering(friends(&me).unwrap())
+                .unwrap_err()
+                .to_string(),
+            "Locora Cloud nicht erreichbar"
         );
     }
 

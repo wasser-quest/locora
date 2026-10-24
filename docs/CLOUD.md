@@ -179,7 +179,10 @@ Ranglisten.
   abgemeldet, Anmeldung abgelaufen (401), für dieses Konto nicht verfügbar (402, neutral, ohne
   Hinweis, wie man Zugang bekommt), Server zu alt (404/405) oder das Ergebnis. Die Seite formuliert
   jeden Zustand selbst; Statusnummern, „Abo“ oder „Nicht gefunden“ erscheinen nie. Zwei Grenzen
-  (offene Anfragen, offene Links, 409) haben eigene Worte der App.
+  (offene Anfragen, offene Links, 409) haben eigene Worte der App. Bleibt eine Antwort ganz aus,
+  ist das auf dem Desktop wie im Browser „nicht erreichbar“: Eine Meldung, die angekommen ist,
+  bleibt gemeldet, wenn nur die Kontoabfrage danach fehlt, und fehlen nur die offenen Links, zeigt
+  die Seite die Freunde trotzdem.
 - **Namen sind Text:** Namen anderer werden wie in der CLI sicher gemacht (`locora_runtime::shown`)
   und als Text in `<bdi>` gezeigt, nie als Markup.
 

@@ -13,7 +13,9 @@ use tauri::Manager;
 use crate::{Shared, err, lock};
 
 /// Runs one friends flow for the saved account; without one the answer is `SignedOut`, and
-/// nothing is sent.
+/// nothing is sent. A call that gets no reply reads as status 0, as in the browser: a report
+/// that went through stays done when only the account check after it is lost, and a page whose
+/// link list is lost still shows the friends.
 async fn run<T, F>(
     app: &tauri::AppHandle,
     make: impl FnOnce(&CloudState) -> anyhow::Result<F> + Send + 'static,
@@ -30,7 +32,7 @@ where
         let Some(state) = cloud::load(&data).map_err(err)? else {
             return Ok(Social::SignedOut);
         };
-        cloud_http::run(make(&state).map_err(err)?).map_err(err)
+        cloud_http::run_answering(make(&state).map_err(err)?).map_err(err)
     })
     .await
     .map_err(|e| e.to_string())?
