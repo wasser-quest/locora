@@ -1,5 +1,6 @@
-//! Names from the server, made safe to print: other people chose them, and a terminal acts on
-//! some characters instead of showing them.
+//! Names from the server, made safe to print or show, for the CLI and the apps: other people
+//! chose them, a terminal acts on some characters instead of showing them, and on a screen some
+//! make the text around them read in another order.
 //!
 //! A control character (C0, DEL, C1) can move the cursor, clear the screen or set the clipboard;
 //! a bidi control makes a name read like another (`Ada\u{202e}…`); invisible format characters
@@ -13,12 +14,12 @@ const NAME_MAX: usize = 64;
 /// Characters of an e-mail address shown (the longest one there is).
 const ADDRESS_MAX: usize = 254;
 
-/// A display name or a challenge name as the CLI prints it.
+/// A display name or a challenge name as the CLI prints it and the apps show it.
 pub fn name(text: &str) -> String {
     shown(text, NAME_MAX)
 }
 
-/// An e-mail address (or an id) from the server as the CLI prints it.
+/// An e-mail address (or an id) from the server as the CLI prints it and the apps show it.
 pub fn address(text: &str) -> String {
     shown(text, ADDRESS_MAX)
 }

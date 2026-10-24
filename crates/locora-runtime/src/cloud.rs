@@ -475,6 +475,32 @@ pub fn resend_email_reply(reply: Reply) -> Result<()> {
     cloud_http::expect_success(reply)
 }
 
+/// What an entry of the friend list is. A newer server sends an id with every entry and, with a
+/// request this account sent, no name but the time it was sent (`since`); a server of the 0.1.6
+/// test builds sent the address asked instead, which is ignored now. An older one sends neither.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FriendKind {
+    Friend,
+    /// A request to this account.
+    Incoming,
+    /// A request (or an invite to an address without an account) this account sent.
+    Outgoing,
+    /// A request listed by an older server, which does not tell who sent it.
+    Open,
+}
+
+/// The kind of an entry of `GET /v1/friends`.
+pub fn friend_kind(friend: &Friend) -> FriendKind {
+    match (friend.accepted, friend.since, &friend.id) {
+        (true, ..) => FriendKind::Friend,
+        (false, Some(_), _) => FriendKind::Outgoing,
+        // A request received always shows its sender's name.
+        (false, None, Some(_)) if friend.display_name.is_empty() => FriendKind::Outgoing,
+        (false, None, Some(_)) => FriendKind::Incoming,
+        (false, None, None) => FriendKind::Open,
+    }
+}
+
 /// Removes a friend (for both sides), withdraws a request or an invite this account sent, or
 /// declines a request to it: `id` is the one `GET /v1/friends` lists with the entry.
 pub fn remove_friend_call(state: &CloudState, id: &str) -> Result<Call> {
@@ -1634,6 +1660,41 @@ mod tests {
                 invites_call(&state).unwrap().method
             ),
             (Method::Post, Method::Get)
+        );
+    }
+
+    #[test]
+    fn friend_kinds_follow_the_list() {
+        let entry = |name: &str, accepted: bool, since: Option<u64>, id: Option<&str>| Friend {
+            display_name: name.into(),
+            accepted,
+            id: id.map(str::to_owned),
+            since,
+        };
+        assert_eq!(
+            friend_kind(&entry("Ada", true, None, Some("f1"))),
+            FriendKind::Friend
+        );
+        assert_eq!(
+            friend_kind(&entry("Ada", true, None, None)),
+            FriendKind::Friend
+        );
+        assert_eq!(
+            friend_kind(&entry("Ben", false, None, Some("f2"))),
+            FriendKind::Incoming
+        );
+        assert_eq!(
+            friend_kind(&entry("", false, Some(9), Some("f3"))),
+            FriendKind::Outgoing
+        );
+        // A server of the 0.1.6 test builds: no `since`, no name, an id.
+        assert_eq!(
+            friend_kind(&entry("", false, None, Some("f4"))),
+            FriendKind::Outgoing
+        );
+        assert_eq!(
+            friend_kind(&entry("Cleo", false, None, None)),
+            FriendKind::Open
         );
     }
 

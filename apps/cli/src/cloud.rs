@@ -6,10 +6,8 @@ use std::path::Path;
 use anyhow::{Result, bail};
 use clap::Subcommand;
 use locora_cloud_api::api::{Friend, FriendInvite, Ranking, parse_invite_code};
-use locora_runtime::cloud::{self, CloudState};
-use locora_runtime::{cloud_http, cloud_sync};
-
-use crate::shown;
+use locora_runtime::cloud::{self, CloudState, FriendKind as Entry};
+use locora_runtime::{cloud_http, cloud_sync, shown};
 
 #[derive(Subcommand)]
 pub enum CloudCommand {
@@ -543,29 +541,9 @@ fn challenge(command: ChallengeCommand, data: &Path) -> Result<()> {
     Ok(())
 }
 
-/// What an entry of the friend list is. A newer server sends an id with every entry and, with a
-/// request this account sent, no name but the time it was sent (`since`); a server of the 0.1.6
-/// test builds sent the address asked instead, which is ignored now. An older one sends neither.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Entry {
-    Friend,
-    /// A request to this account.
-    Incoming,
-    /// A request (or an invite to an address without an account) this account sent.
-    Outgoing,
-    /// A request listed by an older server, which does not tell who sent it.
-    Open,
-}
-
+/// What an entry of the friend list is (the runtime's rules, shared with the apps).
 fn entry(friend: &Friend) -> Entry {
-    match (friend.accepted, friend.since, &friend.id) {
-        (true, ..) => Entry::Friend,
-        (false, Some(_), _) => Entry::Outgoing,
-        // A request received always shows its sender's name.
-        (false, None, Some(_)) if friend.display_name.is_empty() => Entry::Outgoing,
-        (false, None, Some(_)) => Entry::Incoming,
-        (false, None, None) => Entry::Open,
-    }
+    cloud::friend_kind(friend)
 }
 
 /// Who an entry is: the name, or for a request this account sent when it was sent (the server
