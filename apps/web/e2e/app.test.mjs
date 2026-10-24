@@ -1793,12 +1793,11 @@ test('on a phone the explanation is one line, the question stays in view and a c
     const celebration = page.locator('.celebration', { hasText: 'First journey' });
     await celebration.waitFor({ timeout: 20000 });
     const back = page.getByRole('button', { name: 'Back to overview' });
-    const covered = await back.evaluate((button) => {
-      const box = button.getBoundingClientRect();
-      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-      return !button.contains(hit);
-    });
-    assert.equal(covered, false, 'the celebration leaves the end card’s button free');
+    // Taps go through the card anyway; it must not hide the button either.
+    const [card, button] = [await celebration.boundingBox(), await back.boundingBox()];
+    const covered = card.x < button.x + button.width && button.x < card.x + card.width
+      && card.y < button.y + button.height && button.y < card.y + card.height;
+    assert.equal(covered, false, `the celebration ${JSON.stringify(card)} leaves the end card’s button ${JSON.stringify(button)} free`);
     await back.click({ timeout: 5000 });
     assert.ok(done);
     assert.deepEqual(problems, []);
