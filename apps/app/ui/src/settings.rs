@@ -51,7 +51,7 @@ pub fn SettingsView(screen: RwSignal<Screen>) -> impl IntoView {
                 .into_any()
             }
         }}
-        <crate::cloud_settings::CloudSettings />
+        <crate::cloud_settings::CloudSettings screen=screen />
     }
 }
 

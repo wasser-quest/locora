@@ -148,9 +148,7 @@ fn friends_page(list: Reply, links: Reply) -> Result<Social<FriendsList>> {
     };
     if list.status == 402 {
         return Ok(match invites {
-            InviteList::Ready(links) if !links.is_empty() => {
-                Social::Ready(empty(false, InviteList::Ready(links)))
-            }
+            InviteList::Ready(links) => Social::Ready(empty(false, InviteList::Ready(links))),
             _ => Social::NotForAccount,
         });
     }
@@ -329,7 +327,7 @@ pub fn report(state: &CloudState, reference: &str, reason: Option<&str>) -> Resu
     let reference = checked(reference)?;
     let reason = reason.map(str::trim).filter(|reason| !reason.is_empty());
     if reason.is_some_and(|reason| reason.chars().count() > REASON_MAX) {
-        bail!("Der Grund darf höchstens 300 Zeichen lang sein");
+        bail!("Der Grund darf höchstens 300 Zeichen haben");
     }
     Ok(Report {
         call: Some(cloud::report_name_call(state, &reference, reason)?),
@@ -573,8 +571,11 @@ mod tests {
             Social::SignInAgain
         );
         let none = page(reply(402, PAY), reply(200, "[]")).unwrap();
-        assert_eq!(none, Social::NotForAccount);
         no_subscription_words(&none);
+        let Social::Ready(none) = none else {
+            panic!("the (empty) links are shown")
+        };
+        assert!(!none.access && none.invites == InviteList::Ready(Vec::new()));
         // Without access the open links stay, to be revoked; the lists are empty.
         let links = page(reply(402, PAY), reply(200, LINKS)).unwrap();
         no_subscription_words(&links);
@@ -585,6 +586,10 @@ mod tests {
         assert!(matches!(&links.invites, InviteList::Ready(list) if list.len() == 1));
         assert_eq!(
             page(reply(402, PAY), reply(503, "{}")).unwrap(),
+            Social::NotForAccount
+        );
+        assert_eq!(
+            page(reply(402, PAY), reply(405, "")).unwrap(),
             Social::NotForAccount
         );
         for older in [reply(404, r#"{"error":"Nicht gefunden"}"#), reply(405, "")] {

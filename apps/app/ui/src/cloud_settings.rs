@@ -84,9 +84,48 @@ fn refresh_keys_for(
 #[derive(Clone, Copy)]
 pub struct SignedIn(pub RwSignal<Option<bool>>);
 
+/// Set while the settings open for their „Locora Cloud“ section (from the friends page): the
+/// section then comes into view with the focus on its heading.
+#[derive(Clone, Copy)]
+pub struct CloudFirst(pub RwSignal<bool>);
+
+/// Opens the settings at their „Locora Cloud“ section.
+pub fn open_cloud(screen: RwSignal<crate::Screen>) {
+    if let Some(CloudFirst(first)) = use_context::<CloudFirst>() {
+        first.set(true);
+    }
+    screen.set(crate::Screen::Settings);
+}
+
 #[component]
-pub fn CloudSettings() -> impl IntoView {
+pub fn CloudSettings(screen: RwSignal<crate::Screen>) -> impl IntoView {
     provide_context(PasswordsShown(RwSignal::new(false)));
+    let heading = NodeRef::<leptos::html::H2>::new();
+    if let Some(CloudFirst(first)) = use_context::<CloudFirst>() {
+        Effect::new(move |_| {
+            let Some(heading) = heading.get() else { return };
+            if !first.get_untracked() {
+                return;
+            }
+            first.set(false);
+            let _ = heading.focus();
+            // The sections above load meanwhile and push this one down: it is brought into view
+            // again while its heading keeps the focus.
+            for delay in [0, 300, 800] {
+                let heading = heading.clone();
+                set_timeout(
+                    move || {
+                        let still = crate::modal::focused()
+                            .is_some_and(|focused| focused.is_same_node(Some(&heading)));
+                        if still {
+                            heading.scroll_into_view();
+                        }
+                    },
+                    std::time::Duration::from_millis(delay),
+                );
+            }
+        });
+    }
     let status = load(call::<CloudStatus>(CMD_CLOUD_STATUS, NoArgs {}));
     if let Some(SignedIn(signed_in)) = use_context::<SignedIn>() {
         Effect::new(move |_| {
@@ -148,7 +187,7 @@ pub fn CloudSettings() -> impl IntoView {
 
     view! {
         <section class="card panel" aria-label=t("Locora Cloud")>
-            <h2>{t("Locora Cloud")}</h2>
+            <h2 tabindex="-1" node_ref=heading>{t("Locora Cloud")}</h2>
             {move || match status.get() {
                 None => view! { <p class="progress">{t("Cloud-Konto wird geprüft …")}</p> }.into_any(),
                 Some(Err(error)) => view! { <p class="notes" role="alert">{error}</p> }.into_any(),
@@ -158,6 +197,11 @@ pub fn CloudSettings() -> impl IntoView {
                 Some(Ok(CloudStatus { account: Some(account), server, access, email_verified, .. })) => view! {
                     <p class="progress">{tf("Angemeldet als {0} bei {1}.", &[&account, &server.unwrap_or_default()])}</p>
                     {(email_verified == Some(false)).then(|| view! { <EmailPrompt status=status email=account.clone() /> })}
+                    <p>
+                        <button type="button" class="cloud-friends" on:click=move |_| screen.set(crate::Screen::Friends { from_settings: true })>
+                            {t("Freunde & Ranglisten")}
+                        </button>
+                    </p>
                     <button type="button" disabled=move || busy.get() on:click=move |_| refresh_access()>
                         {t("Freischaltung aktualisieren")}
                     </button>
@@ -355,33 +399,14 @@ fn SaveRecoveryKey(key: String) -> impl IntoView {
         });
     };
     let copy = move |_| {
-        // The clipboard API is reached through JavaScript; a refusal shows as an error.
-        let clipboard = web_sys::window()
-            .and_then(|window| js_sys::Reflect::get(&window.navigator(), &"clipboard".into()).ok())
-            .filter(|clipboard| !clipboard.is_undefined());
-        let written = clipboard.and_then(|clipboard| {
-            let write = js_sys::Reflect::get(&clipboard, &"writeText".into()).ok()?;
-            let write: js_sys::Function = wasm_bindgen::JsCast::dyn_into(write).ok()?;
-            let promise = write.call1(&clipboard, &key.get_value().into()).ok()?;
-            wasm_bindgen::JsCast::dyn_into::<js_sys::Promise>(promise).ok()
+        let copied = crate::share::copy_text(&key.get_value());
+        spawn_local(async move {
+            saved.set(Some(if copied.await {
+                Ok(t("Kopiert.").into())
+            } else {
+                Err(t("Kopieren nicht möglich. Bitte den Schlüssel abschreiben.").into())
+            }));
         });
-        match written {
-            Some(promise) => spawn_local(async move {
-                saved.set(Some(
-                    match wasm_bindgen_futures::JsFuture::from(promise).await {
-                        Ok(_) => Ok(t("Kopiert.").into()),
-                        Err(_) => Err(t(
-                            "Kopieren nicht möglich. Bitte den Schlüssel abschreiben.",
-                        )
-                        .into()),
-                    },
-                ));
-            }),
-            None => saved.set(Some(Err(t(
-                "Kopieren nicht möglich. Bitte den Schlüssel abschreiben.",
-            )
-            .into()))),
-        }
     };
     view! {
         <div class="row">

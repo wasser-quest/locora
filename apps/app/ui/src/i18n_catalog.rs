@@ -9918,4 +9918,1043 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "{0}：1 次作答",
         ],
     ),
+    (
+        "Freunde & Ranglisten",
+        [
+            "Friends & rankings",
+            "Freunde & Ranglisten",
+            "Amis et classements",
+            "フレンドとランキング",
+            "好友与排行榜",
+        ],
+    ),
+    (
+        "Freunde",
+        ["Friends", "Freunde", "Amis", "フレンド", "好友"],
+    ),
+    ("Alle", ["Everyone", "Alle", "Tous", "全員", "所有人"]),
+    ("(du)", ["(you)", "(du)", "(toi)", "（あなた）", "（你）"]),
+    (
+        "1 Ranglistenpunkt",
+        [
+            "1 ranking point",
+            "1 Ranglistenpunkt",
+            "1 point de classement",
+            "ランキングポイント 1",
+            "1 个排行积分",
+        ],
+    ),
+    (
+        "{0} Ranglistenpunkte",
+        [
+            "{0} ranking points",
+            "{0} Ranglistenpunkte",
+            "{0} points de classement",
+            "ランキングポイント {0}",
+            "{0} 个排行积分",
+        ],
+    ),
+    (
+        "Ablehnen",
+        ["Decline", "Ablehnen", "Refuser", "断る", "拒绝"],
+    ),
+    (
+        "Anfrage gesendet. Ihr seid befreundet, sobald die Person dich auch anfragt.",
+        [
+            "Request sent. You become friends once the person asks you too.",
+            "Anfrage gesendet. Ihr seid befreundet, sobald die Person dich auch anfragt.",
+            "Demande envoyée. Vous serez amis dès que la personne te fera aussi une demande.",
+            "リクエストを送りました。相手からもリクエストが届くとフレンドになります。",
+            "请求已发送。对方也向你发出请求后，你们就是好友了。",
+        ],
+    ),
+    (
+        "Anfrage senden",
+        [
+            "Send request",
+            "Anfrage senden",
+            "Envoyer la demande",
+            "リクエストを送る",
+            "发送请求",
+        ],
+    ),
+    (
+        "Anfrage vom {0} zurückgezogen.",
+        [
+            "Request sent on {0} withdrawn.",
+            "Anfrage vom {0} zurückgezogen.",
+            "Demande du {0} retirée.",
+            "{0} に送ったリクエストを取り消しました。",
+            "已撤回 {0} 发送的请求。",
+        ],
+    ),
+    (
+        "Anfrage vom {0} zurückziehen",
+        [
+            "Withdraw the request sent on {0}",
+            "Anfrage vom {0} zurückziehen",
+            "Retirer la demande du {0}",
+            "{0} に送ったリクエストを取り消す",
+            "撤回 {0} 发送的请求",
+        ],
+    ),
+    (
+        "Anfrage von {0} abgelehnt.",
+        [
+            "Request from {0} declined.",
+            "Anfrage von {0} abgelehnt.",
+            "Demande de {0} refusée.",
+            "{0} さんのリクエストを断りました。",
+            "已拒绝 {0} 的请求。",
+        ],
+    ),
+    (
+        "Anfrage von {0} ablehnen",
+        [
+            "Decline the request from {0}",
+            "Anfrage von {0} ablehnen",
+            "Refuser la demande de {0}",
+            "{0} さんのリクエストを断る",
+            "拒绝 {0} 的请求",
+        ],
+    ),
+    (
+        "Anfrage von {0} ablehnen? Neue Anfragen dieser Person kommen erst wieder an, wenn du sie selbst anfragst.",
+        [
+            "Decline the request from {0}? New requests from this person only reach you again once you ask them yourself.",
+            "Anfrage von {0} ablehnen? Neue Anfragen dieser Person kommen erst wieder an, wenn du sie selbst anfragst.",
+            "Refuser la demande de {0} ? Les nouvelles demandes de cette personne ne t’arriveront plus tant que tu ne lui auras pas toi-même fait une demande.",
+            "{0} さんのリクエストを断りますか？あなたからリクエストを送るまで、この人からの新しいリクエストは届かなくなります。",
+            "拒绝 {0} 的请求？在你主动向此人发出请求之前，此人的新请求不会再送达。",
+        ],
+    ),
+    (
+        "Anfrage von {0} annehmen",
+        [
+            "Accept the request from {0}",
+            "Anfrage von {0} annehmen",
+            "Accepter la demande de {0}",
+            "{0} さんのリクエストを承認する",
+            "接受 {0} 的请求",
+        ],
+    ),
+    (
+        "Anfrage zurückgezogen.",
+        [
+            "Request withdrawn.",
+            "Anfrage zurückgezogen.",
+            "Demande retirée.",
+            "リクエストを取り消しました。",
+            "请求已撤回。",
+        ],
+    ),
+    (
+        "Anfrage zurückziehen",
+        [
+            "Withdraw the request",
+            "Anfrage zurückziehen",
+            "Retirer la demande",
+            "リクエストを取り消す",
+            "撤回请求",
+        ],
+    ),
+    (
+        "Anfragen an dich",
+        [
+            "Requests to you",
+            "Anfragen an dich",
+            "Demandes reçues",
+            "あなたへのリクエスト",
+            "发给你的请求",
+        ],
+    ),
+    (
+        "Annehmen",
+        ["Accept", "Annehmen", "Accepter", "承認", "接受"],
+    ),
+    (
+        "Annehmen…",
+        ["Accept…", "Annehmen…", "Accepter…", "承認…", "接受…"],
+    ),
+    (
+        "Code kopieren",
+        [
+            "Copy code",
+            "Code kopieren",
+            "Copier le code",
+            "コードをコピー",
+            "复制代码",
+        ],
+    ),
+    (
+        "Code: {0}",
+        [
+            "Code: {0}",
+            "Code: {0}",
+            "Code : {0}",
+            "コード：{0}",
+            "代码：{0}",
+        ],
+    ),
+    (
+        "Deine Anfragen",
+        [
+            "Your requests",
+            "Deine Anfragen",
+            "Tes demandes",
+            "あなたが送ったリクエスト",
+            "你发出的请求",
+        ],
+    ),
+    (
+        "Deine Freunde",
+        [
+            "Your friends",
+            "Deine Freunde",
+            "Tes amis",
+            "あなたのフレンド",
+            "你的好友",
+        ],
+    ),
+    (
+        "Deine Journeys in der App zählen hier noch nicht mit. Ranglistenpunkte sammelt Locora Cloud nur aus Journeys, die es selbst nachrechnet.",
+        [
+            "Your journeys in the app do not count here yet. Locora Cloud only collects ranking points from journeys it checks itself.",
+            "Deine Journeys in der App zählen hier noch nicht mit. Ranglistenpunkte sammelt Locora Cloud nur aus Journeys, die es selbst nachrechnet.",
+            "Tes parcours dans l’app ne comptent pas encore ici. Locora Cloud ne compte les points de classement que des parcours qu’il vérifie lui-même.",
+            "アプリでのジャーニーはまだここに反映されません。Locora Cloud がランキングポイントを集めるのは、自分で検証したジャーニーだけです。",
+            "你在应用中的旅程暂不计入此处。Locora Cloud 只统计它自己核验过的旅程的排行积分。",
+        ],
+    ),
+    (
+        "Deine Meldung zählt, sobald deine E-Mail-Adresse bestätigt ist.",
+        [
+            "Your report counts once your email address is confirmed.",
+            "Deine Meldung zählt, sobald deine E-Mail-Adresse bestätigt ist.",
+            "Ton signalement comptera dès que ton adresse e-mail sera confirmée.",
+            "メールアドレスを確認すると、報告が有効になります。",
+            "确认你的电子邮件地址后，你的举报才会生效。",
+        ],
+    ),
+    (
+        "Die Einladung gilt bis {0}.",
+        [
+            "The invitation is valid until {0}.",
+            "Die Einladung gilt bis {0}.",
+            "L’invitation est valable jusqu’au {0}.",
+            "招待は {0} まで有効です。",
+            "邀请有效期至 {0}。",
+        ],
+    ),
+    (
+        "Die Person gibt den Code in Locora unter „Freunde & Ranglisten“ bei „Einladung annehmen“ ein.",
+        [
+            "The person enters the code in Locora under “Friends & rankings”, at “Accept an invitation”.",
+            "Die Person gibt den Code in Locora unter „Freunde & Ranglisten“ bei „Einladung annehmen“ ein.",
+            "La personne saisit le code dans Locora, sous « Amis et classements », dans « Accepter une invitation ».",
+            "相手は Locora の「フレンドとランキング」の「招待を受ける」でコードを入力します。",
+            "对方在 Locora 的“好友与排行榜”中的“接受邀请”处输入代码。",
+        ],
+    ),
+    (
+        "Die Person sieht deinen Anzeigenamen und kann annehmen. Ob es zu der Adresse ein Konto gibt, verrät Locora nicht.",
+        [
+            "The person sees your display name and can accept. Locora does not reveal whether the address has an account.",
+            "Die Person sieht deinen Anzeigenamen und kann annehmen. Ob es zu der Adresse ein Konto gibt, verrät Locora nicht.",
+            "La personne voit ton nom affiché et peut accepter. Locora ne révèle pas si un compte existe pour cette adresse.",
+            "相手にはあなたの表示名が見え、承認できます。そのアドレスにアカウントがあるかどうかを Locora は明かしません。",
+            "对方会看到你的显示名称并可以接受。Locora 不会透露该地址是否有账户。",
+        ],
+    ),
+    (
+        "Dieser Server kann Freundschaften und Anfragen noch nicht entfernen. Das geht, sobald er aktualisiert ist.",
+        [
+            "This server cannot remove friendships and requests yet. It works once the server is updated.",
+            "Dieser Server kann Freundschaften und Anfragen noch nicht entfernen. Das geht, sobald er aktualisiert ist.",
+            "Ce serveur ne peut pas encore supprimer les amitiés et les demandes. Ce sera possible dès qu’il sera mis à jour.",
+            "このサーバーはまだフレンドやリクエストを削除できません。サーバーが更新されるとできるようになります。",
+            "此服务器暂时还不能删除好友关系和请求。服务器更新后即可使用。",
+        ],
+    ),
+    (
+        "Dieser Server kennt Freunde und Ranglisten noch nicht. Sobald er aktualisiert ist, findest du sie hier.",
+        [
+            "This server does not know friends and rankings yet. Once it is updated, you find them here.",
+            "Dieser Server kennt Freunde und Ranglisten noch nicht. Sobald er aktualisiert ist, findest du sie hier.",
+            "Ce serveur ne connaît pas encore les amis et les classements. Dès qu’il sera mis à jour, tu les trouveras ici.",
+            "このサーバーはまだフレンドとランキングに対応していません。更新されると、ここに表示されます。",
+            "此服务器暂不支持好友和排行榜。服务器更新后，你就能在这里看到它们。",
+        ],
+    ),
+    (
+        "Dieser Server kennt noch keine Einladungslinks. Das geht, sobald er aktualisiert ist.",
+        [
+            "This server does not know invite links yet. It works once the server is updated.",
+            "Dieser Server kennt noch keine Einladungslinks. Das geht, sobald er aktualisiert ist.",
+            "Ce serveur ne connaît pas encore les liens d’invitation. Ce sera possible dès qu’il sera mis à jour.",
+            "このサーバーはまだ招待リンクに対応していません。サーバーが更新されると使えるようになります。",
+            "此服务器暂不支持邀请链接。服务器更新后即可使用。",
+        ],
+    ),
+    (
+        "Dieser Server kennt noch keine Freundschaftsanfragen. Das geht, sobald er aktualisiert ist.",
+        [
+            "This server does not know friend requests yet. It works once the server is updated.",
+            "Dieser Server kennt noch keine Freundschaftsanfragen. Das geht, sobald er aktualisiert ist.",
+            "Ce serveur ne connaît pas encore les demandes d’amitié. Ce sera possible dès qu’il sera mis à jour.",
+            "このサーバーはまだフレンドリクエストに対応していません。サーバーが更新されると使えるようになります。",
+            "此服务器暂不支持好友请求。服务器更新后即可使用。",
+        ],
+    ),
+    (
+        "Dieser Server kennt noch keine Ranglisten. Sobald er aktualisiert ist, findest du sie hier.",
+        [
+            "This server does not know rankings yet. Once it is updated, you find them here.",
+            "Dieser Server kennt noch keine Ranglisten. Sobald er aktualisiert ist, findest du sie hier.",
+            "Ce serveur ne connaît pas encore les classements. Dès qu’il sera mis à jour, tu les trouveras ici.",
+            "このサーバーはまだランキングに対応していません。更新されると、ここに表示されます。",
+            "此服务器暂不支持排行榜。服务器更新后，你就能在这里看到它们。",
+        ],
+    ),
+    (
+        "Dieser Server nimmt noch keine Meldungen von Namen an. Das geht, sobald er aktualisiert ist.",
+        [
+            "This server does not take reports of names yet. It works once the server is updated.",
+            "Dieser Server nimmt noch keine Meldungen von Namen an. Das geht, sobald er aktualisiert ist.",
+            "Ce serveur n’accepte pas encore les signalements de noms. Ce sera possible dès qu’il sera mis à jour.",
+            "このサーバーはまだ名前の報告を受け付けていません。サーバーが更新されるとできるようになります。",
+            "此服务器暂不接受对名称的举报。服务器更新后即可使用。",
+        ],
+    ),
+    (
+        "Du bist mit {0} befreundet.",
+        [
+            "You are friends with {0}.",
+            "Du bist mit {0} befreundet.",
+            "Vous êtes amis, toi et {0}.",
+            "{0} さんとフレンドです。",
+            "你和 {0} 是好友。",
+        ],
+    ),
+    (
+        "Du meldest „{0}“ als beleidigend oder unpassend. Nach mehreren Meldungen sehen andere statt des Namens „Nutzer-…“, bis er geprüft ist.",
+        [
+            "You are reporting “{0}” as offensive or inappropriate. After several reports, others see “Nutzer-…” instead of the name until it has been reviewed.",
+            "Du meldest „{0}“ als beleidigend oder unpassend. Nach mehreren Meldungen sehen andere statt des Namens „Nutzer-…“, bis er geprüft ist.",
+            "Tu signales « {0} » comme offensant ou inapproprié. Après plusieurs signalements, les autres voient « Nutzer-… » à la place du nom jusqu’à ce qu’il soit vérifié.",
+            "「{0}」を不快または不適切な名前として報告します。複数の報告があると、確認されるまで他の人には名前の代わりに「Nutzer-…」と表示されます。",
+            "你正在将“{0}”举报为冒犯性或不当名称。多次举报后，在审核完成前，其他人看到的将是“Nutzer-…”而不是该名称。",
+        ],
+    ),
+    (
+        "Du stehst noch nicht in dieser Rangliste.",
+        [
+            "You are not in this ranking yet.",
+            "Du stehst noch nicht in dieser Rangliste.",
+            "Tu n’apparais pas encore dans ce classement.",
+            "あなたはまだこのランキングに載っていません。",
+            "你还不在这个排行榜中。",
+        ],
+    ),
+    (
+        "E-Mail-Adresse der Person",
+        [
+            "The person's email address",
+            "E-Mail-Adresse der Person",
+            "Adresse e-mail de la personne",
+            "相手のメールアドレス",
+            "对方的电子邮件地址",
+        ],
+    ),
+    (
+        "E-Mail-Adresse von {0}",
+        [
+            "Email address of {0}",
+            "E-Mail-Adresse von {0}",
+            "Adresse e-mail de {0}",
+            "{0} さんのメールアドレス",
+            "{0} 的电子邮件地址",
+        ],
+    ),
+    (
+        "Ein Einladungslink gilt einmal und eine begrenzte Zeit. Schick ihn nur der Person, die du einladen möchtest: Wer ihn zuerst annimmt, ist mit dir befreundet, und wer ihn hat, sieht deinen Anzeigenamen. Eine E-Mail-Adresse braucht es nicht.",
+        [
+            "An invite link works once and for a limited time. Send it only to the person you want to invite: whoever accepts it first becomes your friend, and anyone who has it sees your display name. No email address is needed.",
+            "Ein Einladungslink gilt einmal und eine begrenzte Zeit. Schick ihn nur der Person, die du einladen möchtest: Wer ihn zuerst annimmt, ist mit dir befreundet, und wer ihn hat, sieht deinen Anzeigenamen. Eine E-Mail-Adresse braucht es nicht.",
+            "Un lien d’invitation fonctionne une seule fois et pour une durée limitée. Envoie-le uniquement à la personne que tu veux inviter : la première personne qui l’accepte devient ton amie, et toute personne qui l’a voit ton nom affiché. Aucune adresse e-mail n’est nécessaire.",
+            "招待リンクは1回だけ、期間限定で使えます。招待したい人にだけ送ってください。最初に承認した人があなたのフレンドになり、リンクを持っている人には誰にでもあなたの表示名が見えます。メールアドレスは必要ありません。",
+            "邀请链接只能使用一次，且有时间限制。请只把它发给你想邀请的人：第一个接受的人会成为你的好友，持有链接的任何人都能看到你的显示名称。不需要电子邮件地址。",
+        ],
+    ),
+    (
+        "Einladung annehmen",
+        [
+            "Accept an invitation",
+            "Einladung annehmen",
+            "Accepter une invitation",
+            "招待を受ける",
+            "接受邀请",
+        ],
+    ),
+    (
+        "Einladung zu Locora",
+        [
+            "Invitation to Locora",
+            "Einladung zu Locora",
+            "Invitation à Locora",
+            "Locora への招待",
+            "Locora 邀请",
+        ],
+    ),
+    (
+        "Einladungen annehmen ist für dieses Konto nicht verfügbar.",
+        [
+            "Accepting invitations is not available for this account.",
+            "Einladungen annehmen ist für dieses Konto nicht verfügbar.",
+            "Accepter des invitations n’est pas disponible pour ce compte.",
+            "このアカウントでは招待を受けることはできません。",
+            "此账户无法接受邀请。",
+        ],
+    ),
+    (
+        "Einladungscode",
+        [
+            "Invite code",
+            "Einladungscode",
+            "Code d’invitation",
+            "招待コード",
+            "邀请码",
+        ],
+    ),
+    (
+        "Einladungslink erstellen",
+        [
+            "Create an invite link",
+            "Einladungslink erstellen",
+            "Créer un lien d’invitation",
+            "招待リンクを作成",
+            "创建邀请链接",
+        ],
+    ),
+    (
+        "Einladungslink erstellt. Er gilt einmal, bis {0}. Unter „Offene Einladungslinks“ kannst du ihn zurückziehen.",
+        [
+            "Invite link created. It works once, until {0}. You can withdraw it under “Open invite links”.",
+            "Einladungslink erstellt. Er gilt einmal, bis {0}. Unter „Offene Einladungslinks“ kannst du ihn zurückziehen.",
+            "Lien d’invitation créé. Il fonctionne une seule fois, jusqu’au {0}. Tu peux le retirer sous « Liens d’invitation ouverts ».",
+            "招待リンクを作成しました。{0} まで1回だけ使えます。「未使用の招待リンク」で取り消せます。",
+            "邀请链接已创建。可使用一次，有效期至 {0}。你可以在“未使用的邀请链接”中撤回它。",
+        ],
+    ),
+    (
+        "Einladungslink oder Code",
+        [
+            "Invite link or code",
+            "Einladungslink oder Code",
+            "Lien ou code d’invitation",
+            "招待リンクまたはコード",
+            "邀请链接或代码",
+        ],
+    ),
+    (
+        "Einladungslink {0} kopieren",
+        [
+            "Copy invite link {0}",
+            "Einladungslink {0} kopieren",
+            "Copier le lien d’invitation {0}",
+            "招待リンク {0} をコピー",
+            "复制邀请链接 {0}",
+        ],
+    ),
+    (
+        "Einladungslink {0} zurückgezogen. Er funktioniert nicht mehr.",
+        [
+            "Invite link {0} withdrawn. It no longer works.",
+            "Einladungslink {0} zurückgezogen. Er funktioniert nicht mehr.",
+            "Lien d’invitation {0} retiré. Il ne fonctionne plus.",
+            "招待リンク {0} を取り消しました。もう使えません。",
+            "已撤回邀请链接 {0}。它已失效。",
+        ],
+    ),
+    (
+        "Einladungslink {0} zurückziehen",
+        [
+            "Withdraw invite link {0}",
+            "Einladungslink {0} zurückziehen",
+            "Retirer le lien d’invitation {0}",
+            "招待リンク {0} を取り消す",
+            "撤回邀请链接 {0}",
+        ],
+    ),
+    (
+        "Einladungslink",
+        [
+            "Invite link",
+            "Einladungslink",
+            "Lien d’invitation",
+            "招待リンク",
+            "邀请链接",
+        ],
+    ),
+    (
+        "Einladungslinks sind für dieses Konto nicht verfügbar.",
+        [
+            "Invite links are not available for this account.",
+            "Einladungslinks sind für dieses Konto nicht verfügbar.",
+            "Les liens d’invitation ne sont pas disponibles pour ce compte.",
+            "このアカウントでは招待リンクを使えません。",
+            "此账户无法使用邀请链接。",
+        ],
+    ),
+    (
+        "Entfernen",
+        ["Remove", "Entfernen", "Supprimer", "削除", "移除"],
+    ),
+    (
+        "{0} entfernen",
+        [
+            "Remove {0}",
+            "{0} entfernen",
+            "Supprimer {0}",
+            "{0} さんを削除",
+            "移除 {0}",
+        ],
+    ),
+    (
+        "Freunde einladen",
+        [
+            "Invite friends",
+            "Freunde einladen",
+            "Inviter des amis",
+            "フレンドを招待",
+            "邀请好友",
+        ],
+    ),
+    (
+        "Freunde, Einladungen und Ranglisten sind für dieses Konto nicht verfügbar.",
+        [
+            "Friends, invitations and rankings are not available for this account.",
+            "Freunde, Einladungen und Ranglisten sind für dieses Konto nicht verfügbar.",
+            "Les amis, les invitations et les classements ne sont pas disponibles pour ce compte.",
+            "このアカウントでは、フレンド、招待、ランキングを使えません。",
+            "此账户无法使用好友、邀请和排行榜。",
+        ],
+    ),
+    (
+        "Freunde, Einladungen und Ranglisten gehören zu Locora Cloud. Melde dich in den Einstellungen unter „Locora Cloud“ an, dann siehst du sie hier.",
+        [
+            "Friends, invitations and rankings are part of Locora Cloud. Sign in under “Locora Cloud” in the settings to see them here.",
+            "Freunde, Einladungen und Ranglisten gehören zu Locora Cloud. Melde dich in den Einstellungen unter „Locora Cloud“ an, dann siehst du sie hier.",
+            "Les amis, les invitations et les classements font partie de Locora Cloud. Connecte-toi dans les réglages, sous « Locora Cloud », pour les voir ici.",
+            "フレンド、招待、ランキングは Locora Cloud の機能です。設定の「Locora Cloud」でサインインすると、ここに表示されます。",
+            "好友、邀请和排行榜属于 Locora Cloud。在设置中的“Locora Cloud”登录后，即可在这里看到它们。",
+        ],
+    ),
+    (
+        "Deine Anmeldung bei Locora Cloud ist abgelaufen. Melde dich in den Einstellungen unter „Locora Cloud“ auf diesem Gerät ab und wieder an.",
+        [
+            "Your Locora Cloud sign-in has expired. Under “Locora Cloud” in the settings, sign out on this device and sign in again.",
+            "Deine Anmeldung bei Locora Cloud ist abgelaufen. Melde dich in den Einstellungen unter „Locora Cloud“ auf diesem Gerät ab und wieder an.",
+            "Ta connexion à Locora Cloud a expiré. Dans les réglages, sous « Locora Cloud », déconnecte-toi sur cet appareil, puis reconnecte-toi.",
+            "Locora Cloud へのサインインの有効期限が切れました。設定の「Locora Cloud」で、この端末からサインアウトしてから、もう一度サインインしてください。",
+            "你的 Locora Cloud 登录已过期。请在设置中的“Locora Cloud”里先在此设备上退出登录，再重新登录。",
+        ],
+    ),
+    (
+        "Freundschaft mit {0} beenden? Ihr seht euch dann nicht mehr in der Rangliste eurer Freunde.",
+        [
+            "End the friendship with {0}? You will no longer see each other in your friends' rankings.",
+            "Freundschaft mit {0} beenden? Ihr seht euch dann nicht mehr in der Rangliste eurer Freunde.",
+            "Mettre fin à l’amitié avec {0} ? Vous ne vous verrez plus dans le classement de vos amis.",
+            "{0} さんとのフレンドを解除しますか？お互いのフレンドランキングに表示されなくなります。",
+            "要结束与 {0} 的好友关系吗？你们将不再出现在彼此的好友排行榜中。",
+        ],
+    ),
+    (
+        "Freundschaft mit {0} beendet.",
+        [
+            "Friendship with {0} ended.",
+            "Freundschaft mit {0} beendet.",
+            "Amitié avec {0} terminée.",
+            "{0} さんとのフレンドを解除しました。",
+            "已结束与 {0} 的好友关系。",
+        ],
+    ),
+    (
+        "Freundschaftsanfragen sind für dieses Konto nicht verfügbar.",
+        [
+            "Friend requests are not available for this account.",
+            "Freundschaftsanfragen sind für dieses Konto nicht verfügbar.",
+            "Les demandes d’amitié ne sont pas disponibles pour ce compte.",
+            "このアカウントではフレンドリクエストを使えません。",
+            "此账户无法使用好友请求。",
+        ],
+    ),
+    (
+        "Gemeldet. Danke – gemeldete Namen werden geprüft.",
+        [
+            "Reported. Thank you – reported names are reviewed.",
+            "Gemeldet. Danke – gemeldete Namen werden geprüft.",
+            "Signalé. Merci – les noms signalés sont vérifiés.",
+            "報告しました。ありがとうございます。報告された名前は確認されます。",
+            "已举报。谢谢——被举报的名称会经过审核。",
+        ],
+    ),
+    (
+        "Gesendet am {0}",
+        [
+            "Sent on {0}",
+            "Gesendet am {0}",
+            "Envoyée le {0}",
+            "{0} に送信",
+            "发送于 {0}",
+        ],
+    ),
+    (
+        "Gesendet",
+        ["Sent", "Gesendet", "Envoyée", "送信済み", "已发送"],
+    ),
+    (
+        "Geteilt.",
+        [
+            "Shared.",
+            "Geteilt.",
+            "Partagé.",
+            "共有しました。",
+            "已分享。",
+        ],
+    ),
+    (
+        "Grund (freiwillig, höchstens 300 Zeichen)",
+        [
+            "Reason (optional, at most 300 characters)",
+            "Grund (freiwillig, höchstens 300 Zeichen)",
+            "Motif (facultatif, 300 caractères au plus)",
+            "理由（任意、300 文字まで）",
+            "原因（可选，最多 300 个字符）",
+        ],
+    ),
+    (
+        "Jemanden anfragen",
+        [
+            "Ask someone",
+            "Jemanden anfragen",
+            "Faire une demande",
+            "誰かにリクエストを送る",
+            "向某人发出请求",
+        ],
+    ),
+    (
+        "Keine offenen Einladungslinks.",
+        [
+            "No open invite links.",
+            "Keine offenen Einladungslinks.",
+            "Aucun lien d’invitation ouvert.",
+            "未使用の招待リンクはありません。",
+            "没有未使用的邀请链接。",
+        ],
+    ),
+    (
+        "Kopieren nicht möglich. Bitte den Link hier markieren und kopieren.",
+        [
+            "Copying is not possible. Please select and copy the link here.",
+            "Kopieren nicht möglich. Bitte den Link hier markieren und kopieren.",
+            "Copie impossible. Sélectionne le lien ici et copie-le.",
+            "コピーできません。ここでリンクを選択してコピーしてください。",
+            "无法复制。请在此处选中链接并复制。",
+        ],
+    ),
+    (
+        "Kopieren nicht möglich. Bitte den Text oben markieren und kopieren.",
+        [
+            "Copying is not possible. Please select and copy the text above.",
+            "Kopieren nicht möglich. Bitte den Text oben markieren und kopieren.",
+            "Copie impossible. Sélectionne le texte ci-dessus et copie-le.",
+            "コピーできません。上のテキストを選択してコピーしてください。",
+            "无法复制。请选中上方的文本并复制。",
+        ],
+    ),
+    (
+        "Lass uns in Locora Freunde sein! Gib meinen Einladungscode in Locora unter „Freunde & Ranglisten“ ein (gilt bis {0}): {1}",
+        [
+            "Let's be friends in Locora! Enter my invite code in Locora under “Friends & rankings” (valid until {0}): {1}",
+            "Lass uns in Locora Freunde sein! Gib meinen Einladungscode in Locora unter „Freunde & Ranglisten“ ein (gilt bis {0}): {1}",
+            "Soyons amis dans Locora ! Saisis mon code d’invitation dans Locora, sous « Amis et classements » (valable jusqu’au {0}) : {1}",
+            "Locora でフレンドになろう！Locora の「フレンドとランキング」で私の招待コードを入力してね（{0} まで有効）：{1}",
+            "我们在 Locora 里做好友吧！请在 Locora 的“好友与排行榜”中输入我的邀请码（有效期至 {0}）：{1}",
+        ],
+    ),
+    (
+        "Lass uns in Locora Freunde sein! Öffne den Link, um meine Einladung anzunehmen (gilt bis {0}): {1}",
+        [
+            "Let's be friends in Locora! Open the link to accept my invitation (valid until {0}): {1}",
+            "Lass uns in Locora Freunde sein! Öffne den Link, um meine Einladung anzunehmen (gilt bis {0}): {1}",
+            "Soyons amis dans Locora ! Ouvre le lien pour accepter mon invitation (valable jusqu’au {0}) : {1}",
+            "Locora でフレンドになろう！リンクを開いて招待を受けてね（{0} まで有効）：{1}",
+            "我们在 Locora 里做好友吧！打开链接即可接受我的邀请（有效期至 {0}）：{1}",
+        ],
+    ),
+    (
+        "Link kopieren",
+        [
+            "Copy link",
+            "Link kopieren",
+            "Copier le lien",
+            "リンクをコピー",
+            "复制链接",
+        ],
+    ),
+    ("Melden", ["Report", "Melden", "Signaler", "報告", "举报"]),
+    (
+        "Namen melden",
+        [
+            "Report a name",
+            "Namen melden",
+            "Signaler un nom",
+            "名前を報告",
+            "举报名称",
+        ],
+    ),
+    (
+        "Namen „{0}“ melden",
+        [
+            "Report the name “{0}”",
+            "Namen „{0}“ melden",
+            "Signaler le nom « {0} »",
+            "名前「{0}」を報告",
+            "举报名称“{0}”",
+        ],
+    ),
+    (
+        "Noch keine Einträge.",
+        [
+            "No entries yet.",
+            "Noch keine Einträge.",
+            "Aucune entrée pour l’instant.",
+            "まだエントリーはありません。",
+            "暂无条目。",
+        ],
+    ),
+    (
+        "Noch keine Freunde. Lade jemanden mit einem Link ein oder schick eine Anfrage an die E-Mail-Adresse der Person.",
+        [
+            "No friends yet. Invite someone with a link, or send a request to their email address.",
+            "Noch keine Freunde. Lade jemanden mit einem Link ein oder schick eine Anfrage an die E-Mail-Adresse der Person.",
+            "Pas encore d’amis. Invite quelqu’un avec un lien ou envoie une demande à son adresse e-mail.",
+            "まだフレンドはいません。リンクで招待するか、相手のメールアドレスにリクエストを送りましょう。",
+            "还没有好友。用链接邀请别人，或向对方的电子邮件地址发送请求。",
+        ],
+    ),
+    (
+        "Noch nicht befreundet. Eine Anfrage an diese Adresse wartet jetzt. Gehört die Adresse {0}, seid ihr befreundet, sobald sie bestätigt ist. Hast du dich vertippt, kannst du die Anfrage unter „Deine Anfragen“ zurückziehen.",
+        [
+            "Not friends yet. A request to this address is waiting now. If the address is {0}'s, you become friends once it is confirmed. If you mistyped it, you can withdraw the request under “Your requests”.",
+            "Noch nicht befreundet. Eine Anfrage an diese Adresse wartet jetzt. Gehört die Adresse {0}, seid ihr befreundet, sobald sie bestätigt ist. Hast du dich vertippt, kannst du die Anfrage unter „Deine Anfragen“ zurückziehen.",
+            "Pas encore amis. Une demande à cette adresse est maintenant en attente. Si l’adresse est celle de {0}, vous serez amis dès qu’elle sera confirmée. Si tu as fait une faute de frappe, tu peux retirer la demande sous « Tes demandes ».",
+            "まだフレンドではありません。このアドレスへのリクエストが待機中です。このアドレスが {0} さんのものなら、確認され次第フレンドになります。入力を間違えた場合は、「あなたが送ったリクエスト」で取り消せます。",
+            "还不是好友。发往该地址的请求正在等待。如果这是 {0} 的地址，确认后你们就是好友。如果你输错了，可以在“你发出的请求”中撤回该请求。",
+        ],
+    ),
+    (
+        "Offene Anfragen: {0}",
+        [
+            "Open requests: {0}",
+            "Offene Anfragen: {0}",
+            "Demandes en attente : {0}",
+            "保留中のリクエスト：{0}",
+            "待处理的请求：{0}",
+        ],
+    ),
+    (
+        "Offene Einladungslinks",
+        [
+            "Open invite links",
+            "Offene Einladungslinks",
+            "Liens d’invitation ouverts",
+            "未使用の招待リンク",
+            "未使用的邀请链接",
+        ],
+    ),
+    (
+        "Rangliste wird geladen …",
+        [
+            "Loading the ranking …",
+            "Rangliste wird geladen …",
+            "Chargement du classement …",
+            "ランキングを読み込み中 …",
+            "正在加载排行榜 …",
+        ],
+    ),
+    (
+        "Rangliste",
+        ["Ranking", "Rangliste", "Classement", "ランキング", "排行榜"],
+    ),
+    (
+        "Ranglisten sind für dieses Konto nicht verfügbar.",
+        [
+            "Rankings are not available for this account.",
+            "Ranglisten sind für dieses Konto nicht verfügbar.",
+            "Les classements ne sont pas disponibles pour ce compte.",
+            "このアカウントではランキングを使えません。",
+            "此账户无法使用排行榜。",
+        ],
+    ),
+    (
+        "Ranglistenpunkte sammelt Locora Cloud aus Journeys, die es selbst nachrechnet. Die XP auf deinen Geräten zählen hier nicht mit.",
+        [
+            "Locora Cloud collects ranking points from journeys it checks itself. The XP on your devices do not count here.",
+            "Ranglistenpunkte sammelt Locora Cloud aus Journeys, die es selbst nachrechnet. Die XP auf deinen Geräten zählen hier nicht mit.",
+            "Locora Cloud compte les points de classement des parcours qu’il vérifie lui-même. Les XP de tes appareils ne comptent pas ici.",
+            "Locora Cloud は、自分で検証したジャーニーからランキングポイントを集めます。端末の XP はここでは数えられません。",
+            "Locora Cloud 从它自己核验的旅程中统计排行积分。你设备上的 XP 不计入此处。",
+        ],
+    ),
+    (
+        "Sobald du Freunde hast, vergleicht ihr hier eure Punkte.",
+        [
+            "Once you have friends, you compare your points here.",
+            "Sobald du Freunde hast, vergleicht ihr hier eure Punkte.",
+            "Dès que tu auras des amis, vous comparerez vos points ici.",
+            "フレンドができたら、ここでポイントを比べられます。",
+            "有了好友后，你们可以在这里比较积分。",
+        ],
+    ),
+    (
+        "Stattdessen Einladungslink schicken…",
+        [
+            "Send an invite link instead…",
+            "Stattdessen Einladungslink schicken…",
+            "Envoyer plutôt un lien d’invitation…",
+            "代わりに招待リンクを送る…",
+            "改为发送邀请链接…",
+        ],
+    ),
+    (
+        "Teilen ist hier nicht möglich. Bitte „Link kopieren“ verwenden.",
+        [
+            "Sharing is not possible here. Please use “Copy link”.",
+            "Teilen ist hier nicht möglich. Bitte „Link kopieren“ verwenden.",
+            "Le partage n’est pas possible ici. Utilise « Copier le lien ».",
+            "ここでは共有できません。「リンクをコピー」を使ってください。",
+            "此处无法分享。请使用“复制链接”。",
+        ],
+    ),
+    (
+        "Teilen…",
+        ["Share…", "Teilen…", "Partager…", "共有…", "分享…"],
+    ),
+    (
+        "Wartet auf den laufenden Sync …",
+        [
+            "Waiting for the running sync …",
+            "Wartet auf den laufenden Sync …",
+            "En attente de la synchronisation en cours …",
+            "実行中の同期を待っています …",
+            "正在等待当前同步 …",
+        ],
+    ),
+    (
+        "Wen du angefragt hast, zeigt Locora erst, wenn die Person annimmt.",
+        [
+            "Locora shows whom you asked only once they accept.",
+            "Wen du angefragt hast, zeigt Locora erst, wenn die Person annimmt.",
+            "Locora n’affiche qui tu as demandé qu’une fois que la personne a accepté.",
+            "誰にリクエストを送ったかは、相手が承認するまで Locora には表示されません。",
+            "对方接受之前，Locora 不会显示你向谁发出了请求。",
+        ],
+    ),
+    (
+        "Zum Annehmen fragst du {0} mit der Adresse an, mit der die Person bei Locora Cloud angemeldet ist. Locora zeigt Adressen anderer nie an. Ist es nicht die Adresse von {0}, geht eine neue Anfrage an diese Adresse.",
+        [
+            "To accept, ask {0} back with the address they use for Locora Cloud. Locora never shows other people's addresses. If it is not {0}'s address, a new request goes to that address.",
+            "Zum Annehmen fragst du {0} mit der Adresse an, mit der die Person bei Locora Cloud angemeldet ist. Locora zeigt Adressen anderer nie an. Ist es nicht die Adresse von {0}, geht eine neue Anfrage an diese Adresse.",
+            "Pour accepter, fais une demande à {0} avec l’adresse de son compte Locora Cloud. Locora n’affiche jamais les adresses des autres. Si ce n’est pas l’adresse de {0}, une nouvelle demande part vers cette adresse.",
+            "承認するには、{0} さんが Locora Cloud で使っているアドレスでリクエストを送り返します。Locora は他の人のアドレスを表示しません。{0} さんのアドレスでない場合は、そのアドレスに新しいリクエストが送られます。",
+            "要接受，请用 {0} 在 Locora Cloud 使用的地址向对方回发请求。Locora 从不显示他人的地址。如果这不是 {0} 的地址，就会向该地址发送一个新请求。",
+        ],
+    ),
+    (
+        "Zurück anfragen",
+        [
+            "Ask back",
+            "Zurück anfragen",
+            "Demander en retour",
+            "リクエストを送り返す",
+            "回发请求",
+        ],
+    ),
+    (
+        "Zurückziehen",
+        ["Withdraw", "Zurückziehen", "Retirer", "取り消す", "撤回"],
+    ),
+    (
+        "gerade gesendet",
+        [
+            "just sent",
+            "gerade gesendet",
+            "envoyée à l’instant",
+            "送信したばかり",
+            "刚刚发送",
+        ],
+    ),
+    (
+        "gilt bis {0}",
+        [
+            "valid until {0}",
+            "gilt bis {0}",
+            "valable jusqu’au {0}",
+            "{0} まで有効",
+            "有效期至 {0}",
+        ],
+    ),
+    (
+        "{0} lädt dich ein.",
+        [
+            "{0} invites you.",
+            "{0} lädt dich ein.",
+            "{0} t’invite.",
+            "{0} さんがあなたを招待しています。",
+            "{0} 邀请了你。",
+        ],
+    ),
+    (
+        "Ja, ablehnen",
+        [
+            "Yes, decline",
+            "Ja, ablehnen",
+            "Oui, refuser",
+            "はい、断ります",
+            "是的，拒绝",
+        ],
+    ),
+    (
+        "Ja, beenden",
+        [
+            "Yes, end it",
+            "Ja, beenden",
+            "Oui, y mettre fin",
+            "はい、解除します",
+            "是的，结束",
+        ],
+    ),
+    (
+        "Das ist kein Einladungscode (wie ABCD-EFGH-JKLM-NPQR) und kein Einladungslink.",
+        [
+            "That is neither an invite code (like ABCD-EFGH-JKLM-NPQR) nor an invite link.",
+            "Das ist kein Einladungscode (wie ABCD-EFGH-JKLM-NPQR) und kein Einladungslink.",
+            "Ce n’est ni un code d’invitation (comme ABCD-EFGH-JKLM-NPQR) ni un lien d’invitation.",
+            "これは招待コード（ABCD-EFGH-JKLM-NPQR のような形式）でも招待リンクでもありません。",
+            "这既不是邀请码（如 ABCD-EFGH-JKLM-NPQR），也不是邀请链接。",
+        ],
+    ),
+    (
+        "Du hast die Höchstzahl offener Anfragen erreicht. Eine neue geht, sobald eine angenommen, zurückgezogen oder 30 Tage alt ist.",
+        [
+            "You have reached the limit of open requests. You can send a new one once one is accepted, withdrawn or 30 days old.",
+            "Du hast die Höchstzahl offener Anfragen erreicht. Eine neue geht, sobald eine angenommen, zurückgezogen oder 30 Tage alt ist.",
+            "Tu as atteint le nombre maximal de demandes en attente. Tu pourras en envoyer une nouvelle dès qu’une demande sera acceptée, retirée ou vieille de 30 jours.",
+            "保留中のリクエストが上限に達しました。どれかが承認されるか、取り消されるか、30 日たつと新しく送れます。",
+            "待处理的请求已达上限。有请求被接受、撤回或超过 30 天后，即可发送新请求。",
+        ],
+    ),
+    (
+        "Du hast die Höchstzahl offener Einladungslinks erreicht. Ein neuer geht, sobald einer angenommen, zurückgezogen oder abgelaufen ist.",
+        [
+            "You have reached the limit of open invite links. You can create a new one once one is accepted, withdrawn or expired.",
+            "Du hast die Höchstzahl offener Einladungslinks erreicht. Ein neuer geht, sobald einer angenommen, zurückgezogen oder abgelaufen ist.",
+            "Tu as atteint le nombre maximal de liens d’invitation ouverts. Tu pourras en créer un nouveau dès qu’un lien sera accepté, retiré ou expiré.",
+            "未使用の招待リンクが上限に達しました。どれかが承認されるか、取り消されるか、期限が切れると新しく作れます。",
+            "未使用的邀请链接已达上限。有链接被接受、撤回或过期后，即可创建新链接。",
+        ],
+    ),
+    (
+        "Ungültige Anfrage",
+        [
+            "Invalid request",
+            "Ungültige Anfrage",
+            "Requête invalide",
+            "無効なリクエストです",
+            "无效的请求",
+        ],
+    ),
+    (
+        "Der Grund darf höchstens 300 Zeichen haben",
+        [
+            "The reason may have at most 300 characters",
+            "Der Grund darf höchstens 300 Zeichen haben",
+            "Le motif ne peut pas dépasser 300 caractères",
+            "理由は 300 文字までです",
+            "原因最多 300 个字符",
+        ],
+    ),
+    (
+        "Diese Einladung gibt es nicht (mehr): Sie ist abgelaufen, wurde schon angenommen oder zurückgezogen.",
+        [
+            "This invitation does not exist (any more): it has expired, was accepted already or was withdrawn.",
+            "Diese Einladung gibt es nicht (mehr): Sie ist abgelaufen, wurde schon angenommen oder zurückgezogen.",
+            "Cette invitation n’existe pas (ou plus) : elle a expiré, a déjà été acceptée ou a été retirée.",
+            "この招待はありません（もう使えません）：期限切れか、承認済みか、取り消されています。",
+            "此邀请不存在（或已失效）：它已过期、已被接受或已被撤回。",
+        ],
+    ),
+    (
+        "Das ist deine eigene Einladung. Schick den Link der Person, die du einladen möchtest.",
+        [
+            "This is your own invitation. Send the link to the person you want to invite.",
+            "Das ist deine eigene Einladung. Schick den Link der Person, die du einladen möchtest.",
+            "C’est ta propre invitation. Envoie le lien à la personne que tu veux inviter.",
+            "これはあなた自身の招待です。招待したい人にリンクを送ってください。",
+            "这是你自己的邀请。请把链接发给你想邀请的人。",
+        ],
+    ),
+    (
+        "Diese Freundschaft oder Anfrage gibt es nicht",
+        [
+            "This friendship or request does not exist",
+            "Diese Freundschaft oder Anfrage gibt es nicht",
+            "Cette amitié ou cette demande n’existe pas",
+            "このフレンドまたはリクエストはありません",
+            "此好友关系或请求不存在",
+        ],
+    ),
+    (
+        "Das ist kein Verweis auf einen Namen",
+        [
+            "That is no reference to a name",
+            "Das ist kein Verweis auf einen Namen",
+            "Ce n’est pas une référence à un nom",
+            "名前への参照ではありません",
+            "这不是对名称的引用",
+        ],
+    ),
+    (
+        "Dateiauswahl fehlgeschlagen",
+        [
+            "File selection failed",
+            "Dateiauswahl fehlgeschlagen",
+            "Échec de la sélection du fichier",
+            "ファイルの選択に失敗しました",
+            "文件选择失败",
+        ],
+    ),
+    (
+        "Datei vorbereiten",
+        [
+            "Preparing the file",
+            "Datei vorbereiten",
+            "Préparation du fichier",
+            "ファイルの準備",
+            "准备文件",
+        ],
+    ),
+    (
+        "Datei schreiben",
+        [
+            "Writing the file",
+            "Datei schreiben",
+            "Écriture du fichier",
+            "ファイルの書き込み",
+            "写入文件",
+        ],
+    ),
 ];

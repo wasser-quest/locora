@@ -21,6 +21,14 @@ extern "C" {
 #[derive(Serialize)]
 pub struct NoArgs {}
 
+/// Whether the UI runs in the browser build (its page provides `__TAURI__` alone; the apps'
+/// WebView also has Tauri's own internals).
+pub fn in_browser() -> bool {
+    web_sys::window().is_some_and(|window| {
+        !js_sys::Reflect::has(&window, &"__TAURI_INTERNALS__".into()).unwrap_or(false)
+    })
+}
+
 fn message(value: JsValue) -> String {
     value.as_string().unwrap_or_else(|| format!("{value:?}"))
 }

@@ -87,7 +87,7 @@ fn sources() -> Vec<PathBuf> {
 }
 
 /// The purchase wording in `text`, one entry per finding.
-fn selling(text: &str) -> Vec<String> {
+pub(crate) fn selling(text: &str) -> Vec<String> {
     let lower = text.to_lowercase();
     let mut found: Vec<String> = PHRASES
         .iter()

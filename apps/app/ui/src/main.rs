@@ -12,6 +12,7 @@ mod dashboard_editor;
 mod editor;
 mod first_palace;
 mod formulas;
+mod friends;
 mod i18n;
 mod i18n_catalog;
 mod info;
@@ -23,8 +24,10 @@ mod learning_path;
 mod locus_display;
 mod look;
 mod media_format;
+mod modal;
 mod palette;
 mod settings;
+mod share;
 mod sply;
 mod startup;
 #[cfg(test)]
@@ -59,6 +62,10 @@ pub enum Screen {
     Settings,
     /// „Mnemotechnik lernen“ (learn.rs).
     Learn,
+    /// „Freunde & Ranglisten“ (friends.rs); back goes to the settings when it was opened there.
+    Friends {
+        from_settings: bool,
+    },
 }
 
 pub fn start_screen() -> Screen {
@@ -216,6 +223,70 @@ fn touch_screen() -> bool {
     web_sys::window()
         .and_then(|window| window.match_media("(pointer: coarse)").ok().flatten())
         .is_some_and(|query| query.matches())
+}
+
+/// Keeps a text field that just got the focus above an on-screen keyboard and the commands bar of
+/// a phone, together with the controls of its group (the closest `.keep-in-view`, such as its
+/// form's button). The keyboard comes up after the focus, so it looks again a little later. A field
+/// in a dialog scrolls the dialog, any other the page.
+pub fn keep_in_view(field: web_sys::HtmlElement) {
+    fit_above_keyboard(&field);
+    for delay in [200, 450] {
+        let field = field.clone();
+        set_timeout(
+            move || fit_above_keyboard(&field),
+            std::time::Duration::from_millis(delay),
+        );
+    }
+}
+
+fn fit_above_keyboard(field: &web_sys::HtmlElement) {
+    use wasm_bindgen::JsCast;
+    let (Some(window), Some((full, top, height, _))) = (web_sys::window(), seen_area()) else {
+        return;
+    };
+    let element: &web_sys::Element = field;
+    let focused = window
+        .document()
+        .and_then(|document| document.active_element());
+    if !field.is_connected() || focused.as_ref() != Some(element) {
+        return;
+    }
+    let rect = field.get_bounding_client_rect();
+    let group = field
+        .closest(".keep-in-view")
+        .ok()
+        .flatten()
+        .map(|group| group.get_bounding_client_rect().bottom());
+    // The commands bar sits at the window's bottom while it shows; above a keyboard that resized
+    // the window it sits right on top of the keyboard.
+    let bar = window
+        .document()
+        .and_then(|document| {
+            document
+                .query_selector(".palette-mobile-trigger")
+                .ok()
+                .flatten()
+        })
+        .map(|bar| bar.get_bounding_client_rect())
+        .filter(|bar| bar.height() > 0.0)
+        .map_or(full, |bar| bar.top());
+    let limit = (top + height).min(bar) - 8.0;
+    let end = group.map_or(rect.bottom(), |end| end.max(rect.bottom()));
+    // Up to the group's end, but never so far that the field's top leaves the visible part.
+    let by = (end - limit).min(rect.top() - top - 8.0);
+    if by <= 0.0 {
+        return;
+    }
+    let dialog = field
+        .closest(".modal")
+        .ok()
+        .flatten()
+        .and_then(|dialog| dialog.dyn_into::<web_sys::HtmlElement>().ok());
+    match dialog {
+        Some(dialog) => dialog.set_scroll_top(dialog.scroll_top() + by.ceil() as i32),
+        None => scroll_page_by(&window, by),
+    }
 }
 
 /// Smooth, unless the system asks for reduced motion.
@@ -843,6 +914,7 @@ fn App() -> impl IntoView {
     });
     provide_context(achievements::Celebration::new());
     provide_context(cloud_settings::SignedIn(RwSignal::new(None)));
+    provide_context(cloud_settings::CloudFirst(RwSignal::new(false)));
     provide_context(first_palace::Guide(RwSignal::new(first_palace::load())));
     // The first start shows only the language choice and then the welcome page; the tour starts
     // from its button.
@@ -974,6 +1046,9 @@ fn App() -> impl IntoView {
                 }
                 Screen::Settings => view! { <settings::SettingsView screen=screen/> }.into_any(),
                 Screen::Learn => view! { <learn::LearnView screen=screen/> }.into_any(),
+                Screen::Friends { from_settings } => view! {
+                    <friends::FriendsScreen screen=screen from_settings=from_settings/>
+                }.into_any(),
             }}
         </main>
     }
@@ -1307,6 +1382,17 @@ fn HomeView(
     };
     let tour = tour_gate::control();
     let dashboard_open = expect_context::<dashboard::Open>().0;
+    // The way to friends and rankings, for an account with access (read locally; the settings and
+    // the command palette lead there for every account).
+    let friends = RwSignal::new(false);
+    spawn_local(async move {
+        if let Ok(status) =
+            call::<locora_app_api::CloudStatus>(locora_app_api::CMD_CLOUD_STATUS, tauri::NoArgs {})
+                .await
+        {
+            friends.try_set(status.account.is_some() && status.access);
+        }
+    });
     view! {
         <header class="bar home-bar">
             <h1>{if core_only { "Core" } else { "Locora" }}</h1>
@@ -1326,6 +1412,18 @@ fn HomeView(
                 <button class="icon" id="tour-home-settings" title=t("Einstellungen & Statistik") aria-label=t("Einstellungen & Statistik") on:click=move |_| screen.set(Screen::Settings)>
                     "⚙"
                 </button>
+                // Beside the gear in the title row, so the rows of actions stay as they are.
+                <Show when=move || friends.get() && !core_only>
+                    <button class="icon home-friends" id="home-friends" title=t("Freunde & Ranglisten") aria-label=t("Freunde & Ranglisten")
+                        on:click=move |_| screen.set(Screen::Friends { from_settings: false })>
+                        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                            <circle cx="8.5" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                            <path d="M2.5 19c.6-3.4 3-5.4 6-5.4s5.4 2 6 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                            <circle cx="16.5" cy="8.6" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6" />
+                            <path d="M15.6 13.7c2.9-.2 5.1 1.6 5.9 4.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                        </svg>
+                    </button>
+                </Show>
             </div>
         </header>
         <p class="notes" role="status">{move || message.get()}</p>
