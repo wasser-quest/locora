@@ -676,17 +676,25 @@ impl Facts {
     }
 
     /// Rounds handed in before `before_ms` (all without it), newest first; at most `limit`
-    /// ([`HISTORY_LIMIT`] for 0 or more).
-    pub fn history(&self, limit: u32, before_ms: Option<u64>) -> Vec<HistoryEntry> {
+    /// ([`HISTORY_LIMIT`] for 0 or more). With `before_id` too, the rounds before that one in
+    /// the order of the history, so a page goes on after its last entry also when other rounds
+    /// were handed in in the same millisecond.
+    pub fn history(
+        &self,
+        limit: u32,
+        before_ms: Option<u64>,
+        before_id: Option<&str>,
+    ) -> Vec<HistoryEntry> {
         let limit = match limit {
             0 => HISTORY_LIMIT,
             n => n.min(HISTORY_LIMIT),
         };
-        let mut rounds: Vec<&RoundFact> = self
-            .rounds
-            .values()
-            .filter(|r| before_ms.is_none_or(|before| r.finished_at_ms < before))
-            .collect();
+        let before = |round: &RoundFact| match (before_ms, before_id) {
+            (None, _) => true,
+            (Some(ms), None) => round.finished_at_ms < ms,
+            (Some(ms), Some(id)) => by_finish(round) < (ms, id),
+        };
+        let mut rounds: Vec<&RoundFact> = self.rounds.values().filter(|r| before(r)).collect();
         rounds.sort_by_key(|round| std::cmp::Reverse(by_finish(round)));
         rounds
             .into_iter()
@@ -1145,7 +1153,7 @@ mod tests {
                 .round_id,
             "b"
         );
-        let history = facts.history(0, None);
+        let history = facts.history(0, None, None);
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].round_id, "a", "newest first");
         assert!(history[0].counted_as_practice && !history[1].counted_as_practice);
@@ -1326,16 +1334,32 @@ mod tests {
             fact.finished_at_ms = (n + 1) * H;
             facts.rounds.insert(fact.id.clone(), fact);
         }
-        assert_eq!(facts.history(500, None).len(), 100, "at most 100");
-        assert_eq!(facts.history(0, None).len(), 100);
-        let newest = facts.history(1, None);
+        assert_eq!(facts.history(500, None, None).len(), 100, "at most 100");
+        assert_eq!(facts.history(0, None, None).len(), 100);
+        let newest = facts.history(1, None, None);
         assert_eq!(newest.len(), 1);
         assert_eq!(newest[0].round_id, "r119");
         // The next page: rounds handed in before the last one shown.
-        let page = facts.history(3, Some(newest[0].finished_at_ms));
+        let page = facts.history(3, Some(newest[0].finished_at_ms), None);
         let ids: Vec<&str> = page.iter().map(|e| e.round_id.as_str()).collect();
         assert_eq!(ids, ["r118", "r117", "r116"]);
-        assert!(facts.history(0, Some(H)).is_empty());
+        assert!(facts.history(0, Some(H), None).is_empty());
+        // Rounds handed in in the same millisecond: a page goes on after its last round.
+        for id in ["s1", "s2", "s3"] {
+            let mut fact = round(id, Kind::Practice, Discipline::Numbers, 1, 0);
+            fact.finished_at_ms = 500 * H;
+            facts.rounds.insert(id.into(), fact);
+        }
+        let mut seen = Vec::new();
+        let mut cursor: Option<(u64, String)> = None;
+        while seen.len() < 5 {
+            let (ms, id) = cursor.clone().unzip();
+            let page = facts.history(1, ms, id.as_deref());
+            let last = page.last().unwrap();
+            seen.push(last.round_id.clone());
+            cursor = Some((last.finished_at_ms, last.round_id.clone()));
+        }
+        assert_eq!(seen, ["s3", "s2", "s1", "r119", "r118"]);
     }
 
     fn finished_daily(day: &str, points: u16, finished: u64) -> RoundFact {
@@ -1390,7 +1414,7 @@ mod tests {
             }
         );
         assert_eq!(
-            facts.history(1, None)[0].evening,
+            facts.history(1, None, None)[0].evening,
             Some(EveningScore {
                 points: 11,
                 max: 13

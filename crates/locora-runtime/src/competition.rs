@@ -244,16 +244,19 @@ impl Profile {
         self.contest::<Records>(&request)
     }
 
-    /// The rounds handed in, newest first: at most `limit` (100 for 0), before `before_ms`.
+    /// The rounds handed in, newest first: at most `limit` (100 for 0), before `before_ms`, and
+    /// with `before_id` after that round (the last of the page before).
     pub fn compete_history(
         &mut self,
         limit: u32,
         before_ms: Option<u64>,
+        before_id: Option<String>,
     ) -> Result<Vec<HistoryEntry>> {
         let request = HistoryRequest {
             epoch: self.contest_epoch()?,
             limit,
             before_ms,
+            before_id,
         };
         self.contest::<History>(&request)
     }

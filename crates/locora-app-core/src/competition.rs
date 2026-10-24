@@ -370,7 +370,7 @@ pub fn history(
     profile: &mut Profile,
     query: CompeteHistoryQuery,
 ) -> Result<Vec<CompeteHistoryEntry>> {
-    profile.compete_history(query.limit, query.before_ms)
+    profile.compete_history(query.limit, query.before_ms, query.before_id)
 }
 
 /// `CMD_COMPETE_CODE`: a new challenge code with a fresh seed.
@@ -506,7 +506,7 @@ mod tests {
         // Dropped: nothing is stored, and a new round can begin.
         abandon(&mut contest);
         assert!(recall(&mut contest, t0).is_err());
-        assert!(profile.compete_history(0, None).unwrap().is_empty());
+        assert!(profile.compete_history(0, None, None).unwrap().is_empty());
         let started = start(&mut contest, &mut profile, practice(Discipline::List), t0).unwrap();
         // A round whose time is long over gives way to the next.
         let later = t0 + Duration::from_secs(started.spec.memorize_ms as u64 / 1000 + 200);

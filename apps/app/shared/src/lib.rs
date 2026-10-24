@@ -1522,13 +1522,16 @@ pub struct CompeteEveningResult {
     pub correct: Vec<String>,
 }
 
-/// Arguments of `CMD_COMPETE_HISTORY`: at most `limit` (100 for 0), before `before_ms`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// Arguments of `CMD_COMPETE_HISTORY`: at most `limit` (100 for 0), before `before_ms`; the next
+/// page passes the `finished_at_ms` and `round_id` of the last entry it has.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompeteHistoryQuery {
     #[serde(default)]
     pub limit: u32,
     #[serde(default)]
     pub before_ms: Option<u64>,
+    #[serde(default)]
+    pub before_id: Option<String>,
 }
 
 /// A discipline and level, for `CMD_COMPETE_CODE` and `CMD_COMPETE_ROUTES`.

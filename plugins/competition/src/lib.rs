@@ -483,7 +483,10 @@ impl Contest {
         request: HistoryRequest,
     ) -> Result<Vec<HistoryEntry>> {
         self.enter(kv, &request.epoch)?;
-        Ok(self.facts().history(request.limit, request.before_ms))
+        let before_id = request.before_id.as_deref();
+        Ok(self
+            .facts()
+            .history(request.limit, request.before_ms, before_id))
     }
 
     /// The game progress was deleted: the rounds of every older epoch are emptied, also when
@@ -767,6 +770,7 @@ mod tests {
             epoch: epoch.into(),
             limit: 0,
             before_ms: None,
+            before_id: None,
         };
         contest.history(kv, request).unwrap()
     }
@@ -1250,6 +1254,24 @@ mod tests {
         let before = kv.lists;
         records(&mut contest, &mut kv);
         assert_eq!(kv.lists - before, 1);
+        // All seven were handed in in the same millisecond: pages of two still list each once.
+        let mut seen = Vec::new();
+        let mut last: Option<HistoryEntry> = None;
+        loop {
+            let request = HistoryRequest {
+                epoch: "0".into(),
+                limit: 2,
+                before_ms: last.as_ref().map(|e| e.finished_at_ms),
+                before_id: last.as_ref().map(|e| e.round_id.clone()),
+            };
+            let page = contest.history(&mut kv, request).unwrap();
+            let Some(end) = page.last().cloned() else {
+                break;
+            };
+            seen.extend(page.into_iter().map(|e| e.round_id));
+            last = Some(end);
+        }
+        assert_eq!(seen, (1..=7).rev().map(id).collect::<Vec<_>>());
     }
 
     #[test]

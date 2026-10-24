@@ -379,6 +379,9 @@ pub struct HistoryRequest {
     pub limit: u32,
     /// Only rounds handed in before this time (the next page).
     pub before_ms: Option<u64>,
+    /// With `before_ms`, the last round of the page before: the next page goes on after it,
+    /// also past rounds handed in in the same millisecond.
+    pub before_id: Option<String>,
 }
 
 /// The points of an evening recall.

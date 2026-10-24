@@ -57,7 +57,7 @@ fn practice(device: &mut Device, discipline: Discipline) -> Round {
 }
 
 fn history(device: &mut Device) -> Vec<String> {
-    let entries = device.profile.compete_history(0, None).unwrap();
+    let entries = device.profile.compete_history(0, None, None).unwrap();
     entries.into_iter().map(|e| e.round_id).collect()
 }
 
@@ -107,7 +107,7 @@ fn two_devices_play_the_same_daily_offline_and_agree_after_the_sync() {
             } => assert_eq!((round_id, *counted), (&on_a.id, Counted::Daily)),
             other => panic!("{other:?}"),
         }
-        let entries = device.profile.compete_history(0, None).unwrap();
+        let entries = device.profile.compete_history(0, None, None).unwrap();
         let practice: Vec<&str> = entries
             .iter()
             .filter(|e| e.counted_as_practice)

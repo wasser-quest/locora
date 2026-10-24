@@ -967,7 +967,7 @@ fn records(app: &mut App, json: bool) -> Result<()> {
 }
 
 fn history(app: &mut App, limit: u32, json: bool) -> Result<()> {
-    let entries = app.compete_history(limit, None)?;
+    let entries = app.compete_history(limit, None, None)?;
     app.report();
     if json {
         println!("{}", serde_json::to_string_pretty(&entries)?);
