@@ -7,12 +7,13 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
 /// A calendar date. Build it with [`Date::new`] or [`Date::parse`], which refuse
-/// dates that do not exist; in JSON and postcard it is the string `"YYYY-MM-DD"`.
+/// dates that do not exist; the fields are private, so every `Date` is a real
+/// day. In JSON and postcard it is the string `"YYYY-MM-DD"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Date {
-    pub year: i32,
-    pub month: u8,
-    pub day: u8,
+    year: i32,
+    month: u8,
+    day: u8,
 }
 
 const MIN_YEAR: i32 = 0;
@@ -39,6 +40,21 @@ impl Date {
             && day >= 1
             && day <= days_in_month(year, month);
         valid.then_some(Date { year, month, day })
+    }
+
+    /// 0 to 9999.
+    pub fn year(self) -> i32 {
+        self.year
+    }
+
+    /// 1 to 12.
+    pub fn month(self) -> u8 {
+        self.month
+    }
+
+    /// 1 to the last day of the month.
+    pub fn day(self) -> u8 {
+        self.day
     }
 
     /// Exactly `YYYY-MM-DD` with ASCII digits.
@@ -168,6 +184,9 @@ mod tests {
                 day: 23
             }
         );
+        let d = date("2024-02-29");
+        assert_eq!((d.year(), d.month(), d.day()), (2024, 2, 29));
+        assert_eq!(Date::new(2024, 2, 29), Some(d));
     }
 
     #[test]
