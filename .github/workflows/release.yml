@@ -11,10 +11,16 @@ name: Release
 # Desktop builds are not code-signed. iOS is an unsigned .ipa (installable with tools that sign it
 # with your own Apple ID, such as AltStore or Sideloadly); the App Store needs an Apple developer
 # account and signing.
+#
+# The tag is pushed by hand, or made by `tag-release.yml` (Actions → Tag a release → Run workflow),
+# which then starts this workflow on the new tag: a tag made with the workflow token does not start
+# workflows by itself.
 
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  # Only on a tag: the check below refuses anything else.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -44,6 +50,7 @@ jobs:
       - name: The tag is on main and matches the app version
         id: version
         run: |
+          [ "$GITHUB_REF_TYPE" = tag ] || { echo "::error::Start this on a tag vX.Y.Z, not on $GITHUB_REF_NAME"; exit 1; }
           version="${GITHUB_REF_NAME#v}"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
             || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
