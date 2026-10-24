@@ -152,6 +152,39 @@ aufgeschlossenen Schlüssel auf dem Gerät:
   (429), versucht sie es später noch einmal.
 - Wie viel belegt ist, zeigt die Kontoseite.
 
+## Freunde, Einladungslinks, Ranglisten und Meldungen in der App
+
+„Freunde & Ranglisten“ ist eine eigene Seite der App und der Web-App: aus Einstellungen →
+Locora Cloud und der Befehlspalette für jedes angemeldete Konto, neben dem Zahnrad der Startseite,
+solange das Konto Zugang hat. Sie zeigt die Anfragen an das Konto, die Freunde und die gesendeten
+Anfragen (nur mit Datum und Uhrzeit, ohne Name und Adresse), Einladungslinks und die beiden
+Ranglisten.
+
+- **Annehmen heißt zurückfragen:** Der Server kennt kein Annehmen über die Kennung; wer die Adresse
+  der Person eingibt, die angefragt hat, fragt zurück, und das macht beide zu Freunden. Die App
+  zeigt die Adresse anderer nie. Macht die Antwort keine Freunde (eine andere Adresse, oder die
+  Adresse der Person ist noch nicht bestätigt), sagt die App das, ohne etwas über die Adresse zu
+  behaupten, und bietet einen Einladungslink an.
+- **Einladungslinks:** Die App zeigt, kopiert und teilt den Link des Servers nur, wenn er eine
+  HTTPS-Seite `/einladung` mit genau seinem Code als Fragment ist; sonst nur den Code. Sie öffnet
+  einen Einladungslink nie selbst. Ein eingefügter Link oder Code wird zuerst ohne Sitzung
+  geprüft (wer einlädt), und „Annehmen“ nimmt genau diesen Code an; jede Änderung im Feld nimmt die
+  Vorschau wieder weg. Ein Konto ohne Zugang sieht seine offenen Links weiter und kann sie
+  zurückziehen (beides braucht kein Abo).
+- **Ranglisten:** Die eigene Zeile heißt „(du)“ nur in der Rangliste der Freunde und nur, wenn
+  kein Freund denselben Namen trägt; der Server schickt kein Merkmal dafür, und Namen sind nicht
+  eindeutig. „Melden“ steht an jedem Namen, auch am eigenen (der Server übergeht das). Gleiche
+  Punkte teilen sich einen Platz. Journeys in der App zählen noch nicht für die Ranglisten.
+- **Was die App sagt:** Jede Antwort wird in `locora-app-core/src/social.rs` zu einem Zustand:
+  abgemeldet, Anmeldung abgelaufen (401), für dieses Konto nicht verfügbar (402, neutral, ohne
+  Hinweis, wie man Zugang bekommt), Server zu alt (404/405) oder das Ergebnis. Die Seite formuliert
+  jeden Zustand selbst; Statusnummern, „Abo“ oder „Nicht gefunden“ erscheinen nie. Zwei Grenzen
+  (offene Anfragen, offene Links, 409) haben eigene Worte der App.
+- **Namen sind Text:** Namen anderer werden wie in der CLI sicher gemacht (`locora_runtime::shown`)
+  und als Text in `<bdi>` gezeigt, nie als Markup.
+
+Teilen von Erfolgen braucht Locora Cloud nicht: Das Bild entsteht auf dem Gerät.
+
 ## Kontoseite web.locora.cloud
 
 Eine kleine statische Seite (im Server-Repository unter `web/`): anmelden, Adresse und
@@ -167,8 +200,8 @@ deshalb keine Preise, keine Kaufknöpfe und keine Links zu einer Kasse, sondern 
 den Stand („Testzeitraum endet am …“, „Abo: aktiv“). `apps/app/ui/src/store_rules.rs` prüft das
 in den Tests: Er liest alle UI-Texte in allen fünf Sprachen, die Tauri-Shell und die
 Cloud-Meldungen der gemeinsamen Crates und schlägt bei Kaufwörtern, einem Euro-Zeichen oder
-einem Link außerhalb einer kurzen Liste fehl (`api.locora.cloud`, `web.locora.cloud/forgot`, das
-Issue-Formular auf GitHub …).
+einem Link außerhalb einer kurzen Liste fehl (`api.locora.cloud`, `web.locora.cloud/forgot` und
+`/einladung`, das Issue-Formular auf GitHub …).
 Das Bezahlen selbst (Paddle) ist noch nicht gebaut, siehe [`OFFEN.md`](OFFEN.md).
 
 ## Wo es im Code steht
@@ -179,8 +212,10 @@ Das Bezahlen selbst (Paddle) ist noch nicht gebaut, siehe [`OFFEN.md`](OFFEN.md)
   und Meldungen), `game.rs` (Epoche, Übernahme des alten Stands, Löschen)
 - `crates/locora-store/src/outbox.rs`: Ausgang, Zusammenfassen und Übersicht nach Palast
 - `crates/locora-crypto`: Verschlüsselung; `crates/locora-cloud-api`: Typen der API
-- App: `apps/app/ui/src/cloud_settings.rs`, `cloud_sync_form.rs`, `auto_sync.rs`;
-  `apps/app/src-tauri/src/cloud_auto.rs`, `keystore.rs`
+- App: `apps/app/ui/src/cloud_settings.rs`, `cloud_sync_form.rs`, `auto_sync.rs`, `friends.rs`
+  (Freunde, Einladungslinks, Ranglisten, Meldungen); `apps/app/src-tauri/src/cloud_auto.rs`,
+  `keystore.rs`, `cloud_social.rs`; die Abläufe der Freunde-Befehle in
+  `crates/locora-app-core/src/social.rs`
 - Browser: `crates/locora-web-core/src/cloud.rs`, `cloud_auto.rs` und
   `apps/web/shell/src/cloud.mjs` (fetch, WebCrypto, Argon2 im Worker)
 - CLI: `apps/cli/src/cloud.rs` (`locora cloud --help`)
