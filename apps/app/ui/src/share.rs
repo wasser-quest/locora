@@ -103,7 +103,9 @@ impl CardKind {
 pub struct Choice {
     pub show_name: bool,
     pub name: String,
-    pub show_palace: bool,
+    /// The palace whose name the person turned on. It is the consent for that name only: a card
+    /// of another palace chosen afterwards shows no palace until that one is turned on too.
+    pub palace: Option<String>,
 }
 
 /// The picture's lines.
@@ -128,23 +130,36 @@ pub fn palace_of(kind: &CardKind) -> Option<&str> {
     }
 }
 
+/// The palace a card names: its own, when the person turned that one on.
+fn shown_palace<'a>(kind: &'a CardKind, choice: &Choice) -> Option<&'a str> {
+    palace_of(kind).filter(|palace| choice.palace.as_deref() == Some(*palace))
+}
+
 /// The level of a palace medal (`palace-30` → `30`).
 fn level(id: &str) -> Option<&str> {
     id.strip_prefix("palace-")
 }
 
-/// The card's name in the choice of cards.
+/// The card's name in the choice of cards. A palace medal names its palace there, so that the
+/// medals of several palaces can be told apart; the choice is seen on this device only, and the
+/// card and its text name the palace only when it is turned on.
 pub fn label(kind: &CardKind) -> String {
     match kind {
         CardKind::Journey { .. } => t("Diese Journey").to_owned(),
         CardKind::Week { .. } => t("Wochenziel").to_owned(),
-        CardKind::Achievement { .. } => card_text(kind, &Choice::default(), "").title,
+        CardKind::Achievement { .. } => {
+            let title = card_text(kind, &Choice::default(), "").title;
+            match palace_of(kind) {
+                Some(palace) => format!("{title} · {palace}"),
+                None => title,
+            }
+        }
     }
 }
 
 /// The picture's lines; `date` is the localized day (empty: none).
 pub fn card_text(kind: &CardKind, choice: &Choice, date: &str) -> CardText {
-    let palace = palace_of(kind).filter(|_| choice.show_palace);
+    let palace = shown_palace(kind, choice);
     let (heading, title, detail) = match kind {
         CardKind::Achievement { id, .. } => match level(id) {
             Some(level) => {
@@ -219,7 +234,7 @@ pub fn card_text(kind: &CardKind, choice: &Choice, date: &str) -> CardText {
 /// The message that goes with the picture. The display name is never in it: the person sends it
 /// themselves.
 pub fn share_text(kind: &CardKind, choice: &Choice) -> String {
-    let palace = palace_of(kind).filter(|_| choice.show_palace);
+    let palace = shown_palace(kind, choice);
     match kind {
         CardKind::Achievement { id, .. } => match level(id) {
             Some(level) => {
@@ -528,20 +543,29 @@ fn ShareCard(cards: Vec<CardKind>, opener: Option<web_sys::HtmlElement>) -> impl
         busy.set(true);
         said.set(None);
         let text = text.get_untracked();
-        // Started in the click: browsers allow the clipboard only there.
+        // Started in the click: browsers allow the clipboard only there. The share sheet takes
+        // the text with the picture, so nothing is copied for it.
         let copied = (ways.card != ShareWay::Sheet).then(|| copy_text(&text));
         let args = ShareSendArgs {
             name: file_name(&kind.get_untracked()),
             png: url.split_once(',').map(|(_, png)| png.to_owned()),
-            text,
+            text: text.clone(),
             title: "Locora".into(),
         };
         spawn_local(async move {
             let copied = match copied {
-                Some(copied) => copied.await,
-                None => false,
+                Some(copied) => Some(copied.await),
+                None => None,
             };
-            let note = match call::<ShareDone>(CMD_SHARE_SEND, args).await {
+            let result = call::<ShareDone>(CMD_SHARE_SEND, args).await;
+            // A share sheet that failed saved or downloaded the picture instead: the text is
+            // copied now (it was not tried), and the line says how that went.
+            let copied = match (&result, copied) {
+                (_, Some(copied)) => copied,
+                (Ok(ShareDone::Saved | ShareDone::Downloaded), None) => copy_text(&text).await,
+                _ => false,
+            };
+            let note = match result {
                 Ok(ShareDone::Shared) => Some(Said::Done(t("Geteilt.").into())),
                 Ok(ShareDone::Saved) => Some(Said::Done(format!(
                     "{} {}",
@@ -635,22 +659,27 @@ fn ShareCard(cards: Vec<CardKind>, opener: Option<web_sys::HtmlElement>) -> impl
                         on:focus=move |event| crate::keep_in_view(event_target(&event)) />
                 </label>
             </Show>
-            {move || palace().map(|palace| view! {
-                <label class="input check">
-                    <input type="checkbox" prop:checked=move || choice.with(|c| c.show_palace)
-                        on:change=move |event| {
-                            let on = event_target_checked(&event);
-                            choice.update(|c| c.show_palace = on);
-                            touched.set(true);
-                        } />
-                    {tf("Palastnamen „{0}“ zeigen", &[&palace])}
-                </label>
+            // Turned on for this palace only: another card's palace starts off again.
+            {move || palace().map(|palace| {
+                let this = palace.clone();
+                view! {
+                    <label class="input check">
+                        <input type="checkbox" prop:checked=move || choice.with(|c| c.palace.as_deref() == Some(this.as_str()))
+                            on:change=move |event| {
+                                let on = event_target_checked(&event).then(|| palace_of(&kind.get_untracked()).map(str::to_owned)).flatten();
+                                choice.update(|c| c.palace = on);
+                                touched.set(true);
+                            } />
+                        {tf("Palastnamen „{0}“ zeigen", &[&palace])}
+                    </label>
+                }
             })}
             <div class="share-preview">
                 {move || match picture.get() {
                     Some(Ok(url)) => view! { <img src=url alt=move || alt_text(&card.get()) /> }.into_any(),
                     Some(Err(error)) => view! { <p class="notes" role="alert">{error}</p> }.into_any(),
-                    None => view! { <p class="progress">{t("Bild wird erstellt …")}</p> }.into_any(),
+                    // The line below says that it is drawn; this keeps the picture's place.
+                    None => view! { <div class="share-placeholder" aria-hidden="true"></div> }.into_any(),
                 }}
             </div>
             <label class="input">
@@ -704,7 +733,7 @@ mod tests {
         let off = Choice {
             show_name: false,
             name: "Lea".into(),
-            show_palace: false,
+            palace: None,
         };
         for kind in [palace_medal(), journey(Some(12))] {
             let card = card_text(&kind, &off, "20. Oktober 2026");
@@ -719,7 +748,7 @@ mod tests {
                 assert!(!text.contains('@'), "{text}");
             }
             let palace = Choice {
-                show_palace: true,
+                palace: Some("Küche".into()),
                 ..off.clone()
             };
             let card = card_text(&kind, &palace, "");
@@ -749,11 +778,45 @@ mod tests {
         let long = Choice {
             show_name: true,
             name: "x".repeat(80),
-            show_palace: false,
+            palace: None,
         };
         assert_eq!(
             card_text(&journey(None), &long, "").footer.chars().count(),
             32
+        );
+    }
+
+    #[test]
+    fn a_palace_name_turned_on_for_one_palace_stays_off_for_another() {
+        crate::i18n::set_current(crate::i18n::Lang::De);
+        let kitchen = CardKind::achievement("palace-7@Küche", Some("2026-10-20".into()));
+        let diary = CardKind::achievement("palace-7@Tagebuch", Some("2026-10-21".into()));
+        // The palace was turned on while the kitchen's medal was chosen.
+        let chosen = Choice {
+            palace: palace_of(&kitchen).map(str::to_owned),
+            ..Choice::default()
+        };
+        assert!(card_text(&kitchen, &chosen, "").title.contains("Küche"));
+        assert!(share_text(&kitchen, &chosen).contains("Küche"));
+        // Another palace's medal chosen afterwards names no palace.
+        let card = card_text(&diary, &chosen, "");
+        assert_eq!(card.title, "Verankert");
+        for text in [
+            format!("{card:?}"),
+            share_text(&diary, &chosen),
+            alt_text(&card),
+        ] {
+            assert!(
+                !text.contains("Tagebuch") && !text.contains("Küche"),
+                "{text}"
+            );
+        }
+        // In the choice the two medals are told apart by their palaces (seen on this device only).
+        assert_eq!(label(&kitchen), "Verankert · Küche");
+        assert_eq!(label(&diary), "Verankert · Tagebuch");
+        assert_eq!(
+            label(&CardKind::achievement("game-first-journey", None)),
+            "Erste Journey"
         );
     }
 
@@ -790,7 +853,7 @@ mod tests {
             share_text(
                 &journey(None),
                 &Choice {
-                    show_palace: true,
+                    palace: Some("Küche".into()),
                     ..off.clone()
                 }
             ),

@@ -745,11 +745,13 @@ input[type=email], textarea { font: inherit; padding: .5rem .7rem; border-radius
 .share-dialog select { font: inherit; min-height: 44px; padding: .45rem .6rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); width: 100%; }
 .share-preview { display: grid; place-items: center; }
-.share-preview img { width: min(360px, 100%); max-width: 100%; aspect-ratio: 1; border-radius: 12px; border: 1px solid var(--line); }
+.share-preview img, .share-placeholder { width: min(360px, 100%); max-width: 100%; aspect-ratio: 1; border-radius: 12px;
+  border: 1px solid var(--line); }
+.share-placeholder { background: var(--bg); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .share-actions { position: sticky; bottom: -1rem; display: flex; flex-wrap: wrap; gap: .5rem; padding: .6rem 0 1rem;
   margin-bottom: -1rem; background: var(--surface); border-top: 1px solid var(--line); }
-@media (max-width: 560px) { .share-preview img { width: min(320px, 38dvh, 100%); } }
+@media (max-width: 560px) { .share-preview img, .share-placeholder { width: min(320px, 38dvh, 100%); } }
 /* Ways to share elsewhere: finger-sized. */
 .achievement-share, .week-share, .done-actions button, .celebration-actions button { min-height: 44px; min-width: 44px; }
 .achievement-share { margin-top: 1rem; }
