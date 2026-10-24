@@ -750,12 +750,20 @@ mod tests {
     fn a_round_of_each_kind_begins_and_is_handed_in() {
         let mut contest = Contest::default();
         let mut kv = Memory::new(5000);
+        // The first round earns „compete-first“; a perfect 20 digits is no „compete-numbers-40“;
+        // the third discipline perfect earns „compete-triple“.
         let plays = [
-            Play::new(Kind::Practice, Discipline::List, 1, 7),
-            Play::new(Kind::Code, Discipline::Numbers, 1, 0x123_4567_89ab_cdef),
-            Play::daily(1),
+            (
+                Play::new(Kind::Practice, Discipline::List, 1, 7),
+                &["compete-first"][..],
+            ),
+            (
+                Play::new(Kind::Code, Discipline::Numbers, 1, 0x123_4567_89ab_cdef),
+                &[],
+            ),
+            (Play::daily(1), &["compete-triple"]),
         ];
-        for (n, play) in plays.into_iter().enumerate() {
+        for (n, (play, trophies)) in plays.into_iter().enumerate() {
             let round = id(n as u32 + 1);
             let began = play.begin(&mut contest, &mut kv, &round, H).unwrap();
             assert_eq!(began.spec, Spec::standard(play.discipline, play.level));
@@ -768,6 +776,7 @@ mod tests {
             assert!(finished.record.new);
             assert!(!finished.counted_as_practice && !finished.repeat_seed);
             assert_eq!(finished.hint, None);
+            assert_eq!(finished.trophies, trophies, "{:?}", play.kind);
             let fact = stored(&kv, "0", &round);
             assert_eq!(
                 (fact.kind, fact.points, fact.memorize_ms),
@@ -783,7 +792,23 @@ mod tests {
             };
             assert_eq!(tile.0, expected);
         }
-        assert_eq!(history(&mut contest, &mut kv, "0").len(), 3);
+        // Today's daily task again as practice: a repeat, but never „counted as practice“, which
+        // only a second daily round is.
+        let again = Play {
+            kind: Kind::Practice,
+            ..Play::daily(1)
+        };
+        let task = again
+            .begin(&mut contest, &mut kv, &id(4), 3 * H)
+            .unwrap()
+            .task;
+        let request = again.hand_in(&id(4), perfect(&task, Lang::De), 4 * H);
+        let (finished, _) = contest.finish(&mut kv, request).unwrap();
+        assert!(finished.repeat_seed && !finished.counted_as_practice);
+        let entries = history(&mut contest, &mut kv, "0");
+        assert_eq!(entries.len(), 4);
+        assert_eq!(entries[0].round_id, id(4));
+        assert!(entries.iter().all(|e| !e.counted_as_practice));
         // A round is handed in once.
         let practice = Play::new(Kind::Practice, Discipline::List, 1, 7);
         let again = practice.hand_in(&id(1), practice.blank(), 3 * H);
@@ -854,19 +879,20 @@ mod tests {
     fn the_earliest_marker_wins_and_the_other_device_counts_as_practice() {
         let (mut a, mut b) = (Contest::default(), Contest::default());
         let (mut kv_a, mut kv_b) = (Memory::new(5000), Memory::new(5000));
-        // Offline, both play level 1: A began first, B scores more.
+        // Offline, both play level 1: A began first (with the greater id), B scores more and
+        // hands in later.
         let play = Play::daily(1);
-        let task = play.begin(&mut a, &mut kv_a, &id(1), H).unwrap().task;
-        play.begin(&mut b, &mut kv_b, &id(2), H + 1).unwrap();
+        let task = play.begin(&mut a, &mut kv_a, &id(2), H).unwrap().task;
+        play.begin(&mut b, &mut kv_b, &id(1), H + 1).unwrap();
         let mut weak = perfect(&task, Lang::De);
         if let Recall::Cards(cards) = &mut weak {
             cards[0] = None;
         }
         let at = H + H / 4;
-        let (on_a, _) = a.finish(&mut kv_a, play.hand_in(&id(1), weak, at)).unwrap();
+        let (on_a, _) = a.finish(&mut kv_a, play.hand_in(&id(2), weak, at)).unwrap();
         let strong = perfect(&task, Lang::De);
         let (on_b, _) = b
-            .finish(&mut kv_b, play.hand_in(&id(2), strong, at))
+            .finish(&mut kv_b, play.hand_in(&id(1), strong, at + 1))
             .unwrap();
         assert!(
             !on_a.counted_as_practice && !on_b.counted_as_practice,
@@ -880,7 +906,7 @@ mod tests {
             assert_eq!(
                 today.levels[0].state,
                 LevelState::Done {
-                    round_id: id(1),
+                    round_id: id(2),
                     points: 12,
                     max: 13,
                     memorize_ms: 61_000,
@@ -897,7 +923,7 @@ mod tests {
             let best = cards_1.best.clone().unwrap();
             assert_eq!(
                 (cards_1.discipline, best.round_id, best.points),
-                (Discipline::Cards, id(1), 12),
+                (Discipline::Cards, id(2), 12),
                 "B saw the task second"
             );
             assert_eq!(records.daily_days, 1);

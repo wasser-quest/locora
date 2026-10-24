@@ -684,7 +684,10 @@ mod tests {
                 json(&round("b", Kind::Code, Discipline::List, 1, 0)),
             ),
             (round_key("0", "c"), Vec::new()),
-            (round_key("0", "d"), json(&fact)),
+            (
+                round_key("0", "d"),
+                json(&round("x", Kind::Practice, Discipline::Cards, 1, 13)),
+            ),
             (round_key("0", "e"), serde_json::to_vec(&newer).unwrap()),
             (
                 marker_key("0", date("2026-10-28"), Discipline::Cards, level(2), "a"),
@@ -696,6 +699,7 @@ mod tests {
         let facts = facts(&entries);
         assert_eq!(facts.rounds.len(), 1);
         assert_eq!(facts.rounds["a"], fact);
+        assert!(!facts.rounds.contains_key("x"), "stored under another id");
         assert_eq!(facts.markers.len(), 1, "level 4 does not exist");
         assert_eq!(facts.markers[0].level, level(2));
     }
@@ -767,15 +771,16 @@ mod tests {
     #[test]
     fn the_earliest_marker_is_the_days_try_and_the_other_round_counts_as_practice() {
         let mut facts = Facts::default();
-        let late = daily(&mut facts, "b", 1, 13, 2 * H);
-        let early = daily(&mut facts, "a", 1, 9, H);
+        // The round that began first has the greater id: the start counts, never the id.
+        let late = daily(&mut facts, "a", 1, 13, 2 * H);
+        let early = daily(&mut facts, "b", 1, 9, H);
         assert!(facts.counted_as_practice(&late));
         assert!(!facts.counted_as_practice(&early));
         let today = facts.today(date("2026-10-28"), 3 * H);
         assert_eq!(
             today.levels[0].state,
             LevelState::Done {
-                round_id: "a".into(),
+                round_id: "b".into(),
                 points: 9,
                 max: 13,
                 memorize_ms: 60_000,
@@ -787,11 +792,11 @@ mod tests {
         assert!(facts.repeat_seed(&late));
         assert_eq!(
             facts.best(Discipline::Cards, level(1)).unwrap().round_id,
-            "a"
+            "b"
         );
         let history = facts.history(0, None);
         assert_eq!(history.len(), 2);
-        assert_eq!(history[0].round_id, "b", "newest first");
+        assert_eq!(history[0].round_id, "a", "newest first");
         assert!(history[0].counted_as_practice && !history[1].counted_as_practice);
     }
 
@@ -834,9 +839,10 @@ mod tests {
     #[test]
     fn records_come_only_from_a_tasks_first_play_with_the_time_limit() {
         let mut facts = Facts::default();
-        let mut first = round("a", Kind::Code, Discipline::List, 1, 7);
+        // The first play has the greater id: what was seen first counts, never the id.
+        let mut first = round("b", Kind::Code, Discipline::List, 1, 7);
         first.started_at_ms = H;
-        let mut again = round("b", Kind::Code, Discipline::List, 1, 10);
+        let mut again = round("a", Kind::Code, Discipline::List, 1, 10);
         again.started_at_ms = 3 * H;
         again.finished_at_ms = 4 * H;
         let mut untimed = round("c", Kind::Practice, Discipline::List, 1, 10);
@@ -846,7 +852,7 @@ mod tests {
             facts.rounds.insert(fact.id.clone(), fact.clone());
         }
         let best = facts.best(Discipline::List, level(1)).unwrap();
-        assert_eq!((best.round_id.as_str(), best.points), ("a", 7));
+        assert_eq!((best.round_id.as_str(), best.points), ("b", 7));
         assert!(facts.repeat_seed(&again) && !facts.repeat_seed(&first));
         // A faster round with the same points takes the record; a slower one does not.
         let mut faster = round("d", Kind::Practice, Discipline::List, 1, 7);
@@ -866,6 +872,33 @@ mod tests {
         assert_eq!(records.levels.len(), 9);
         assert!(records.levels[1..].iter().all(|l| l.best.is_none()));
         assert_eq!(records.daily_days, 0);
+    }
+
+    #[test]
+    fn the_history_is_newest_first_in_pages_of_at_most_a_hundred() {
+        let mut facts = Facts::default();
+        for n in 0..120u64 {
+            let mut fact = round(
+                &format!("r{n:03}"),
+                Kind::Practice,
+                Discipline::Numbers,
+                1,
+                0,
+            );
+            fact.seed = Seed::new(n).unwrap();
+            fact.finished_at_ms = (n + 1) * H;
+            facts.rounds.insert(fact.id.clone(), fact);
+        }
+        assert_eq!(facts.history(500, None).len(), 100, "at most 100");
+        assert_eq!(facts.history(0, None).len(), 100);
+        let newest = facts.history(1, None);
+        assert_eq!(newest.len(), 1);
+        assert_eq!(newest[0].round_id, "r119");
+        // The next page: rounds handed in before the last one shown.
+        let page = facts.history(3, Some(newest[0].finished_at_ms));
+        let ids: Vec<&str> = page.iter().map(|e| e.round_id.as_str()).collect();
+        assert_eq!(ids, ["r118", "r117", "r116"]);
+        assert!(facts.history(0, Some(H)).is_empty());
     }
 
     fn finished_daily(day: &str, points: u16, finished: u64) -> RoundFact {
