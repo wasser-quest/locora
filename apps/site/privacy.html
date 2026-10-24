@@ -25,7 +25,7 @@
       <section class="hero">
         <h1>Datenschutzerklärung</h1>
         <p class="lede">Hier steht, welche Daten bei der Nutzung von Locora anfallen, wo sie liegen und welche Rechte du hast.</p>
-        <p class="note">Stand: 22.10.2026</p>
+        <p class="note">Stand: 23.10.2026</p>
       </section>
 
       <section id="verantwortlicher">
@@ -84,14 +84,16 @@
         <h2>6. Die Locora Cloud (api.locora.cloud)</h2>
         <p>Ein Konto ist freiwillig. Die App funktioniert auch ohne. Mit Konto synchronisieren wir deine Paläste zwischen deinen Geräten.</p>
         <ul>
-          <li><strong>Konto:</strong> E-Mail-Adresse, Anzeigename, Passwort-Hash (Argon2id).</li>
+          <li><strong>Konto:</strong> E-Mail-Adresse, Anzeigename, Passwort-Hash (Argon2id). Dazu das Postfach hinter der Adresse (in Kleinbuchstaben, ohne „+…“ vor dem @, bei Gmail ohne Punkte), damit es zu einem Postfach höchstens drei Konten gibt.</li>
           <li><strong>Schutz vor Missbrauch:</strong> Damit niemand massenhaft Konten anlegt, zählen wir Registrierungen je IP-Adresse im Arbeitsspeicher des Servers, höchstens einen Tag lang. Die Adresse wird nicht in der Datenbank gespeichert.</li>
           <li><strong>Sitzungen:</strong> Hash des Anmeldetokens und Ablaufdatum (90 Tage). Das Token selbst zeigt der Server nur einmal an.</li>
           <li><strong>Anmeldeversuche:</strong> Falsche Passwörter zählen wir je E-Mail-Adresse in der Datenbank, in einem Zeitfenster von 15 Minuten; der Zähler wird nach einer erfolgreichen Anmeldung oder spätestens nach einem Tag gelöscht. Je IP-Adresse zählen wir nur im Arbeitsspeicher des Servers.</li>
           <li><strong>E-Mail-Bestätigung und Passwort zurücksetzen:</strong> Nach der Registrierung schicken wir dir eine Mail mit einem Link, mit dem du deine E-Mail-Adresse bestätigst; gespeichert wird, ob und wann sie bestätigt ist. Mit „Passwort vergessen?“ bekommst du einen Link zum Zurücksetzen. Ein Bestätigungslink gilt 48 Stunden, ein Link zum Zurücksetzen eine Stunde, und jeder funktioniert nur einmal. Von dem zufälligen Schlüssel im Link speichern wir nur einen Hash (SHA-256). Der Schlüssel steht im Link hinter dem Zeichen „#“ und gelangt deshalb nicht in Protokolle eines Servers. Abgelaufene Links löschen wir täglich.</li>
           <li><strong>Synchronisation und Medien:</strong> Deine Daten werden auf deinem Gerät verschlüsselt, bevor sie hochgeladen werden. Wir speichern nur Chiffrat und den verschlüsselten Schlüssel. Wir können den Inhalt nicht lesen.</li>
-          <li><strong>Speicher:</strong> Damit wir Speichergrenzen einhalten, zählen wir, wie viele Bytes an Medien und synchronisierten Änderungen ein Konto belegt. Ohne Abo gelten derzeit höchstens 512 MiB für Medien und 256 MiB für Änderungen. Wie viel belegt ist, siehst du auf der Kontoseite.</li>
-          <li><strong>Gastkonto und Testzeitraum:</strong> Neue Konten sind Gastkonten, bis ein Abo besteht, und können sechs Monate lang kostenlos synchronisieren. Jede abgeschlossene Synchronisation verlängert die Aufbewahrung. Synchronisiert ein Gastkonto sechs Monate lang nicht, löschen wir es automatisch mit allen Daten und Medien. Einen Monat vorher schicken wir eine Warnung per E-Mail.</li>
+          <li><strong>Speicher:</strong> Damit wir Speichergrenzen einhalten, zählen wir, wie viele Bytes an Medien und synchronisierten Änderungen ein Konto belegt. Ohne Abo gelten derzeit höchstens 512 MiB für Medien und 256 MiB für Änderungen, solange die E-Mail-Adresse nicht bestätigt ist höchstens 64 MiB für Medien und 32 MiB für Änderungen. Wie viel belegt ist, siehst du auf der Kontoseite.</li>
+          <li><strong>Gastkonto und Testzeitraum:</strong> Neue Konten sind Gastkonten, bis ein Abo besteht, und können sechs Monate lang kostenlos synchronisieren. Ist die E-Mail-Adresse bestätigt, verlängert jede abgeschlossene Synchronisation die Aufbewahrung; synchronisiert ein solches Gastkonto sechs Monate lang nicht, löschen wir es automatisch mit allen Daten und Medien. Ein Gastkonto ohne bestätigte E-Mail-Adresse löschen wir sechs Monate nach der Registrierung, auch wenn es synchronisiert. Einen Monat vor dem Löschen schicken wir eine Warnung per E-Mail.</li>
+          <li><strong>Freunde und Ranglisten:</strong> Fragst du jemanden per E-Mail-Adresse als Freund an, speichern wir die Anfrage, bis sie angenommen, abgelehnt oder zurückgezogen ist, höchstens 30 Tage; hat die Adresse noch kein bestätigtes Konto, speichern wir dafür die Adresse. Machst du einen Einladungslink, speichern wir seinen zufälligen Code mit deinem Konto, bis er angenommen oder zurückgezogen ist, höchstens 14 Tage; wer den Link öffnet, sieht deinen Anzeigenamen. In Ranglisten und Freundeslisten sehen andere deinen Anzeigenamen.</li>
+          <li><strong>Meldungen von Namen:</strong> Meldest du einen Anzeigenamen als anstößig, speichern wir, wer gemeldet hat, welches Konto, den gemeldeten Namen, den Zeitpunkt und den Grund, wenn du einen angibst (höchstens 300 Zeichen). Der Betreiber sieht diese Angaben, um über den Namen zu entscheiden. Melden mehrere Konten mit bestätigter Adresse aus verschiedenen Postfächern denselben Namen, zeigen wir ihn anderen bis zu dieser Entscheidung als „Nutzer-“ mit einem kurzen Code. Die Meldungen löschen wir, sobald der Betreiber entschieden hat oder eines der beiden Konten gelöscht wird.</li>
           <li><strong>Abo und Zahlung:</strong> Derzeit gibt es keine Abos und keine Zahlungen.</li>
         </ul>
         <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertrag über die Synchronisation); für die Begrenzung von Anmeldeversuchen und Anfragen Art. 6 Abs. 1 lit. f DSGVO (Schutz vor Missbrauch).</p>
@@ -109,7 +111,8 @@
           <li>Forum-Sitzungen: 30 Tage.</li>
           <li>Forum: Passwort-Reset-Links 1 Stunde, Bestätigungslinks 24 Stunden.</li>
           <li>Locora Cloud: Passwort-Reset-Links 1 Stunde, Bestätigungslinks 48 Stunden; Sitzungen 90 Tage.</li>
-          <li>Gastkonten der Locora Cloud: sechs Monate nach der letzten abgeschlossenen Synchronisation, dann automatisch gelöscht.</li>
+          <li>Gastkonten der Locora Cloud: mit bestätigter E-Mail-Adresse sechs Monate nach der letzten abgeschlossenen Synchronisation, ohne bestätigte Adresse sechs Monate nach der Registrierung, dann automatisch gelöscht.</li>
+          <li>Locora Cloud: Freundschaftsanfragen höchstens 30 Tage, Einladungslinks höchstens 14 Tage; Meldungen von Namen, bis der Betreiber entschieden hat oder eines der beiden Konten gelöscht wird.</li>
           <li>Zähler für Anfragen: nur im Arbeitsspeicher, bis zum Neustart oder Ablauf des Zeitfensters.</li>
           <li>Zugriffsprotokolle des Webservers: 1 Monat.</li>
           <li>Sicherungskopien (Backups): 1 Monat, danach gelöscht.</li>

@@ -424,7 +424,7 @@ impl Flow for KeysSetup {
                     bail!("Die Verschlüsselung ist für dieses Konto bereits eingerichtet");
                 }
                 let account = locora_crypto::create(&self.passphrase)?;
-                let call = cloud::create_keys_call(&self.state, &account.bundle)?;
+                let call = cloud::create_keys_call(&self.state, &account.bundle, &account.dek)?;
                 self.stage = KeysStage::Store {
                     bundle: account.bundle,
                     recovery_key: account.recovery_key,
@@ -491,6 +491,52 @@ mod tests {
         let bare: CloudConnect = serde_json::from_value(request_of(&fields)).unwrap();
         assert_eq!(wrapped.server, "https://api.example.com");
         assert_eq!(bare.server, wrapped.server);
+    }
+
+    #[test]
+    fn the_keys_of_a_new_account_go_with_the_proof_of_their_key() {
+        use locora_cloud_api::api::{Account, KeyUpload, SubscriptionState};
+        let state = CloudState {
+            server: "https://api.example.com".into(),
+            token: "t".into(),
+            account: Account {
+                id: "a".into(),
+                email: "a@example.com".into(),
+                display_name: "A".into(),
+                subscription: SubscriptionState::None,
+                plan: None,
+                period_end: None,
+                email_verified: None,
+            },
+            sync_generation: 0,
+            entitlement: None,
+            last_sync_at: None,
+            auto_sync: false,
+            key_proof_sent_at: None,
+        };
+        let passphrase = "ein langes geheimes passwort";
+        let mut flow = KeysSetup::new(state, passphrase.into());
+        let Ok(Step::Call(fetch)) = flow.step(None) else {
+            panic!("it asks for the keys first")
+        };
+        assert_eq!(
+            (fetch.method, fetch.url.ends_with("/v1/keys")),
+            (Method::Get, true)
+        );
+        let none = Reply {
+            status: 404,
+            body: r#"{"error":"Noch keine Verschlüsselung eingerichtet"}"#.into(),
+        };
+        let Ok(Step::Call(store)) = flow.step(Some(none)) else {
+            panic!("then it stores new ones")
+        };
+        assert_eq!(store.method, Method::Post);
+        let Some(Body::Json(body)) = &store.body else {
+            panic!("a JSON body")
+        };
+        let upload: KeyUpload = serde_json::from_slice(body).unwrap();
+        let dek = locora_crypto::unlock(&upload.bundle, passphrase).unwrap();
+        assert_eq!(upload, KeyUpload::new(upload.bundle.clone(), &dek));
     }
 
     #[test]

@@ -10,6 +10,7 @@ mod plugin_package;
 mod plugin_sign;
 mod practice;
 mod settings;
+mod shown;
 mod source;
 mod transfer;
 mod tutorial;

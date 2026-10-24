@@ -129,7 +129,7 @@ pub async fn cloud_keys_setup(
         }
         let passphrase = Zeroizing::new(request.passphrase);
         let account = locora_crypto::create(&passphrase).map_err(|e| e.to_string())?;
-        let result = cloud::create_keys(&state, &account.bundle);
+        let result = cloud::create_keys(&state, &account.bundle, &account.dek);
         // A lost HTTP response may hide a successful create. Always return the
         // recovery key once it exists, so this ambiguity cannot lose the key.
         let (stored, warning) = match result {

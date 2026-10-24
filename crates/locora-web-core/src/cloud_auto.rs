@@ -14,7 +14,7 @@ use locora_cloud_api::api::KeyBundle;
 use locora_crypto::Dek;
 use locora_runtime::cloud::{self, CloudState};
 use locora_runtime::cloud_http::{Exchange, Flow, Reply, Step};
-use locora_runtime::cloud_sync::{SyncOptions, SyncReport, Unlock, UnlockSync};
+use locora_runtime::cloud_sync::{self, SyncOptions, SyncReport, Unlock, UnlockSync};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
@@ -168,10 +168,11 @@ fn drive(mut flow: Box<dyn Flow<Output = Value>>) -> Result<Value> {
     crate::cloud::resume(flow, step)
 }
 
-/// Keeps what a finished sync means for the next one: a new generation, and when it ran.
+/// Keeps what a finished sync means for the next one: a new generation, when it ran, and when it
+/// sent the key proof.
 fn finished(data: &Path, report: &SyncReport) -> Result<()> {
     let mut state = saved(data)?;
-    locora_runtime::cloud_sync::keep(&mut state, report);
+    cloud_sync::note_finished(&mut state, report, cloud::now_secs() as i64);
     cloud::save(data, &state)
 }
 

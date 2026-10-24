@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "locora-api"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "postcard",
  "serde",
@@ -145,14 +145,14 @@ dependencies = [
 
 [[package]]
 name = "locora-fsrs"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "locora-api",
 ]
 
 [[package]]
 name = "locora-sdk"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "locora-api",
  "locora-sdk-macros",
@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "locora-sdk-macros"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "proc-macro2",
  "quote",

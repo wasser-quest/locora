@@ -15,9 +15,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use locora_cloud_api::api::{
-    Account, EntitlementReply, KeyBundle, Login, Register, Session, SubscriptionState,
+    Account, EntitlementReply, Friend, FriendInvite, KeyBundle, KeyUpload, Login, NameReport,
+    Register, Session, SessionKind, SubscriptionState,
 };
 use locora_cloud_api::entitlement::{Access, Claims, Plan, parse_public_key, verify};
+use locora_crypto::Dek;
 use serde::{Deserialize, Serialize};
 
 use crate::cloud_http::{self, Body, Call, Flow, Method, Reply, Step, json};
@@ -49,6 +51,10 @@ pub struct CloudState {
     /// (or the browser's), never in this file.
     #[serde(default)]
     pub auto_sync: bool,
+    /// Unix seconds when a sync of this device last sent the stored key bundle back with the key
+    /// proof (`cloud_sync`), so a bundle stored by an older app gets its proof.
+    #[serde(default)]
+    pub key_proof_sent_at: Option<i64>,
 }
 
 /// What became of the account's game scores on the server (the rankings) when the game progress
@@ -257,6 +263,7 @@ fn state_from_session(server: String, session: Session) -> CloudState {
         entitlement: None,
         last_sync_at: None,
         auto_sync: false,
+        key_proof_sent_at: None,
     }
 }
 
@@ -306,13 +313,31 @@ pub fn keys_reply(reply: Reply) -> Result<Option<KeyBundle>> {
     json(reply).map(Some)
 }
 
-pub fn create_keys_call(state: &CloudState, bundle: &KeyBundle) -> Result<Call> {
+/// Stores the keys of a new account. Every bundle goes with the key proof of the key it wraps
+/// (`KeyUpload`): a server that has it replaces the bundle later only for a holder of that key.
+/// An older server ignores the proof.
+pub fn create_keys_call(state: &CloudState, bundle: &KeyBundle, dek: &Dek) -> Result<Call> {
+    keys_upload_call(Method::Post, state, bundle, dek)
+}
+
+/// Replaces the stored bundle (a new passphrase after a recovery), with the key proof. Refused
+/// (403, with the server's message) when the server has another key's proof.
+pub fn replace_keys_call(state: &CloudState, bundle: &KeyBundle, dek: &Dek) -> Result<Call> {
+    keys_upload_call(Method::Put, state, bundle, dek)
+}
+
+fn keys_upload_call(
+    method: Method,
+    state: &CloudState,
+    bundle: &KeyBundle,
+    dek: &Dek,
+) -> Result<Call> {
     call(
-        Method::Post,
+        method,
         &state.server,
         "/v1/keys",
         Some(&state.token),
-        Some(json_body(bundle)?),
+        Some(json_body(&KeyUpload::new(bundle.clone(), dek))?),
     )
 }
 
@@ -450,6 +475,147 @@ pub fn resend_email_reply(reply: Reply) -> Result<()> {
     cloud_http::expect_success(reply)
 }
 
+/// Removes a friend (for both sides), withdraws a request or an invite this account sent, or
+/// declines a request to it: `id` is the one `GET /v1/friends` lists with the entry.
+pub fn remove_friend_call(state: &CloudState, id: &str) -> Result<Call> {
+    let id = percent_encoding::utf8_percent_encode(id, percent_encoding::NON_ALPHANUMERIC);
+    call(
+        Method::Delete,
+        &state.server,
+        &format!("/v1/friends/{id}"),
+        Some(&state.token),
+        None,
+    )
+}
+
+/// The answer to `remove_friend_call`. An older server has no such route: it answers 404 with its
+/// general "Nicht gefunden" or with no message at all (a newer one names the friendship it did not
+/// find), or 405.
+pub fn remove_friend_reply(reply: Reply) -> Result<()> {
+    if cloud_http::no_route(&reply) {
+        bail!(
+            "Dieser Server kann Freundschaften und Anfragen noch nicht entfernen; das geht, sobald er aktualisiert ist"
+        );
+    }
+    cloud_http::expect_success(reply)
+}
+
+/// What an older server's refusal of the reports means.
+const NO_REPORTS: &str =
+    "Dieser Server nimmt noch keine Meldungen von Namen an; das geht, sobald er aktualisiert ist";
+/// What an older server's refusal of the invite links means.
+const NO_INVITES: &str =
+    "Dieser Server kennt noch keine Einladungslinks; das geht, sobald er aktualisiert ist";
+
+/// Reports the name shown under `reference`: a ranking entry's `ref`, or a friend list entry's
+/// `id`. The server answers the same for every well-formed reference, known or not.
+pub fn report_name_call(state: &CloudState, reference: &str, reason: Option<&str>) -> Result<Call> {
+    let body = NameReport {
+        reference: reference.trim().to_owned(),
+        reason: reason
+            .map(str::trim)
+            .filter(|reason| !reason.is_empty())
+            .map(str::to_owned),
+    };
+    call(
+        Method::Post,
+        &state.server,
+        "/v1/reports",
+        Some(&state.token),
+        Some(json_body(&body)?),
+    )
+}
+
+/// The answer to `report_name_call`: a newer server never answers 404 or 405 there.
+pub fn report_name_reply(reply: Reply) -> Result<()> {
+    if cloud_http::unsupported(&reply) {
+        bail!(NO_REPORTS);
+    }
+    cloud_http::expect_success(reply)
+}
+
+/// A new invite link of this account (one use, 14 days).
+pub fn create_invite_call(state: &CloudState) -> Result<Call> {
+    call(
+        Method::Post,
+        &state.server,
+        "/v1/friends/invites",
+        Some(&state.token),
+        Some(json_body(&serde_json::Value::Null)?),
+    )
+}
+
+/// The answer to `create_invite_call`. An older server takes the path for a friendship's id and
+/// answers 405 (or 404, older still).
+pub fn create_invite_reply(reply: Reply) -> Result<FriendInvite> {
+    if cloud_http::unsupported(&reply) {
+        bail!(NO_INVITES);
+    }
+    json(reply)
+}
+
+/// The open invite links of this account, oldest first.
+pub fn invites_call(state: &CloudState) -> Result<Call> {
+    call(
+        Method::Get,
+        &state.server,
+        "/v1/friends/invites",
+        Some(&state.token),
+        None,
+    )
+}
+
+pub fn invites_reply(reply: Reply) -> Result<Vec<FriendInvite>> {
+    if cloud_http::unsupported(&reply) {
+        bail!(NO_INVITES);
+    }
+    json(reply)
+}
+
+/// The path of one invite code; `code` as `parse_invite_code` returns it.
+fn invite_path(code: &str, rest: &str) -> String {
+    let code = percent_encoding::utf8_percent_encode(code, percent_encoding::NON_ALPHANUMERIC);
+    format!("/v1/friends/invites/{code}{rest}")
+}
+
+/// Accepts another account's invite: both are friends then, and the code is used up.
+pub fn accept_invite_call(state: &CloudState, code: &str) -> Result<Call> {
+    call(
+        Method::Post,
+        &state.server,
+        &invite_path(code, "/accept"),
+        Some(&state.token),
+        Some(json_body(&serde_json::Value::Null)?),
+    )
+}
+
+/// The new friend. A code that does not work gets the server's 404 with its message; an older
+/// server answers its general 404 instead.
+pub fn accept_invite_reply(reply: Reply) -> Result<Friend> {
+    if cloud_http::no_route(&reply) {
+        bail!(NO_INVITES);
+    }
+    json(reply)
+}
+
+/// Revokes an open invite link of this account.
+pub fn revoke_invite_call(state: &CloudState, code: &str) -> Result<Call> {
+    call(
+        Method::Delete,
+        &state.server,
+        &invite_path(code, ""),
+        Some(&state.token),
+        None,
+    )
+}
+
+pub fn revoke_invite_reply(reply: Reply) -> Result<()> {
+    if cloud_http::no_route(&reply) {
+        bail!(NO_INVITES);
+    }
+    cloud_http::expect_success(reply)
+}
+
 pub fn logout_call(state: &CloudState) -> Result<Call> {
     call(
         Method::Delete,
@@ -543,6 +709,7 @@ impl Connect {
         let body = Login {
             email: email.to_owned(),
             password: password.to_owned(),
+            session: SessionKind::App,
         };
         Self::new(server, "/v1/sessions", &body)
     }
@@ -634,7 +801,7 @@ mod blocking {
     use super::*;
     use crate::cloud_http::{Exchange, expect_success, run};
     use locora_cloud_api::api::{
-        Challenge, CreateChallenge, FinishReply, Friend, FriendRequest, GameAnswer, GameState,
+        Challenge, CreateChallenge, FinishReply, FriendRequest, GameAnswer, GameState,
         JourneyStarted, PasswordChange, Ranking, StartJourney, XpState,
     };
 
@@ -827,6 +994,51 @@ mod blocking {
         post(&state.server, "/v1/friends", Some(&state.token), &body)
     }
 
+    /// Removes a friend, withdraws a request or declines one (see `remove_friend_call`).
+    pub fn remove_friend(state: &CloudState, id: &str) -> Result<()> {
+        run(Exchange::new(
+            remove_friend_call(state, id)?,
+            remove_friend_reply,
+        ))
+    }
+
+    /// Reports the name shown under `reference` (see `report_name_call`).
+    pub fn report_name(state: &CloudState, reference: &str, reason: Option<&str>) -> Result<()> {
+        run(Exchange::new(
+            report_name_call(state, reference, reason)?,
+            report_name_reply,
+        ))
+    }
+
+    /// A new invite link of this account.
+    pub fn create_invite(state: &CloudState) -> Result<FriendInvite> {
+        run(Exchange::new(
+            create_invite_call(state)?,
+            create_invite_reply,
+        ))
+    }
+
+    /// The open invite links of this account.
+    pub fn invites(state: &CloudState) -> Result<Vec<FriendInvite>> {
+        run(Exchange::new(invites_call(state)?, invites_reply))
+    }
+
+    /// Accepts the invite with `code`; the answer is the new friend.
+    pub fn accept_invite(state: &CloudState, code: &str) -> Result<Friend> {
+        run(Exchange::new(
+            accept_invite_call(state, code)?,
+            accept_invite_reply,
+        ))
+    }
+
+    /// Revokes the open invite link with `code`.
+    pub fn revoke_invite(state: &CloudState, code: &str) -> Result<()> {
+        run(Exchange::new(
+            revoke_invite_call(state, code)?,
+            revoke_invite_reply,
+        ))
+    }
+
     pub fn create_challenge(state: &CloudState, name: &str, ends_at: u64) -> Result<Challenge> {
         let body = CreateChallenge {
             name: name.to_owned(),
@@ -859,16 +1071,20 @@ mod blocking {
         run(Exchange::new(keys_call(state)?, keys_reply))
     }
 
-    pub fn create_keys(state: &CloudState, bundle: &KeyBundle) -> Result<()> {
+    /// Stores the keys of a new account, with the key proof of `dek`.
+    pub fn create_keys(state: &CloudState, bundle: &KeyBundle, dek: &Dek) -> Result<()> {
         run(Exchange::new(
-            create_keys_call(state, bundle)?,
+            create_keys_call(state, bundle, dek)?,
             ignore_reply,
         ))
     }
 
-    pub fn replace_keys(state: &CloudState, bundle: &KeyBundle) -> Result<()> {
-        let _: serde_json::Value = put(&state.server, "/v1/keys", &state.token, bundle)?;
-        Ok(())
+    /// Replaces the stored bundle with one that wraps the same key `dek`, with its key proof.
+    pub fn replace_keys(state: &CloudState, bundle: &KeyBundle, dek: &Dek) -> Result<()> {
+        run(Exchange::new(
+            replace_keys_call(state, bundle, dek)?,
+            ignore_reply,
+        ))
     }
 
     /// Starts a journey on the server; its clock starts now.
@@ -981,6 +1197,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
             account: Account {
                 id: "local".into(),
                 email: "test@example.invalid".into(),
@@ -1154,6 +1371,272 @@ mod tests {
         assert!(worker.join().unwrap().starts_with("POST /v1/entitlement "));
     }
 
+    fn bundle() -> KeyBundle {
+        KeyBundle {
+            v: 1,
+            salt: "c2FsdA==".into(),
+            wrapped_dek: "d3JhcHBlZA==".into(),
+            recovery_wrapped: "cmVjb3Zlcnk=".into(),
+        }
+    }
+
+    #[test]
+    fn every_bundle_sent_carries_the_proof_of_its_key() {
+        let state = CloudState {
+            server: "https://cloud.example".into(),
+            token: "t".into(),
+            sync_generation: 0,
+            entitlement: None,
+            last_sync_at: None,
+            auto_sync: false,
+            key_proof_sent_at: None,
+            account: Account {
+                id: "a".into(),
+                email: "e@x.invalid".into(),
+                display_name: "D".into(),
+                subscription: SubscriptionState::None,
+                plan: None,
+                period_end: None,
+                email_verified: None,
+            },
+        };
+        let dek = Dek::from_bytes(&[7; 32]).unwrap();
+        let calls = [
+            (
+                create_keys_call(&state, &bundle(), &dek).unwrap(),
+                Method::Post,
+            ),
+            (
+                replace_keys_call(&state, &bundle(), &dek).unwrap(),
+                Method::Put,
+            ),
+        ];
+        for (call, method) in calls {
+            assert_eq!(call.method, method);
+            assert_eq!(call.url, format!("{}/v1/keys", state.server));
+            let Some(Body::Json(body)) = &call.body else {
+                panic!("a JSON body")
+            };
+            let upload: KeyUpload = serde_json::from_slice(body).unwrap();
+            assert_eq!(upload, KeyUpload::new(bundle(), &dek));
+            assert!(upload.key_proof.is_some());
+            // An older server reads the same body as the bundle alone.
+            assert_eq!(serde_json::from_slice::<KeyBundle>(body).unwrap(), bundle());
+        }
+        let other = Dek::from_bytes(&[8; 32]).unwrap();
+        let Some(Body::Json(body)) = replace_keys_call(&state, &bundle(), &other).unwrap().body
+        else {
+            panic!("a JSON body")
+        };
+        let upload: KeyUpload = serde_json::from_slice(&body).unwrap();
+        assert_ne!(
+            upload.key_proof,
+            KeyUpload::new(bundle(), &dek).key_proof,
+            "the proof is the key's"
+        );
+    }
+
+    #[test]
+    fn a_replacement_refused_for_its_proof_shows_the_servers_words() {
+        let body = r#"{"error":"Der Schlüssel konnte nicht bestätigt werden; die Schlüsselsicherung bleibt, wie sie war. Bitte die App aktualisieren und es erneut versuchen"}"#;
+        let (state, worker) = fixture(format!(
+            "HTTP/1.1 403 Forbidden\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        ));
+        let dek = Dek::from_bytes(&[7; 32]).unwrap();
+        let error = replace_keys(&state, &bundle(), &dek).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .starts_with("Der Schlüssel konnte nicht bestätigt werden"),
+            "{error:#}"
+        );
+        assert_eq!(cloud_http::status_of(&error), Some(403));
+        assert_eq!(worker.join().unwrap(), "PUT /v1/keys HTTP/1.1\r\n");
+
+        let (state, worker) =
+            fixture("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into());
+        replace_keys(&state, &bundle(), &dek).unwrap();
+        assert_eq!(worker.join().unwrap(), "PUT /v1/keys HTTP/1.1\r\n");
+    }
+
+    #[test]
+    fn removing_a_friend_tells_an_older_server_from_an_unknown_id() {
+        let reply = |status: u16, error: &str| Reply {
+            status,
+            body: serde_json::json!({ "error": error })
+                .to_string()
+                .into_bytes(),
+        };
+        let older = remove_friend_reply(reply(404, "Nicht gefunden")).unwrap_err();
+        assert!(
+            older
+                .to_string()
+                .starts_with("Dieser Server kann Freundschaften"),
+            "{older:#}"
+        );
+        let older = remove_friend_reply(reply(405, "Diese Methode ist hier nicht erlaubt"));
+        assert!(
+            older
+                .unwrap_err()
+                .to_string()
+                .starts_with("Dieser Server kann")
+        );
+        // Older still: no error message at all.
+        let older = remove_friend_reply(Reply {
+            status: 404,
+            body: Vec::new(),
+        });
+        assert!(
+            older
+                .unwrap_err()
+                .to_string()
+                .starts_with("Dieser Server kann")
+        );
+        let unknown = "Diese Freundschaft oder Anfrage gibt es nicht";
+        assert_eq!(
+            remove_friend_reply(reply(404, unknown))
+                .unwrap_err()
+                .to_string(),
+            unknown
+        );
+        remove_friend_reply(Reply {
+            status: 204,
+            body: Vec::new(),
+        })
+        .unwrap();
+
+        let (state, worker) = fixture(
+            "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+        );
+        remove_friend(&state, "fr_0a/../x?y").unwrap();
+        assert_eq!(
+            worker.join().unwrap(),
+            "DELETE /v1/friends/fr%5F0a%2F%2E%2E%2Fx%3Fy HTTP/1.1\r\n"
+        );
+    }
+
+    #[test]
+    fn reports_and_invite_links_tell_an_older_server_from_a_refusal() {
+        let reply = |status: u16, body: &str| Reply {
+            status,
+            body: body.as_bytes().to_vec(),
+        };
+        let general = r#"{"error":"Nicht gefunden"}"#;
+        let method = r#"{"error":"Diese Methode ist hier nicht erlaubt"}"#;
+        for older in [reply(404, general), reply(405, method), reply(404, "")] {
+            let error = report_name_reply(older.clone()).unwrap_err().to_string();
+            assert!(
+                error.starts_with("Dieser Server nimmt noch keine Meldungen"),
+                "{error}"
+            );
+            for error in [
+                create_invite_reply(older.clone()).unwrap_err(),
+                invites_reply(older.clone()).unwrap_err(),
+                accept_invite_reply(older.clone()).unwrap_err(),
+                revoke_invite_reply(older).unwrap_err(),
+            ] {
+                assert!(
+                    error
+                        .to_string()
+                        .starts_with("Dieser Server kennt noch keine Einladungslinks"),
+                    "{error}"
+                );
+            }
+        }
+        // A newer server's own refusals keep their words.
+        let gone = "Diese Einladung gibt es nicht (mehr): Sie ist abgelaufen, wurde schon angenommen oder zurückgezogen.";
+        let body = serde_json::json!({ "error": gone }).to_string();
+        assert_eq!(
+            accept_invite_reply(reply(404, &body))
+                .unwrap_err()
+                .to_string(),
+            gone
+        );
+        assert_eq!(
+            revoke_invite_reply(reply(404, &body))
+                .unwrap_err()
+                .to_string(),
+            gone
+        );
+        let own = r#"{"error":"Das ist deine eigene Einladung."}"#;
+        let error = accept_invite_reply(reply(400, own)).unwrap_err();
+        assert_eq!(
+            (error.to_string().as_str(), cloud_http::status_of(&error)),
+            ("Das ist deine eigene Einladung.", Some(400))
+        );
+        let bad = r#"{"error":"Das ist kein Verweis auf einen Namen"}"#;
+        assert_eq!(
+            report_name_reply(reply(400, bad)).unwrap_err().to_string(),
+            "Das ist kein Verweis auf einen Namen"
+        );
+        report_name_reply(reply(204, "")).unwrap();
+        revoke_invite_reply(reply(204, "")).unwrap();
+        let friend = accept_invite_reply(reply(
+            200,
+            r#"{"display_name":"Ada","accepted":true,"id":"fr_1"}"#,
+        ))
+        .unwrap();
+        assert_eq!(
+            (friend.display_name.as_str(), friend.accepted),
+            ("Ada", true)
+        );
+        let invite = create_invite_reply(reply(
+            201,
+            r#"{"code":"ABCD-EFGH-JKLM-NPQR","url":"https://web.locora.cloud/einladung#ABCD-EFGH-JKLM-NPQR","expires_at":5}"#,
+        ))
+        .unwrap();
+        assert_eq!(
+            (invite.code.as_str(), invite.expires_at),
+            ("ABCD-EFGH-JKLM-NPQR", 5)
+        );
+        assert!(invites_reply(reply(200, "[]")).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_report_and_an_invite_code_go_where_they_belong() {
+        let (state, worker) = fixture(
+            "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+        );
+        let call = report_name_call(&state, " nr_0a ", Some("  ")).unwrap();
+        assert_eq!(
+            (call.method, call.url.ends_with("/v1/reports")),
+            (Method::Post, true)
+        );
+        assert_eq!(call.body, Some(Body::Json(br#"{"ref":"nr_0a"}"#.to_vec())));
+        let call = report_name_call(&state, "fr_1", Some(" beleidigend ")).unwrap();
+        assert_eq!(
+            call.body,
+            Some(Body::Json(
+                br#"{"ref":"fr_1","reason":"beleidigend"}"#.to_vec()
+            ))
+        );
+        report_name(&state, "fr_1", None).unwrap();
+        assert_eq!(worker.join().unwrap(), "POST /v1/reports HTTP/1.1\r\n");
+        let (state, worker) = fixture(
+            "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+        );
+        revoke_invite(&state, "ABCD-EFGH/../x").unwrap();
+        assert_eq!(
+            worker.join().unwrap(),
+            "DELETE /v1/friends/invites/ABCD%2DEFGH%2F%2E%2E%2Fx HTTP/1.1\r\n"
+        );
+        let call = accept_invite_call(&state, "ABCD-EFGH-JKLM-NPQR").unwrap();
+        assert!(
+            call.url
+                .ends_with("/v1/friends/invites/ABCD%2DEFGH%2DJKLM%2DNPQR/accept"),
+            "{}",
+            call.url
+        );
+        assert_eq!(
+            (
+                create_invite_call(&state).unwrap().method,
+                invites_call(&state).unwrap().method
+            ),
+            (Method::Post, Method::Get)
+        );
+    }
+
     #[test]
     fn a_guest_syncs_during_its_trial_without_an_entitlement() {
         let mut account = Account {
@@ -1176,6 +1659,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
             account: account.clone(),
         };
         assert!(can_sync(&state, 1_000));
@@ -1262,6 +1746,7 @@ mod tests {
             entitlement: None,
             last_sync_at: None,
             auto_sync: false,
+            key_proof_sent_at: None,
             account: Account {
                 id: "a".into(),
                 email: "e@x.invalid".into(),

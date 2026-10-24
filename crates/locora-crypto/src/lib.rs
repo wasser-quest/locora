@@ -275,6 +275,14 @@ impl Dek {
         key
     }
 
+    /// The key proof K = HKDF-SHA256(key, info "locora/key-proof/v1"), 32 bytes. Only a holder of
+    /// the account key can make it, so it goes to the server with every key bundle the device
+    /// stores or replaces; the server keeps only its SHA-256 and refuses a replacement without
+    /// it. It reveals nothing about the key or the other subkeys.
+    pub fn key_proof(&self) -> Zeroizing<[u8; KEY_LEN]> {
+        self.subkey(b"locora/key-proof/v1")
+    }
+
     /// Server-side id of an operation: keyed, so it reveals neither the timestamp nor the device.
     pub fn op_id(&self, hlc: &str) -> String {
         let key = self.subkey(b"locora/op-id/v1");
@@ -476,6 +484,30 @@ mod tests {
         assert_eq!(mime, "image/png");
         assert_eq!(bytes, b"png-bytes");
         assert!(account.dek.open_media("another", &sealed).is_err());
+    }
+
+    #[test]
+    fn the_key_proof_is_stable_for_a_key_and_differs_between_keys() {
+        let a = create(PASS).unwrap();
+        let b = create(PASS).unwrap();
+        assert_eq!(*a.dek.key_proof(), *a.dek.key_proof());
+        // A new passphrase or the recovery key unlock the same key, so the proof stays.
+        let rewrapped = rewrap(&a.dek, &a.recovery_key, "ein neues langes passwort").unwrap();
+        let again = unlock(&rewrapped, "ein neues langes passwort").unwrap();
+        assert_eq!(*again.key_proof(), *a.dek.key_proof());
+        let recovered = unlock_with_recovery(&a.bundle, &a.recovery_key).unwrap();
+        assert_eq!(*recovered.key_proof(), *a.dek.key_proof());
+        assert_ne!(*a.dek.key_proof(), *b.dek.key_proof(), "another key");
+        // A subkey of its own: neither the key nor the key of the operations.
+        assert_ne!(*a.dek.key_proof(), *a.dek.to_bytes());
+        assert_ne!(*a.dek.key_proof(), *a.dek.subkey(b"locora/op/v1"));
+        // HKDF-SHA256 of the key, without salt, with the info "locora/key-proof/v1".
+        let fixed = Dek::from_bytes(&[7u8; KEY_LEN]).unwrap();
+        let mut expected = [0u8; KEY_LEN];
+        Hkdf::<Sha256>::new(None, &[7u8; KEY_LEN])
+            .expand(b"locora/key-proof/v1", &mut expected)
+            .unwrap();
+        assert_eq!(*fixed.key_proof(), expected);
     }
 
     #[test]
