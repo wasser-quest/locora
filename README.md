@@ -58,8 +58,8 @@ on Windows choose *More info → Run anyway*. `SHA256SUMS.txt` lists the checksu
 - **Sync across devices (optional):** Locora Cloud keeps desktop, phone, browser and CLI in step,
   end-to-end encrypted, by hand or automatically. See [Locora Cloud](#locora-cloud).
 - **Formulas:** workbook tables and formula bindings for content that can be calculated.
-- **Plugins everywhere:** `core`, `review`, `notify`, `tutorial` and `gamification` are Rust compiled to
-  WebAssembly components, loaded at runtime, sandboxed and hot-reloadable.
+- **Plugins everywhere:** `core`, `review`, `notify`, `tutorial`, `gamification` and `competition` are
+  Rust compiled to WebAssembly components, loaded at runtime, sandboxed and hot-reloadable.
 - **Portable `.locora` files** with embedded media, and `locora.toml` sources you can write by hand.
 - **Pure Rust:** core, plugins, CLI and UI (Tauri 2 + Leptos). No JavaScript framework.
 
@@ -204,8 +204,8 @@ a memory palace, and his lantern and firefly light the way. All graphics are mad
 ## Open core
 
 The whole app is MIT-licensed and free: the CLI, the desktop, mobile and web app, and the `core`,
-`review`, `notify`, `tutorial` and `gamification` plugins. Gamification (XP, trophies, daily
-challenges) works fully offline. Only the optional **Locora Cloud** web service (end-to-end
+`review`, `notify`, `tutorial`, `gamification` and `competition` plugins. Gamification (XP, trophies,
+daily challenges) works fully offline. Only the optional **Locora Cloud** web service (end-to-end
 encrypted sync across devices, leaderboards) is a proprietary service. A subscription is sold only
 on the web, never inside the apps.
 

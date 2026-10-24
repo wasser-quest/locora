@@ -3,6 +3,7 @@
 
 pub mod assets;
 pub mod cloud_view;
+pub mod competition;
 pub mod convert;
 pub mod editor;
 pub mod journey;

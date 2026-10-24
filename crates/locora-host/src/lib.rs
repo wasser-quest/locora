@@ -520,7 +520,7 @@ impl PluginHost {
         if !allow_reload
             && matches!(
                 manifest.id.as_str(),
-                "core" | "review" | "notify" | "tutorial" | "gamification"
+                "core" | "review" | "notify" | "tutorial" | "gamification" | "competition"
             )
         {
             bail!("Eingebaute Plugin-ID `{}` ist geschützt", manifest.id);

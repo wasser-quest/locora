@@ -19,6 +19,7 @@ anyhow.workspace = true
 dirs = "6"
 locora-api.workspace = true
 locora-cloud-api = { path = "../locora-cloud-api" }
+locora-competition = { path = "../locora-competition" }
 locora-crypto = { path = "../locora-crypto" }
 locora-signing = { path = "../locora-signing" }
 locora-format = { path = "../locora-format" }
@@ -35,3 +36,6 @@ sha2.workspace = true
 percent-encoding = "2"
 zeroize = "1"
 base64 = "0.22"
+# Round ids and seeds of the memory contest (as the store makes its ids).
+uuid = { version = "1", features = ["v7"] }
+rand_core = { version = "0.6", features = ["getrandom"] }

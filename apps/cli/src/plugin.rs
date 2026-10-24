@@ -523,7 +523,14 @@ fn invoke(
 }
 
 // These identities remain reserved even in builds without embedded components.
-pub(crate) const BUILT_INS: &[&str] = &["core", "review", "notify", "tutorial", "gamification"];
+pub(crate) const BUILT_INS: &[&str] = &[
+    "core",
+    "review",
+    "notify",
+    "tutorial",
+    "gamification",
+    "competition",
+];
 
 pub(crate) fn validate_install(manifest: &Manifest) -> Result<()> {
     let id = &manifest.id;

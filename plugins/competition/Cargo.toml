@@ -1,0 +1,15 @@
+[package]
+name = "competition"
+description = "The memory contest for Locora: a shopping list, numbers and cards against the clock, the daily challenge, challenge codes, records and trophies"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+locora-competition = { path = "../../crates/locora-competition" }
+locora-sdk = { path = "../../crates/locora-sdk" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -20,6 +20,8 @@ use locora_store::SPLINELY;
 pub struct Backend {
     profile: Profile,
     journey: Option<Journey>,
+    /// The memory contest's running round.
+    compete: locora_app_core::competition::Contest,
     /// Hash of the built-in locus marker in the store.
     default_marker: String,
     /// Hash of Simo (welcome and empty states) in the store.
@@ -154,6 +156,7 @@ fn open(dir: &str) -> anyhow::Result<()> {
         *cell.borrow_mut() = Some(Backend {
             profile,
             journey: None,
+            compete: Default::default(),
             default_marker,
             simo,
             assets,
@@ -305,7 +308,7 @@ pub unsafe extern "C" fn plugin_publish(
 
 /// Plugins whose storage is the profile's own, so it is logged and synced like everything else
 /// (on the desktop every plugin's storage is). The others keep theirs in the browser.
-pub const SYNCED_PLUGINS: [&str; 1] = ["gamification"];
+pub const SYNCED_PLUGINS: [&str; 2] = ["gamification", "competition"];
 
 /// The store, for a plugin of `SYNCED_PLUGINS`.
 #[cfg_attr(not(any(target_arch = "wasm32", test)), allow(dead_code))]

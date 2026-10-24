@@ -11346,4 +11346,84 @@ pub const MESSAGES: &[(&str, [&str; 5])] = &[
             "图片太大",
         ],
     ),
+    (
+        "Gedächtnis-Wettkampf",
+        [
+            "Memory contest",
+            "Gedächtnis-Wettkampf",
+            "Concours de mémoire",
+            "記憶力コンテスト",
+            "记忆力比赛",
+        ],
+    ),
+    (
+        "Heute: Einkaufsliste – noch nicht gespielt",
+        [
+            "Today: shopping list – not played yet",
+            "Heute: Einkaufsliste – noch nicht gespielt",
+            "Aujourd'hui : liste de courses – pas encore joué",
+            "今日：買い物リスト – まだ挑戦していません",
+            "今天：购物清单 – 尚未挑战",
+        ],
+    ),
+    (
+        "Heute: Zahlen – noch nicht gespielt",
+        [
+            "Today: numbers – not played yet",
+            "Heute: Zahlen – noch nicht gespielt",
+            "Aujourd'hui : chiffres – pas encore joué",
+            "今日：数字 – まだ挑戦していません",
+            "今天：数字 – 尚未挑战",
+        ],
+    ),
+    (
+        "Heute: Karten – noch nicht gespielt",
+        [
+            "Today: cards – not played yet",
+            "Heute: Karten – noch nicht gespielt",
+            "Aujourd'hui : cartes – pas encore joué",
+            "今日：トランプ – まだ挑戦していません",
+            "今天：扑克牌 – 尚未挑战",
+        ],
+    ),
+    (
+        "Heute: Einkaufsliste – {0}/{1}",
+        [
+            "Today: shopping list – {0}/{1}",
+            "Heute: Einkaufsliste – {0}/{1}",
+            "Aujourd'hui : liste de courses – {0}/{1}",
+            "今日：買い物リスト – {0}/{1}",
+            "今天：购物清单 – {0}/{1}",
+        ],
+    ),
+    (
+        "Heute: Zahlen – {0}/{1}",
+        [
+            "Today: numbers – {0}/{1}",
+            "Heute: Zahlen – {0}/{1}",
+            "Aujourd'hui : chiffres – {0}/{1}",
+            "今日：数字 – {0}/{1}",
+            "今天：数字 – {0}/{1}",
+        ],
+    ),
+    (
+        "Heute: Karten – {0}/{1}",
+        [
+            "Today: cards – {0}/{1}",
+            "Heute: Karten – {0}/{1}",
+            "Aujourd'hui : cartes – {0}/{1}",
+            "今日：トランプ – {0}/{1}",
+            "今天：扑克牌 – {0}/{1}",
+        ],
+    ),
+    (
+        "Die Abendabfrage ist offen",
+        [
+            "Evening recall is open",
+            "Die Abendabfrage ist offen",
+            "Le rappel du soir est ouvert",
+            "夜のおさらいができます",
+            "晚间回忆已开放",
+        ],
+    ),
 ];

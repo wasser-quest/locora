@@ -7,7 +7,9 @@ import { instantiateCore } from '../src/core.mjs';
 import { host } from '../../plugin-host/src/host-core.mjs';
 import { coreWasm } from './core-wasm.mjs';
 
-const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification'];
+const PLUGINS = ['core', 'notify', 'review', 'tutorial', 'gamification', 'competition'];
+/** Plugins whose storage is the core's (crates/locora-web-core, SYNCED_PLUGINS). */
+const SYNCED = ['gamification', 'competition'];
 const unwrap = (result) => {
   if (result.tag === 'err') throw new Error(result.val);
   return result.val;
@@ -29,10 +31,11 @@ before(async () => {
   host.provideHostService('core.palaces@1', (_plugin, request) => unwrap(raw.palaceService(request)));
   host.provideHostService('ui.highlight@1', (plugin, request) => unwrap(raw.highlight(plugin, request)));
   host.onPublish = (plugin, topic, payload) => raw.publish(plugin, topic, payload);
-  // As the page does: the profile opens first; the game keeps its storage in it (synced).
+  // As the page does: the profile opens first; the game and the contest keep their storage in it
+  // (synced).
   assert.equal(core('open', '/locora').err, undefined);
   for (const id of PLUGINS) {
-    const synced = id === 'gamification' ? raw.syncedStorage(id) : null;
+    const synced = SYNCED.includes(id) ? raw.syncedStorage(id) : null;
     host.register(id, await import(`../../plugin-host/dist/${id}/${id}.js`), new Map(), synced);
     host.start(id);
   }
@@ -99,6 +102,27 @@ test('the game keeps its progress in the core, where the sync finds it', () => {
   assert.ok(listed.length > 4, 'facts of this device are listed');
   assert.equal(host.takeDirty('gamification').length, 0, 'nothing waits for IndexedDB');
   assert.throws(() => raw.syncedStorage('review').get('palaces'), /not kept by the core/);
+});
+
+test('the memory contest plays a round in the browser and keeps it in the core, where the sync finds it', () => {
+  const today = core('compete_today', {});
+  assert.equal(today.err, undefined, today.err);
+  assert.equal(today.ok.today.levels.length, 3);
+  const started = core('compete_start', { start: { kind: 'code', code: 'C2-28T5-CY4T-QKFF-K', lang: 'en' } });
+  assert.equal(started.err, undefined, started.err);
+  const deck = started.ok.task.cards;
+  assert.deepEqual(deck.slice(0, 3), [36, 18, 7], 'the golden deck of the code');
+  const result = core('compete_finish', { finish: { recall: { cards: deck }, lang: 'en' } });
+  assert.equal(result.err, undefined, result.err);
+  assert.equal(result.ok.finished.score.points, 26);
+  assert.deepEqual(result.ok.finished.trophies, ['compete-first']);
+  const storage = raw.syncedStorage('competition');
+  const request = new Uint8Array([2, 0x67, 0x2f, 0]); // ListRequest { prefix: "g/", after_rev: 0 }
+  assert.ok(storage.list(request).length > 4, 'the round is listed');
+  assert.equal(host.takeDirty('competition').length, 0, 'nothing waits for IndexedDB');
+  assert.equal(core('compete_history', {}).ok.length, 1);
+  const tiles = core('home', {}).ok.tiles.map((tile) => tile.plugin);
+  assert.ok(tiles.includes('competition'), JSON.stringify(tiles));
 });
 
 test('reminders are set through the notify plugin, and due messages are handed to the page once', () => {

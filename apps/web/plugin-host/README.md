@@ -1,8 +1,8 @@
 # Locora plugin host (browser)
 
-Runs Locora's official plugins (`core`, `notify`, `review`, `tutorial`, `gamification`) in the browser
-with the browser's own WebAssembly engine, instead of wasmtime. All plugin data stays on the device:
-storage is IndexedDB, and nothing is sent anywhere.
+Runs Locora's official plugins (`core`, `notify`, `review`, `tutorial`, `gamification`, `competition`)
+in the browser with the browser's own WebAssembly engine, instead of wasmtime. All plugin data stays on
+the device: storage is IndexedDB, and nothing is sent anywhere.
 
 ## Use
 

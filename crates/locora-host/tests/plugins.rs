@@ -68,7 +68,7 @@ fn approved_profile_loading_rejects_duplicates_and_reserved_ids_before_activatio
     let err = host.load_approved_file(&path, &approved).unwrap_err();
     assert!(err.to_string().contains("bereits geladen"));
     assert_eq!(host.plugins().count(), 1);
-    for name in ["core", "review"] {
+    for name in ["core", "review", "competition"] {
         let path = wasm_dir().join(format!("{name}.wasm"));
         let manifest = host.inspect_bytes(&std::fs::read(&path).unwrap()).unwrap();
         assert!(
@@ -83,6 +83,53 @@ fn approved_profile_loading_rejects_duplicates_and_reserved_ids_before_activatio
         assert!(host.load_additional_file(&path).is_err());
     }
     assert_eq!(host.plugins().count(), 1);
+}
+
+#[test]
+fn the_contest_loads_answers_today_and_asks_only_for_storage() {
+    use locora_api::competition::{
+        Begin, BeginRequest, Date, Discipline, Kind, Level, LevelState, Spec, Today, TodayRequest,
+    };
+    let mut host = PluginHost::new(None).unwrap();
+    load(&mut host, "competition");
+    let date = Date::parse("2026-10-28").unwrap();
+    let today = |host: &mut PluginHost| {
+        host.call::<Today>(&TodayRequest {
+            epoch: "0".into(),
+            date,
+            now_ms: 1_000,
+        })
+        .unwrap()
+    };
+    let answer = today(&mut host);
+    assert_eq!(answer.today.discipline, Discipline::Cards, "a Wednesday");
+    assert_eq!(answer.levels.len(), 3);
+    assert!(answer.levels.iter().all(|l| l.state == LevelState::Open));
+    assert_eq!(
+        tiles(&host.drain_events()),
+        ["@@Heute: Karten – noch nicht gespielt"]
+    );
+    let level = Level::new(1).unwrap();
+    let began = host
+        .call::<Begin>(&BeginRequest {
+            epoch: "0".into(),
+            round_id: "0".repeat(32),
+            kind: Kind::Daily,
+            discipline: Discipline::Cards,
+            level,
+            seed: locora_competition::daily_seed(date, Discipline::Cards, level),
+            date,
+            now_ms: 2_000,
+        })
+        .unwrap();
+    assert_eq!(began.spec, Spec::standard(Discipline::Cards, level));
+    assert!(matches!(
+        today(&mut host).levels[0].state,
+        LevelState::Started { .. }
+    ));
+    // Its storage needs the permission it asked for, and nothing else.
+    let manifest = host.plugins().find(|m| m.id == "competition").unwrap();
+    assert_eq!(manifest.permissions, ["storage"]);
 }
 
 fn journey(secs: u64) -> JourneyCompleted {

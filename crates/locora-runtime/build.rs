@@ -7,7 +7,14 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
 
-const OFFICIAL: &[&str] = &["core", "notify", "review", "tutorial", "gamification"];
+const OFFICIAL: &[&str] = &[
+    "core",
+    "notify",
+    "review",
+    "tutorial",
+    "gamification",
+    "competition",
+];
 
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -23,6 +30,9 @@ fn main() {
         "crates/locora-api/src",
         "crates/locora-fsrs/src",
         "crates/locora-scoring/src",
+        "crates/locora-competition/src",
+        // The word list is compiled into the contest rules.
+        "crates/locora-competition/data",
     ] {
         println!("cargo:rerun-if-changed={}", root.join(dir).display());
     }

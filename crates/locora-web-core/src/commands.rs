@@ -4,6 +4,7 @@
 //! `/locora/outbox/`, so the existing path-based import and export code runs unchanged.
 
 use std::path::Path;
+use std::time::Instant;
 
 use anyhow::{Result, bail};
 use locora_app_api::{
@@ -11,7 +12,7 @@ use locora_app_api::{
     PictureTarget, Reply, SettingsChange, Step, Summary, TourAction, UtcOffset,
 };
 use locora_app_core::journey::Journey;
-use locora_app_core::{editor, settings, sply, transfer, views, workbook};
+use locora_app_core::{competition, editor, settings, sply, transfer, views, workbook};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -190,6 +191,32 @@ struct WorkbookCalcArgs {
     expression: String,
 }
 
+#[derive(Deserialize)]
+struct CompeteStartArgs {
+    start: locora_app_api::CompeteStart,
+}
+
+#[derive(Deserialize)]
+struct HandInArgs {
+    finish: locora_app_api::CompeteHandIn,
+}
+
+#[derive(Deserialize)]
+struct EveningArgs {
+    evening: locora_app_api::CompeteEvening,
+}
+
+#[derive(Deserialize, Default)]
+struct HistoryArgs {
+    #[serde(default)]
+    query: locora_app_api::CompeteHistoryQuery,
+}
+
+#[derive(Deserialize)]
+struct ChoiceArgs {
+    choice: locora_app_api::CompeteChoice,
+}
+
 /// The running journey; a finished one only takes actions on its last answer.
 fn running(journey: Option<&mut Journey>) -> Result<&mut Journey> {
     match journey {
@@ -244,6 +271,18 @@ pub const NAMES: &[&str] = &[
     "dump_file",
     "set_plugins",
     "game_keep_own",
+    "compete_today",
+    "compete_start",
+    "compete_recall",
+    "compete_finish",
+    "compete_abandon",
+    "compete_evening_start",
+    "compete_evening_finish",
+    "compete_records",
+    "compete_history",
+    "compete_code",
+    "compete_routes",
+    "compete_route_walk",
 ];
 
 /// Whether a command name is known, before any backend is needed to answer it.
@@ -314,6 +353,7 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
     let Backend {
         profile,
         journey,
+        compete,
         default_marker,
         simo,
         assets,
@@ -629,6 +669,61 @@ pub fn run(b: &mut Backend, command: &str, args: Value) -> Result<Value> {
             std::fs::remove_dir_all(&folder)?;
             out(serde_json::json!({ "message": message, "file": archive }))
         }
+        // The memory contest: one round at a time, held in the core; the plugin keeps the results.
+        "compete_today" => out(competition::today(profile)?),
+        "compete_start" => {
+            let a: CompeteStartArgs = take(args)?;
+            out(competition::start(
+                compete,
+                profile,
+                a.start,
+                Instant::now(),
+            )?)
+        }
+        "compete_recall" => out(competition::recall(compete, Instant::now())?),
+        "compete_finish" => {
+            let a: HandInArgs = take(args)?;
+            out(competition::finish(
+                compete,
+                profile,
+                a.finish,
+                Instant::now(),
+            )?)
+        }
+        "compete_abandon" => {
+            competition::abandon(compete);
+            out(())
+        }
+        "compete_evening_start" => {
+            let a: EveningArgs = take(args)?;
+            out(competition::evening_start(
+                compete,
+                profile,
+                a.evening,
+                Instant::now(),
+            )?)
+        }
+        "compete_evening_finish" => {
+            let a: HandInArgs = take(args)?;
+            out(competition::evening_finish(compete, profile, a.finish)?)
+        }
+        "compete_records" => out(competition::records(profile)?),
+        "compete_history" => {
+            let a: HistoryArgs = take(args).unwrap_or_default();
+            out(competition::history(profile, a.query)?)
+        }
+        "compete_code" => {
+            let a: ChoiceArgs = take(args)?;
+            out(competition::new_code(a.choice))
+        }
+        "compete_routes" => {
+            let a: ChoiceArgs = take(args)?;
+            out(competition::route_choices(&profile.store, a.choice)?)
+        }
+        "compete_route_walk" => {
+            let a: PalaceArgs = take(args)?;
+            out(competition::route_places(&profile.store, &a.palace_id)?)
+        }
         // Without Locora Cloud the account is signed out: the settings page shows that, and the
         // actions that need the server explain why they cannot run here.
         "cloud_status" | "cloud_refresh" => out(CloudStatus::signed_out()),
@@ -689,5 +784,50 @@ mod tests {
         let png = dir.path().join("bild.png");
         std::fs::write(&png, locora_media::fixtures::png()).unwrap();
         assert!(import_locus_file(&mut profile, "audio", &target, &png, "marker").is_err());
+    }
+
+    #[test]
+    fn a_contest_round_runs_through_the_commands_of_the_page() {
+        let dir = tempfile::tempdir().unwrap();
+        let profile = locora_runtime::Profile::open(Some(&dir.path().join("profil"))).unwrap();
+        let assets = locora_app_core::assets::Assets::register(&profile.store).unwrap();
+        let mut b = Backend {
+            profile,
+            journey: None,
+            compete: Default::default(),
+            default_marker: String::new(),
+            simo: String::new(),
+            assets,
+        };
+        let today = run(&mut b, "compete_today", serde_json::json!({})).unwrap();
+        assert_eq!(today["today"]["levels"].as_array().unwrap().len(), 3);
+        assert_eq!(today["routes_needed"].as_array().unwrap().len(), 3);
+        let start = serde_json::json!({
+            "start": { "kind": "code", "code": "c2-28t5-cy4t-qkff-k", "lang": "en" }
+        });
+        let started = run(&mut b, "compete_start", start).unwrap();
+        let deck = started["task"]["cards"].clone();
+        assert_eq!(deck[0], 36, "the golden deck");
+        assert_eq!(started["places"].as_array().unwrap().len(), 26);
+        run(&mut b, "compete_recall", serde_json::json!({})).unwrap();
+        let finish = serde_json::json!({ "finish": { "recall": { "cards": deck }, "lang": "en" } });
+        let result = run(&mut b, "compete_finish", finish).unwrap();
+        assert_eq!(result["finished"]["score"]["points"], 26);
+        assert_eq!(result["code"], "C2-28T5-CY4T-QKFF-K");
+        assert_eq!(result["correct"][0], "jack of diamonds");
+        let history = run(&mut b, "compete_history", serde_json::json!({})).unwrap();
+        assert_eq!(history.as_array().unwrap().len(), 1);
+        let records = run(&mut b, "compete_records", serde_json::json!({})).unwrap();
+        assert_eq!(records["trophies"][0]["id"], "compete-first");
+        let choice = serde_json::json!({ "choice": { "discipline": "list", "level": 3 } });
+        let code = run(&mut b, "compete_code", choice.clone()).unwrap();
+        assert!(code.as_str().unwrap().starts_with("S3-"), "{code}");
+        assert_eq!(
+            run(&mut b, "compete_routes", choice).unwrap(),
+            serde_json::json!([])
+        );
+        let contest = NAMES.iter().filter(|name| name.starts_with("compete_"));
+        assert_eq!(contest.count(), 12);
+        assert!(run(&mut b, "compete_finish", serde_json::json!({})).is_err());
     }
 }

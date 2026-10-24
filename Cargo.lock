@@ -1453,8 +1453,10 @@ dependencies = [
  "anyhow",
  "clap",
  "dirs",
+ "libc",
  "locora-api",
  "locora-cloud-api",
+ "locora-competition",
  "locora-crypto",
  "locora-format",
  "locora-formula",
@@ -1477,6 +1479,7 @@ dependencies = [
 name = "locora-api"
 version = "0.1.7"
 dependencies = [
+ "locora-competition",
  "postcard",
  "serde",
 ]
@@ -1486,6 +1489,7 @@ name = "locora-app-api"
 version = "0.1.7"
 dependencies = [
  "locora-api",
+ "locora-competition",
  "serde",
 ]
 
@@ -1499,6 +1503,7 @@ dependencies = [
  "locora-api",
  "locora-app-api",
  "locora-cloud-api",
+ "locora-competition",
  "locora-format",
  "locora-formula",
  "locora-media",
@@ -1587,6 +1592,7 @@ version = "0.1.7"
 dependencies = [
  "anyhow",
  "locora-api",
+ "locora-competition",
  "locora-fsrs",
  "locora-store",
  "serde",
@@ -1632,6 +1638,7 @@ dependencies = [
  "dirs",
  "locora-api",
  "locora-cloud-api",
+ "locora-competition",
  "locora-crypto",
  "locora-format",
  "locora-formula",
@@ -1641,12 +1648,14 @@ dependencies = [
  "locora-source",
  "locora-store",
  "percent-encoding",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
  "ureq",
  "url",
+ "uuid",
  "zeroize",
 ]
 

@@ -3288,6 +3288,7 @@ dependencies = [
 name = "locora-api"
 version = "0.1.7"
 dependencies = [
+ "locora-competition",
  "postcard",
  "serde",
 ]
@@ -3332,6 +3333,7 @@ name = "locora-app-api"
 version = "0.1.7"
 dependencies = [
  "locora-api",
+ "locora-competition",
  "serde",
 ]
 
@@ -3345,6 +3347,7 @@ dependencies = [
  "locora-api",
  "locora-app-api",
  "locora-cloud-api",
+ "locora-competition",
  "locora-format",
  "locora-formula",
  "locora-media",
@@ -3366,6 +3369,13 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "locora-competition"
+version = "0.1.7"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -3461,6 +3471,7 @@ dependencies = [
  "dirs 6.0.0",
  "locora-api",
  "locora-cloud-api",
+ "locora-competition",
  "locora-crypto",
  "locora-format",
  "locora-formula",
@@ -3470,12 +3481,14 @@ dependencies = [
  "locora-source",
  "locora-store",
  "percent-encoding",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "tempfile",
  "ureq",
  "url",
+ "uuid",
  "zeroize",
 ]
 
