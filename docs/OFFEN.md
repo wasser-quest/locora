@@ -2,7 +2,7 @@
 
 Alles, was noch gebaut oder entschieden werden muss. Wird bei jedem Schritt aktualisiert. Erledigtes wird hier gestrichen und in `PLAN.md` (Abschnitt 13) bzw. den Commits festgehalten. Reihenfolge innerhalb eines Abschnitts = Empfehlung.
 
-Stand: 22.10.2026
+Stand: 24.10.2026
 
 ## Jetzt: Phase 2 – die App (Tauri 2 + Leptos)
 
@@ -145,6 +145,17 @@ Stand: 22.10.2026
   - Offen: eine Wiederholungsrunde für heute falsch Beantwortetes („relearn“) und ein Coach für immer wieder vergessene Orte („leech“)
 - [ ] Plugin-Verzeichnis, WASM-Plugins von Dritten mit deklarativer UI, Store-Prüfung für iOS/Android
 
+## Gedächtnis-Wettkampf (0.1.7)
+
+Einkaufsliste, Zahlen und Karten in drei Stufen gegen die Uhr: Tages-Challenge, Übungsrunden, Challenge-Codes für Freunde; in Stufe 2 Duelle und Ranglisten über Locora Cloud. Grundlage sind die Spezifikation des Wettkampfs und ihr Nachtrag.
+
+- [x] Teil A: gemeinsame Crate `crates/locora-competition` für Plugin, App, CLI und Server: Regeln, Generator, Wertung, Challenge-Codes, Wochenplan, XP fürs Mitmachen (10/15/20 je Stufe, 5 für die Abendabfrage), Kartennamen und Benachrichtigungstexte in fünf Sprachen, Golden-Vektoren; die Wortliste `groceries-v1` (140 Begriffe) mit dem Abgleich der Antworten; Tests in CI auch auf wasm32-wasip2
+- [ ] `groceries-v1` prüfen lassen (`crates/locora-competition/data/REVIEW.md`): Deutsch durch den Eigentümer, Englisch, Französisch, Japanisch und Chinesisch durch Muttersprachler. Bis zum ersten Release mit dem Wettkampf ändert eine Korrektur v1 (Hash und Golden-Liste im selben Commit), danach kommt sie in `groceries-v2`
+- [ ] Teil B: Plugin `competition` (Fakten unter der Spiel-Epoche über `storage.list@1`), Runtime, App-Core-Befehle und `locora compete`
+- [ ] Teil C: Grafiken, Wettkampf-Bildschirme, Ankündigung am Morgen und Erinnerung am Abend, Wettkampf-XP über `gamification.contest@1`; erst dann in die Release-Notizen
+- [ ] Stufe 2 (Locora Cloud): Tages-Challenge mit Serverzeit und Ranglisten, Duelle unter Freunden (Migrationen 0025/0026, Löschen über `DELETE /v1/game/data`)
+- [x] Entscheidung D4: Freunde bleiben; Duelle in Stufe 2 bauen darauf auf
+
 ## Locora Cloud: als Nächstes
 
 Reihenfolge: Deploy → Rangliste → Bezahlen.
@@ -154,7 +165,7 @@ Reihenfolge: Deploy → Rangliste → Bezahlen.
 - [x] Server gehärtet: Speicherkontingente pro Konto (Standard Medien 512 MiB Gast / 5 GiB mit Abo, Änderungen 256 MiB / 2 GiB), serverweite Budgets, Zeitlimits, Rate-Limits, Wartungs-Job (Warnung vor dem Löschen, Aufräumen), tägliches verschlüsseltes Datenbank-Backup; die App meldet volle Speicher (507), Überlast (503) und 429 neutral, ohne Abo-Hinweis
 - [x] Kontoseite `web.locora.cloud` (statisch, im Server-Repo unter `web/`): Konto, Speicher, Passwort, Abmelden, Daten oder Konto löschen, Mail-Links
 - [ ] Neuen Server und die Kontoseite deployen (vorher fragen); danach den Gerätedurchlauf oben
-- [ ] Rangliste neu: eine öffentliche Rangliste statt Freunden und Challenges, Zeiträume Tag/Woche/Monat/Jahr, Teilnahme nur auf Wunsch mit Anzeigename, kostenlos. „Melden“ (Schummeln, unpassender Name), automatisch ausgeblendet ab 5 Meldungen verschiedener bestätigter Konten; Ausblenden pro Gerät; Server-Befehle für den Betreiber. In der App als abschaltbare Kachel/Seite. Freunde und Challenges aus App, CLI und Server entfernen
+- [ ] Rangliste neu: eine öffentliche Rangliste, Zeiträume Tag/Woche/Monat/Jahr, Teilnahme nur auf Wunsch mit Anzeigename, kostenlos. „Melden“ (Schummeln, unpassender Name), automatisch ausgeblendet ab 5 Meldungen verschiedener bestätigter Konten; Ausblenden pro Gerät; Server-Befehle für den Betreiber. In der App als abschaltbare Kachel/Seite. Freunde bleiben (Entscheidung D4); ob die Journey-Challenges entfallen, ist offen
 - [ ] Bezahlen über Paddle (siehe Phase 5), nur im Web
 - [ ] Rechtliches für das Abo: AGB, Widerrufsbelehrung, Preisseite, Datenschutzerklärung ergänzen
 - [ ] Support-Adresse einrichten und nennen

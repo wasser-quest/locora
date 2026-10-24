@@ -9,16 +9,20 @@
 //! output of version 1.
 //!
 //! Three disciplines with three fixed levels each (spec §3): a shopping list
-//! recalled in any order, digits in rows of ten, and the order of shuffled cards.
+//! recalled in any order ([`words`], [`matcher`]), digits in rows of ten
+//! ([`numbers`]), and the order of shuffled cards ([`cards`]).
 
 pub mod cards;
 pub mod code;
 mod date;
 pub mod floors;
+mod list;
+pub mod matcher;
 pub mod numbers;
 pub mod rng;
 pub mod schedule;
 pub mod texts;
+pub mod words;
 pub mod xp;
 
 pub use date::Date;
@@ -317,10 +321,11 @@ impl Recall {
         self.len() == 0
     }
 
-    /// Places that hold an answer; text that is only whitespace counts as empty.
+    /// Places that hold an answer. Text without a letter or digit counts as
+    /// empty, as it does in the score.
     pub fn answered(&self) -> usize {
         match self {
-            Recall::List(answers) => answers.iter().filter(|a| !a.trim().is_empty()).count(),
+            Recall::List(answers) => answers.iter().filter(|a| !matcher::blank(a)).count(),
             Recall::Numbers(digits) => digits.iter().flatten().count(),
             Recall::Cards(cards) => cards.iter().flatten().count(),
         }
@@ -527,8 +532,7 @@ pub fn daily_seed(date: Date, discipline: Discipline, level: Level) -> Seed {
 pub fn generate(spec: &Spec, seed: Seed) -> Task {
     let mut rng = rng::SplitMix64::new(seed);
     match spec.discipline {
-        // The word list arrives with groceries-v1; until then a list has no items.
-        Discipline::List => Task::List(Vec::new()),
+        Discipline::List => Task::List(list::generate(&mut rng, spec.items)),
         Discipline::Numbers => Task::Numbers(numbers::generate(&mut rng, spec.items)),
         Discipline::Cards => Task::Cards(cards::generate(&mut rng, spec.items)),
     }
@@ -544,8 +548,8 @@ pub fn validate(spec: &Spec, recall: &Recall) -> Result<(), RecallError> {
 /// shopping list was played in; numbers and cards ignore it.
 pub fn score(task: &Task, recall: &Recall, lang: Lang) -> Result<Score, RecallError> {
     check(task.discipline(), task.len(), recall)?;
-    let _ = lang;
     match (task, recall) {
+        (Task::List(items), Recall::List(answers)) => Ok(list::score(items, answers, lang)),
         (Task::Numbers(digits), Recall::Numbers(answers)) => Ok(numbers::score(digits, answers)),
         (Task::Cards(cards), Recall::Cards(answers)) => Ok(cards::score(cards, answers)),
         _ => Err(RecallError::Discipline),
@@ -834,6 +838,7 @@ mod tests {
         );
         assert_eq!(Recall::blank(Discipline::List, 2).answered(), 0);
         assert_eq!(Recall::List(vec![" ".into(), "Brot".into()]).answered(), 1);
+        assert_eq!(Recall::List(vec!["…".into(), "- ?".into()]).answered(), 0);
         assert_eq!(Recall::Numbers(vec![None, Some(0), Some(4)]).answered(), 2);
         assert_eq!(Recall::Cards(vec![None, Some(51)]).answered(), 1);
     }

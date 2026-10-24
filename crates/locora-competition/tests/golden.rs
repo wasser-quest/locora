@@ -8,7 +8,7 @@
 use locora_competition::rng::{SplitMix64, fnv1a64};
 use locora_competition::{
     Date, Discipline, Lang, Level, Recall, Score, Seed, Spec, Task, cards, code, daily_seed,
-    generate, schedule, score, xp,
+    generate, schedule, score, words, xp,
 };
 use serde::Deserialize;
 
@@ -198,6 +198,38 @@ fn daily_seeds_and_their_tasks() {
 }
 
 #[derive(Deserialize)]
+struct ListCase {
+    seed: Seed,
+    items: u8,
+    ids: Vec<u16>,
+    keys: String,
+    date: Option<Date>,
+    level: Option<Level>,
+}
+
+#[test]
+fn shopping_lists_of_a_seed() {
+    let cases: Vec<ListCase> = serde_json::from_str(include_str!("golden/list.json")).unwrap();
+    assert_eq!(cases.len(), 4);
+    for case in cases {
+        let spec = Spec {
+            items: case.items,
+            ..Spec::standard(Discipline::List, case.level.unwrap_or(level(1)))
+        };
+        assert_eq!(generate(&spec, case.seed), Task::List(case.ids.clone()));
+        let keys: Vec<&str> = case
+            .ids
+            .iter()
+            .map(|&id| words::pool().get(id).unwrap().key)
+            .collect();
+        assert_eq!(keys.join(" "), case.keys);
+        if let (Some(date), Some(level)) = (case.date, case.level) {
+            assert_eq!(daily_seed(date, Discipline::List, level), case.seed);
+        }
+    }
+}
+
+#[derive(Deserialize)]
 struct ScheduleCase {
     date: Date,
     days: i64,
@@ -253,7 +285,7 @@ struct ScoreCase {
 #[test]
 fn scoring_examples() {
     let cases: Vec<ScoreCase> = serde_json::from_str(include_str!("golden/scoring.json")).unwrap();
-    assert!(cases.len() >= 5);
+    assert_eq!(cases.len(), 12);
     for case in cases {
         assert_eq!(
             score(&case.task, &case.recall, case.lang).as_ref(),

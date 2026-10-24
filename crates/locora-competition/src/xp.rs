@@ -46,6 +46,7 @@ mod tests {
     fn an_empty_hand_in_earns_nothing() {
         assert!(!earns(&Recall::blank(Discipline::Cards, 13)));
         assert!(!earns(&Recall::List(vec![" ".into(), String::new()])));
+        assert!(!earns(&Recall::List(vec!["...".into(), "?".into()])));
         assert!(earns(&Recall::List(vec![String::new(), "Milch".into()])));
         assert!(earns(&Recall::Numbers(vec![None, Some(0)])));
         assert!(earns(&Recall::Cards(vec![Some(51), None])));
