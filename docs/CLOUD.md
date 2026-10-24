@@ -173,8 +173,9 @@ Ranglisten.
   zurückziehen (beides braucht kein Abo).
 - **Ranglisten:** Die eigene Zeile heißt „(du)“ nur in der Rangliste der Freunde und nur, wenn
   kein Freund denselben Namen trägt; der Server schickt kein Merkmal dafür, und Namen sind nicht
-  eindeutig. „Melden“ steht an jedem Namen, auch am eigenen (der Server übergeht das). Gleiche
-  Punkte teilen sich einen Platz. Journeys in der App zählen noch nicht für die Ranglisten.
+  eindeutig. „Melden“ steht an jedem Namen außer an der Zeile „(du)“; ein Name, den zwei tragen,
+  ist nie „(du)“, so verdeckt eine Kopie keinen Knopf. Gleiche Punkte teilen sich einen Platz.
+  Journeys in der App zählen noch nicht für die Ranglisten.
 - **Was die App sagt:** Jede Antwort wird in `locora-app-core/src/social.rs` zu einem Zustand:
   abgemeldet, Anmeldung abgelaufen (401), für dieses Konto nicht verfügbar (402, neutral, ohne
   Hinweis, wie man Zugang bekommt), Server zu alt (404/405) oder das Ergebnis. Die Seite formuliert

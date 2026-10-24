@@ -7,6 +7,9 @@
 //! sent. Each part of the page has its own status line right after it; the focus goes there after
 //! an action, because the row whose button had it may be gone. Reloads keep the page on screen.
 
+use std::cell::Cell;
+use std::collections::HashSet;
+
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use locora_app_api::{
@@ -137,6 +140,20 @@ fn when(secs: u64, time: bool) -> String {
     }
 }
 
+thread_local! {
+    static NEXT_ID: Cell<u32> = const { Cell::new(0) };
+}
+
+/// An id for an element of a row (a hint its field names), unique on the page.
+fn unique_id(prefix: &str) -> String {
+    let id = NEXT_ID.with(|next| {
+        let id = next.get().wrapping_add(1);
+        next.set(id);
+        id
+    });
+    format!("{prefix}-{id}")
+}
+
 /// A name to report, with the line that will say it was reported.
 #[derive(Clone)]
 struct ReportTarget {
@@ -150,12 +167,18 @@ struct ReportTarget {
 struct Page {
     list: RwSignal<Option<Result<Social<FriendsList>, String>>>,
     reload: Callback<()>,
-    /// After asking someone, the newest request in „Deine Anfragen“ says it was just sent.
-    just_sent: RwSignal<bool>,
+    /// After asking someone: the requests in „Deine Anfragen“ before the request was sent. One
+    /// that was not among them says it was just sent; the server often makes no new one (the
+    /// person was asked already), and then none does.
+    sent_before: RwSignal<Option<HashSet<String>>>,
     /// Bumped after a change of friends; the friends ranking reads itself again.
     friends_changed: RwSignal<u32>,
     /// The invite link just made, until it is closed or the page left.
     new_link: RwSignal<Option<InviteLink>>,
+    /// While a new invite link is made: a second tap makes no second one.
+    creating: RwSignal<bool>,
+    /// „Einladungslink erstellen“, which gets the focus back when the new link's box closes.
+    create_button: NodeRef<leptos::html::Button>,
     /// The status line under the new link.
     link_note: Notes,
     report: RwSignal<Option<ReportTarget>>,
@@ -163,9 +186,26 @@ struct Page {
 }
 
 impl Page {
-    /// Reads the list again; `sent` marks the newest request this account sent.
-    fn refresh(&self, sent: bool) {
-        self.just_sent.set(sent);
+    /// Reads the list again.
+    fn refresh(&self) {
+        self.sent_before.set(None);
+        self.reload.run(());
+    }
+
+    /// The ids of the requests this account sent, as the page shows them (before asking).
+    fn sent_ids(&self) -> HashSet<String> {
+        self.with(|list| {
+            list.sent
+                .iter()
+                .filter_map(|sent| sent.id.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+    }
+
+    /// Reads the list again after asking; a request not in `before` is marked as just sent.
+    fn refresh_asked(&self, before: HashSet<String>) {
+        self.sent_before.set(Some(before));
         self.reload.run(());
     }
 
@@ -190,8 +230,12 @@ impl Page {
         }));
     }
 
-    /// Makes a new invite link and shows it under „Freunde einladen“.
+    /// Makes a new invite link and shows it under „Freunde einladen“; not while one is made.
     fn create_link(&self) {
+        if self.creating.get_untracked() {
+            return;
+        }
+        self.creating.set(true);
         let page = *self;
         spawn_local(async move {
             let note = match call::<Social<InviteLink>>(CMD_CLOUD_INVITE_CREATE, NoArgs {}).await {
@@ -201,13 +245,14 @@ impl Page {
                         &[&when(link.expires_at, false)],
                     );
                     page.new_link.try_set(Some(link));
-                    page.refresh(false);
+                    page.refresh();
                     Note::said(said)
                 }
                 Ok(state) => Note::failed(calm(&state, Context::Links).unwrap_or_default()),
                 Err(error) => Note::failed(error),
             };
             page.link_note.try_set(note);
+            page.creating.try_set(false);
         });
     }
 }
@@ -270,9 +315,11 @@ pub fn FriendsScreen(screen: RwSignal<Screen>, from_settings: bool) -> impl Into
     let page = Page {
         list,
         reload,
-        just_sent: RwSignal::new(false),
+        sent_before: RwSignal::new(None),
         friends_changed: RwSignal::new(0),
         new_link: RwSignal::new(None),
+        creating: RwSignal::new(false),
+        create_button: NodeRef::new(),
         link_note: RwSignal::new(None),
         report: RwSignal::new(None),
         report_opener: StoredValue::new_local(None),
@@ -304,17 +351,31 @@ pub fn FriendsScreen(screen: RwSignal<Screen>, from_settings: bool) -> impl Into
     let waiting = move || {
         crate::tauri::in_browser() && auto.is_some_and(|auto| auto.view.with(|view| view.running))
     };
+    // Back in the settings, the button that led here has the focus again, in view.
     let back = move |_| {
-        screen.set(if from_settings {
-            Screen::Settings
+        if from_settings {
+            crate::cloud_settings::open_cloud_at(
+                screen,
+                crate::cloud_settings::CloudFocus::Friends,
+            );
         } else {
-            start_screen()
-        })
+            screen.set(start_screen());
+        }
+    };
+    let heading = NodeRef::<leptos::html::H1>::new();
+    // A retry shows the page loading again, so that the same error is announced again; the focus
+    // waits on the heading meanwhile (the button goes).
+    let retry = move || {
+        if let Some(heading) = heading.get_untracked() {
+            let _ = heading.focus();
+        }
+        list.set(None);
+        reload.run(());
     };
     view! {
         <header class="bar friends-bar">
             <button class="back" title=t("Zurück") aria-label=t("Zurück") on:click=back>"←"</button>
-            <h1 tabindex="-1">{t("Freunde & Ranglisten")}</h1>
+            <h1 tabindex="-1" node_ref=heading>{t("Freunde & Ranglisten")}</h1>
         </header>
         {move || stale.get().map(|error| view! { <p class="notes" role="alert">{error}</p> })}
         {move || match shown.get() {
@@ -329,7 +390,7 @@ pub fn FriendsScreen(screen: RwSignal<Screen>, from_settings: bool) -> impl Into
                         Some(Err(error)) => error.clone(),
                         _ => String::new(),
                     })}</p>
-                    <button type="button" on:click=move |_| reload.run(())>{t("Erneut versuchen")}</button>
+                    <button type="button" on:click=move |_| retry()>{t("Erneut versuchen")}</button>
                 </section>
             }.into_any(),
             Shown::Calm(text, settings) => view! {
@@ -423,44 +484,47 @@ fn FriendsCard() -> impl IntoView {
             })
             .collect::<Vec<_>>()
     };
-    let newest = move || {
-        page.with(|list| list.sent.iter().filter_map(|sent| sent.since).max())
-            .flatten()
-    };
     view! {
         <section class="card friends-card" aria-labelledby="friends-title">
             <h2 id="friends-title">{t("Freunde")}</h2>
             <Show when=empty>
                 <p class="notes">{t("Noch keine Freunde. Lade jemanden mit einem Link ein oder schick eine Anfrage an die E-Mail-Adresse der Person.")}</p>
             </Show>
+            // A list only where there are rows: an empty one is noise for a screen reader.
             <Show when=move || !incoming().is_empty()>
                 <h3>{t("Anfragen an dich")}</h3>
+                <ul class="friend-rows">
+                    <For each=incoming key=|(key, _)| key.clone() children=move |(_, entry)| view! {
+                        <IncomingRow entry=entry note=incoming_note />
+                    } />
+                </ul>
             </Show>
-            <ul class="friend-rows">
-                <For each=incoming key=|(key, _)| key.clone() children=move |(_, entry)| view! {
-                    <IncomingRow entry=entry note=incoming_note />
-                } />
-            </ul>
             <Said note=incoming_note />
             <Show when=move || !friends().is_empty()>
                 <h3>{t("Deine Freunde")}</h3>
+                <ul class="friend-rows">
+                    <For each=friends key=|(key, _)| key.clone() children=move |(_, entry)| view! {
+                        <FriendRow entry=entry note=friends_note />
+                    } />
+                </ul>
             </Show>
-            <ul class="friend-rows">
-                <For each=friends key=|(key, _)| key.clone() children=move |(_, entry)| view! {
-                    <FriendRow entry=entry note=friends_note />
-                } />
-            </ul>
             <Said note=friends_note />
             <Show when=move || !sent().is_empty() || has_open()>
                 <h3>{t("Deine Anfragen")}</h3>
             </Show>
-            <ul class="friend-rows">
-                <For each=sent_rows key=|(key, _)| key.clone() children=move |(_, request)| {
-                    let since = request.since;
-                    let fresh = move || page.just_sent.get() && since.is_some() && since == newest();
-                    view! { <SentRow sent=request fresh=Signal::derive(fresh) note=sent_note /> }
-                } />
-            </ul>
+            <Show when=move || !sent().is_empty()>
+                <ul class="friend-rows">
+                    <For each=sent_rows key=|(key, _)| key.clone() children=move |(_, request)| {
+                        let id = request.id.clone();
+                        let fresh = move || {
+                            page.sent_before.with(|before| {
+                                before.as_ref().zip(id.as_ref()).is_some_and(|(before, id)| !before.contains(id))
+                            })
+                        };
+                        view! { <SentRow sent=request fresh=Signal::derive(fresh) note=sent_note /> }
+                    } />
+                </ul>
+            </Show>
             <Show when=has_open>
                 <p>{move || tf("Offene Anfragen: {0}", &[&open()])}</p>
             </Show>
@@ -481,14 +545,14 @@ fn remove(page: Page, id: String, done: String, note: Notes, busy: RwSignal<bool
     spawn_local(async move {
         let said = match call::<Social<()>>(CMD_CLOUD_FRIEND_REMOVE, FriendIdArgs { id }).await {
             Ok(Social::Ready(())) => {
-                page.refresh(false);
+                page.refresh();
                 page.friends_changed();
                 Note::said(done)
             }
             Ok(state) => Note::failed(calm(&state, Context::Remove).unwrap_or_default()),
             Err(error) => {
                 // A friendship or request that is gone already: the list shows what is left.
-                page.refresh(false);
+                page.refresh();
                 Note::failed(error)
             }
         };
@@ -547,6 +611,8 @@ fn IncomingRow(entry: FriendEntry, note: Notes) -> impl IntoView {
     let accept_button = NodeRef::<leptos::html::Button>::new();
     let decline_button = NodeRef::<leptos::html::Button>::new();
     let field = NodeRef::<leptos::html::Input>::new();
+    // The field names the hint after it, which says what a wrong address does.
+    let hint = unique_id("ask-back-hint");
     Effect::new(move |_| {
         if let Some(field) = field.get() {
             let _ = field.focus();
@@ -566,6 +632,7 @@ fn IncomingRow(entry: FriendEntry, note: Notes) -> impl IntoView {
         busy.set(true);
         form_note.set(None);
         let address = email.get_untracked();
+        let before = page.sent_ids();
         spawn_local(async move {
             let name = name.get_value();
             match call::<Social<FriendAsked>>(
@@ -579,14 +646,14 @@ fn IncomingRow(entry: FriendEntry, note: Notes) -> impl IntoView {
                     asking.try_set(false);
                     if asked.accepted {
                         page.friends_changed();
-                        page.refresh(false);
+                        page.refresh();
                         note.try_set(Note::said(tf(
                             "Du bist mit {0} befreundet.",
                             &[&asked.name.unwrap_or(name)],
                         )));
                     } else {
                         offer.try_set(true);
-                        page.refresh(true);
+                        page.refresh_asked(before);
                         note.try_set(Note::said(tf(
                             "Noch nicht befreundet. Eine Anfrage an diese Adresse wartet jetzt. Gehört die Adresse {0}, seid ihr befreundet, sobald sie bestätigt ist. Hast du dich vertippt, kannst du die Anfrage unter „Deine Anfragen“ zurückziehen.",
                             &[&name],
@@ -646,12 +713,14 @@ fn IncomingRow(entry: FriendEntry, note: Notes) -> impl IntoView {
                             }>{t("Melden")}</button>
                     })}
                     <Show when=move || offer.get() && !asking.get()>
-                        <button type="button" on:click=move |_| link_instead()>{t("Stattdessen Einladungslink schicken…")}</button>
+                        <button type="button" disabled=move || page.creating.get()
+                            on:click=move |_| link_instead()>{t("Stattdessen Einladungslink schicken…")}</button>
                     </Show>
                 </div>
             </div>
             <Show when=move || asking.get()>
-                <form class="friend-form keep-in-view" on:keydown=move |event| {
+                // The app checks the address itself and says so in its own words and language.
+                <form class="friend-form keep-in-view" novalidate on:keydown=move |event| {
                         if event.key() == "Escape" {
                             event.prevent_default();
                             close_form();
@@ -665,12 +734,14 @@ fn IncomingRow(entry: FriendEntry, note: Notes) -> impl IntoView {
                         <span>{tf("E-Mail-Adresse von {0}", &[&name.get_value()])}</span>
                         <input type="email" inputmode="email" autocomplete="off" autocapitalize="none"
                             spellcheck="false" maxlength="254" node_ref=field bind:value=email
+                            aria-describedby=hint.clone()
                             on:focus=move |event| crate::keep_in_view(event_target(&event)) />
                     </label>
-                    <p class="notes">{tf("Zum Annehmen fragst du {0} mit der Adresse an, mit der die Person bei Locora Cloud angemeldet ist. Locora zeigt Adressen anderer nie an. Ist es nicht die Adresse von {0}, geht eine neue Anfrage an diese Adresse.", &[&name.get_value()])}</p>
+                    <p class="notes" id=hint.clone()>{tf("Zum Annehmen fragst du {0} mit der Adresse an, mit der die Person bei Locora Cloud angemeldet ist. Locora zeigt Adressen anderer nie an. Ist es nicht die Adresse von {0}, geht eine neue Anfrage an diese Adresse.", &[&name.get_value()])}</p>
                     <div class="friend-actions">
                         <button type="submit" class="primary" disabled=move || busy.get()>{t("Zurück anfragen")}</button>
-                        <button type="button" on:click=move |_| link_instead()>{t("Stattdessen Einladungslink schicken…")}</button>
+                        <button type="button" disabled=move || page.creating.get()
+                            on:click=move |_| link_instead()>{t("Stattdessen Einladungslink schicken…")}</button>
                         <button type="button" on:click=move |_| close_form()>{t("Abbrechen")}</button>
                     </div>
                     <Said note=form_note />
@@ -818,32 +889,46 @@ fn InviteCard() -> impl IntoView {
         })
         .unwrap_or(Links::Ready)
     });
+    // Rebuilt only when the server turns out to know no links, not when the list loads again.
+    let too_old = Memo::new(move |_| links.get() == Links::TooOld);
+    // The heading of the open links stays while they load again, and keeps the focus of a retry.
+    let links_heading = NodeRef::<leptos::html::H3>::new();
+    let retry = move || {
+        if let Some(heading) = links_heading.get_untracked() {
+            let _ = heading.focus();
+        }
+        page.refresh();
+    };
     view! {
         <section class="card invite-card" aria-labelledby="invite-title">
             <h2 id="invite-title">{t("Freunde einladen")}</h2>
-            {move || (links.get() == Links::TooOld).then(|| view! {
+            {move || too_old.get().then(|| view! {
                 <p class="notes">{t("Dieser Server kennt noch keine Einladungslinks. Das geht, sobald er aktualisiert ist.")}</p>
             })}
-            {move || (links.get() != Links::TooOld).then(|| view! {
+            {move || (!too_old.get()).then(|| view! {
                 <p>{t("Ein Einladungslink gilt einmal und eine begrenzte Zeit. Schick ihn nur der Person, die du einladen möchtest: Wer ihn zuerst annimmt, ist mit dir befreundet, und wer ihn hat, sieht deinen Anzeigenamen. Eine E-Mail-Adresse braucht es nicht.")}</p>
-                <button type="button" class="primary" on:click=move |_| {
-                    page.link_note.set(None);
-                    page.create_link();
-                }>{t("Einladungslink erstellen")}</button>
+                <button type="button" class="primary" node_ref=page.create_button disabled=move || page.creating.get()
+                    on:click=move |_| {
+                        page.link_note.set(None);
+                        page.create_link();
+                    }>{t("Einladungslink erstellen")}</button>
                 <NewLink />
                 <Said note=page.link_note />
             })}
             <h3>{t("Jemanden anfragen")}</h3>
             <AskForm />
+            {move || (!too_old.get()).then(|| view! {
+                <h3 tabindex="-1" node_ref=links_heading>{t("Offene Einladungslinks")}</h3>
+            })}
             {move || match links.get() {
                 Links::TooOld => None,
+                // A new paragraph per answer: the same error after a retry is announced again.
                 Links::Failed => Some(view! {
-                    <h3>{t("Offene Einladungslinks")}</h3>
-                    <p class="notes" role="alert">{move || page.with(|list| match &list.invites {
-                        InviteList::Failed(error) => translate_message(error),
-                        _ => String::new(),
-                    }).unwrap_or_default()}</p>
-                    <button type="button" on:click=move |_| page.refresh(false)>{t("Erneut versuchen")}</button>
+                    {move || page.with(|list| match &list.invites {
+                        InviteList::Failed(error) => Some(translate_message(error)),
+                        _ => None,
+                    }).flatten().map(|error| view! { <p class="notes" role="alert">{error}</p> })}
+                    <button type="button" on:click=move |_| retry()>{t("Erneut versuchen")}</button>
                     <h3>{t("Einladung annehmen")}</h3>
                     <AcceptForm />
                 }.into_any()),
@@ -866,6 +951,9 @@ fn NewLink() -> impl IntoView {
         ways.try_set(Some(crate::share::ways().await));
     });
     let note = page.link_note;
+    // While the share sheet is open: a second tap would be refused by the browser and say that
+    // sharing is not possible here.
+    let sharing = RwSignal::new(false);
     move || {
         page.new_link.get().map(|link| {
             let text = invite_text(&link);
@@ -884,6 +972,10 @@ fn NewLink() -> impl IntoView {
                 });
             };
             let share = move |_| {
+                if sharing.get_untracked() {
+                    return;
+                }
+                sharing.set(true);
                 let args = ShareSendArgs {
                     name: String::new(),
                     png: None,
@@ -903,6 +995,7 @@ fn NewLink() -> impl IntoView {
                             note.try_set(Note::failed(error));
                         }
                     }
+                    sharing.try_set(false);
                 });
             };
             view! {
@@ -921,12 +1014,18 @@ fn NewLink() -> impl IntoView {
                     })}
                     <div class="friend-actions">
                         {move || ways.get().is_some_and(|ways: locora_app_api::ShareWays| ways.text_sheet).then(|| view! {
-                            <button type="button" on:click=share>{t("Teilen…")}</button>
+                            // Not `disabled`: cancelling the sheet says nothing, so the focus stays here.
+                            <button type="button" aria-disabled=move || sharing.get().then_some("true")
+                                on:click=share>{t("Teilen…")}</button>
                         })}
                         <button type="button" on:click=copy>{if has_url { t("Link kopieren") } else { t("Code kopieren") }}</button>
                         <button type="button" on:click=move |_| {
                             page.new_link.set(None);
                             note.set(None);
+                            // The box goes: the focus goes back to the button that made the link.
+                            if let Some(button) = page.create_button.get_untracked() {
+                                let _ = button.focus();
+                            }
                         }>{t("Schließen")}</button>
                     </div>
                 </div>
@@ -950,6 +1049,7 @@ fn AskForm() -> impl IntoView {
         busy.set(true);
         note.set(None);
         let address = email.get_untracked();
+        let before = page.sent_ids();
         spawn_local(async move {
             let said = match call::<Social<FriendAsked>>(
                 CMD_CLOUD_FRIEND_ASK,
@@ -961,13 +1061,13 @@ fn AskForm() -> impl IntoView {
                     email.try_set(String::new());
                     if asked.accepted {
                         page.friends_changed();
-                        page.refresh(false);
+                        page.refresh();
                         Note::said(tf(
                             "Du bist mit {0} befreundet.",
                             &[&asked.name.unwrap_or_default()],
                         ))
                     } else {
-                        page.refresh(true);
+                        page.refresh_asked(before);
                         Note::said(t(
                             "Anfrage gesendet. Ihr seid befreundet, sobald die Person dich auch anfragt.",
                         ))
@@ -981,17 +1081,18 @@ fn AskForm() -> impl IntoView {
         });
     };
     view! {
-        <form class="friend-form keep-in-view" on:submit=move |event| {
+        // The app checks the address itself and says so in its own words and language.
+        <form class="friend-form keep-in-view" novalidate on:submit=move |event| {
             event.prevent_default();
             send();
         }>
             <label class="input">
                 <span>{t("E-Mail-Adresse der Person")}</span>
                 <input type="email" inputmode="email" autocomplete="off" autocapitalize="none"
-                    spellcheck="false" maxlength="254" bind:value=email
+                    spellcheck="false" maxlength="254" bind:value=email aria-describedby="ask-hint"
                     on:focus=move |event| crate::keep_in_view(event_target(&event)) />
             </label>
-            <p class="notes">{t("Die Person sieht deinen Anzeigenamen und kann annehmen. Ob es zu der Adresse ein Konto gibt, verrät Locora nicht.")}</p>
+            <p class="notes" id="ask-hint">{t("Die Person sieht deinen Anzeigenamen und kann annehmen. Ob es zu der Adresse ein Konto gibt, verrät Locora nicht.")}</p>
             <button type="submit" class="primary" disabled=move || busy.get()>{t("Anfrage senden")}</button>
         </form>
         <Said note=note />
@@ -999,7 +1100,8 @@ fn AskForm() -> impl IntoView {
 }
 
 /// The open invite links. Without access only revoking is offered (the server keeps that free, so
-/// a link handed out earlier can always be stopped), and the part shows only while there are some.
+/// a link handed out earlier can always be stopped), and the part shows only while there are some;
+/// with access the invite card carries its heading.
 #[component]
 fn OpenLinks(access: bool) -> impl IntoView {
     let page = expect_context::<Page>();
@@ -1011,19 +1113,20 @@ fn OpenLinks(access: bool) -> impl IntoView {
         })
         .unwrap_or_default()
     };
-    let shown = move || access || !links().is_empty();
     view! {
-        <Show when=shown>
+        <Show when=move || !access && !links().is_empty()>
             <h3>{t("Offene Einladungslinks")}</h3>
         </Show>
         <Show when=move || access && links().is_empty()>
             <p class="notes">{t("Keine offenen Einladungslinks.")}</p>
         </Show>
-        <ul class="friend-rows">
-            <For each=links key=|link| link.code.clone() children=move |link| view! {
-                <LinkRow link=link access=access note=note />
-            } />
-        </ul>
+        <Show when=move || !links().is_empty()>
+            <ul class="friend-rows">
+                <For each=links key=|link| link.code.clone() children=move |link| view! {
+                    <LinkRow link=link access=access note=note />
+                } />
+            </ul>
+        </Show>
         <Said note=note />
     }
 }
@@ -1081,7 +1184,7 @@ fn LinkRow(link: InviteLink, access: bool, note: Notes) -> impl IntoView {
                         page.new_link.try_set(None);
                         page.link_note.try_set(None);
                     }
-                    page.refresh(false);
+                    page.refresh();
                     Note::said(tf(
                         "Einladungslink {0} zurückgezogen. Er funktioniert nicht mehr.",
                         &[&code],
@@ -1089,7 +1192,7 @@ fn LinkRow(link: InviteLink, access: bool, note: Notes) -> impl IntoView {
                 }
                 Ok(state) => Note::failed(calm(&state, Context::Links).unwrap_or_default()),
                 Err(error) => {
-                    page.refresh(false);
+                    page.refresh();
                     Note::failed(error)
                 }
             };
@@ -1127,6 +1230,7 @@ fn AcceptForm() -> impl IntoView {
     let preview = RwSignal::new(None::<InviteFrom>);
     let busy = RwSignal::new(false);
     let note = RwSignal::new(None);
+    let field = NodeRef::<leptos::html::Input>::new();
     let first = NodeRef::<leptos::html::P>::new();
     Effect::new(move |_| {
         if let Some(first) = first.get() {
@@ -1187,7 +1291,7 @@ fn AcceptForm() -> impl IntoView {
                     text.try_set(String::new());
                     preview.try_set(None);
                     page.friends_changed();
-                    page.refresh(false);
+                    page.refresh();
                     Note::said(tf("Du bist mit {0} befreundet.", &[&friend.name]))
                 }
                 Ok(state) => Note::failed(calm(&state, Context::Accept).unwrap_or_default()),
@@ -1208,7 +1312,7 @@ fn AcceptForm() -> impl IntoView {
             <label class="input">
                 <span>{t("Einladungslink oder Code")}</span>
                 <input type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
-                    maxlength="512" prop:value=move || text.get()
+                    maxlength="512" node_ref=field prop:value=move || text.get()
                     on:input=move |event| {
                         text.set(event_target_value(&event));
                         preview.set(None);
@@ -1239,6 +1343,10 @@ fn AcceptForm() -> impl IntoView {
                         <button type="button" on:click=move |_| {
                             preview.set(None);
                             text.set(String::new());
+                            // The answer goes: the focus goes back to the field, for another code.
+                            if let Some(field) = field.get_untracked() {
+                                let _ = field.focus();
+                            }
                         }>{t("Abbrechen")}</button>
                     </div>
                 </div>
@@ -1313,10 +1421,12 @@ fn RankingCard() -> impl IntoView {
                 on:click=move |_| friends_tab.set(friends)>{label}</button>
         }
     };
+    // A retry shows the ranking loading again; the focus waits on the heading (the button goes).
+    let heading = NodeRef::<leptos::html::H2>::new();
     view! {
         <section class="card ranking-card" aria-labelledby="ranking-title">
             <div class="info-head">
-                <h2 id="ranking-title">{t("Rangliste")}</h2>
+                <h2 id="ranking-title" tabindex="-1" node_ref=heading>{t("Rangliste")}</h2>
                 <Info text="Ranglistenpunkte sammelt Locora Cloud aus Journeys, die es selbst nachrechnet. Die XP auf deinen Geräten zählen hier nicht mit." />
             </div>
             <div class="ranking-tabs" role="group" aria-label=t("Rangliste")>
@@ -1331,6 +1441,9 @@ fn RankingCard() -> impl IntoView {
                     Some(Err(error)) => view! {
                         <p class="notes" role="alert">{error}</p>
                         <button type="button" on:click=move |_| {
+                            if let Some(heading) = heading.get_untracked() {
+                                let _ = heading.focus();
+                            }
                             loaded.set(None);
                             load(friends);
                         }>{t("Erneut versuchen")}</button>
@@ -1354,6 +1467,15 @@ fn RankingCard() -> impl IntoView {
     }
 }
 
+/// The space before „(du)“; none before full-width brackets, which bring their own.
+fn you_gap() -> &'static str {
+    if t("(du)").starts_with('（') {
+        ""
+    } else {
+        " "
+    }
+}
+
 #[component]
 fn RankingEntry(row: RankingRow, note: Notes) -> impl IntoView {
     let page = expect_context::<Page>();
@@ -1364,12 +1486,12 @@ fn RankingEntry(row: RankingRow, note: Notes) -> impl IntoView {
             <span class="ranking-place">{format!("{}.", row.place)}</span>
             <span class="ranking-who">
                 <bdi>{row.name.clone()}</bdi>
-                {row.own.then(|| view! { " "<span class="ranking-you">{t("(du)")}</span> })}
+                {row.own.then(|| view! { {you_gap()}<span class="ranking-you">{t("(du)")}</span> })}
             </span>
             <span class="ranking-points">{points_text(row.points)}</span>
-            // Every name can be reported, the own too (the server ignores that): a name tells
-            // nobody apart, so hiding the button by name would shield whoever copies it.
-            {row.reference.is_some().then(|| view! {
+            // The own entry is not offered for reporting. It is marked only where exactly one
+            // entry carries the account's name, so no one else's button is hidden by a copy.
+            {(row.reference.is_some() && !row.own).then(|| view! {
                 <button type="button" class="ranking-report" aria-label=tf("Namen „{0}“ melden", &[&name.get_value()])
                     on:click=move |event| {
                         if let Some(reference) = reference.get_value() {
@@ -1553,6 +1675,21 @@ mod tests {
             without_you: true,
         };
         assert_eq!(ranking_notes(&empty, true)[0], "Noch keine Einträge.");
+    }
+
+    #[test]
+    fn the_own_mark_keeps_the_spacing_of_its_language() {
+        for (lang, gap) in [
+            (crate::i18n::Lang::De, " "),
+            (crate::i18n::Lang::En, " "),
+            (crate::i18n::Lang::Fr, " "),
+            (crate::i18n::Lang::Ja, ""),
+            (crate::i18n::Lang::Zh, ""),
+        ] {
+            crate::i18n::set_current(lang);
+            assert_eq!(you_gap(), gap, "{lang:?}: {}", t("(du)"));
+        }
+        crate::i18n::set_current(crate::i18n::Lang::De);
     }
 
     #[test]

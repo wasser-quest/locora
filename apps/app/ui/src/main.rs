@@ -924,7 +924,7 @@ fn App() -> impl IntoView {
     provide_context(achievements::Celebration::new());
     provide_context(share::Sharing(RwSignal::new(None)));
     provide_context(cloud_settings::SignedIn(RwSignal::new(None)));
-    provide_context(cloud_settings::CloudFirst(RwSignal::new(false)));
+    provide_context(cloud_settings::CloudFirst(RwSignal::new(None)));
     provide_context(first_palace::Guide(RwSignal::new(first_palace::load())));
     // The first start shows only the language choice and then the welcome page; the tour starts
     // from its button.

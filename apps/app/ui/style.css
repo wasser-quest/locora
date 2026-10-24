@@ -708,15 +708,18 @@ input[type=email], textarea { font: inherit; padding: .5rem .7rem; border-radius
 .invite-url { font: inherit; width: 100%; min-width: 0; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--bg); color: var(--text); }
 .invite-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .03em; overflow-wrap: anywhere; }
-/* The ranking: the place is its own text (equal points share one), the points are aligned. */
+/* The ranking: the place is its own text (equal points share one). Every row has the same
+   columns at every width: the place, the name with its points below it, and „Melden“ at the end
+   beside both lines, so the names and points line up from row to row. */
 .ranking-tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 .75rem; }
 .ranking-tabs button[aria-pressed="true"] { background: var(--indigo); color: #fff; border-color: var(--indigo); }
-.ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
-.ranking-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; }
-.ranking-place { min-width: 2ch; font-weight: 700; font-variant-numeric: tabular-nums; }
-.ranking-who { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; }
+.ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.ranking-row { display: grid; grid-template-columns: 4ch minmax(0, 1fr) auto; align-items: center; gap: .1rem .6rem; }
+.ranking-place { grid-column: 1; grid-row: 1; text-align: end; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ranking-who { grid-column: 2; grid-row: 1; min-width: 0; overflow-wrap: anywhere; }
 .ranking-you { color: var(--muted); }
-.ranking-points { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ranking-points { grid-column: 2; grid-row: 2; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ranking-report { grid-column: 3; grid-row: 1 / span 2; }
 /* A dialog (modal.rs), as high as an on-screen keyboard leaves room for; on a phone at the top. */
 .modal-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 1rem;
   background: rgba(8, 8, 24, .45); }
@@ -736,6 +739,12 @@ input[type=email], textarea { font: inherit; padding: .5rem .7rem; border-radius
 /* The start page's way to friends: beside the gear in the title row, so the rows of actions stay. */
 .home-actions .home-friends { position: absolute; top: 0; right: calc(3rem + .5rem); min-width: 44px; min-height: 44px;
   display: grid; place-items: center; padding: 0; }
+/* On a phone the title row is as high as the two buttons in it, which are finger-sized like the
+   gear: they line up and keep their distance from the row below. */
+@media (max-width: 560px) {
+  .home-bar h1 { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  .home-actions .icon { min-height: 44px; }
+}
 @media (min-width: 561px) { .friend-form > button, .friend-form > .friend-actions { justify-self: start; } }
 /* The share dialog (share.rs): the preview as large as the phone allows, the buttons always in
    reach at its bottom. */
